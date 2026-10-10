@@ -47,11 +47,14 @@ class DownloadCancellationCleanupTests(unittest.TestCase):
         cls.old_valid_url = server.valid_url
         cls.old_popen = server.subprocess.Popen
         cls.old_call = server.subprocess.call
+        cls.old_which = server.shutil.which
         cls.old_runner = server._run_download_job
         cls.fake_processes = []
         server.DOWNLOAD_JOBS.clear()
         server.valid_url = lambda url: (True, "") if url == "https://example.com/cancel-test.mp4" else cls.old_valid_url(url)
         server.subprocess.call = lambda *a, **k: 0
+        # The worker checks provider availability before Popen; fake that dependency in this isolated test.
+        server.shutil.which = lambda name: "/usr/bin/yt-dlp" if name == "yt-dlp" else cls.old_which(name)
         def fake_popen(*args, **kwargs):
             p = FakeProcess()
             cls.fake_processes.append(p)
@@ -70,6 +73,7 @@ class DownloadCancellationCleanupTests(unittest.TestCase):
         server.valid_url = cls.old_valid_url
         server.subprocess.Popen = cls.old_popen
         server.subprocess.call = cls.old_call
+        server.shutil.which = cls.old_which
         server._run_download_job = cls.old_runner
         server.DOWNLOAD_JOBS.clear()
 
