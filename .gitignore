@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.production.example
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.db
+.venv/
+venv/
+node_modules/
+.DS_Store
+dist/
+build/
+android/.gradle/
+android/app/build/
+*.jks
+*.keystore
