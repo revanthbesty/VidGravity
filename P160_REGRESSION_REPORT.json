@@ -1,0 +1,27 @@
+{
+  "milestone": "P160",
+  "automated_unittest_count": 92,
+  "automated_unittest_result": "PASS",
+  "legacy_static_checks": [
+    {
+      "test_file": "test_p124.py",
+      "passed": true,
+      "exit_code": 0,
+      "output": "10/10 PASS"
+    },
+    {
+      "test_file": "test_p125.py",
+      "passed": true,
+      "exit_code": 0,
+      "output": "11/11 PASS"
+    },
+    {
+      "test_file": "test_p126.py",
+      "passed": true,
+      "exit_code": 0,
+      "output": "12/12 PASS"
+    }
+  ],
+  "javascript_syntax_check": "PASS (Node.js --check app.js)",
+  "browser_device_validation": "Not performed in this environment"
+}

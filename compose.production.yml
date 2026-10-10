@@ -1,0 +1,60 @@
+services:
+  vidgravity:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "5173"
+    environment:
+      # This flag documents intent only; host/network egress isolation still needs separate enforcement.
+      VIDGRAVITY_PROVIDER_EGRESS_ISOLATED: "false"
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,noexec,nosuid,nodev
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 1g
+    cpus: 2
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5173/api/health', timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+
+  proxy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      vidgravity:
+        condition: service_healthy
+    environment:
+      VIDGRAVITY_DOMAIN: ${VIDGRAVITY_DOMAIN:?Set VIDGRAVITY_DOMAIN in .env.production}
+      VIDGRAVITY_BASIC_AUTH_USER: ${VIDGRAVITY_BASIC_AUTH_USER:?Set VIDGRAVITY_BASIC_AUTH_USER in .env.production}
+      VIDGRAVITY_BASIC_AUTH_HASH: ${VIDGRAVITY_BASIC_AUTH_HASH:?Set VIDGRAVITY_BASIC_AUTH_HASH in .env.production}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile.production:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - backend
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

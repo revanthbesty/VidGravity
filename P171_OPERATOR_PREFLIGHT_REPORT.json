@@ -1,0 +1,6 @@
+{
+  "milestone": "P171",
+  "name": "Deployment Operator Preflight",
+  "result": "NOT_RUN",
+  "important_note": "Run python p171_operator_preflight.py on the actual deployment host to generate environment-specific evidence. This checked-in placeholder is not an acceptance result."
+}

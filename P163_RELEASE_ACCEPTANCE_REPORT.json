@@ -1,0 +1,51 @@
+{
+  "milestone": "P163 \u2014 End-to-End Acceptance and MVP Release Package",
+  "automated_unittest_suite": {
+    "test_files": 19,
+    "tests_run": 113,
+    "failures": 0,
+    "errors": 0,
+    "result": "PASS"
+  },
+  "legacy_smoke_checks": [
+    {
+      "file": "test_p124.py",
+      "exit_code": 0,
+      "passed": true,
+      "output": "10/10 PASS"
+    },
+    {
+      "file": "test_p125.py",
+      "exit_code": 0,
+      "passed": true,
+      "output": "11/11 PASS"
+    },
+    {
+      "file": "test_p126.py",
+      "exit_code": 0,
+      "passed": true,
+      "output": "12/12 PASS"
+    }
+  ],
+  "javascript_syntax": {
+    "app.js": "PASS",
+    "android-web/app.js": "PASS"
+  },
+  "acceptance_coverage": [
+    "download job lifecycle using controlled fake provider CLI",
+    "progress/status/result/cancel/retry route behavior",
+    "license activation and device-transfer unit coverage plus HTTP activation route",
+    "invalid format selector rejected before job creation",
+    "PWA manifest and Android web bundle consistency",
+    "request validation, URL/origin security and rate limiting",
+    "payment signature and idempotency unit coverage"
+  ],
+  "release_blockers": [
+    "No production HTTPS backend or account/authentication system was tested",
+    "No real third-party provider download was run; provider integration tests use a controlled fake CLI",
+    "No compiled Android APK, emulator or physical-device acceptance test",
+    "No live Razorpay transaction/webhook or license issuance integration",
+    "Production egress sandboxing and penetration testing remain outstanding"
+  ],
+  "release_status": "Pre-release candidate only; not certified production-ready"
+}

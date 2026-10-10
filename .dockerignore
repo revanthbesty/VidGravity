@@ -1,0 +1,13 @@
+.git
+__pycache__
+*.pyc
+*.db
+*.sqlite
+*.sqlite3
+.env
+.venv
+node_modules
+.pytest_cache
+android
+dist
+build

@@ -1,0 +1,40 @@
+{
+  "milestone": "P169",
+  "name": "External Deployment Verification",
+  "local_validation": "PASS",
+  "checks": [
+    {
+      "name": "P169 offline unit tests",
+      "result": "PASS",
+      "passed": 5,
+      "failed": 0
+    },
+    {
+      "name": "Python compile check",
+      "result": "PASS",
+      "files": [
+        "p169_deployment_probe.py",
+        "test_p169_deployment_probe.py"
+      ]
+    },
+    {
+      "name": "JavaScript syntax check",
+      "result": "PASS",
+      "files": [
+        "app.js",
+        "android-web/app.js"
+      ]
+    },
+    {
+      "name": "ZIP integrity",
+      "result": "PASS"
+    },
+    {
+      "name": "Live public HTTPS probe",
+      "result": "NOT_RUN",
+      "reason": "No public deployment URL was supplied; live probe is intentionally operator-triggered."
+    }
+  ],
+  "production_status": "NOT_VERIFIED",
+  "note": "Local unit tests validate probe behavior with mocked responses. They do not prove live deployment, provider downloads, payment/webhook operation, Android acceptance, network egress isolation, or security review."
+}

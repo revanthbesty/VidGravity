@@ -1,0 +1,64 @@
+{
+  "milestone": "P171",
+  "name": "Deployment Operator Preflight",
+  "generated_at_utc": "2026-10-10T17:43:59+00:00",
+  "result": "BLOCKED",
+  "summary": {
+    "total": 8,
+    "passed": 2,
+    "blocked": 5,
+    "warnings": 0,
+    "not_run": 1
+  },
+  "checks": [
+    {
+      "key": "docker_cli",
+      "status": "BLOCKED",
+      "detail": "Docker CLI is missing",
+      "action": "Install Docker Desktop on Windows or Docker Engine on Linux."
+    },
+    {
+      "key": "docker_daemon",
+      "status": "BLOCKED",
+      "detail": "Docker daemon unavailable or not running",
+      "action": "Start Docker Desktop/Engine, then retry this preflight."
+    },
+    {
+      "key": "compose_plugin",
+      "status": "BLOCKED",
+      "detail": "Docker Compose plugin unavailable",
+      "action": "Install/enable Docker Compose v2."
+    },
+    {
+      "key": "compose_file",
+      "status": "PASS",
+      "detail": "Production compose example exists",
+      "action": "Restore compose.production.example.yml from the release package."
+    },
+    {
+      "key": "public_https_url",
+      "status": "BLOCKED",
+      "detail": "VIDGRAVITY_PUBLIC_BASE_URL is missing or not HTTPS",
+      "action": "Set the public HTTPS URL only after DNS and TLS are configured."
+    },
+    {
+      "key": "payment_secrets",
+      "status": "BLOCKED",
+      "detail": "One or more Razorpay environment variables are missing (values hidden)",
+      "action": "Set test-mode secrets in the host secret manager; do not commit .env.production."
+    },
+    {
+      "key": "env_file",
+      "status": "PASS",
+      "detail": "No local .env.production file",
+      "action": "Prefer host-managed secrets; on Linux restrict env-file permissions to owner only."
+    },
+    {
+      "key": "compose_syntax",
+      "status": "NOT_RUN",
+      "detail": "Skipped because Docker/Compose prerequisites are not available",
+      "action": "Rerun preflight on the deployment host."
+    }
+  ],
+  "security_note": "Secret values are never included in this report. Passing this preflight does not prove a live deployment, successful payments/downloads, egress isolation, or security acceptance."
+}

@@ -1,0 +1,79 @@
+name: VidGravity CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Python regression suite
+        run: python run_regression_p165.py
+      - name: P169 deployment probe unit tests
+        run: python -m unittest -v test_p169_deployment_probe.py
+      - name: P170 unified release acceptance tests
+        run: python -m unittest -v test_p170_release_acceptance.py
+      - name: P171 operator preflight unit tests
+        run: python -m unittest -v test_p171_operator_preflight.py
+      - name: P172 production deployment bundle unit tests
+        run: python -m unittest -v test_p172_deployment_bundle.py
+      - name: Generate P171 operator preflight report (environment gates may remain blocked)
+        shell: bash
+        run: |
+          set +e
+          python p171_operator_preflight.py
+          code=$?
+          if [ "$code" -ne 0 ] && [ "$code" -ne 2 ]; then exit "$code"; fi
+          echo "P171 may remain blocked until run on the actual deployment host with required configuration."
+      - name: Generate unified P170 acceptance report (no live network requests)
+        shell: bash
+        run: |
+          set +e
+          python p170_release_acceptance.py
+          code=$?
+          if [ "$code" -ne 0 ] && [ "$code" -ne 2 ]; then exit "$code"; fi
+          echo "P170 is expected to remain blocked until external release evidence passes."
+      - name: JavaScript syntax checks
+        run: |
+          node --check app.js
+          node --check android-web/app.js
+      - name: Generate release preflight (external gates may remain blocked)
+        shell: bash
+        run: |
+          set +e
+          python p164_release_preflight.py
+          code=$?
+          if [ "$code" -ne 0 ] && [ "$code" -ne 2 ]; then
+            exit "$code"
+          fi
+          echo "Preflight report result is informational here; public release remains blocked until external gates pass."
+      - name: Upload test and preflight reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vidgravity-ci-reports
+          path: |
+            P165_CI_TEST_REPORT.json
+            P165_CI_TEST_OUTPUT.txt
+            P164_RELEASE_PREFLIGHT_REPORT.json
+            P169_DEPLOYMENT_PROBE_REPORT.json
+            P170_RELEASE_ACCEPTANCE_REPORT.json
+            P171_OPERATOR_PREFLIGHT_REPORT.json
+            P172_DEPLOYMENT_BUNDLE_REPORT.json
+          if-no-files-found: warn

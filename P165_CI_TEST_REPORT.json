@@ -1,0 +1,31 @@
+{
+  "milestone": "P165",
+  "name": "CI Regression Gate",
+  "test_files": 20,
+  "tests_run": 116,
+  "failures": 0,
+  "errors": 0,
+  "elapsed_seconds": 14.3,
+  "legacy_smoke_scripts": {
+    "test_p124.py": {
+      "returncode": 0,
+      "output_tail": "10/10 PASS\n"
+    },
+    "test_p125.py": {
+      "returncode": 0,
+      "output_tail": "11/11 PASS\n"
+    },
+    "test_p126.py": {
+      "returncode": 0,
+      "output_tail": "12/12 PASS\n"
+    }
+  },
+  "result": "PASS",
+  "javascript_syntax": {
+    "app.js": "PASS",
+    "android-web/app.js": "PASS"
+  },
+  "github_actions": "Workflow authored; remote GitHub execution not yet verified.",
+  "external_release_gates": "Public HTTPS, live provider, Razorpay webhook/payment, native Android device acceptance, and provider egress isolation remain unverified.",
+  "production_status": "PRE-RELEASE CANDIDATE; not production-ready."
+}

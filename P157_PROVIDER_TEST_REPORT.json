@@ -1,0 +1,13 @@
+{
+  "milestone": "P157",
+  "targeted_summary": [
+    "Ran 6 tests in 0.595s",
+    "OK"
+  ],
+  "combined_summary": [
+    "Ran 82 tests in 3.490s",
+    "OK"
+  ],
+  "live_provider_status": "blocked: yt-dlp not installed; live test not run",
+  "live_binary": null
+}

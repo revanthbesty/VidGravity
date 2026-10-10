@@ -1,0 +1,37 @@
+{
+  "milestone": "P167",
+  "scope": "local loopback runtime smoke tests only",
+  "tests": [
+    {
+      "test": "server_startup",
+      "status": "PASS",
+      "detail": "server starts on loopback"
+    },
+    {
+      "test": "health_endpoint",
+      "status": "PASS",
+      "detail": "HTTP 200; yt_dlp=False; version=1.0.3"
+    },
+    {
+      "test": "root_ui",
+      "status": "PASS",
+      "detail": "HTTP 200; content-type=text/html; bytes=13278"
+    },
+    {
+      "test": "health_repeatability",
+      "status": "PASS",
+      "detail": "second health request remains healthy"
+    }
+  ],
+  "passed": 4,
+  "failed": 0,
+  "external_gates": [
+    "Docker image build/runtime",
+    "public HTTPS deployment",
+    "authorized live provider download",
+    "live payment/webhook verification",
+    "native Android APK/device acceptance",
+    "network egress isolation verification",
+    "independent security review"
+  ]
+}

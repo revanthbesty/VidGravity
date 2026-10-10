@@ -1,0 +1,14 @@
+{
+  "appId": "com.vidgravity.app",
+  "appName": "VidGravity",
+  "webDir": "android-web",
+  "bundledWebRuntime": false,
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0
+    }
+  }
+}

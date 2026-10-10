@@ -1,0 +1,93 @@
+{
+  "milestone": "P170",
+  "name": "Unified Release Acceptance",
+  "generated_at_utc": "2026-10-10T17:38:47+00:00",
+  "result": "BLOCKED",
+  "release_allowed": false,
+  "summary": {
+    "total_checks": 8,
+    "passed": 0,
+    "blocked": 7,
+    "degraded": 0,
+    "not_run": 1
+  },
+  "checks": [
+    {
+      "source": "P168",
+      "key": "https_url",
+      "label": "Public HTTPS URL",
+      "status": "BLOCKED",
+      "kind": "configuration",
+      "evidence": "VIDGRAVITY_PUBLIC_BASE_URL is absent or not HTTPS"
+    },
+    {
+      "source": "P168",
+      "key": "docker_cli",
+      "label": "Docker CLI",
+      "status": "BLOCKED",
+      "kind": "external",
+      "evidence": "Docker CLI not detected in this environment"
+    },
+    {
+      "source": "P168",
+      "key": "yt_dlp",
+      "label": "Provider engine",
+      "status": "BLOCKED",
+      "kind": "configuration",
+      "evidence": "yt-dlp executable not detected"
+    },
+    {
+      "source": "P168",
+      "key": "live_url",
+      "label": "Authorized live-provider URL",
+      "status": "BLOCKED",
+      "kind": "operator",
+      "evidence": "No HTTP(S) test URL supplied"
+    },
+    {
+      "source": "P168",
+      "key": "payment_config",
+      "label": "Payment secret configuration",
+      "status": "BLOCKED",
+      "kind": "configuration",
+      "evidence": "One or more required Razorpay variables are missing; values are never displayed"
+    },
+    {
+      "source": "P168",
+      "key": "android_project",
+      "label": "Native Android wrapper",
+      "status": "BLOCKED",
+      "kind": "configuration",
+      "evidence": "No Gradle wrapper found in expected project locations"
+    },
+    {
+      "source": "P168",
+      "key": "egress_isolation",
+      "label": "Provider egress isolation",
+      "status": "BLOCKED",
+      "kind": "operator",
+      "evidence": "No explicit egress-isolation assertion"
+    },
+    {
+      "source": "P169",
+      "key": "external_probe",
+      "label": "External HTTPS deployment probe",
+      "status": "NOT_RUN",
+      "kind": "external",
+      "evidence": "Run with --probe and configure VIDGRAVITY_PUBLIC_BASE_URL to collect live evidence."
+    }
+  ],
+  "source_reports": {
+    "p168_gate_result": "BLOCKED",
+    "p169_probe_result": "NOT_RUN"
+  },
+  "important_note": "Configuration presence is not live acceptance. Release is allowed only when every configured gate and the external probe pass. This report does not replace provider-download, payment/webhook, Android device, egress-isolation, or independent security evidence.",
+  "required_external_evidence": [
+    "Successful public HTTPS health and homepage probe",
+    "Authorized non-DRM provider download with output inspection",
+    "Razorpay test-mode order, signature, webhook, and idempotency verification",
+    "Native Android APK build and emulator plus physical-device acceptance",
+    "Independent verification of provider-process egress restrictions",
+    "Independent security review before public launch"
+  ]
+}

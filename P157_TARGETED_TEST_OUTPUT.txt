@@ -1,0 +1,30 @@
+Spreadsheet runtime warmup failed during python startup
+Traceback (most recent call last):
+  File "/tmp/tmp.QlpUkOUI9D/artifact_tool_v2-2.8.66/artifact_tool/patches/warm_spreadsheet_runtime_on_startup.py", line 26, in warm_spreadsheet_runtime_on_startup
+  File "/tmp/tmp.QlpUkOUI9D/artifact_tool_v2-2.8.66/artifact_tool/spreadsheet_warmup.py", line 785, in warm_spreadsheet_runtime
+  File "/tmp/tmp.QlpUkOUI9D/artifact_tool_v2-2.8.66/artifact_tool/spreadsheet_warmup.py", line 718, in _warm_feature_flows
+  File "/tmp/tmp.QlpUkOUI9D/artifact_tool_v2-2.8.66/artifact_tool/spreadsheet_warmup.py", line 509, in _warm_drawing_and_image_flows
+  File "/tmp/tmp.QlpUkOUI9D/artifact_tool_v2-2.8.66/artifact_tool/generated/interface/models.py", line 32861, in bring_to_front
+  File "/tmp/tmp.QlpUkOUI9D/artifact_tool_v2-2.8.66/artifact_tool/rpc/remote.py", line 764, in __call__
+  File "/tmp/tmp.QlpUkOUI9D/artifact_tool_v2-2.8.66/artifact_tool/rpc/client.py", line 175, in call
+artifact_tool.rpc.client.RemoteError: Element ordering requires an owning element collection.
+test_download_job_invokes_provider_and_persists_output (test_p157_provider_cli_integration.ProviderCliIntegrationTests.test_download_job_invokes_provider_and_persists_output) ... /usr/lib/python3.13/threading.py:994: ResourceWarning: unclosed file <_io.TextIOWrapper name=11 encoding='UTF-8'>
+  self._target(*self._args, **self._kwargs)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_format_resolution_maps_provider_metadata (test_p157_provider_cli_integration.ProviderCliIntegrationTests.test_format_resolution_maps_provider_metadata) ... ok
+test_invalid_url_is_rejected_before_provider_execution (test_p157_provider_cli_integration.ProviderCliIntegrationTests.test_invalid_url_is_rejected_before_provider_execution) ... ok
+test_live_acceptance_script_is_opt_in (test_p157_provider_cli_integration.ProviderCliIntegrationTests.test_live_acceptance_script_is_opt_in) ... ok
+test_provider_cli_is_discoverable (test_p157_provider_cli_integration.ProviderCliIntegrationTests.test_provider_cli_is_discoverable) ... ok
+test_provider_nonzero_exit_fails_without_publishing_output (test_p157_provider_cli_integration.ProviderCliIntegrationTests.test_provider_nonzero_exit_fails_without_publishing_output) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.595s
+
+OK
+127.0.0.1 - "POST /api/download-jobs HTTP/1.1" 202 -
+127.0.0.1 - "GET /api/download-jobs/cd3f2190be444e23b44736483af15811 HTTP/1.1" 200 -
+127.0.0.1 - "GET /api/download-jobs/cd3f2190be444e23b44736483af15811 HTTP/1.1" 200 -
+127.0.0.1 - "GET /api/download-jobs/cd3f2190be444e23b44736483af15811/result HTTP/1.1" 200 -
+127.0.0.1 - "GET /api/formats?url=https%3A%2F%2Fprovider-test.invalid%2Fclip.mp4 HTTP/1.1" 200 -
+127.0.0.1 - "GET /api/formats?url=file%3A%2F%2F%2Fetc%2Fpasswd HTTP/1.1" 400 -

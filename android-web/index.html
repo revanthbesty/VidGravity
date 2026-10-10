@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#171326">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="application-name" content="VidGravity">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="styles.css">
+<title>VidGravity</title>
+</head>
+<body>
+<section id="unifiedMediaWorkspace" class="unified-media-workspace"></section>
+<div id="vgConnectivityStatus" class="vg-connectivity-status" role="status" aria-live="polite" hidden></div>
+<div id="vgInstallBanner" class="vg-install-banner" role="region" aria-label="Install VidGravity" hidden><div><strong>Install VidGravity</strong><span>Open your media workspace like an app.</span></div><button id="vgInstallButton" class="primary" type="button">Install app</button><button id="vgInstallDismiss" class="ghost" type="button" aria-label="Dismiss install prompt">Not now</button></div>
+<div class="vg-ux-status" data-vg-ux-status role="status" aria-live="polite">Ready</div>
+<div id="releaseWorkspaceRail" class="release-workspace-rail"></div>
+<section id="unifiedIntelligencePanel" class="unified-intelligence-panel"></section>
+
+<div id="playerContextStatus" class="player-context-status"><span></span>Player context bridge active</div>
+
+<div id="mediaContextBar" class="media-context-bar"></div>
+
+<section id="mediaCopilot" class="media-copilot"></section>
+
+<section id="mediaCommandCenter" class="media-command-center"></section>
+
+<section id="aiActivityCenter" class="ai-activity-center"></section>
+<section id="intelligenceDashboard"></section><div class="smartBanner"><b>Smart media collections</b><span>Automatically group local media by topic, type, transcripts, tags, and notes.</span></div><div class="knowledgeBanner"><b>Unified knowledge search</b><span>Search media, transcripts, notes, highlights, tags, and collections from one place.</span></div><div class="notesBanner"><b>Saved highlights</b><span>Ask “save this as a highlight” or search your saved notes later.</span></div><div class="qaBanner"><b>Multi-media Q&A</b><span>Ask across your local library and jump to the strongest transcript evidence.</span></div><div class="qaBanner"><b>Transcript Q&A</b><span>Ask what was said and jump to the relevant timestamp.</span></div><div class="aiBanner"><b>AI Media Insights</b><span>Ask for a summary, key points, or a brief from your local transcript.</span></div><div class="actionPanel"><b>Media actions</b><span>Ask to play, favorite, organize, or undo the last change.</span></div>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><span class="logo">V</span><div><b>VidGravity</b><small>Media workspace</small></div></div>
+    <nav>
+      <button class="nav active" data-page="home">⌂ <span>Home</span></button>
+      <button class="nav" data-page="downloads">↓ <span>Downloads</span><em id="queueBadge">0</em></button>
+      <button class="nav" data-page="library">▣ <span>Library</span></button>
+      <button class="nav" data-page="ask">✦ <span>Ask My Media</span></button>
+      <button class="nav" data-page="settings">⚙ <span>Settings</span></button>
+    </nav>
+    <div class="sideFoot"><span class="dot"></span> Local browser mode</div>
+  </aside>
+
+  <main>
+    <header class="topbar">
+      <button id="menu" class="icon mobileOnly">☰</button>
+      <div class="crumb">Workspace <span>/</span> <b id="pageTitle">Home</b></div>
+      <button id="clearAll" class="ghost">Clear completed</button>
+    </header>
+
+    <section id="home" class="page active">
+      <div class="hero">
+        <div>
+          <div class="eyebrow">YOUR MEDIA, YOUR CONTROL</div>
+          <h1>Bring media into<br><span>one gravity well.</span></h1>
+          <p>Paste a direct media URL to download, organize and play it locally in your browser.</p>
+        </div>
+        <div class="heroOrb">V</div>
+      </div>
+      <div class="intake card">
+        <div class="intakeHead"><div><b>Add media</b><small>Direct MP4, WebM, MP3 and other browser-fetchable media</small></div><span class="pill">BROWSER</span></div>
+        <div class="urlRow">
+          <input id="urlInput" placeholder="https://example.com/video.mp4" autocomplete="off">
+          <button id="inspectBtn" class="primary">Inspect</button>
+        </div>
+        <div id="inspectResult" class="inspect hidden"></div>
+        <div class="notice">Direct browser mode respects CORS/DRM/authentication boundaries. For broader provider support, run the optional local companion server with yt-dlp.</div>
+      </div>
+      <div class="stats">
+        <div class="stat card"><small>Library</small><strong id="statLibrary">0</strong><span>saved items</span></div>
+        <div class="stat card"><small>Downloads</small><strong id="statDownloads">0</strong><span>completed</span></div>
+        <div class="stat card"><small>Storage</small><strong id="statStorage">0 MB</strong><span>browser storage</span></div>
+      </div>
+      <div class="sectionHead"><h2>Recent media</h2><button class="textBtn" data-page="library">View library →</button></div>
+      <div id="recentGrid" class="mediaGrid"></div>
+    </section>
+
+    <section id="downloads" class="page">
+      <div class="sectionTitle"><div><div class="eyebrow">QUEUE</div><h1>Downloads</h1><p>Browser download jobs and their current state.</p></div></div>
+      <div id="downloadList" class="list"></div>
+    </section>
+
+    <section id="library" class="page">
+      <div class="sectionTitle"><div><div class="eyebrow">YOUR MEDIA</div><h1>Library</h1><p>Media persisted locally in this browser.</p></div><div class="libraryTools"><input id="librarySearch" class="search" placeholder="Search library…"><button class="smallBtn" id="bulkDelete">Delete selected (0)</button></div></div>
+      <div class="libraryTools">
+      <select id="libraryFilter"><option value="all">All media</option><option value="favorites">Favorites</option><option value="video">Video</option><option value="audio">Audio</option></select>
+      <input id="libraryTag" class="search" placeholder="Filter by tag…">
+      <button id="newCollection" class="smallBtn">+ Collection</button>
+    </div>
+    <div id="collectionBar" class="collectionBar"></div>
+    <div id="libraryGrid" class="mediaGrid"></div>
+    </section>
+
+    <section id="ask" class="page">
+      <div class="sectionTitle"><div><div class="eyebrow">MEDIA INTELLIGENCE</div><h1>Ask My Media</h1><p>Search your local media metadata and transcript-ready evidence.</p></div></div>
+      <div class="ask card">
+        <div class="askIntro"><div><b>Local Media Assistant</b><small>Answers are grounded only in media stored in this browser.</small></div><span class="pill">GROUNDED</span></div>
+<div class="transcriptTools">
+<input id="transcriptMedia" placeholder="Media ID for transcript…">
+<button id="addTranscript" class="smallBtn">Add transcript</button>
+<button id="importVtt" class="smallBtn">Import VTT/SRT</button>
+<button id="findTranscript" class="smallBtn">Search transcript</button>
+<button id="rebuildIndex" class="smallBtn">Rebuild index</button>
+</div>
+<div id="indexStatus" class="indexStatus"></div>
+        <div class="quickAsk"><button data-q="Show my most recent media">Recent</button><button data-q="Play my most recent media">Play recent</button><button data-q="Show my favorite media">Favorites</button><button data-q="How many videos do I have?">Video count</button><button data-q="Show media in my collections">Collections</button></div>
+        <div id="chat" class="chat"><div class="bubble ai">Ask about titles, tags, collections, media types, favorites, dates or transcript content. Answers stay grounded in your local index.</div></div>
+        <div class="askRow"><input id="askInput" placeholder="Ask about my media…"><button id="askBtn" class="primary">Ask</button></div>
+      </div>
+    </section>
+
+    <section id="settings" class="page">
+      <div class="sectionTitle"><div><div class="eyebrow">CONTROL CENTER</div><h1>Settings</h1><p>Browser-local preferences for this MVP.</p></div></div>
+      <div class="settingsGrid">
+        <div class="card setting"><div><b>Storage mode</b><small>Media payloads are stored in IndexedDB when available.</small></div><span class="pill">LOCAL</span></div>
+        <div class="card setting licenseSetting"><div class="licenseHead"><div><b>Account & device license</b><small>Activate one license on this device. To transfer, deactivate the old device first.</small></div><span id="licenseState" class="pill muted">CHECKING</span></div><div class="licenseControls"><input id="licenseKeyInput" type="password" autocomplete="off" placeholder="Enter license key"><button id="activateLicenseBtn" class="primary">Activate</button><button id="deactivateLicenseBtn" class="ghost" disabled>Deactivate device</button></div><small id="licenseMessage" role="status">Connect to your configured companion server to check activation.</small><small id="licenseDevice" class="licenseDevice"></small></div>
+        <div class="card setting vg-api-setting"><div><b>Companion server address</b><small>Optional. For Android, enter the reachable HTTPS URL of your deployed companion API. Leave blank to use this page’s own server.</small></div><div class="vg-api-controls"><input id="vgApiBaseInput" type="url" inputmode="url" placeholder="https://api.example.com" autocomplete="url"><button id="vgApiSaveButton" class="primary" type="button">Save</button><button id="vgApiClearButton" class="ghost" type="button">Clear</button></div><small id="vgApiMessage" role="status">Using same-origin API.</small></div>
+        <div class="card setting"><div><b>AI processing</b><small>Local runtime architecture is prepared; no remote inference is performed by this MVP.</small></div><span class="pill">LOCAL-FIRST</span></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="detailsModal" class="modal hidden"><div class="modalBox detailsBox"><button class="close" id="closeDetails">×</button><div id="detailsContent"></div></div></div>
+<div id="playerModal" class="modal hidden"><div class="modalBox playerBox"><button class="close" id="closePlayer">×</button><video id="player" controls playsinline></video><div id="playerMeta"></div><div id="playerTranscript" class="playerTranscript"></div></div></div>
+<div id="toast" class="toast"></div>
+<script src="app.js"></script>
+<script id="vgApiConfigRuntime">
+(() => {
+ const input=document.getElementById("vgApiBaseInput"), msg=document.getElementById("vgApiMessage");
+ const save=document.getElementById("vgApiSaveButton"), clear=document.getElementById("vgApiClearButton");
+ const render=()=>{const v=(localStorage.getItem("vg-api-base-url")||"").trim();if(input)input.value=v;if(msg)msg.textContent=v?"Companion API: "+v:"Using same-origin API.";};
+ save?.addEventListener("click",()=>{
+  const raw=(input?.value||"").trim();
+  if(!raw){localStorage.removeItem("vg-api-base-url");render();return;}
+  try{const u=new URL(raw);if(u.protocol!=="https:" && !(u.protocol==="http:" && ["localhost","127.0.0.1"].includes(u.hostname)))throw Error("Use HTTPS for remote servers; HTTP is allowed only for localhost development.");
+   localStorage.setItem("vg-api-base-url",u.origin+u.pathname.replace(/\/+$/,""));render();
+  }catch(e){if(msg)msg.textContent=e.message||"Enter a valid server URL.";}
+ });
+ clear?.addEventListener("click",()=>{localStorage.removeItem("vg-api-base-url");render();});
+ render();
+})();
+</script>
+<script id="vgPwaRuntime">
+(() => {
+ const status=document.getElementById("vgConnectivityStatus"), banner=document.getElementById("vgInstallBanner");
+ const install=document.getElementById("vgInstallButton"), dismiss=document.getElementById("vgInstallDismiss");
+ let installPrompt=null;
+ const refresh=()=>{if(!status)return;const offline=!navigator.onLine;status.hidden=!offline;status.textContent=offline?"You’re offline. Cached app shell and locally saved media remain available; downloads and server actions need a connection.":"";document.documentElement.classList.toggle("vg-offline",offline);};
+ window.addEventListener("online",refresh);window.addEventListener("offline",refresh);refresh();
+ window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();installPrompt=event;if(banner&&!sessionStorage.getItem("vg-install-dismissed"))banner.hidden=false;});
+ install?.addEventListener("click",async()=>{if(!installPrompt)return;installPrompt.prompt();await installPrompt.userChoice.catch(()=>null);installPrompt=null;if(banner)banner.hidden=true;});
+ dismiss?.addEventListener("click",()=>{if(banner)banner.hidden=true;try{sessionStorage.setItem("vg-install-dismissed","1");}catch(_){}});
+ if("serviceWorker" in navigator&&(location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1")){
+  window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{if(status){status.hidden=false;status.textContent="Offline support could not start in this browser session.";}}));
+ }
+})();
+</script>
+</body>
+</html>

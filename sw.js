@@ -1,0 +1,40 @@
+/* VidGravity P160: offline app shell only; never cache API, license, or download responses. */
+const CACHE_NAME = "vidgravity-p160-shell-v1";
+const APP_SHELL = ["./","./index.html","./styles.css","./app.js","./manifest.webmanifest","./icons/icon-192.svg","./icons/icon-512.svg"];
+self.addEventListener("install", event => event.waitUntil((async () => {
+  const cache = await caches.open(CACHE_NAME); await cache.addAll(APP_SHELL); await self.skipWaiting();
+})()));
+self.addEventListener("activate", event => event.waitUntil((async () => {
+  const keys = await caches.keys();
+  await Promise.all(keys.filter(key => key.startsWith("vidgravity-") && key !== CACHE_NAME).map(key => caches.delete(key)));
+  await self.clients.claim();
+})()));
+function isSensitiveRequest(url, request) {
+  if (request.method !== "GET") return true;
+  if (url.origin !== self.location.origin) return true;
+  return url.pathname.includes("/api/") || /\/(license|download|payment|checkout|activate|deactivate)(\/|$)/i.test(url.pathname);
+}
+self.addEventListener("fetch", event => {
+  const request = event.request, url = new URL(request.url);
+  if (isSensitiveRequest(url, request)) return;
+  const shellBase = new URL("./", self.location.href);
+  const knownAsset = APP_SHELL.some(asset => new URL(asset, shellBase).href === url.href);
+  if (!knownAsset && request.mode !== "navigate") return;
+  if (request.mode === "navigate") {
+    event.respondWith((async () => {
+      try { return await fetch(request); }
+      catch (_) { return (await caches.match("./index.html")) || Response.error(); }
+    })());
+    return;
+  }
+  event.respondWith((async () => {
+    const cached = await caches.match(request); if (cached) return cached;
+    try {
+      const response = await fetch(request);
+      if (response.ok && response.type === "basic") {
+        const cache = await caches.open(CACHE_NAME); await cache.put(request, response.clone());
+      }
+      return response;
+    } catch (_) { return Response.error(); }
+  })());
+});

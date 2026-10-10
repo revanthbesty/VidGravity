@@ -1,0 +1,38 @@
+{
+  "release": "P105",
+  "total": 23,
+  "passed": 23,
+  "checks": [
+    "P104 files retained",
+    "IndexedDB blob persistence retained",
+    "video metadata extraction",
+    "duration extraction",
+    "resolution extraction",
+    "thumbnail capture",
+    "thumbnail persistence",
+    "thumbnail library rendering",
+    "audio metadata fallback",
+    "details action",
+    "save action retained",
+    "playback retained",
+    "delete retained",
+    "library search retained",
+    "downloads retained",
+    "provider inspection retained",
+    "format selection retained",
+    "companion server retained",
+    "SSRF protection retained",
+    "PWA retained",
+    "responsive UI retained",
+    "JavaScript syntax check",
+    "Python syntax check"
+  ],
+  "latest_milestone": "P170",
+  "latest_milestone_result": "BLOCKED",
+  "latest_milestone_note": "Release remains blocked because deployment, payment, provider, Android, and independent security evidence is not available in this environment.",
+  "latest_milestone_tests": {
+    "p170_unit_tests": "5/5 passed",
+    "p169_probe_unit_tests": "5/5 passed",
+    "live_deployment_probe": "NOT RUN"
+  }
+}

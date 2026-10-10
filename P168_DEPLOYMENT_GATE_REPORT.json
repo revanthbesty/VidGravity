@@ -1,0 +1,74 @@
+{
+  "milestone": "P168",
+  "name": "Production Deployment Gate Closure",
+  "result": "BLOCKED",
+  "ready_count": 0,
+  "blocked_count": 7,
+  "checks": [
+    {
+      "key": "https_url",
+      "label": "Public HTTPS URL",
+      "status": "BLOCKED",
+      "kind": "configuration",
+      "evidence": "VIDGRAVITY_PUBLIC_BASE_URL is absent or not HTTPS",
+      "required_action": "Deploy behind a valid TLS reverse proxy and set VIDGRAVITY_PUBLIC_BASE_URL"
+    },
+    {
+      "key": "docker_cli",
+      "label": "Docker CLI",
+      "status": "BLOCKED",
+      "kind": "external",
+      "evidence": "Docker CLI not detected in this environment",
+      "required_action": "Build and start the image on a Docker-capable host; record image and runtime results"
+    },
+    {
+      "key": "yt_dlp",
+      "label": "Provider engine",
+      "status": "BLOCKED",
+      "kind": "configuration",
+      "evidence": "yt-dlp executable not detected",
+      "required_action": "Install the pinned provider dependency and run the authorized live-provider test"
+    },
+    {
+      "key": "live_url",
+      "label": "Authorized live-provider URL",
+      "status": "BLOCKED",
+      "kind": "operator",
+      "evidence": "No HTTP(S) test URL supplied",
+      "required_action": "Use an authorized, non-DRM test URL and run provider_live_acceptance.py"
+    },
+    {
+      "key": "payment_config",
+      "label": "Payment secret configuration",
+      "status": "BLOCKED",
+      "kind": "configuration",
+      "evidence": "One or more required Razorpay variables are missing; values are never displayed",
+      "required_action": "Configure secrets in the deployment secret manager and test order, signature, webhook, and idempotency"
+    },
+    {
+      "key": "android_project",
+      "label": "Native Android wrapper",
+      "status": "BLOCKED",
+      "kind": "configuration",
+      "evidence": "No Gradle wrapper found in expected project locations",
+      "required_action": "Generate native wrapper, build APK, then test emulator and physical device"
+    },
+    {
+      "key": "egress_isolation",
+      "label": "Provider egress isolation",
+      "status": "BLOCKED",
+      "kind": "operator",
+      "evidence": "No explicit egress-isolation assertion",
+      "required_action": "Enforce and independently test OS/container network policy blocking private, loopback, link-local and metadata endpoints"
+    }
+  ],
+  "important_note": "READY means a local prerequisite/configuration signal only. It does not prove a successful deployment, payment, download, Android installation, or security review.",
+  "remaining_manual_gates": [
+    "Public HTTPS health check from outside deployment network",
+    "Authorized provider download and output inspection",
+    "Razorpay test-mode order/signature/webhook/idempotency evidence",
+    "Native APK install and acceptance on emulator and physical device",
+    "Independent verification of provider-process egress restrictions",
+    "Independent security review before public launch"
+  ]
+}

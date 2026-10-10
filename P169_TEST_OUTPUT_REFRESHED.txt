@@ -1,0 +1,10 @@
+test_health_failure_blocks (test_p169_deployment_probe.P169ProbeTests.test_health_failure_blocks) ... ok
+test_healthy_endpoints_pass (test_p169_deployment_probe.P169ProbeTests.test_healthy_endpoints_pass) ... ok
+test_missing_provider_degrades (test_p169_deployment_probe.P169ProbeTests.test_missing_provider_degrades) ... ok
+test_rejects_http (test_p169_deployment_probe.P169ProbeTests.test_rejects_http) ... ok
+test_rejects_private_dns (test_p169_deployment_probe.P169ProbeTests.test_rejects_private_dns) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.001s
+
+OK

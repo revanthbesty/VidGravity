@@ -1,0 +1,14 @@
+# Caddy obtains and renews TLS certificates automatically for the configured public domain.
+{$VIDGRAVITY_DOMAIN} {
+    encode zstd gzip
+    basic_auth {
+        {$VIDGRAVITY_BASIC_AUTH_USER} {$VIDGRAVITY_BASIC_AUTH_HASH}
+    }
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        X-Frame-Options DENY
+        -Server
+    }
+    reverse_proxy vidgravity:5173
+}

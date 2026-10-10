@@ -1,0 +1,28 @@
+{
+  "milestone": "P172",
+  "name": "Production Deployment Bundle",
+  "live_deployment_performed": false,
+  "reason": "A real hosting server, domain DNS, and operator credentials are not available in this environment.",
+  "scope": [
+    "TLS reverse proxy scaffold",
+    "temporary HTTP Basic Auth gate",
+    "container deployment script",
+    "operator handoff",
+    "static deployment bundle tests"
+  ],
+  "production_blockers": [
+    "run deployment on a real server",
+    "verify HTTPS and auth",
+    "independently enforce outbound network isolation",
+    "test authorized media downloads",
+    "verify payments/webhooks and licensing",
+    "build and test Android APK",
+    "independent security review"
+  ],
+  "validation": {
+    "p172_unit_tests": "4/4 passed",
+    "python_syntax_files": 50,
+    "compose_runtime_validation": "NOT_RUN (Docker unavailable in this environment)",
+    "live_deployment": "NOT_PERFORMED"
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "milestone": "P164",
+  "name": "Release Blocker Closure Preflight",
+  "result": "BLOCKED",
+  "checks_passed": 1,
+  "checks_blocked": 7,
+  "checks": [
+    {
+      "key": "public_https",
+      "label": "Public HTTPS backend",
+      "status": "BLOCKED",
+      "evidence": "VIDGRAVITY_PUBLIC_BASE_URL must be configured with an https:// URL",
+      "release_blocker": "Deploy backend behind HTTPS and set VIDGRAVITY_PUBLIC_BASE_URL"
+    },
+    {
+      "key": "license_keys",
+      "label": "License issuance configuration",
+      "status": "BLOCKED",
+      "evidence": "No license keys configured",
+      "release_blocker": "Configure secure license issuance and rotate production keys"
+    },
+    {
+      "key": "payment_secrets",
+      "label": "Razorpay API and webhook secrets",
+      "status": "BLOCKED",
+      "evidence": "One or more required Razorpay secret variables are missing",
+      "release_blocker": "Configure secrets in deployment secret manager and run test/live payment verification"
+    },
+    {
+      "key": "provider_cli",
+      "label": "Real provider CLI",
+      "status": "BLOCKED",
+      "evidence": "yt-dlp executable not installed",
+      "release_blocker": "Install/pin yt-dlp and run provider_live_acceptance.py with an authorized test URL"
+    },
+    {
+      "key": "live_provider_url",
+      "label": "Authorized live-provider acceptance URL",
+      "status": "BLOCKED",
+      "evidence": "No authorized live test URL configured",
+      "release_blocker": "Supply an authorized, non-DRM test URL and run the live provider acceptance check"
+    },
+    {
+      "key": "android_native",
+      "label": "Native Android build project",
+      "status": "BLOCKED",
+      "evidence": "Only Android web companion scaffold is present; no native Gradle project detected",
+      "release_blocker": "Create/build the native Android wrapper and verify APK on emulator and physical device"
+    },
+    {
+      "key": "provider_egress",
+      "label": "Provider subprocess egress isolation",
+      "status": "BLOCKED",
+      "evidence": "No verified provider-process egress isolation assertion configured",
+      "release_blocker": "Run provider downloads in a network-isolated sandbox that blocks private, loopback, link-local and metadata destinations"
+    },
+    {
+      "key": "acceptance_tests",
+      "label": "P163 acceptance suite included",
+      "status": "PASS",
+      "evidence": "P163 acceptance tests found",
+      "release_blocker": null
+    }
+  ],
+  "note": "Configuration presence is not proof of production readiness. Run live provider, Razorpay webhook/payment, Android device, deployment and security tests before public release."
+}

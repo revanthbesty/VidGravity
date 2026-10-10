@@ -1,0 +1,10 @@
+test_all_gates_and_probe_pass_can_accept (test_p170_release_acceptance.P170AcceptanceTests.test_all_gates_and_probe_pass_can_accept) ... ok
+test_degraded_probe_is_not_release_acceptance (test_p170_release_acceptance.P170AcceptanceTests.test_degraded_probe_is_not_release_acceptance) ... ok
+test_external_probe_pass_does_not_override_other_blocker (test_p170_release_acceptance.P170AcceptanceTests.test_external_probe_pass_does_not_override_other_blocker) ... ok
+test_missing_external_probe_never_allows_release (test_p170_release_acceptance.P170AcceptanceTests.test_missing_external_probe_never_allows_release) ... ok
+test_missing_url_when_probe_requested_blocks_without_request (test_p170_release_acceptance.P170AcceptanceTests.test_missing_url_when_probe_requested_blocks_without_request) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.000s
+
+OK

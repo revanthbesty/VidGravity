@@ -1,0 +1,16 @@
+{
+  "milestone": "P164",
+  "name": "Release Blocker Closure",
+  "combined_regression": {"tests": 116, "passed": 116, "failures": 0, "errors": 0, "result": "PASS"},
+  "legacy_smoke_tests": {"test_p124.py": "10/10 PASS", "test_p125.py": "11/11 PASS", "test_p126.py": "12/12 PASS"},
+  "new_p164_tests": "3/3 PASS (included in the 116 combined tests)",
+  "external_release_gates": {
+    "public_https_deployment": "NOT VERIFIED",
+    "real_provider_download": "NOT RUN; requires authorized operator-supplied URL and installed yt-dlp",
+    "razorpay_payment_and_webhook": "NOT RUN; requires merchant configuration",
+    "native_android_apk_and_device_acceptance": "NOT VERIFIED",
+    "provider_process_egress_isolation": "NOT VERIFIED",
+    "independent_security_review": "NOT RUN"
+  },
+  "production_status": "PRE-RELEASE CANDIDATE; not production-ready"
+}

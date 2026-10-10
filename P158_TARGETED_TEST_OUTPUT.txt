@@ -1,0 +1,20 @@
+Spreadsheet runtime warmup failed during python startup
+Traceback (most recent call last):
+  File "/tmp/tmp.QlpUkOUI9D/artifact_tool_v2-2.8.66/artifact_tool/patches/warm_spreadsheet_runtime_on_startup.py", line 26, in warm_spreadsheet_runtime_on_startup
+  File "/tmp/tmp.QlpUkOUI9D/artifact_tool_v2-2.8.66/artifact_tool/spreadsheet_warmup.py", line 785, in warm_spreadsheet_runtime
+  File "/tmp/tmp.QlpUkOUI9D/artifact_tool_v2-2.8.66/artifact_tool/spreadsheet_warmup.py", line 718, in _warm_feature_flows
+  File "/tmp/tmp.QlpUkOUI9D/artifact_tool_v2-2.8.66/artifact_tool/spreadsheet_warmup.py", line 509, in _warm_drawing_and_image_flows
+  File "/tmp/tmp.QlpUkOUI9D/artifact_tool_v2-2.8.66/artifact_tool/generated/interface/models.py", line 32861, in bring_to_front
+  File "/tmp/tmp.QlpUkOUI9D/artifact_tool_v2-2.8.66/artifact_tool/rpc/remote.py", line 764, in __call__
+  File "/tmp/tmp.QlpUkOUI9D/artifact_tool_v2-2.8.66/artifact_tool/rpc/client.py", line 175, in call
+artifact_tool.rpc.client.RemoteError: Element ordering requires an owning element collection.
+test_cancellation_aborts_browser_and_requests_server_cancel (test_p158_frontend_lifecycle.FrontendLifecycleContractTests.test_cancellation_aborts_browser_and_requests_server_cancel) ... ok
+test_concurrency_limit_and_persistent_ui_state_are_used (test_p158_frontend_lifecycle.FrontendLifecycleContractTests.test_concurrency_limit_and_persistent_ui_state_are_used) ... ok
+test_frontend_has_all_download_lifecycle_handlers (test_p158_frontend_lifecycle.FrontendLifecycleContractTests.test_frontend_has_all_download_lifecycle_handlers) ... ok
+test_javascript_syntax_check_when_node_is_available (test_p158_frontend_lifecycle.FrontendLifecycleContractTests.test_javascript_syntax_check_when_node_is_available) ... ok
+test_server_job_create_poll_and_result_routes_are_used (test_p158_frontend_lifecycle.FrontendLifecycleContractTests.test_server_job_create_poll_and_result_routes_are_used) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.062s
+
+OK

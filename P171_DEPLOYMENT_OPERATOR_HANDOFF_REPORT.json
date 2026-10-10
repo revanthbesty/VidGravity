@@ -1,0 +1,9 @@
+{
+  "milestone": "P171",
+  "name": "Deployment Operator Handoff",
+  "implementation": "Added an operator preflight CLI, four unit tests, a Windows/Linux handoff guide, a local preflight report, and CI integration.",
+  "automated_tests": {"test_p171_operator_preflight.py": "4/4 passed", "python_syntax": "passed", "app_js_syntax": "passed", "android_web_app_js_syntax": "passed", "zip_integrity": "verified after packaging"},
+  "local_environment_result": "BLOCKED",
+  "local_environment_findings": ["Docker CLI/daemon/Compose are unavailable in this build environment", "No real public HTTPS deployment URL was configured", "Razorpay environment variables were not configured", "Compose syntax validation was not run because Docker prerequisites were missing"],
+  "security_note": "Secret values are not included in the preflight report. No live deployment or payment test was performed."
+}

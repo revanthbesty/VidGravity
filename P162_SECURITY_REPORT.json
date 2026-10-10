@@ -1,0 +1,42 @@
+{
+  "milestone": "P162",
+  "unit_tests": {
+    "count": 108,
+    "failures": 0,
+    "errors": 0,
+    "result": "PASS"
+  },
+  "legacy_smoke_checks": [
+    {
+      "file": "test_p124.py",
+      "result": "10/10 PASS"
+    },
+    {
+      "file": "test_p125.py",
+      "result": "11/11 PASS"
+    },
+    {
+      "file": "test_p126.py",
+      "result": "12/12 PASS"
+    }
+  ],
+  "javascript_syntax": {
+    "app.js": "PASS",
+    "android-web/app.js": "PASS"
+  },
+  "security_features": [
+    "1 MiB JSON body cap",
+    "HTTP(S)-only URL checks and credential/port/control-character validation",
+    "DNS failure closed",
+    "metadata redirect revalidation",
+    "origin allow-list for API requests",
+    "security response headers",
+    "per-client in-memory throttles"
+  ],
+  "not_verified": [
+    "Production deployment",
+    "provider process egress sandboxing",
+    "cloud authentication/authorization",
+    "penetration testing"
+  ]
+}
