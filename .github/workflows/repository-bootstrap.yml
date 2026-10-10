@@ -1,0 +1,48 @@
+name: Repository Bootstrap Validation
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate package manifest
+        run: node -e "const p=require('./package.json'); if(p.name!=='vidgravity') process.exit(1); console.log('package.json valid');"
+      - name: Check required bootstrap files
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          required = ['README.md', 'IMPORT_STATUS.md', '.gitignore', 'requirements.txt', 'package.json']
+          missing = [p for p in required if not Path(p).is_file()]
+          if missing:
+              raise SystemExit('Missing bootstrap files: ' + ', '.join(missing))
+          print('Required bootstrap files present')
+          PY
+      - name: Guard common secret files
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          tracked_candidates = ['.env', '.env.production', 'id_rsa', 'id_ed25519']
+          found = [p for p in tracked_candidates if Path(p).exists()]
+          if found:
+              raise SystemExit('Potential secret files must not be committed: ' + ', '.join(found))
+          print('No common local secret files found')
+          PY
+      - name: Show source import gate
+        run: |
+          echo "Bootstrap CI is intentionally limited until the complete P172 source tree is imported."
+          echo "After import, enable the project regression tests and JavaScript syntax checks."
