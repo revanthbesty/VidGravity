@@ -1,0 +1,19 @@
+{
+  "name": "vidgravity",
+  "version": "1.0.4",
+  "private": true,
+  "description": "VidGravity integrated browser-first media workspace",
+  "scripts": {
+    "android:sync": "npx cap sync android",
+    "android:open": "npx cap open android",
+    "android:run": "npx cap run android",
+    "android:build:debug": "cd android && gradlew.bat assembleDebug"
+  },
+  "dependencies": {
+    "@capacitor/core": "^7.4.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.3",
+    "@capacitor/android": "^7.4.3"
+  }
+}
