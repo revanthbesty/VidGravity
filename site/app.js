@@ -120,26 +120,39 @@ async function retryJob(id){
  saveJobs();renderJobs();pumpQueue();
 }
 async function extractMetadata(blob,type,title){return await new Promise(resolve=>{const item={duration:0,width:0,height:0,thumbnail:''};if(!/^video\//i.test(blob.type||type||'')){resolve(item);return}const u=URL.createObjectURL(blob),v=document.createElement('video');v.preload='metadata';v.muted=true;v.playsInline=true;v.onloadedmetadata=()=>{item.duration=Number.isFinite(v.duration)?v.duration:0;item.width=v.videoWidth||0;item.height=v.videoHeight||0;v.currentTime=Math.min(1,Math.max(0,(v.duration||1)/2))};v.onseeked=()=>{try{const c=document.createElement('canvas');c.width=320;c.height=Math.max(180,Math.round(320*(v.videoHeight/v.videoWidth||9/16)));const ctx=c.getContext('2d');ctx.drawImage(v,0,0,c.width,c.height);item.thumbnail=c.toDataURL('image/jpeg',.72)}catch{}URL.revokeObjectURL(u);resolve(item)};v.onerror=()=>{URL.revokeObjectURL(u);resolve(item)};v.src=u})}
-function deviceFileName(title,type){
+function inferredMediaType(blobType,title,url){
+ const generic=new Set(['','application/octet-stream','binary/octet-stream','application/download']);
+ const current=String(blobType||'').split(';')[0].trim().toLowerCase();
+ if(current&&!generic.has(current))return current;
+ const extByPath={'.mp4':'video/mp4','.m4v':'video/mp4','.webm':'video/webm','.mov':'video/quicktime','.mkv':'video/x-matroska','.mp3':'audio/mpeg','.m4a':'audio/mp4','.aac':'audio/aac','.ogg':'audio/ogg','.wav':'audio/wav'};
+ let ext='';
+ try{ext=new URL(url,location.href).pathname.match(/\\.[a-z0-9]{2,5}$/i)?.[0]?.toLowerCase()||''}catch{}
+ if(!ext)ext=String(title||'').match(/\\.[a-z0-9]{2,5}$/i)?.[0]?.toLowerCase()||'';
+ return extByPath[ext]||current||'application/octet-stream';
+}
+function deviceFileName(title,type,url){
  let name=String(title||'vidgravity-media').replace(/[\\\\/:*?"<>|\\x00-\\x1f]/g,'_').trim()||'vidgravity-media';
  const mime=(type||'').split(';')[0].toLowerCase();
  const extByMime={'video/mp4':'.mp4','video/webm':'.webm','video/quicktime':'.mov','video/x-matroska':'.mkv','audio/mpeg':'.mp3','audio/mp4':'.m4a','audio/aac':'.aac','audio/ogg':'.ogg','audio/wav':'.wav','audio/webm':'.webm'};
- if(!/\\.[a-z0-9]{2,5}$/i.test(name)){name+=extByMime[mime]||''}
+ const urlExt=(()=>{try{return new URL(url,location.href).pathname.match(/\\.[a-z0-9]{2,5}$/i)?.[0]||''}catch{return''}})();
+ if(!/\\.[a-z0-9]{2,5}$/i.test(name)){name+=extByMime[mime]||urlExt}
  return name;
 }
-function downloadBlobToDevice(blob,title,type){
+function downloadBlobToDevice(blob,title,type,url){
  const objectUrl=URL.createObjectURL(blob);
- const a=document.createElement('a');a.href=objectUrl;a.download=deviceFileName(title,blob.type||type);a.style.display='none';
+ const a=document.createElement('a');a.href=objectUrl;a.download=deviceFileName(title,type,url);a.style.display='none';
  document.body.appendChild(a);a.click();a.remove();
  setTimeout(()=>URL.revokeObjectURL(objectUrl),60000);
 }
 async function finishBlob(job,blob,type){
- const meta=await extractMetadata(blob,type,job.title);
- const item={id:job.id,url:job.url,type:blob.type||type||'application/octet-stream',title:job.title,size:blob.size,created:Date.now(),blob,...meta};
+ const mediaType=inferredMediaType(blob.type||type,job.title,job.url);
+ const normalizedBlob=blob.type===mediaType?blob:blob.slice(0,blob.size,mediaType);
+ const meta=await extractMetadata(normalizedBlob,mediaType,job.title);
+ const item={id:job.id,url:job.url,type:mediaType,title:job.title,size:normalizedBlob.size,created:Date.now(),blob:normalizedBlob,...meta};
  await dbPut(item);
  job.status='completed';job.progress=100;job.mediaId=item.id;saveJobs();media.unshift(item);renderAll();
- // Persist in the in-browser Library and also initiate a real browser file download.
- downloadBlobToDevice(blob,item.title,item.type);
+ // Keep a browser Library copy and also trigger a real device download.
+ downloadBlobToDevice(normalizedBlob,item.title,item.type,job.url);
  toast('Downloaded to your device and saved to Library');
 }
 function titleFrom(url){try{return decodeURIComponent(new URL(url).pathname.split('/').pop()||'Untitled media')}catch{return'Untitled media'}}
