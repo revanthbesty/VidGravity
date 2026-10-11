@@ -235,3 +235,23 @@ body { padding-bottom: env(safe-area-inset-bottom); }
  .licenseControls input,.vg-api-controls input{grid-column:1/-1}
  .vg-api-controls .ghost{grid-column:1/-1;justify-self:start}
 }
+
+/* Quality selector: explain the decision and keep every row aligned. */
+.formatChooserHead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin:16px 0 8px;padding-top:14px;border-top:1px solid var(--line)}
+.formatChooserHead>div{min-width:0}
+.formatChooserHead b{display:block;font-size:14px;color:#f0ebf8}
+.formatChooserHead small{display:block;max-width:620px;margin-top:5px;color:var(--muted);font-size:12px;line-height:1.5}
+.formatCount{flex:0 0 auto;padding:5px 8px;border:1px solid var(--line);border-radius:8px;color:var(--muted);font-size:10px;white-space:nowrap}
+.formatOption{display:grid;grid-template-columns:36px minmax(0,1fr) minmax(116px,auto);align-items:center;gap:12px;padding:12px}
+.formatFileIcon{display:grid;place-items:center;flex:0 0 36px}
+.formatText b{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:14px;line-height:1.4}
+.formatText .mediaMeta{margin-top:5px;font-size:11px;line-height:1.5}
+.qualityBadge{margin:0;font-size:9px;letter-spacing:.04em}
+.formatOption .fmt{min-height:38px;min-width:116px;font-size:11px}
+.downloadBest{min-height:46px}
+@media(max-width:620px){
+ .formatChooserHead{flex-direction:column;gap:8px}
+ .formatOption{grid-template-columns:32px minmax(0,1fr);gap:10px}
+ .formatFileIcon{width:32px;flex-basis:32px}
+ .formatOption .fmt{grid-column:2;justify-self:start;min-width:136px}
+}
