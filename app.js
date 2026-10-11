@@ -161,7 +161,34 @@ async function retryJob(id){
  job.status="queued";job.progress=0;job.error="";job.serverJobId=null;job.cancelRequested=false;
  saveJobs();renderJobs();pumpQueue();
 }
-async function extractMetadata(blob,type,title){return await new Promise(resolve=>{const item={duration:0,width:0,height:0,thumbnail:''};if(!/^video\//i.test(blob.type||type||'')){resolve(item);return}const u=URL.createObjectURL(blob),v=document.createElement('video');v.preload='metadata';v.muted=true;v.playsInline=true;v.onloadedmetadata=()=>{item.duration=Number.isFinite(v.duration)?v.duration:0;item.width=v.videoWidth||0;item.height=v.videoHeight||0;v.currentTime=Math.min(1,Math.max(0,(v.duration||1)/2))};v.onseeked=()=>{try{const c=document.createElement('canvas');c.width=320;c.height=Math.max(180,Math.round(320*(v.videoHeight/v.videoWidth||9/16)));const ctx=c.getContext('2d');ctx.drawImage(v,0,0,c.width,c.height);item.thumbnail=c.toDataURL('image/jpeg',.72)}catch{}URL.revokeObjectURL(u);resolve(item)};v.onerror=()=>{URL.revokeObjectURL(u);resolve(item)};v.src=u})}
+async function extractMetadata(blob,type,title){
+ return await new Promise(resolve=>{
+  const item={duration:0,width:0,height:0,thumbnail:''};
+  if(!/^video\\//i.test(blob.type||type||'')){resolve(item);return}
+  let settled=false,objectUrl='';
+  const video=document.createElement('video');
+  const finish=()=>{if(settled)return;settled=true;clearTimeout(timer);if(objectUrl)URL.revokeObjectURL(objectUrl);video.removeAttribute('src');video.load();resolve(item)};
+  const timer=setTimeout(finish,3500);
+  try{
+   objectUrl=URL.createObjectURL(blob);video.preload='metadata';video.muted=true;video.playsInline=true;
+   video.onloadedmetadata=()=>{
+    item.duration=Number.isFinite(video.duration)?video.duration:0;
+    item.width=video.videoWidth||0;item.height=video.videoHeight||0;
+    if(!item.width||!item.height||!Number.isFinite(video.duration)||video.duration<=0){finish();return}
+    try{video.currentTime=Math.min(1,Math.max(0,video.duration/2))}catch{finish()}
+   };
+   video.onseeked=()=>{
+    try{
+     const canvas=document.createElement('canvas');canvas.width=320;
+     canvas.height=Math.max(180,Math.round(320*(video.videoHeight/video.videoWidth||9/16)));
+     const context=canvas.getContext('2d');if(context){context.drawImage(video,0,0,canvas.width,canvas.height);item.thumbnail=canvas.toDataURL('image/jpeg',.72)}
+    }catch{}
+    finish();
+   };
+   video.onerror=finish;video.src=objectUrl;
+  }catch{finish()}
+ });
+}
 async function detectMediaSignature(blob){
  const bytes=new Uint8Array(await blob.slice(0,32).arrayBuffer());
  const ascii=(start,end)=>String.fromCharCode(...bytes.slice(start,end));
