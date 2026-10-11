@@ -286,9 +286,14 @@ def _download_direct_media(url, job_id, job):
     """Download a direct audio/video resource over HTTP without relying on yt-dlp's generic extractor."""
     import mimetypes
     head_req=urllib.request.Request(url,method='HEAD',headers={'User-Agent':'VidGravity/1.0'})
-    with _safe_urlopen(head_req,timeout=15) as response:
-        content_type=(response.headers.get('Content-Type') or '').split(';',1)[0].strip().lower()
-        length_raw=response.headers.get('Content-Length')
+    try:
+        with _safe_urlopen(head_req,timeout=8) as response:
+            content_type=(response.headers.get('Content-Type') or '').split(';',1)[0].strip().lower()
+            length_raw=response.headers.get('Content-Length')
+    except Exception:
+        # Some hosts reject HEAD, and tests/provider URLs may not be reachable from
+        # the current runtime. Let yt-dlp handle those URLs instead.
+        return False
     if not (content_type.startswith('video/') or content_type.startswith('audio/')):
         return False
     parsed_path=urllib.parse.urlsplit(url).path
