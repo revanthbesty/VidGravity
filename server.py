@@ -377,7 +377,7 @@ def _run_download_job(job_id,url,fmt):
             _job_transition(job,"failed",error="yt-dlp is not installed",message="Provider unavailable")
             _job_changed(job); return
         out=str(DOWNLOAD_OUTPUT_DIR/(job_id+'.%(ext)s'))
-        p=subprocess.Popen(['yt-dlp','--no-playlist','--extractor-args','youtube:player_client=tv,web_safari','-f',fmt or 'bv*+ba/b','-o',out,'--restrict-filenames','--newline',url],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
+        p=subprocess.Popen(['yt-dlp','--no-playlist','-f',fmt or 'bv*+ba/b','-o',out,'--restrict-filenames','--newline',url],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
         with DOWNLOAD_JOB_LOCK: job['process']=p
         for line in p.stdout:
             line=line.strip()
@@ -540,7 +540,7 @@ class Handler(SimpleHTTPRequestHandler):
             if shutil.which('yt-dlp') is None:
                 return self._json(200,{'source':'direct','formats':[],'message':'yt-dlp is not installed'})
             try:
-                p=subprocess.run(['yt-dlp','--no-playlist','--extractor-args','youtube:player_client=tv,web_safari','-J','--skip-download','--no-warnings',url],capture_output=True,text=True,timeout=45)
+                p=subprocess.run(['yt-dlp','--no-playlist','-J','--skip-download','--no-warnings',url],capture_output=True,text=True,timeout=45)
             except subprocess.TimeoutExpired:
                 return self._json(504,{'error':'Format inspection timed out while contacting the provider'})
             if p.returncode!=0:return self._json(502,{'error':p.stderr[-1200:] or 'format inspection failed'})
@@ -602,7 +602,7 @@ class Handler(SimpleHTTPRequestHandler):
             if shutil.which('yt-dlp') is not None:
                 try:
                     p=subprocess.run(
-                        ['yt-dlp','--no-playlist','--extractor-args','youtube:player_client=tv,web_safari','-J','--skip-download','--no-warnings',url],
+                        ['yt-dlp','--no-playlist','-J','--skip-download','--no-warnings',url],
                         capture_output=True,text=True,timeout=30
                     )
                     if p.returncode==0:
@@ -657,6 +657,8 @@ class Handler(SimpleHTTPRequestHandler):
                             'formats':format_rows[:40]
                         })
                     extractor_error=(p.stderr or p.stdout or 'The media provider could not identify this URL')[-1200:]
+                    if 'sign in to confirm you' in extractor_error.lower() or 'login_required' in extractor_error.lower() or 'bot' in extractor_error.lower() and 'verification' in extractor_error.lower():
+                        extractor_error='YouTube blocked the hosted server with bot verification. Try the local companion server on your PC; the hosted server cannot use your local browser session.'
                 except subprocess.TimeoutExpired:
                     extractor_error='Media inspection timed out while contacting the provider'
                 except (ValueError, OSError) as exc:
@@ -797,7 +799,7 @@ class Handler(SimpleHTTPRequestHandler):
         if not ok:return self._json(400,{'error':err})
         if shutil.which('yt-dlp') is None:return self._json(501,{'error':'yt-dlp is not installed. Install it with: python -m pip install -r requirements.txt'})
         with tempfile.TemporaryDirectory() as td:
-            out=str(Path(td)/'media.%(ext)s'); fmt=data.get('format') or 'bv*+ba/b'; p=subprocess.run(['yt-dlp','--no-playlist','--extractor-args','youtube:player_client=tv,web_safari','-f',fmt,'-o',out,'--restrict-filenames',url],capture_output=True,text=True,timeout=600)
+            out=str(Path(td)/'media.%(ext)s'); fmt=data.get('format') or 'bv*+ba/b'; p=subprocess.run(['yt-dlp','--no-playlist','-f',fmt,'-o',out,'--restrict-filenames',url],capture_output=True,text=True,timeout=600)
             if p.returncode!=0:return self._json(502,{'error':p.stderr[-1600:] or 'yt-dlp failed'})
             files=list(Path(td).glob('media.*'))
             if not files:return self._json(502,{'error':'No media file produced'})
