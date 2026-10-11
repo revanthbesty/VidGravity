@@ -20,6 +20,12 @@ class FrontendLifecycleContractTests(unittest.TestCase):
   self.assertIn("controller.abort()",self.js)
   self.assertIn('method:"POST"',self.js)
   self.assertIn("job.cancelRequested=true",self.js)
+ def test_deployed_site_bundle_matches_root_runtime(self):
+  self.assertEqual((APP/"app.js").read_bytes(),(APP/"site"/"app.js").read_bytes(),"site app.js drifted from root")
+  self.assertEqual((APP/"styles.css").read_bytes(),(APP/"site"/"styles.css").read_bytes(),"site styles.css drifted from root")
+ def test_inspect_formats_progress_verification_and_device_save_are_present(self):
+  for token in ["renderAvailableFormats", "data.formats||[]", "detectMediaSignature", "downloadBlobToDevice", "Transferring file to your device", "Verified and saved to device and Library"]:
+   self.assertIn(token,self.js)
  def test_javascript_syntax_check_when_node_is_available(self):
   node=shutil.which("node")
   if not node:self.skipTest("Node.js not installed in validation environment")
