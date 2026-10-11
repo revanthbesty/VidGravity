@@ -51,6 +51,8 @@ jobs:
           echo "P170 is expected to remain blocked until external release evidence passes."
       - name: Direct media download regression tests
         run: python -m unittest -v test_download_job_direct.py
+      - name: YouTube extractor configuration regression tests
+        run: python -m unittest -v test_youtube_extractor_config.py
       - name: JavaScript syntax checks for every shipped frontend
         run: |
           node --check app.js
