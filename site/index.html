@@ -14,6 +14,23 @@
 <title>VidGravity</title>
 </head>
 <body>
+<section id="unifiedMediaWorkspace" class="unified-media-workspace"></section>
+<div id="vgConnectivityStatus" class="vg-connectivity-status" role="status" aria-live="polite" hidden></div>
+<div id="vgInstallBanner" class="vg-install-banner" role="region" aria-label="Install VidGravity" hidden><div><strong>Install VidGravity</strong><span>Open your media workspace like an app.</span></div><button id="vgInstallButton" class="primary" type="button">Install app</button><button id="vgInstallDismiss" class="ghost" type="button" aria-label="Dismiss install prompt">Not now</button></div>
+<div class="vg-ux-status" data-vg-ux-status role="status" aria-live="polite">Ready</div>
+<div id="releaseWorkspaceRail" class="release-workspace-rail"></div>
+<section id="unifiedIntelligencePanel" class="unified-intelligence-panel"></section>
+
+<div id="playerContextStatus" class="player-context-status"><span></span>Player context bridge active</div>
+
+<div id="mediaContextBar" class="media-context-bar"></div>
+
+<section id="mediaCopilot" class="media-copilot"></section>
+
+<section id="mediaCommandCenter" class="media-command-center"></section>
+
+<section id="aiActivityCenter" class="ai-activity-center"></section>
+<section id="intelligenceDashboard"></section><div class="smartBanner"><b>Smart media collections</b><span>Automatically group local media by topic, type, transcripts, tags, and notes.</span></div><div class="knowledgeBanner"><b>Unified knowledge search</b><span>Search media, transcripts, notes, highlights, tags, and collections from one place.</span></div><div class="notesBanner"><b>Saved highlights</b><span>Ask “save this as a highlight” or search your saved notes later.</span></div><div class="qaBanner"><b>Multi-media Q&A</b><span>Ask across your local library and jump to the strongest transcript evidence.</span></div><div class="qaBanner"><b>Transcript Q&A</b><span>Ask what was said and jump to the relevant timestamp.</span></div><div class="aiBanner"><b>AI Media Insights</b><span>Ask for a summary, key points, or a brief from your local transcript.</span></div><div class="actionPanel"><b>Media actions</b><span>Ask to play, favorite, organize, or undo the last change.</span></div>
 <div class="app">
   <aside class="sidebar">
     <div class="brand"><span class="logo">V</span><div><b>VidGravity</b><small>Media workspace</small></div></div>
@@ -106,25 +123,6 @@
     </section>
   </main>
 </div>
-
-<section id="unifiedMediaWorkspace" class="unified-media-workspace"></section>
-<div id="vgConnectivityStatus" class="vg-connectivity-status" role="status" aria-live="polite" hidden></div>
-<div id="vgInstallBanner" class="vg-install-banner" role="region" aria-label="Install VidGravity" hidden><div><strong>Install VidGravity</strong><span>Open your media workspace like an app.</span></div><button id="vgInstallButton" class="primary" type="button">Install app</button><button id="vgInstallDismiss" class="ghost" type="button" aria-label="Dismiss install prompt">Not now</button></div>
-<div class="vg-ux-status" data-vg-ux-status role="status" aria-live="polite">Ready</div>
-<div id="releaseWorkspaceRail" class="release-workspace-rail"></div>
-<section id="unifiedIntelligencePanel" class="unified-intelligence-panel"></section>
-
-<div id="playerContextStatus" class="player-context-status"><span></span>Player context bridge active</div>
-
-<div id="mediaContextBar" class="media-context-bar"></div>
-
-<section id="mediaCopilot" class="media-copilot"></section>
-
-<section id="mediaCommandCenter" class="media-command-center"></section>
-
-<section id="aiActivityCenter" class="ai-activity-center"></section>
-<section id="intelligenceDashboard"></section><div class="smartBanner"><b>Smart media collections</b><span>Automatically group local media by topic, type, transcripts, tags, and notes.</span></div><div class="knowledgeBanner"><b>Unified knowledge search</b><span>Search media, transcripts, notes, highlights, tags, and collections from one place.</span></div><div class="notesBanner"><b>Saved highlights</b><span>Ask “save this as a highlight” or search your saved notes later.</span></div><div class="qaBanner"><b>Multi-media Q&A</b><span>Ask across your local library and jump to the strongest transcript evidence.</span></div><div class="qaBanner"><b>Transcript Q&A</b><span>Ask what was said and jump to the relevant timestamp.</span></div><div class="aiBanner"><b>AI Media Insights</b><span>Ask for a summary, key points, or a brief from your local transcript.</span></div><div class="actionPanel"><b>Media actions</b><span>Ask to play, favorite, organize, or undo the last change.</span></div>
-
 
 <div id="detailsModal" class="modal hidden"><div class="modalBox detailsBox"><button class="close" id="closeDetails">×</button><div id="detailsContent"></div></div></div>
 <div id="playerModal" class="modal hidden"><div class="modalBox playerBox"><button class="close" id="closePlayer">×</button><video id="player" controls playsinline></video><div id="playerMeta"></div><div id="playerTranscript" class="playerTranscript"></div></div></div>
