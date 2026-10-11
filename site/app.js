@@ -201,7 +201,7 @@ async function retryJob(id){
 async function extractMetadata(blob,type,title){
  return await new Promise(resolve=>{
   const item={duration:0,width:0,height:0,thumbnail:''};
-  if(!/^video\\//i.test(blob.type||type||'')){resolve(item);return}
+  if(!/^video\//i.test(blob.type||type||'')){resolve(item);return}
   let settled=false,objectUrl='';
   const video=document.createElement('video');
   const finish=()=>{if(settled)return;settled=true;clearTimeout(timer);if(objectUrl)URL.revokeObjectURL(objectUrl);video.removeAttribute('src');video.load();resolve(item)};
