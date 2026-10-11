@@ -18,6 +18,16 @@ class P172DeploymentBundleTests(unittest.TestCase):
         self.assertIn('cap_drop:', app_service)
         self.assertIn('read_only: true', app_service)
 
+    def test_read_only_backend_has_persistent_writable_data_volume(self):
+        compose = (ROOT / 'compose.production.yml').read_text()
+        server = (ROOT / 'server.py').read_text()
+        self.assertIn('VIDGRAVITY_DATA_DIR: /data', compose)
+        self.assertIn('- vidgravity_data:/data', compose)
+        self.assertIn('  vidgravity_data:', compose)
+        self.assertIn("os.environ.get('VIDGRAVITY_DATA_DIR'", server)
+        self.assertIn("DATA_DIR/'download_jobs.sqlite3'", server)
+        self.assertIn("DATA_DIR/'license_devices.sqlite3'", server)
+
     def test_template_has_no_live_secret(self):
         env = (ROOT / '.env.production.example').read_text()
         self.assertIn('VIDGRAVITY_BASIC_AUTH_HASH=', env)
