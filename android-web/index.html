@@ -53,21 +53,23 @@
     <section id="home" class="page active">
       <div class="hero">
         <div>
-          <div class="eyebrow">YOUR MEDIA, YOUR CONTROL</div>
-          <h1>Bring media into<br><span>one gravity well.</span></h1>
-          <p>Paste a direct media URL to download, organize and play it locally in your browser.</p>
+          <div class="heroKicker"><span class="heroKickerDot"></span> YOUR PERSONAL MEDIA WORKSPACE</div>
+          <h1>Your media.<br><span>Beautifully organized.</span></h1>
+          <p>Bring video and audio links into one calm, powerful workspace. Choose your quality, follow downloads, and keep your media library close.</p>
+          <div class="heroActions"><a class="heroCta" href="#urlInput"><span class="heroCtaIcon">↓</span> Start with a link <span aria-hidden="true">↗</span></a><span class="heroMicrocopy"><span class="heroCheck">✓</span> Simple by design · Your workspace, your control</span></div>
         </div>
         <div class="heroOrb">V</div>
       </div>
       <div class="intake card">
-        <div class="intakeHead"><div><b>Add media</b><small>Direct MP4, WebM, MP3 and other browser-fetchable media</small></div><span class="pill">BROWSER</span></div>
+        <div class="intakeHead"><div><div class="intakeTitleRow"><span class="intakeIcon">↗</span><b>Add a media link</b></div><small>Paste a supported video or audio URL to inspect available options.</small></div><span class="pill intakePill">GET STARTED</span></div>
         <div class="urlRow">
-          <input id="urlInput" placeholder="https://example.com/video.mp4" autocomplete="off">
+          <input id="urlInput" type="url" inputmode="url" aria-label="Media URL" placeholder="Paste a video or audio link here…" autocomplete="url">
           <button id="inspectBtn" class="primary">Inspect</button>
         </div>
         <div id="inspectResult" class="inspect hidden"></div>
-        <div class="notice">Direct browser mode respects CORS/DRM/authentication boundaries. For broader provider support, run the optional local companion server with yt-dlp.</div>
+        <div class="notice"><span class="noticeIcon">ⓘ</span> Some sites require the VidGravity companion server. Protected or unavailable media may not be accessible.</div>
       </div>
+      <div class="homeWorkflow" aria-label="How VidGravity works"><div class="workflowStep"><span class="workflowNumber">01</span><div><b>Paste a link</b><small>Start with a supported media URL</small></div></div><span class="workflowArrow" aria-hidden="true">→</span><div class="workflowStep"><span class="workflowNumber">02</span><div><b>Choose quality</b><small>Pick video or audio-only</small></div></div><span class="workflowArrow" aria-hidden="true">→</span><div class="workflowStep"><span class="workflowNumber">03</span><div><b>Track & organize</b><small>Follow progress in your workspace</small></div></div></div>
       <div class="stats">
         <div class="stat card"><small>Library</small><strong id="statLibrary">0</strong><span>saved items</span></div>
         <div class="stat card"><small>Downloads</small><strong id="statDownloads">0</strong><span>completed</span></div>
