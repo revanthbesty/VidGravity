@@ -172,3 +172,66 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 .jobMessage{margin:4px 0 7px;color:var(--muted)}
 .thumb span{font-size:32px}
 @media(max-width:600px){.formatOption{align-items:flex-start;flex-wrap:wrap}.formatOption .fmt{margin-left:46px}.inspectMediaIcon{width:38px;height:38px;font-size:21px}}
+
+/* UI polish: keep advanced context surfaces out of the initial landing flow. */
+.unified-media-workspace,
+#vgConnectivityStatus,
+.vg-ux-status,
+#releaseWorkspaceRail,
+.unified-intelligence-panel,
+.player-context-status,
+#mediaContextBar,
+#mediaCopilot,
+#mediaCommandCenter,
+#aiActivityCenter,
+#intelligenceDashboard,
+.smartBanner,
+.knowledgeBanner,
+.notesBanner,
+.qaBanner,
+.aiBanner,
+.actionPanel{display:none!important}
+
+/* Consistent alignment and a clearer first-run download workflow. */
+.page{padding:30px 34px 56px}
+.hero{min-height:184px;gap:28px}
+.hero h1{font-size:clamp(32px,3.3vw,42px)}
+.hero p{max-width:560px;line-height:1.55}
+.heroOrb{flex:0 0 auto}
+.intake{margin-top:0;padding:22px}
+.intakeHead{gap:16px;align-items:flex-start}
+.intakeHead>div{min-width:0}
+.intakeHead small{line-height:1.5;max-width:560px}
+.urlRow{align-items:stretch;gap:10px;margin-top:16px}
+.urlRow input{min-width:0;height:48px}
+.urlRow .primary{height:48px;min-width:104px;white-space:nowrap}
+.notice{line-height:1.5;max-width:850px}
+.stats{margin:16px 0 28px;gap:12px}
+.stat{min-width:0}
+.sectionHead{margin:8px 0}
+.settingsGrid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px}
+.settingsGrid>.setting{display:flex;align-items:center;justify-content:space-between;gap:20px;min-width:0}
+.settingsGrid>.setting>div:first-child{min-width:0}
+.settingsGrid>.licenseSetting,
+.settingsGrid>.vg-api-setting{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:14px}
+.licenseHead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.licenseControls,.vg-api-controls{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;width:100%}
+.licenseControls input,.vg-api-controls input{min-width:0;width:100%;height:46px}
+.licenseControls .primary,.vg-api-controls .primary,.vg-api-controls .smallBtn{height:44px;white-space:nowrap}
+.vg-api-controls{grid-template-columns:minmax(0,1fr) auto auto auto}
+#licenseMessage,#licenseDevice,#vgApiMessage{display:block;line-height:1.5;overflow-wrap:anywhere}
+.settingsGrid small{line-height:1.5}
+@media(max-width:760px){
+ .page{padding:24px 18px 42px}
+ .hero{min-height:0;padding:12px 0 24px;align-items:flex-start}
+ .heroOrb{width:72px;height:72px;border-radius:24px;font-size:32px}
+ .hero h1{font-size:clamp(30px,7vw,38px)}
+ .intake{padding:16px}
+ .urlRow{flex-direction:column}
+ .urlRow .primary{width:100%}
+ .stats{grid-template-columns:1fr;gap:10px;margin-bottom:24px}
+ .settingsGrid>.setting{padding:16px}
+ .licenseControls,.vg-api-controls{grid-template-columns:minmax(0,1fr) minmax(0,auto)}
+ .licenseControls input,.vg-api-controls input{grid-column:1/-1}
+ .vg-api-controls .ghost{grid-column:1/-1;justify-self:start}
+}
