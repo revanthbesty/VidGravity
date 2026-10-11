@@ -166,6 +166,31 @@ async function runDownloadLifecycle(job){
   }
   throw Error("Download timed out while waiting for the provider");
  }catch(e){
+  // If the hosted extractor is blocked by a provider, retry on the user's local
+  // companion server when available. This avoids leaving a failed job on Render
+  // when the same URL may work from the user's own network.
+  const localBase="http://127.0.0.1:5173";
+  const configuredBase=(localStorage.getItem("vg-api-base-url")||"").trim().replace(/\/+$/,"");
+  if(!job.cancelRequested&&configuredBase!==localBase){
+   try{
+    const healthResponse=await fetch(localBase+"/api/health",{cache:"no-store"});
+    const health=await healthResponse.json().catch(()=>({}));
+    if(healthResponse.ok&&health.ok&&health.yt_dlp){
+     localStorage.setItem("vg-api-base-url",localBase);
+     const apiInput=$("#vgApiBaseInput"),apiMessage=$("#vgApiMessage");
+     if(apiInput)apiInput.value=localBase;
+     if(apiMessage)apiMessage.textContent="Using your local companion server for media downloads.";
+     if(typeof vgUXNotify==="function")vgUXNotify("The hosted download failed. Retrying through your local companion server.","info");
+     job.serverJobId=null;job.status="running";job.progress=0;job.error="";
+     job.message="Retrying download through your local companion…";
+     saveJobs();renderJobs();
+     activeJobRunners.delete(job.id);
+     return await runDownloadLifecycle(job);
+    }
+   }catch(localError){
+    // Keep the original provider error if the companion is not running or cannot be reached.
+   }
+  }
   if(job.cancelRequested){job.status="cancelled";job.error="Cancelled by user";}
   else{job.status="failed";job.error=e?.message||"Download failed";job.progress=0;}
   saveJobs();renderJobs();
