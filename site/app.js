@@ -54,7 +54,7 @@ function renderAvailableFormats(panel,formats,url,info){
   const size=Number(f.filesize)>0?' · '+formatBytes(Number(f.filesize)):'';
   const note=f.note?' · '+f.note:'';
   const streams=f.has_video&&!f.has_audio?'video + audio':'';
-  return `<div class="formatOption"><span class="formatFileIcon" aria-hidden="true">${icon}</span><div class="formatText"><b>${esc(String(f.ext||'media').toUpperCase())} · ${esc(f.resolution||'quality unknown')}</b><div class="mediaMeta">Format ${esc(f.id)}${esc(size)}${esc(note)}${streams?' · '+streams:''}</div></div><button class="smallBtn fmt" data-f="${esc(f.selector||f.id)}">Download</button></div>`;
+  return `<div class="formatOption"><span class="formatFileIcon" aria-hidden="true">${icon}</span><div class="formatText"><b>${esc(String(f.ext||'media').toUpperCase())} · <span class="qualityBadge">${esc(f.resolution||'quality unknown')}</span></b><div class="mediaMeta">Format ${esc(f.id)}${esc(size)}${esc(note)}${streams?' · '+streams:''}</div></div><button class="smallBtn fmt" data-f="${esc(f.selector||f.id)}">Download</button></div>`;
  }).join('')+'</div>';
  panel.querySelectorAll('.fmt').forEach(b=>b.onclick=()=>serverDownload(url,{...info,format:b.dataset.f,title:info.title}));
 }
