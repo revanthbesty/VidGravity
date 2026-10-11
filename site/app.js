@@ -122,6 +122,21 @@ async function runDownloadLifecycle(job){
  }
 }
 async function serverDownloadNow(url,info={}){return serverDownload(url,info)}
+async function detectMediaSignature(blob){
+ const bytes=new Uint8Array(await blob.slice(0,32).arrayBuffer());
+ const ascii=(start,end)=>String.fromCharCode(...bytes.slice(start,end));
+ if(bytes.length>=12&&ascii(4,8)==="ftyp")return "video/mp4";
+ if(bytes.length>=4&&bytes[0]===0x1A&&bytes[1]===0x45&&bytes[2]===0xDF&&bytes[3]===0xA3)return "video/webm";
+ if(bytes.length>=12&&ascii(0,4)==="RIFF"&&ascii(8,12)==="AVI ")return "video/x-msvideo";
+ if(bytes.length>=12&&ascii(0,4)==="RIFF"&&ascii(8,12)==="WAVE")return "audio/wav";
+ if(bytes.length>=3&&ascii(0,3)==="ID3")return "audio/mpeg";
+ if(bytes.length>=2&&bytes[0]===0xFF&&(bytes[1]&0xE0)===0xE0)return "audio/mpeg";
+ if(bytes.length>=4&&ascii(0,4)==="OggS")return "audio/ogg";
+ if(bytes.length>=4&&ascii(0,4)==="fLaC")return "audio/flac";
+ if(bytes.length>=8&&bytes[0]===0x89&&ascii(1,4)==="PNG")return "image/png";
+ if(bytes.length>=3&&bytes[0]===0xFF&&bytes[1]===0xD8&&bytes[2]===0xFF)return "image/jpeg";
+ return "";
+}
 async function startBrowserDownloadNow(url,type,providedJob){
  const job=providedJob||jobs.find(j=>j.url===url&&j.status==="running");if(!job)return;
  const controller=new AbortController();activeControllers.set(job.id,controller);
@@ -133,7 +148,12 @@ async function startBrowserDownloadNow(url,type,providedJob){
    job.progress=total?Math.min(99,Math.round(received/total*100)):Math.min(99,job.progress+4);saveJobs();renderJobs();}}
   else chunks=[new Uint8Array(await response.arrayBuffer())];
   if(job.cancelRequested)return;
-  await finishBlob(job,new Blob(chunks,{type:type||response.headers.get("content-type")||"application/octet-stream"}),type);
+  const responseType=(response.headers.get("content-type")||"").split(";")[0].trim().toLowerCase();
+  const blob=new Blob(chunks,{type:responseType||type||"application/octet-stream"});
+  const detectedType=await detectMediaSignature(blob);
+  if(!detectedType)throw Error("The server returned data that does not look like a supported media file. It may be an HTML error page or blocked download. VidGravity did not save it as a completed video.");
+  if(detectedType.startsWith("image/"))throw Error("The URL returned an image, not an audio or video file.");
+  await finishBlob(job,blob,detectedType);
   toast("Media saved to Library");
  }catch(e){
   if(e.name==="AbortError"||job.cancelRequested){job.status="cancelled";job.error="Cancelled by user";}
