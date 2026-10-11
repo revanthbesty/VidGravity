@@ -811,7 +811,7 @@ class Handler(SimpleHTTPRequestHandler):
         if not ok:return self._json(400,{'error':err})
         if shutil.which('yt-dlp') is None:return self._json(501,{'error':'yt-dlp is not installed. Install it with: python -m pip install -r requirements.txt'})
         with tempfile.TemporaryDirectory() as td:
-            out=str(Path(td)/'media.%(ext)s'); fmt=data.get('format') or 'bv*+ba/b'; p=subprocess.run(['yt-dlp','--no-playlist','-f',fmt,'-o',out,'--restrict-filenames',url],capture_output=True,text=True,timeout=600)
+            out=str(Path(td)/'media.%(ext)s'); fmt=data.get('format') or 'bv*+ba/b'; p=subprocess.run(_yt_dlp_command('--no-playlist','-f',fmt,'-o',out,'--restrict-filenames',url),capture_output=True,text=True,timeout=600)
             if p.returncode!=0:return self._json(502,{'error':p.stderr[-1600:] or 'yt-dlp failed'})
             files=list(Path(td).glob('media.*'))
             if not files:return self._json(502,{'error':'No media file produced'})
