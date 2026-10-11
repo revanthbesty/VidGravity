@@ -35,7 +35,7 @@ function makeJob(url,mode,info={}){
   type:info.type||"",format:info.format||null,created:Date.now()};
  jobs.unshift(job);saveJobs();renderJobs();pumpQueue();return job;
 }
-function serverDownload(url,info={}){return makeJob(url,"server",info)}
+function serverDownload(url,info={}){const job=makeJob(url,"server",info);nav("downloads");toast("Added to download queue");return job}
 function startBrowserDownload(url,type=""){return makeJob(url,"browser",{type,title:titleFrom(url)})}
 function pumpQueue(){
  const active=jobs.filter(j=>j.status==="running").length;
