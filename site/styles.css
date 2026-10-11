@@ -155,3 +155,19 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 .vg-api-controls input{flex:1 1 260px;min-width:0;background:#100e18;color:#eeeaf7;border:1px solid var(--line);border-radius:9px;padding:11px}
 .vg-api-controls button{min-height:42px}
 .vg-api-setting{display:block}
+
+/* Inspect format picker and explicit media-type icons */
+.inspectHeading{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.inspectMediaIcon,.formatFileIcon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:44px;height:44px;border-radius:12px;background:linear-gradient(145deg,#2b2042,#171326);border:1px solid var(--line);font-size:24px}
+.inspectFormatSummary{margin:10px 0}
+.formatList{display:grid;gap:8px;margin:12px 0}
+.formatOption{display:flex;align-items:center;gap:10px;min-width:0;padding:10px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.025)}
+.formatFileIcon{width:36px;height:36px;font-size:19px}
+.formatText{flex:1;min-width:0}
+.formatText b{display:block;font-size:13px;overflow-wrap:anywhere}
+.formatText .mediaMeta{overflow-wrap:anywhere}
+.formatOption .fmt{flex:0 0 auto}
+.formatEmpty{padding:12px;border:1px dashed var(--line);border-radius:10px}
+.jobMessage{margin:4px 0 7px;color:var(--muted)}
+.thumb span{font-size:32px}
+@media(max-width:600px){.formatOption{align-items:flex-start;flex-wrap:wrap}.formatOption .fmt{margin-left:46px}.inspectMediaIcon{width:38px;height:38px;font-size:21px}}
