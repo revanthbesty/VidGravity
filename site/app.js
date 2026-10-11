@@ -16,9 +16,8 @@ async function dbAll(){const db=await dbp;return new Promise((res,rej)=>{const r
 async function dbGet(id){const db=await dbp;return new Promise((res,rej)=>{const r=db.transaction(STORE).objectStore(STORE).get(id);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
 async function dbDelete(id){const db=await dbp;return new Promise((res,rej)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).delete(id);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
 function toast(t){const x=$('#toast');x.textContent=t;x.classList.add('show');setTimeout(()=>x.classList.remove('show'),2400)}
-async function load(){try{media=await dbAll();media.forEach(ensureOrg);await save()}catch(e){media=[];toast('Local storage unavailable')}try{jobs=JSON.parse(localStorage.getItem('vg-jobs')||'[]')}catch{jobs=[]}jobs=jobs.map(j=>j.status==='running'?{...j,status:'recoverable',error:'Recovered after browser reload'}:j);saveJobs();renderAll();pumpQueue()}
+async function load(){try{media=await dbAll()}catch(e){media=[];toast('Local storage unavailable')}try{jobs=JSON.parse(localStorage.getItem('vg-jobs')||'[]')}catch{jobs=[]}jobs=jobs.map(j=>j.status==='running'?{...j,status:'recoverable',error:'Recovered after browser reload'}:j);saveJobs();renderAll();pumpQueue()}
 function saveJobs(){localStorage.setItem('vg-jobs',JSON.stringify(jobs))}
-async function save(){try{await Promise.all(media.map(item=>dbPut(item)))}catch(error){console.error('Failed to save media metadata',error);toast('Could not save media changes')}}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function nav(page){$$('.page').forEach(x=>x.classList.toggle('active',x.id===page));$$('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===page));$('#pageTitle').textContent=page==='ask'?'Ask My Media':page[0].toUpperCase()+page.slice(1);if(page==='library')renderLibrary();if(page==='downloads')renderJobs();$('.sidebar')?.classList.remove('open')}
 $$('.nav').forEach(b=>b.onclick=()=>nav(b.dataset.page));$$('[data-page]').forEach(b=>b.onclick=()=>nav(b.dataset.page));
@@ -27,50 +26,35 @@ $('#clearAll').onclick=()=>{jobs=jobs.filter(j=>!['completed','failed'].includes
 
 $('#inspectBtn').onclick=async()=>{
  const url=$('#urlInput').value.trim();
- if(!/^https?:\\/\\//i.test(url))return toast('Enter a valid http(s) URL');
+ if(!/^https?:\/\//i.test(url))return toast('Enter a valid http(s) URL');
  const button=$('#inspectBtn'),box=$('#inspectResult');
- button.disabled=true;button.textContent='Inspecting…';
- box.classList.remove('hidden');box.innerHTML='<b>Inspecting media…</b><div class="mediaMeta">Checking the companion server. This may take a few seconds.</div>';
- const timedFetch=async(input,options={},ms=12000)=>{
-  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),ms);
-  try{return await fetch(input,{...options,signal:controller.signal})}
-  finally{clearTimeout(timer)}
- };
+ button.disabled=true;button.textContent='Inspecting…';box.classList.remove('hidden');
+ box.innerHTML='<b>Inspecting media…</b><div class="mediaMeta">Resolving title, duration, and available formats.</div>';
  try{
-  let serverError='';
-  try{
-   const r=await timedFetch(vgApiUrl('/api/inspect?url='+encodeURIComponent(url)),{},42000);
-   const d=await r.json().catch(()=>({}));
-   if(r.ok){
-    box.innerHTML=`<div class="inspectHeading"><span class="inspectMediaIcon" aria-hidden="true">${String(d.type||'').toLowerCase().includes('audio')?'♫':'🎬'}</span><div><b>${esc(d.title||'Media detected')}</b><div class="mediaMeta">${esc(d.type||'media')} · ${esc(d.size&&d.size!=='unknown'?formatBytes(Number(d.size)):d.size||'size unknown')} · ${esc(d.source||'server')}</div></div></div><div class="mediaMeta inspectFormatSummary">${Number(d.format_count||((d.formats||[]).length))} available format(s). Choose a format below or download the best available.</div><div id="formatPanel"></div><button class="primary" id="downloadNow">Download best available</button>`;
-    $('#downloadNow').onclick=()=>serverDownload(url,d);
-    renderAvailableFormats(box.querySelector('#formatPanel'),d.formats||[],url,d);
-    return;
-   }
-   serverError=d.error||('Companion server returned HTTP '+r.status);
-  }catch(e){serverError=e.name==='AbortError'?'Companion server timed out':(e.message||'Companion server unavailable')}
-  box.innerHTML='<b>Checking direct media access…</b><div class="mediaMeta">'+esc(serverError)+'</div>';
-  try{
-   const r=await timedFetch(url,{method:'HEAD',mode:'cors'},8000);
-   const type=r.headers.get('content-type')||'unknown';
-   if(!r.ok)throw Error('Media host returned HTTP '+r.status);
-   box.innerHTML=`<b>Browser-fetchable resource detected</b><div class="mediaMeta">${esc(type)} · ${esc(url)}</div><button class="primary" id="downloadNow">Download to Library and device</button>`;
-   $('#downloadNow').onclick=()=>startBrowserDownload(url,type);
-  }catch(e){
-   box.innerHTML=`<b>Inspection could not complete</b><div class="mediaMeta">${esc(serverError)}. Direct browser check: ${esc(e.name==='AbortError'?'timed out':e.message||'blocked by CORS or server policy')}.</div><div class="mediaMeta">Check Settings → Companion server address, then retry. Social platforms generally require the companion server.</div><button class="smallBtn" id="retryInspect">Retry Inspect</button>`;
-   $('#retryInspect').onclick=()=>$('#inspectBtn').click();
-  }
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);
+  let response,data;
+  try{response=await fetch(vgApiUrl('/api/inspect?url='+encodeURIComponent(url)),{signal:controller.signal});data=await response.json().catch(()=>({}));}
+  finally{clearTimeout(timer)}
+  if(!response.ok)throw Error(data.error||('Inspection failed (HTTP '+response.status+')')+(data.details?' · '+data.details:''));
+  const size=data.size&&data.size!=='unknown'&&Number.isFinite(Number(data.size))?formatBytes(Number(data.size)):(data.size||'size unknown');
+  box.innerHTML=`<div class="inspectHeading"><span class="inspectMediaIcon" aria-hidden="true">${String(data.type||'').toLowerCase().includes('audio')?'♫':'🎬'}</span><div><b>${esc(data.title||'Media detected')}</b><div class="mediaMeta">${esc(data.type||'media')} · ${esc(size)} · ${esc(data.source||'server')}${data.duration?' · '+esc(formatDuration(data.duration)):''}</div></div></div><div class="mediaMeta inspectFormatSummary">${Number(data.format_count||((data.formats||[]).length))} available format(s)</div><div id="formatPanel"></div><button class="primary" id="downloadNow">Download best available</button>`;
+  $('#downloadNow').onclick=()=>serverDownload(url,{...data,format:data.default_format||undefined});
+  renderAvailableFormats(box.querySelector('#formatPanel'),data.formats||[],url,data);
+ }catch(error){
+  box.innerHTML=`<b>Inspection failed</b><div class="mediaMeta">${esc(error.name==='AbortError'?'Inspection timed out after 45 seconds':error.message||'The companion server could not inspect this URL.')}</div><div class="mediaMeta">No formats will be invented. Check the companion server and try a public, supported media URL.</div><button class="smallBtn" id="retryInspect">Retry Inspect</button>`;
+  $('#retryInspect').onclick=()=>$('#inspectBtn').click();
  }finally{button.disabled=false;button.textContent='Inspect'}
 };
 
 function renderAvailableFormats(panel,formats,url,info){
  const fs=(formats||[]).filter(f=>f&&f.id).slice(0,40);
- if(!fs.length){panel.innerHTML='<div class="mediaMeta formatEmpty">No selectable formats were returned by the provider. Try Download best available, or use a direct media-file URL.</div>';return}
- panel.innerHTML='<div class="formatList">'+fs.map((f,i)=>{
+ if(!fs.length){panel.innerHTML='<div class="mediaMeta formatEmpty">The provider did not return selectable formats for this URL. Use Download best available only if the server confirms a supported media resource.</div>';return}
+ panel.innerHTML='<div class="formatList">'+fs.map(f=>{
+  const icon=f.has_audio&& !f.has_video?'♫':'🎬';
   const size=Number(f.filesize)>0?' · '+formatBytes(Number(f.filesize)):'';
   const note=f.note?' · '+f.note:'';
-  const resolution=f.resolution||'quality unknown';
-  return `<div class="formatOption"><span class="formatFileIcon" aria-hidden="true">${String(f.vcodec||'').toLowerCase()==='none'?'♫':'🎬'}</span><div class="formatText"><b>${esc(f.ext||'media').toUpperCase()} · ${esc(resolution)}</b><div class="mediaMeta">Format ${esc(f.id)}${esc(size)}${esc(note)}</div></div><button class="smallBtn fmt" data-f="${esc(f.id)}">Download</button></div>`;
+  const streams=f.has_video&&!f.has_audio?'video + audio':'';
+  return `<div class="formatOption"><span class="formatFileIcon" aria-hidden="true">${icon}</span><div class="formatText"><b>${esc(String(f.ext||'media').toUpperCase())} · ${esc(f.resolution||'quality unknown')}</b><div class="mediaMeta">Format ${esc(f.id)}${esc(size)}${esc(note)}${streams?' · '+streams:''}</div></div><button class="smallBtn fmt" data-f="${esc(f.selector||f.id)}">Download</button></div>`;
  }).join('')+'</div>';
  panel.querySelectorAll('.fmt').forEach(b=>b.onclick=()=>serverDownload(url,{...info,format:b.dataset.f,title:info.title}));
 }
@@ -81,7 +65,7 @@ function makeJob(url,mode,info={}){
   type:info.type||"",format:info.format||null,created:Date.now()};
  jobs.unshift(job);saveJobs();renderJobs();pumpQueue();return job;
 }
-function serverDownload(url,info={}){const job=makeJob(url,"server",info);nav("downloads");toast("Added to download queue");return job}
+function serverDownload(url,info={}){return makeJob(url,"server",info)}
 function startBrowserDownload(url,type=""){return makeJob(url,"browser",{type,title:titleFrom(url)})}
 function pumpQueue(){
  const active=jobs.filter(j=>j.status==="running").length;
@@ -115,8 +99,7 @@ async function runDownloadLifecycle(job){
     const result=await fetch(vgApiUrl("/api/download-jobs/"+encodeURIComponent(job.serverJobId)+"/result"));
     if(!result.ok){const e=await result.json().catch(()=>({}));throw Error(e.error||"Could not retrieve completed download");}
     job.message="Transferring completed file to your device…";job.progress=0;saveJobs();renderJobs();
-    const total=Number(result.headers.get("content-length")||0),reader=result.body?.getReader();
-    const chunks=[];let received=0;
+    const total=Number(result.headers.get("content-length")||0),reader=result.body?.getReader(),chunks=[];let received=0;
     if(reader){
      while(true){
       const part=await reader.read();if(part.done)break;
@@ -129,7 +112,7 @@ async function runDownloadLifecycle(job){
     const blob=new Blob(chunks,{type:result.headers.get("content-type")||"application/octet-stream"});
     job.message="Verifying media file…";job.progress=99;saveJobs();renderJobs();
     await finishBlob(job,blob,blob.type);
-    toast("Media saved to your device and VidGravity Library");return;
+    toast("Verified media saved to your device and Library");return;
    }
    await new Promise(resolve=>setTimeout(resolve,650));
   }
@@ -145,39 +128,19 @@ async function runDownloadLifecycle(job){
  }
 }
 async function serverDownloadNow(url,info={}){return serverDownload(url,info)}
-async function detectMediaSignature(blob){
- const bytes=new Uint8Array(await blob.slice(0,32).arrayBuffer());
- const ascii=(start,end)=>String.fromCharCode(...bytes.slice(start,end));
- if(bytes.length>=12&&ascii(4,8)==="ftyp")return "video/mp4";
- if(bytes.length>=4&&bytes[0]===0x1A&&bytes[1]===0x45&&bytes[2]===0xDF&&bytes[3]===0xA3)return "video/webm";
- if(bytes.length>=12&&ascii(0,4)==="RIFF"&&ascii(8,12)==="AVI ")return "video/x-msvideo";
- if(bytes.length>=12&&ascii(0,4)==="RIFF"&&ascii(8,12)==="WAVE")return "audio/wav";
- if(bytes.length>=3&&ascii(0,3)==="ID3")return "audio/mpeg";
- if(bytes.length>=2&&bytes[0]===0xFF&&(bytes[1]&0xE0)===0xE0)return "audio/mpeg";
- if(bytes.length>=4&&ascii(0,4)==="OggS")return "audio/ogg";
- if(bytes.length>=4&&ascii(0,4)==="fLaC")return "audio/flac";
- if(bytes.length>=8&&bytes[0]===0x89&&ascii(1,4)==="PNG")return "image/png";
- if(bytes.length>=3&&bytes[0]===0xFF&&bytes[1]===0xD8&&bytes[2]===0xFF)return "image/jpeg";
- return "";
-}
 async function startBrowserDownloadNow(url,type,providedJob){
  const job=providedJob||jobs.find(j=>j.url===url&&j.status==="running");if(!job)return;
  const controller=new AbortController();activeControllers.set(job.id,controller);
  try{
   const response=await fetch(url,{signal:controller.signal});if(!response.ok)throw Error(`HTTP ${response.status}`);
   const total=Number(response.headers.get("content-length")||0),reader=response.body?.getReader();
-  let chunks=[],received=0;
+  const chunks=[];let received=0;
   if(reader){while(true){const {done,value}=await reader.read();if(done)break;chunks.push(value);received+=value.byteLength;
-   job.progress=total?Math.min(99,Math.round(received/total*100)):Math.min(99,job.progress+4);saveJobs();renderJobs();}}
-  else chunks=[new Uint8Array(await response.arrayBuffer())];
+   job.progress=total?Math.min(99,Math.round(received/total*100)):Math.min(95,job.progress+3);job.message="Downloading media from source…";saveJobs();renderJobs();}}
+  else chunks.push(new Uint8Array(await response.arrayBuffer()));
   if(job.cancelRequested)return;
-  const responseType=(response.headers.get("content-type")||"").split(";")[0].trim().toLowerCase();
-  const blob=new Blob(chunks,{type:responseType||type||"application/octet-stream"});
-  const detectedType=await detectMediaSignature(blob);
-  if(!detectedType)throw Error("The server returned data that does not look like a supported media file. It may be an HTML error page or blocked download. VidGravity did not save it as a completed video.");
-  if(detectedType.startsWith("image/"))throw Error("The URL returned an image, not an audio or video file.");
-  await finishBlob(job,blob,detectedType);
-  toast("Media saved to Library");
+  const blob=new Blob(chunks,{type:response.headers.get("content-type")||type||"application/octet-stream"});
+  await finishBlob(job,blob,blob.type);toast("Verified media saved to your device and Library");
  }catch(e){
   if(e.name==="AbortError"||job.cancelRequested){job.status="cancelled";job.error="Cancelled by user";}
   else{job.status="failed";job.error=e.message||"Browser download failed";job.progress=0;}
@@ -226,45 +189,43 @@ async function extractMetadata(blob,type,title){
   }catch{finish()}
  });
 }
-function inferredMediaType(blobType,title,url){
- const generic=new Set(['','application/octet-stream','binary/octet-stream','application/download']);
- const current=String(blobType||'').split(';')[0].trim().toLowerCase();
- if(current&&!generic.has(current))return current;
- const extByPath={'.mp4':'video/mp4','.m4v':'video/mp4','.webm':'video/webm','.mov':'video/quicktime','.mkv':'video/x-matroska','.mp3':'audio/mpeg','.m4a':'audio/mp4','.aac':'audio/aac','.ogg':'audio/ogg','.wav':'audio/wav'};
- let ext='';
- try{ext=new URL(url,location.href).pathname.match(/\\.[a-z0-9]{2,5}$/i)?.[0]?.toLowerCase()||''}catch{}
- if(!ext)ext=String(title||'').match(/\\.[a-z0-9]{2,5}$/i)?.[0]?.toLowerCase()||'';
- return extByPath[ext]||current||'application/octet-stream';
+async function detectMediaSignature(blob){
+ const bytes=new Uint8Array(await blob.slice(0,32).arrayBuffer());
+ const ascii=(start,end)=>String.fromCharCode(...bytes.slice(start,end));
+ if(bytes.length>=12&&ascii(4,8)==="ftyp")return "video/mp4";
+ if(bytes.length>=4&&bytes[0]===0x1A&&bytes[1]===0x45&&bytes[2]===0xDF&&bytes[3]===0xA3)return "video/webm";
+ if(bytes.length>=12&&ascii(0,4)==="RIFF"&&ascii(8,12)==="AVI ")return "video/x-msvideo";
+ if(bytes.length>=12&&ascii(0,4)==="RIFF"&&ascii(8,12)==="WAVE")return "audio/wav";
+ if(bytes.length>=3&&ascii(0,3)==="ID3")return "audio/mpeg";
+ if(bytes.length>=2&&bytes[0]===0xFF&&(bytes[1]&0xE0)===0xE0)return "audio/mpeg";
+ if(bytes.length>=4&&ascii(0,4)==="OggS")return "audio/ogg";
+ if(bytes.length>=4&&ascii(0,4)==="fLaC")return "audio/flac";
+ return "";
 }
-function deviceFileName(title,type,url){
- let name=String(title||'vidgravity-media').replace(/[\\\\/:*?"<>|\\x00-\\x1f]/g,'_').trim()||'vidgravity-media';
- const mime=(type||'').split(';')[0].toLowerCase();
- const extByMime={'video/mp4':'.mp4','video/webm':'.webm','video/quicktime':'.mov','video/x-matroska':'.mkv','audio/mpeg':'.mp3','audio/mp4':'.m4a','audio/aac':'.aac','audio/ogg':'.ogg','audio/wav':'.wav','audio/webm':'.webm'};
- const urlExt=(()=>{try{return new URL(url,location.href).pathname.match(/\\.[a-z0-9]{2,5}$/i)?.[0]||''}catch{return''}})();
- if(!/\\.[a-z0-9]{2,5}$/i.test(name)){name+=extByMime[mime]||urlExt}
+function localFileName(title,type,url){
+ let name=String(title||'vidgravity-media').replace(/[\\/:*?"<>|\\x00-\\x1f]/g,'_').trim()||'vidgravity-media';
+ const extByMime={'video/mp4':'.mp4','video/webm':'.webm','video/quicktime':'.mov','video/x-matroska':'.mkv','video/x-msvideo':'.avi','audio/mpeg':'.mp3','audio/mp4':'.m4a','audio/aac':'.aac','audio/ogg':'.ogg','audio/wav':'.wav'};
+ const mime=String(type||'').split(';')[0].toLowerCase();
+ if(!/\\.[a-z0-9]{2,5}$/i.test(name))name+=extByMime[mime]||(()=>{try{return new URL(url,location.href).pathname.match(/\\.[a-z0-9]{2,5}$/i)?.[0]||'.media'}catch{return'.media'}})();
  return name;
 }
 function downloadBlobToDevice(blob,title,type,url){
- const objectUrl=URL.createObjectURL(blob);
- const a=document.createElement('a');a.href=objectUrl;a.download=deviceFileName(title,type,url);a.style.display='none';
+ const objectUrl=URL.createObjectURL(blob),a=document.createElement('a');
+ a.href=objectUrl;a.download=localFileName(title,type,url);a.style.display='none';
  document.body.appendChild(a);a.click();a.remove();
- setTimeout(()=>URL.revokeObjectURL(objectUrl),60000);
+ setTimeout(()=>URL.revokeObjectURL(objectUrl),120000);
 }
 async function finishBlob(job,blob,type){
  const detectedType=await detectMediaSignature(blob);
- if(!detectedType)throw Error("Download verification failed: the returned file is not a recognized media file. It was not marked complete or saved to the Library.");
- if(detectedType.startsWith("image/"))throw Error("The URL returned an image, not an audio or video file.");
- const mediaType=detectedType;
- const normalizedBlob=blob.type===mediaType?blob:blob.slice(0,blob.size,mediaType);
- if(!normalizedBlob.size)throw Error("Download verification failed: the media file is empty.");
+ if(!detectedType)throw Error("The downloaded response is not a recognized media file. It was not marked completed.");
+ const mediaType=detectedType,normalized=blob.type===mediaType?blob:blob.slice(0,blob.size,mediaType);
+ if(!normalized.size)throw Error("The downloaded media file is empty.");
  job.message="Saving verified media to your device…";job.progress=99;saveJobs();renderJobs();
- const meta=await extractMetadata(normalizedBlob,mediaType,job.title);
- const item={id:job.id,url:job.url,type:mediaType,title:job.title,size:normalizedBlob.size,created:Date.now(),blob:normalizedBlob,...meta};
+ const meta=await extractMetadata(normalized,mediaType,job.title);
+ const item={id:job.id,url:job.url,type:mediaType,title:job.title,size:normalized.size,created:Date.now(),blob:normalized,...meta};
  await dbPut(item);
+ downloadBlobToDevice(normalized,item.title,item.type,item.url);
  job.status='completed';job.progress=100;job.message='Verified and saved to device and Library';job.mediaId=item.id;saveJobs();media.unshift(item);renderAll();
- // Browsers save to the user's configured Downloads folder; the user may be prompted by browser settings.
- downloadBlobToDevice(normalizedBlob,item.title,item.type,job.url);
- toast('Verified media saved to your device and VidGravity Library');
 }
 function titleFrom(url){try{return decodeURIComponent(new URL(url).pathname.split('/').pop()||'Untitled media')}catch{return'Untitled media'}}
 function renderAll(){renderStats();renderRecent();renderLibrary();renderJobs();$('#queueBadge').textContent=jobs.filter(j=>['running','queued'].includes(j.status)).length}
@@ -340,20 +301,7 @@ function cancelQueued(){const before=jobs.length;jobs=jobs.filter(j=>!['queued',
 
 async function play(id,seek=0){
  const m=media.find(x=>x.id===id);if(!m)return;
- const player=$("#player");
- // Object URLs are runtime-only and cannot survive a reload or be stored in IndexedDB.
- // Recreate the URL from the persisted Blob whenever a library item is played.
- if(m.blob instanceof Blob){
-  if(m.objectUrl){try{URL.revokeObjectURL(m.objectUrl)}catch{}}
-  m.objectUrl=URL.createObjectURL(m.blob);
-  player.src=m.objectUrl;
- }else if(m.url&&/^https?:\\/\\//i.test(m.url)){
-  player.src=m.url;
- }else{
-  toast("This media item has no playable local file. Please download it again.");
-  return;
- }
- $("#playerMeta").textContent=m.title;
+ $("#player").src=m.objectUrl;$("#playerMeta").textContent=m.title;
  const t=transcriptFor(id);
  $("#playerTranscript").innerHTML=t?`<div class="ptHead"><b>Transcript</b><small>${t.segments.length} segments · ${esc(t.source)}</small></div><div class="ptList">${t.segments.map((s,i)=>`<button class="ptSeg" data-time="${s.start}"><span>${formatTime(s.start)}</span>${esc(s.text)}</button>`).join("")}</div>`:`<div class="ptEmpty">No transcript or captions available for this media.</div>`;
  $("#playerModal").classList.remove("hidden");
@@ -363,7 +311,8 @@ async function play(id,seek=0){
 }
 
 $('#closePlayer').onclick=()=>{$('#player').pause();const u=$('#player').dataset.objectUrl;if(u)URL.revokeObjectURL(u);$('#player').src='';$('#playerModal').classList.add('hidden')}
-async function saveFile(id){const m=await dbGet(id);if(!m){toast('Saved media file was not found in browser storage');return}if(!(m.blob instanceof Blob)){toast('This library item has no saved file data');return}const name=deviceFileName(m.title,m.type,m.url);const u=URL.createObjectURL(m.blob);const a=document.createElement('a');a.href=u;a.download=name;a.style.display='none';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000);toast('Browser download requested: '+name)}
+async function saveFile(id){const m=await dbGet(id);if(!m)return;const u=URL.createObjectURL(m.blob);const a=document.createElement('a');a.href=u;a.download=m.title||'vidgravity-media';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
+async function saveFile(id){const m=await dbGet(id);if(!m||!(m.blob instanceof Blob))return toast('Saved media file was not found');downloadBlobToDevice(m.blob,m.title,m.type,m.url);toast('Save to device requested')}
 async function removeMedia(id){if(!confirm('Delete this media from VidGravity Library?'))return;await dbDelete(id);media=media.filter(m=>m.id!==id);jobs=jobs.filter(j=>j.mediaId!==id);saveJobs();renderAll();toast('Media deleted')}
 function formatBytes(n){if(!n)return'0 B';const u=['B','KB','MB','GB'];let i=0;while(n>=1024&&i<3){n/=1024;i++}return n.toFixed(i?1:0)+' '+u[i]}
 function formatDuration(s){s=Math.max(0,Math.round(Number(s)||0));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),sec=s%60;return h?`${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`:`${m}:${String(sec).padStart(2,'0')}`}
@@ -1213,13 +1162,8 @@ function vgLicenseRender(status,message){
  if(deactivate)deactivate.disabled=!status.active;
 }
 async function vgLicenseRefresh(){
- const configured=(localStorage.getItem("vg-api-base-url")||"").trim();
- if(!configured){
-  vgLicenseRender({active:false,reason:"unavailable"},"Companion server not configured. Deploy the API, then add its HTTPS address in Settings.");
-  return;
- }
  try{const r=await fetch(vgApiUrl("/api/license/status?device_id="+encodeURIComponent(vgLicenseDeviceId())));const d=await r.json();if(!r.ok)throw Error(d.error||"Status check failed");vgLicenseRender(d,"")}
- catch(e){vgLicenseRender({active:false,reason:"unavailable"},"License service unavailable at the configured companion server. Check the API URL and server logs.")}
+ catch(e){vgLicenseRender({active:false,reason:"unavailable"},"License service unavailable. Start the companion server and try again.")}
 }
 async function vgLicenseAction(action){
  const key=document.getElementById("licenseKeyInput")?.value?.trim()||"";
