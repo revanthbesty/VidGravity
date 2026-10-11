@@ -39,7 +39,7 @@ $('#inspectBtn').onclick=async()=>{
  try{
   let serverError='';
   try{
-   const r=await timedFetch(vgApiUrl('/api/inspect?url='+encodeURIComponent(url)),{},12000);
+   const r=await timedFetch(vgApiUrl('/api/inspect?url='+encodeURIComponent(url)),{},42000);
    const d=await r.json().catch(()=>({}));
    if(r.ok){
     box.innerHTML=`<b>${esc(d.title||'Media detected')}</b><div class="mediaMeta">${esc(d.type||'unknown')} · ${esc(d.size||'size unknown')} · ${esc(d.source||'server')}</div><button class="smallBtn" id="formatsBtn">Show formats</button> <button class="primary" id="downloadNow">Add to Downloads</button><div id="formatPanel" class="hidden"></div>`;
