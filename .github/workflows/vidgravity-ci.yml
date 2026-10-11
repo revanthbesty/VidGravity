@@ -49,6 +49,8 @@ jobs:
           code=$?
           if [ "$code" -ne 0 ] && [ "$code" -ne 2 ]; then exit "$code"; fi
           echo "P170 is expected to remain blocked until external release evidence passes."
+      - name: Direct media download regression tests
+        run: python -m unittest -v test_download_job_direct.py
       - name: JavaScript syntax checks
         run: |
           node --check app.js
