@@ -476,7 +476,7 @@ def _license_deactivate(key,device_id):
 
 class Handler(SimpleHTTPRequestHandler):
     def _allowed_origins(self):
-        configured=os.environ.get('VIDGRAVITY_ALLOWED_ORIGINS','https://localhost,tauri://localhost,http://tauri.localhost,https://tauri.localhost,https://vidgravity-web.revanthbesty.workers.dev').split(',')
+        configured=os.environ.get('VIDGRAVITY_ALLOWED_ORIGINS','https://localhost,tauri://localhost,http://tauri.localhost,https://tauri.localhost,https://vidgravity-web.revanthbesty.workers.dev,https://vidgravity.onrender.com').split(',')
         return {origin.strip().rstrip('/') for origin in configured if origin.strip()}
 
     def end_headers(self):
