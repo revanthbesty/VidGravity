@@ -515,16 +515,70 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(200,{'source':'yt-dlp','title':d.get('title') or 'Media','duration':d.get('duration'),'thumbnail':d.get('thumbnail'),'formats':rows})
             except Exception as e:return self._json(502,{'error':f'invalid resolver response: {e}'})
         if self.path.startswith('/api/inspect'):
-            q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query); url=q.get('url',[''])[0]; ok,err=valid_url(url)
+            q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            url=q.get('url',[''])[0]
+            ok,err=valid_url(url)
             if not ok:return self._json(400,{'error':err})
-            info={'title':Path(urllib.parse.urlsplit(url).path).name or 'Remote media','type':'unknown','size':'unknown','source':'direct'}
+            # Prefer real extractor metadata for supported platforms. A webpage HEAD
+            # response alone is not proof that a downloadable media item was found.
+            extractor_error=''
+            if shutil.which('yt-dlp') is not None:
+                try:
+                    p=subprocess.run(
+                        ['yt-dlp','--no-playlist','-J','--skip-download','--no-warnings',url],
+                        capture_output=True,text=True,timeout=30
+                    )
+                    if p.returncode==0:
+                        d=json.loads(p.stdout)
+                        formats=d.get('formats') or []
+                        usable=[f for f in formats if f.get('url') and (f.get('vcodec')!='none' or f.get('acodec')!='none')]
+                        size=d.get('filesize') or d.get('filesize_approx')
+                        if not size:
+                            sizes=[f.get('filesize') or f.get('filesize_approx') for f in usable]
+                            sizes=[n for n in sizes if isinstance(n,(int,float))]
+                            size=max(sizes) if sizes else 'unknown'
+                        return self._json(200,{
+                            'title':d.get('title') or 'Media detected',
+                            'type':d.get('ext') or 'media',
+                            'size':size if size else 'unknown',
+                            'duration':d.get('duration'),
+                            'thumbnail':d.get('thumbnail'),
+                            'source':'yt-dlp',
+                            'format_count':len(usable),
+                            'formats_available':bool(usable)
+                        })
+                    extractor_error=(p.stderr or p.stdout or 'The media provider could not identify this URL')[-1200:]
+                except subprocess.TimeoutExpired:
+                    extractor_error='Media inspection timed out while contacting the provider'
+                except (ValueError, OSError) as exc:
+                    extractor_error=str(exc)[:500]
+            # Fallback only accepts resources whose response is actually audio/video.
             try:
                 req=urllib.request.Request(url,method='HEAD',headers={'User-Agent':'VidGravity/1.0'})
-                with _safe_urlopen(req,timeout=8) as r:
-                    info['type']=r.headers.get('Content-Type','unknown'); n=r.headers.get('Content-Length'); info['size']=int(n) if n else 'unknown'
-            except Exception as e: info['error']=str(e)
-            return self._json(200,info)
-
+                with _safe_urlopen(req,timeout=8) as response:
+                    content_type=(response.headers.get('Content-Type') or '').split(';',1)[0].strip().lower()
+                    n=response.headers.get('Content-Length')
+                    if content_type.startswith(('video/','audio/')):
+                        return self._json(200,{
+                            'title':Path(urllib.parse.urlsplit(url).path).name or 'Remote media',
+                            'type':content_type,
+                            'size':int(n) if n and n.isdigit() else 'unknown',
+                            'source':'direct',
+                            'formats_available':True
+                        })
+                    if content_type in ('text/html','application/xhtml+xml') or content_type.startswith('text/'):
+                        message='This URL returned a webpage, not a direct media file.'
+                        if extractor_error and ('sign in to confirm' in extractor_error.lower() or 'not a bot' in extractor_error.lower()):
+                            message='The provider requires bot verification or sign-in, so the hosted server cannot inspect this URL right now.'
+                        elif extractor_error:
+                            message='The provider could not extract media metadata from this webpage.'
+                        return self._json(422,{'error':message,'source':'inspect','details':extractor_error[-700:]})
+                    return self._json(415,{'error':'The URL did not return a recognized audio/video file. Content type: '+(content_type or 'unknown'),'source':'inspect'})
+            except Exception as exc:
+                detail=str(exc)[:400]
+                if extractor_error and ('sign in to confirm' in extractor_error.lower() or 'not a bot' in extractor_error.lower()):
+                    return self._json(422,{'error':'The provider requires bot verification or sign-in, so the hosted server cannot inspect this URL right now.','source':'inspect','details':extractor_error[-700:]})
+                return self._json(502,{'error':'Could not inspect this URL from the companion server. Check that the link is public and reachable.','source':'inspect','details':detail or extractor_error[-700:]})
         if self.path.startswith('/api/download-jobs/'):
             _cleanup_download_outputs()
             parts=urllib.parse.urlsplit(self.path).path.strip('/').split('/')
