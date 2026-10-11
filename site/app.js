@@ -5,7 +5,8 @@ const activeControllers=new Map();
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 // P161: the Android shell can connect to a configured HTTPS companion API.
 function vgApiUrl(path){
- const base=(localStorage.getItem('vg-api-base-url')||'').trim().replace(/\/+$/,'');
+ const savedBase=(localStorage.getItem('vg-api-base-url')||'').trim();
+ const base=(savedBase||(location.protocol==='https:'?'https://vidgravity.onrender.com':'')).trim().replace(/\/+$/,'');
  if(!base)return path;
  return base + '/' + String(path).replace(/^\//,'');
 }
