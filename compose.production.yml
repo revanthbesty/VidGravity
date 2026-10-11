@@ -7,8 +7,12 @@ services:
     expose:
       - "5173"
     environment:
+      # Writable persistent data is mounted separately from the read-only application image.
+      VIDGRAVITY_DATA_DIR: /data
       # This flag documents intent only; host/network egress isolation still needs separate enforcement.
       VIDGRAVITY_PROVIDER_EGRESS_ISOLATED: "false"
+    volumes:
+      - vidgravity_data:/data
     read_only: true
     tmpfs:
       - /tmp:size=512m,noexec,nosuid,nodev
@@ -58,3 +62,4 @@ networks:
 volumes:
   caddy_data:
   caddy_config:
+  vidgravity_data:
