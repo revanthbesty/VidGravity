@@ -572,6 +572,256 @@ class Handler(SimpleHTTPRequestHandler):
             if not ok:return self._json(400,{'error':err})
             # Prefer real extractor metadata for supported platforms. A webpage HEAD
             # response alone is not proof that a downloadable media item was found.
+            # Direct media URLs must be classified from the actual file bytes before
+            # yt-dlp metadata. Generic extractors can report direct MP4 files with
+            # missing size and vcodec='none', which incorrectly labels video as audio.
+            try:
+                direct_head=urllib.request.Request(url,method='HEAD',headers={'User-Agent':'VidGravity/1.0'})
+                with _safe_urlopen(direct_head,timeout=8) as response:
+                    direct_length=response.headers.get('Content-Length')
+                    direct_type=(response.headers.get('Content-Type') or '').split(';',1)[0].strip().lower()
+                direct_probe=urllib.request.Request(url,headers={'User-Agent':'VidGravity/1.0','Range':'bytes=0-63'})
+                with _safe_urlopen(direct_probe,timeout=8) as response:
+                    direct_signature=_media_signature_type(response.read(64))
+                    content_range=response.headers.get('Content-Range','')
+                if direct_signature:
+                    if not (direct_length and direct_length.isdigit()):
+                        range_match=re.search(r'/([0-9]+)                try:
+                    p=subprocess.run(
+                        ['yt-dlp','--no-playlist','-J','--skip-download','--no-warnings',url],
+                        capture_output=True,text=True,timeout=30
+                    )
+                    if p.returncode==0:
+                        d=json.loads(p.stdout)
+                        formats=d.get('formats') or []
+                        usable=[f for f in formats if f.get('url') and (f.get('vcodec')!='none' or f.get('acodec')!='none')]
+                        size=d.get('filesize') or d.get('filesize_approx')
+                        if not size:
+                            sizes=[f.get('filesize') or f.get('filesize_approx') for f in usable]
+                            sizes=[n for n in sizes if isinstance(n,(int,float))]
+                            size=max(sizes) if sizes else 'unknown'
+                        format_rows=[]
+                        for f in usable:
+                            fid=str(f.get('format_id') or '')
+                            vcodec=f.get('vcodec') or 'none'; acodec=f.get('acodec') or 'none'
+                            has_video=vcodec!='none'; has_audio=acodec!='none'
+                            if not fid: continue
+                            selector=fid if has_audio or not has_video else fid+'+bestaudio/best'
+                            format_rows.append({
+                                'id':fid,'selector':selector,
+                                'ext':f.get('ext') or d.get('ext') or 'media',
+                                'resolution':f.get('resolution') or (
+                                    f"{f.get('height')}p" if f.get('height') else
+                                    ('audio' if not has_video else 'unknown')
+                                ),
+                                'fps':f.get('fps'),
+                                'filesize':f.get('filesize') or f.get('filesize_approx'),
+                                'note':f.get('format_note') or '',
+                                'vcodec':vcodec,'acodec':acodec,
+                                'has_video':has_video,'has_audio':has_audio
+                            })
+                        # Some extractors return one combined downloadable result but
+                        # no formats array. Preserve a truthful single-format option.
+                        if not format_rows and d.get('url'):
+                            format_rows=[{
+                                'id':str(d.get('format_id') or 'best'),
+                                'ext':d.get('ext') or 'media',
+                                'resolution':d.get('resolution') or 'best available',
+                                'filesize':size if isinstance(size,(int,float)) else None,
+                                'note':'Best available'
+                            }]
+                        return self._json(200,{
+                            'title':d.get('title') or 'Media detected',
+                            'type':d.get('ext') or 'media',
+                            'size':size if size else 'unknown',
+                            'duration':d.get('duration'),
+                            'thumbnail':d.get('thumbnail'),
+                            'source':'yt-dlp',
+                            'format_count':len(format_rows),
+                            'formats_available':bool(format_rows),
+                            'default_format':'bv*+ba/b',
+                            'formats':format_rows[:40]
+                        })
+                    extractor_error=(p.stderr or p.stdout or 'The media provider could not identify this URL')[-1200:]
+                except subprocess.TimeoutExpired:
+                    extractor_error='Media inspection timed out while contacting the provider'
+                except (ValueError, OSError) as exc:
+                    extractor_error=str(exc)[:500]
+            # Some valid MP4 hosts incorrectly label files as application/octet-stream.
+            # Verify the first bytes instead of trusting the header or URL extension alone.
+            try:
+                req=urllib.request.Request(url,method='HEAD',headers={'User-Agent':'VidGravity/1.0'})
+                with _safe_urlopen(req,timeout=8) as response:
+                    content_type=(response.headers.get('Content-Type') or '').split(';',1)[0].strip().lower()
+                    n=response.headers.get('Content-Length')
+                probe_req=urllib.request.Request(url,headers={'User-Agent':'VidGravity/1.0','Range':'bytes=0-63'})
+                with _safe_urlopen(probe_req,timeout=8) as probe:
+                    signature=_media_signature_type(probe.read(64))
+                if signature:
+                    ext=Path(urllib.parse.urlsplit(url).path).suffix.lower().lstrip('.') or signature.split('/')[-1]
+                    return self._json(200,{
+                        'title':Path(urllib.parse.urlsplit(url).path).name or 'Remote media',
+                        'type':signature,'size':int(n) if n and n.isdigit() else 'unknown',
+                        'source':'direct','format_count':1,'formats_available':True,
+                        'default_format':'best',
+                        'formats':[{'id':'best','selector':'best','ext':ext,'resolution':'original quality',
+                            'filesize':int(n) if n and n.isdigit() else None,'note':'Verified direct media file',
+                            'has_video':signature.startswith('video/'),'has_audio':signature.startswith('audio/')}]
+                    })
+                if content_type in ('text/html','application/xhtml+xml') or content_type.startswith('text/'):
+                    message='This URL returned a webpage, not a direct media file.'
+                    if extractor_error and ('sign in to confirm' in extractor_error.lower() or 'not a bot' in extractor_error.lower()):
+                        message='The provider requires bot verification or sign-in, so the hosted server cannot inspect this URL right now.'
+                    elif extractor_error:
+                        message='The provider could not extract media metadata from this webpage.'
+                    return self._json(422,{'error':message,'source':'inspect','details':extractor_error[-700:]})
+                return self._json(415,{'error':'The URL did not return a recognized audio/video file. Content type: '+(content_type or 'unknown')+'. The server could not verify a media-file signature.','source':'inspect','details':extractor_error[-700:]})
+            except Exception as exc:
+                detail=str(exc)[:400]
+                if extractor_error and ('sign in to confirm' in extractor_error.lower() or 'not a bot' in extractor_error.lower()):
+                    return self._json(422,{'error':'The provider requires bot verification or sign-in, so the hosted server cannot inspect this URL right now.','source':'inspect','details':extractor_error[-700:]})
+                return self._json(502,{'error':'Could not inspect this URL from the companion server. Check that the link is public and reachable.','source':'inspect','details':detail or extractor_error[-700:]})
+        if self.path.startswith('/api/download-jobs/'):
+            _cleanup_download_outputs()
+            parts=urllib.parse.urlsplit(self.path).path.strip('/').split('/')
+            if len(parts)<3:return self._json(404,{'error':'Job not found'})
+            with DOWNLOAD_JOB_LOCK: job=DOWNLOAD_JOBS.get(parts[2])
+            if not job:return self._json(404,{'error':'Job not found'})
+            if len(parts)==4 and parts[3]=='result':
+                if job.get('state')=='expired':return self._json(410,{'error':'Download output has expired or is unavailable','state':'expired'})
+                if job.get('state')!='completed':return self._json(409,{'error':'Download is not complete','state':job.get('state')})
+                path=_safe_output_path(job.get('output_path',''))
+                if not path or not path.is_file():
+                    return self._json(410,{'error':'Download output has expired or is unavailable','state':'expired'})
+                filename=Path(job.get('filename','media.bin')).name.replace('"','')
+                size=path.stat().st_size
+                self.send_response(200)
+                self.send_header('Content-Type',job.get('content_type') or 'application/octet-stream')
+                self.send_header('Content-Disposition',f'attachment; filename="{filename}"')
+                self.send_header('Content-Length',str(size))
+                self.end_headers()
+                # Stream the completed output instead of reading the whole file into RAM.
+                with path.open('rb') as media_file:
+                    while True:
+                        chunk=media_file.read(256*1024)
+                        if not chunk: break
+                        self.wfile.write(chunk)
+                return
+            with DOWNLOAD_JOB_LOCK: view=_job_public_view(job)
+            return self._json(200,view)
+        return super().do_GET()
+    def do_POST(self):
+        if self.path.startswith('/api/') and self._origin_rejected():
+            return self._json(403,{'error':'Origin is not allowed'})
+        if self.path=='/api/download-jobs' and self._limited('download-create'): return
+        if self.path.endswith('/retry') and self._limited('download-retry'): return
+        if self.path.endswith('/cancel') and self._limited('download-cancel'): return
+        if self.path in ('/api/license/activate','/api/license/deactivate') and self._limited('license'): return
+        if self.path=='/api/download' and self._limited('direct-download'): return
+        parsed_license=urllib.parse.urlsplit(self.path)
+        if parsed_license.path in ('/api/license/activate','/api/license/deactivate'):
+            data=self._read_json()
+            if data is None:return
+            if parsed_license.path.endswith('/activate'):code,result=_license_activate(data.get('license_key'),data.get('device_id'))
+            else:code,result=_license_deactivate(data.get('license_key'),data.get('device_id'))
+            return self._json(code,result)
+        parsed_path=urllib.parse.urlsplit(self.path)
+        if parsed_path.path.startswith('/api/download/jobs'):
+            suffix=parsed_path.path[len('/api/download/jobs'):]
+            self.path='/api/download-jobs'+suffix
+        if self.path=='/api/download-jobs':
+            _cleanup_download_outputs()
+            data=self._read_json()
+            if data is None:return
+            url=data.get('url',''); ok,err=valid_url(url)
+            if not ok:return self._json(400,{'error':err})
+            fmt=data.get('format') or 'bv*+ba/b'
+            if not isinstance(fmt,str) or len(fmt)>200 or not re.fullmatch(r'[A-Za-z0-9_*+./,\[\]()-]+',fmt):
+                return self._json(400,{'error':'Invalid format selector'})
+            with DOWNLOAD_JOB_LOCK:
+                _cleanup_job_store()
+                if len(DOWNLOAD_JOBS)>=DOWNLOAD_JOB_LIMIT:
+                    return self._json(429,{'error':'Download job limit reached; active and retained jobs are not removed'})
+                job_id=__import__('uuid').uuid4().hex
+                DOWNLOAD_JOBS[job_id]={"id":job_id,"state":"queued","progress":0,"message":"Queued","url":url,"format":fmt,"created_at":time.time(),"updated_at":time.time()}
+                _persist_job(DOWNLOAD_JOBS[job_id])
+            import threading
+            threading.Thread(target=_run_download_job,args=(job_id,url,fmt),daemon=True).start()
+            return self._json(202,{"id":job_id,"state":"queued","progress":0})
+        if self.path.startswith('/api/download-jobs/') and self.path.endswith('/retry'):
+            job_id=self.path.split('/')[-2]
+            with DOWNLOAD_JOB_LOCK: old=DOWNLOAD_JOBS.get(job_id)
+            if not old:return self._json(404,{'error':'Job not found'})
+            if old.get('state') not in ('failed','cancelled'):return self._json(409,{'error':'Only failed or cancelled jobs can be retried','state':old.get('state')})
+            with DOWNLOAD_JOB_LOCK:
+                _cleanup_job_store()
+                if len(DOWNLOAD_JOBS)>=DOWNLOAD_JOB_LIMIT:return self._json(429,{'error':'Download job limit reached; active and retained jobs are not removed'})
+                new_id=__import__('uuid').uuid4().hex
+                new_job={"id":new_id,"state":"queued","progress":0,"message":"Retry queued","url":old.get('url'),"format":old.get('format') or 'bv*+ba/b',"retry_of":job_id,"created_at":time.time(),"updated_at":time.time()}
+                DOWNLOAD_JOBS[new_id]=new_job
+                _persist_job(new_job)
+            import threading
+            threading.Thread(target=_run_download_job,args=(new_id,new_job['url'],new_job['format']),daemon=True).start()
+            return self._json(202,{"id":new_id,"state":"queued","retry_of":job_id})
+        if self.path.startswith('/api/download-jobs/') and self.path.endswith('/cancel'):
+            job_id=self.path.split('/')[-2]; job=DOWNLOAD_JOBS.get(job_id)
+            if not job:return self._json(404,{'error':'Job not found'})
+            with DOWNLOAD_JOB_LOCK:
+                if job.get('state') in ('completed','failed','cancelled'):
+                    return self._json(409,{"id":job_id,"state":job.get('state'),"error":"Job is already terminal"})
+                job['cancel_requested']=True
+                p=job.get('process')
+                job.update({"state":"cancelled","message":"Cancellation requested"})
+                _job_changed(job)
+            if p:
+                _stop_download_process(p)
+            return self._json(200,{"id":job_id,"state":"cancelled"})
+        if self.path!='/api/download': return self._json(404,{'error':'Not found'})
+        data=self._read_json()
+        if data is None:return
+        url=data.get('url',''); ok,err=valid_url(url)
+        if not ok:return self._json(400,{'error':err})
+        if shutil.which('yt-dlp') is None:return self._json(501,{'error':'yt-dlp is not installed. Install it with: python -m pip install -r requirements.txt'})
+        with tempfile.TemporaryDirectory() as td:
+            out=str(Path(td)/'media.%(ext)s'); fmt=data.get('format') or 'bv*+ba/b'; p=subprocess.run(['yt-dlp','--no-playlist','-f',fmt,'-o',out,'--restrict-filenames',url],capture_output=True,text=True,timeout=600)
+            if p.returncode!=0:return self._json(502,{'error':p.stderr[-1600:] or 'yt-dlp failed'})
+            files=list(Path(td).glob('media.*'))
+            if not files:return self._json(502,{'error':'No media file produced'})
+            f=files[0]; b=f.read_bytes(); self.send_response(200); self.send_header('Content-Type','application/octet-stream'); self.send_header('Content-Disposition',f'attachment; filename="{f.name}"'); self.send_header('Content-Length',str(len(b))); self.end_headers(); self.wfile.write(b)
+    def log_message(self,fmt,*args): print('%s - %s'%(self.address_string(),fmt%args))
+if __name__=='__main__':
+    ap=argparse.ArgumentParser(description='VidGravity companion server')
+    ap.add_argument('--host', default=os.environ.get('HOST', '127.0.0.1'),
+                help='bind address; use 0.0.0.0 only behind a trusted reverse proxy/container network')
+    ap.add_argument('--port', type=int, default=int(os.environ.get('PORT', '5173')))
+
+    ap.add_argument('--allow-local',action='store_true',help='allow localhost/private network URLs for development ONLY')
+    args=ap.parse_args()
+    ALLOW_LOCAL=args.allow_local
+    os.chdir(ROOT)
+    print(f'VidGravity server listening on {args.host}:{args.port}')
+    ThreadingHTTPServer((args.host,args.port),Handler).serve_forever()
+,content_range)
+                        direct_length=range_match.group(1) if range_match else ''
+                    direct_size=int(direct_length) if direct_length and direct_length.isdigit() else None
+                    direct_path=urllib.parse.urlsplit(url).path
+                    direct_ext=Path(direct_path).suffix.lower().lstrip('.') or direct_signature.split('/')[-1]
+                    direct_has_video=direct_signature.startswith('video/')
+                    direct_has_audio=direct_signature.startswith('audio/')
+                    return self._json(200,{
+                        'title':Path(direct_path).name or 'Remote media',
+                        'type':direct_signature,
+                        'size':direct_size if direct_size is not None else 'unknown',
+                        'duration':None,'thumbnail':None,'source':'direct',
+                        'format_count':1,'formats_available':True,'default_format':'best',
+                        'formats':[{'id':'best','selector':'best','ext':direct_ext,
+                            'resolution':'original quality','filesize':direct_size,
+                            'note':'Verified direct media file','has_video':direct_has_video,
+                            'has_audio':direct_has_audio}]
+                    })
+            except Exception:
+                # Continue with yt-dlp for providers that reject HEAD/Range requests.
+                pass
             extractor_error=''
             if shutil.which('yt-dlp') is not None:
                 try:
