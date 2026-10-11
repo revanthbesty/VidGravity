@@ -195,7 +195,20 @@ function cancelQueued(){const before=jobs.length;jobs=jobs.filter(j=>!['queued',
 
 async function play(id,seek=0){
  const m=media.find(x=>x.id===id);if(!m)return;
- $("#player").src=m.objectUrl;$("#playerMeta").textContent=m.title;
+ const player=$("#player");
+ // Object URLs are runtime-only and cannot survive a reload or be stored in IndexedDB.
+ // Recreate the URL from the persisted Blob whenever a library item is played.
+ if(m.blob instanceof Blob){
+  if(m.objectUrl){try{URL.revokeObjectURL(m.objectUrl)}catch{}}
+  m.objectUrl=URL.createObjectURL(m.blob);
+  player.src=m.objectUrl;
+ }else if(m.url&&/^https?:\\/\\//i.test(m.url)){
+  player.src=m.url;
+ }else{
+  toast("This media item has no playable local file. Please download it again.");
+  return;
+ }
+ $("#playerMeta").textContent=m.title;
  const t=transcriptFor(id);
  $("#playerTranscript").innerHTML=t?`<div class="ptHead"><b>Transcript</b><small>${t.segments.length} segments · ${esc(t.source)}</small></div><div class="ptList">${t.segments.map((s,i)=>`<button class="ptSeg" data-time="${s.start}"><span>${formatTime(s.start)}</span>${esc(s.text)}</button>`).join("")}</div>`:`<div class="ptEmpty">No transcript or captions available for this media.</div>`;
  $("#playerModal").classList.remove("hidden");
