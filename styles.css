@@ -289,3 +289,12 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 .qualitySelectMark{flex:0 0 auto;font-size:10px;color:#cbb9ee;border:1px solid #45345e;border-radius:7px;padding:6px 8px}
 .standardQualityChoice.selected .qualitySelectMark{background:#7446c9;border-color:#9b6cff;color:#fff}
 @media(max-width:700px){.standardQualityList{grid-template-columns:1fr}.standardQualityChoice{min-height:66px}.qualitySelectMark{font-size:10px}}
+
+
+/* P175: place Video choices on the left and Audio choices on the right */
+#formatPanel .standardQualityList{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-rows:repeat(6,minmax(72px,auto));grid-auto-flow:column;align-items:stretch;gap:10px}
+#formatPanel .standardQualityChoice{width:100%;min-width:0;height:100%;box-sizing:border-box}
+#formatPanel .standardQualityChoice .standardQualityText{min-width:0}
+#formatPanel .standardQualityChoice .standardQualityText small{overflow-wrap:anywhere}
+#formatPanel .standardQualityChoice .qualitySelectMark{flex:0 0 auto}
+@media(max-width:700px){#formatPanel .standardQualityList{grid-template-columns:minmax(0,1fr);grid-template-rows:none;grid-auto-flow:row}}
