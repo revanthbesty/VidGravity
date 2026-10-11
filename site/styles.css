@@ -313,3 +313,10 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 #formatPanel .qualityColumn .standardQualityText small{font-size:10px}
 #formatPanel .qualityColumn .qualitySelectMark{padding:5px 7px;font-size:10px}
 @media(max-width:700px){#formatPanel .qualityColumns{grid-template-columns:minmax(0,1fr)}}
+
+
+/* P177: clear title hierarchy for the Video and Audio sections */
+#formatPanel .qualityColumnHeader{align-items:center;padding:8px 4px 14px;margin-bottom:14px;border-bottom:1px solid var(--line)}
+#formatPanel .qualityColumnHeader b{font-size:18px;font-weight:800;line-height:1.25;letter-spacing:.1px;color:var(--text,#f7f3ff)}
+#formatPanel .qualityColumnHeader small{font-size:11px;font-weight:400;line-height:1.5;color:var(--muted);margin-top:5px}
+#formatPanel .qualityColumnIcon{width:40px;height:40px;flex-basis:40px;font-size:19px}
