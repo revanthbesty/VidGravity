@@ -556,7 +556,7 @@ class Handler(SimpleHTTPRequestHandler):
                     selector=fid if has_audio or not has_video else fid+'+bestaudio/best'
                     rows.append({
                         'id':fid,'selector':selector,'ext':f.get('ext'),
-                        'resolution':f.get('resolution') or (f"{f.get('height')}p" if f.get('height') else ('audio' if not has_video else 'unknown')),
+                        'resolution':(f"{int(f.get('height'))}p" if has_video and f.get('height') else (f.get('resolution') if has_video and f.get('resolution') else ('audio only' if has_audio and not has_video else ('video quality unavailable' if has_video else 'unknown')))),
                         'fps':f.get('fps'),'vcodec':vcodec,'acodec':acodec,
                         'filesize':f.get('filesize') or f.get('filesize_approx'),
                         'note':f.get('format_note') or '',
