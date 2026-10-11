@@ -102,9 +102,10 @@ def _safe_urlopen(request, timeout=8):
 
 DOWNLOAD_JOBS={}
 DOWNLOAD_JOB_LOCK=__import__('threading').RLock()
-DOWNLOAD_OUTPUT_DIR=ROOT/'downloads'
+DATA_DIR=Path(os.environ.get('VIDGRAVITY_DATA_DIR',str(ROOT/'data'))).expanduser()
+DOWNLOAD_OUTPUT_DIR=Path(os.environ.get('VIDGRAVITY_DOWNLOAD_DIR',str(DATA_DIR/'downloads'))).expanduser()
 DOWNLOAD_OUTPUT_TTL_SECONDS=24*60*60
-DOWNLOAD_DB_PATH=ROOT/'download_jobs.sqlite3'
+DOWNLOAD_DB_PATH=Path(os.environ.get('VIDGRAVITY_DOWNLOAD_DB_PATH',str(DATA_DIR/'download_jobs.sqlite3'))).expanduser()
 
 def _db_connect():
     conn=sqlite3.connect(str(DOWNLOAD_DB_PATH), timeout=10)
@@ -417,7 +418,7 @@ _init_job_store()
 
 # P159 account/device license contract (local companion-server adapter).
 import hashlib as _license_hashlib
-LICENSE_DB_PATH=ROOT/'license_devices.sqlite3'
+LICENSE_DB_PATH=Path(os.environ.get('VIDGRAVITY_LICENSE_DB_PATH',str(DATA_DIR/'license_devices.sqlite3'))).expanduser()
 
 def _license_db():
     conn=sqlite3.connect(str(LICENSE_DB_PATH),timeout=10)
