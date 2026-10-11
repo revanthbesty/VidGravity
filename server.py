@@ -282,6 +282,19 @@ def _stop_download_process(process, timeout=2):
 
 DOWNLOAD_JOB_LIMIT=30
 DOWNLOAD_JOB_RETENTION_SECONDS=7*24*60*60
+def _media_signature_type(data):
+    """Return a MIME type only when a known media container/audio signature is present."""
+    if len(data)>=12 and data[4:8]==b'ftyp': return 'video/mp4'
+    if data.startswith(b'\\x1a\\x45\\xdf\\xa3'): return 'video/webm'
+    if len(data)>=12 and data[:4]==b'RIFF' and data[8:12]==b'AVI ': return 'video/x-msvideo'
+    if len(data)>=12 and data[:4]==b'RIFF' and data[8:12]==b'WAVE': return 'audio/wav'
+    if data.startswith(b'ID3') or (len(data)>=2 and data[0]==0xff and (data[1]&0xe0)==0xe0): return 'audio/mpeg'
+    if data.startswith(b'OggS'): return 'audio/ogg'
+    if data.startswith(b'fLaC'): return 'audio/flac'
+    if data.startswith(b'\\x00\\x00\\x01\\xba') or data.startswith(b'\\x00\\x00\\x01\\xb3'): return 'video/mpeg'
+    return ''
+
+
 def _download_direct_media(url, job_id, job):
     """Download a direct audio/video resource over HTTP without relying on yt-dlp's generic extractor."""
     import mimetypes
@@ -294,10 +307,11 @@ def _download_direct_media(url, job_id, job):
         # Some hosts reject HEAD, and tests/provider URLs may not be reachable from
         # the current runtime. Let yt-dlp handle those URLs instead.
         return False
-    if not (content_type.startswith('video/') or content_type.startswith('audio/')):
-        return False
     parsed_path=urllib.parse.urlsplit(url).path
     ext=Path(parsed_path).suffix.lower()
+    known_exts={'.mp4','.m4v','.webm','.mov','.mkv','.avi','.mp3','.m4a','.aac','.ogg','.wav','.flac','.mpeg','.mpg'}
+    if not (content_type.startswith('video/') or content_type.startswith('audio/') or (content_type in ('application/octet-stream','binary/octet-stream') and ext in known_exts)):
+        return False
     if not re.fullmatch(r'\.[a-z0-9]{1,8}',ext or ''):
         ext=mimetypes.guess_extension(content_type) or '.bin'
     target=DOWNLOAD_OUTPUT_DIR/(job_id+ext)
@@ -306,7 +320,7 @@ def _download_direct_media(url, job_id, job):
     received=0
     with _safe_urlopen(req,timeout=30) as response, open(target,'wb') as output:
         actual_type=(response.headers.get('Content-Type') or content_type).split(';',1)[0].strip().lower()
-        if not (actual_type.startswith('video/') or actual_type.startswith('audio/')):
+        if not (actual_type.startswith('video/') or actual_type.startswith('audio/') or (actual_type in ('application/octet-stream','binary/octet-stream') and ext in known_exts)):
             raise RuntimeError('The media URL returned a non-media response during download')
         while True:
             if job.get('cancel_requested'):
@@ -325,7 +339,21 @@ def _download_direct_media(url, job_id, job):
         try: target.unlink()
         except OSError: pass
         raise RuntimeError('The media server returned an empty file')
-    _job_transition(job,'completed',progress=100,message='Download complete',filename=target.name,output_path=str(target),completed_at=time.time())
+    try:
+        with open(target,'rb') as media_file: signature=_media_signature_type(media_file.read(64))
+    except OSError:
+        signature=''
+    if not signature:
+        try: target.unlink()
+        except OSError: pass
+        raise RuntimeError('The server response is not a recognized media file; refusing to mark it complete')
+    ext_by_type={'video/mp4':'.mp4','video/webm':'.webm','video/x-msvideo':'.avi','audio/wav':'.wav','audio/mpeg':'.mp3','audio/ogg':'.ogg','audio/flac':'.flac','video/mpeg':'.mpeg'}
+    verified_ext=ext_by_type.get(signature,ext)
+    if verified_ext!=ext:
+        renamed=DOWNLOAD_OUTPUT_DIR/(job_id+verified_ext)
+        target.replace(renamed);target=renamed
+    _job_transition(job,'completed',progress=100,message='Download verified',filename=target.name,output_path=str(target),completed_at=time.time(),content_type=signature)
+
     _job_changed(job)
     return True
 
@@ -602,36 +630,35 @@ class Handler(SimpleHTTPRequestHandler):
                     extractor_error='Media inspection timed out while contacting the provider'
                 except (ValueError, OSError) as exc:
                     extractor_error=str(exc)[:500]
-            # Fallback only accepts resources whose response is actually audio/video.
+            # Some valid MP4 hosts incorrectly label files as application/octet-stream.
+            # Verify the first bytes instead of trusting the header or URL extension alone.
             try:
                 req=urllib.request.Request(url,method='HEAD',headers={'User-Agent':'VidGravity/1.0'})
                 with _safe_urlopen(req,timeout=8) as response:
                     content_type=(response.headers.get('Content-Type') or '').split(';',1)[0].strip().lower()
                     n=response.headers.get('Content-Length')
-                    if content_type.startswith(('video/','audio/')):
-                        return self._json(200,{
-                            'title':Path(urllib.parse.urlsplit(url).path).name or 'Remote media',
-                            'type':content_type,
-                            'size':int(n) if n and n.isdigit() else 'unknown',
-                            'source':'direct',
-                            'format_count':1,
-                            'formats_available':True,
-                            'formats':[{
-                                'id':'best',
-                                'ext':content_type.split('/')[-1],
-                                'resolution':'original quality',
-                                'filesize':int(n) if n and n.isdigit() else None,
-                                'note':'Direct media file'
-                            }]
-                        })
-                    if content_type in ('text/html','application/xhtml+xml') or content_type.startswith('text/'):
-                        message='This URL returned a webpage, not a direct media file.'
-                        if extractor_error and ('sign in to confirm' in extractor_error.lower() or 'not a bot' in extractor_error.lower()):
-                            message='The provider requires bot verification or sign-in, so the hosted server cannot inspect this URL right now.'
-                        elif extractor_error:
-                            message='The provider could not extract media metadata from this webpage.'
-                        return self._json(422,{'error':message,'source':'inspect','details':extractor_error[-700:]})
-                    return self._json(415,{'error':'The URL did not return a recognized audio/video file. Content type: '+(content_type or 'unknown'),'source':'inspect'})
+                probe_req=urllib.request.Request(url,headers={'User-Agent':'VidGravity/1.0','Range':'bytes=0-63'})
+                with _safe_urlopen(probe_req,timeout=8) as probe:
+                    signature=_media_signature_type(probe.read(64))
+                if signature:
+                    ext=Path(urllib.parse.urlsplit(url).path).suffix.lower().lstrip('.') or signature.split('/')[-1]
+                    return self._json(200,{
+                        'title':Path(urllib.parse.urlsplit(url).path).name or 'Remote media',
+                        'type':signature,'size':int(n) if n and n.isdigit() else 'unknown',
+                        'source':'direct','format_count':1,'formats_available':True,
+                        'default_format':'best',
+                        'formats':[{'id':'best','selector':'best','ext':ext,'resolution':'original quality',
+                            'filesize':int(n) if n and n.isdigit() else None,'note':'Verified direct media file',
+                            'has_video':signature.startswith('video/'),'has_audio':signature.startswith('audio/')}]
+                    })
+                if content_type in ('text/html','application/xhtml+xml') or content_type.startswith('text/'):
+                    message='This URL returned a webpage, not a direct media file.'
+                    if extractor_error and ('sign in to confirm' in extractor_error.lower() or 'not a bot' in extractor_error.lower()):
+                        message='The provider requires bot verification or sign-in, so the hosted server cannot inspect this URL right now.'
+                    elif extractor_error:
+                        message='The provider could not extract media metadata from this webpage.'
+                    return self._json(422,{'error':message,'source':'inspect','details':extractor_error[-700:]})
+                return self._json(415,{'error':'The URL did not return a recognized audio/video file. Content type: '+(content_type or 'unknown')+'. The server could not verify a media-file signature.','source':'inspect','details':extractor_error[-700:]})
             except Exception as exc:
                 detail=str(exc)[:400]
                 if extractor_error and ('sign in to confirm' in extractor_error.lower() or 'not a bot' in extractor_error.lower()):
