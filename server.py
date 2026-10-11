@@ -282,6 +282,48 @@ def _stop_download_process(process, timeout=2):
 
 DOWNLOAD_JOB_LIMIT=30
 DOWNLOAD_JOB_RETENTION_SECONDS=7*24*60*60
+def _download_direct_media(url, job_id, job):
+    """Download a direct audio/video resource over HTTP without relying on yt-dlp's generic extractor."""
+    import mimetypes
+    head_req=urllib.request.Request(url,method='HEAD',headers={'User-Agent':'VidGravity/1.0'})
+    with _safe_urlopen(head_req,timeout=15) as response:
+        content_type=(response.headers.get('Content-Type') or '').split(';',1)[0].strip().lower()
+        length_raw=response.headers.get('Content-Length')
+    if not (content_type.startswith('video/') or content_type.startswith('audio/')):
+        return False
+    parsed_path=urllib.parse.urlsplit(url).path
+    ext=Path(parsed_path).suffix.lower()
+    if not re.fullmatch(r'\.[a-z0-9]{1,8}',ext or ''):
+        ext=mimetypes.guess_extension(content_type) or '.bin'
+    target=DOWNLOAD_OUTPUT_DIR/(job_id+ext)
+    req=urllib.request.Request(url,headers={'User-Agent':'VidGravity/1.0'})
+    total=int(length_raw) if length_raw and length_raw.isdigit() else 0
+    received=0
+    with _safe_urlopen(req,timeout=30) as response, open(target,'wb') as output:
+        actual_type=(response.headers.get('Content-Type') or content_type).split(';',1)[0].strip().lower()
+        if not (actual_type.startswith('video/') or actual_type.startswith('audio/')):
+            raise RuntimeError('The media URL returned a non-media response during download')
+        while True:
+            if job.get('cancel_requested'):
+                try: target.unlink()
+                except OSError: pass
+                return True
+            chunk=response.read(128*1024)
+            if not chunk: break
+            output.write(chunk)
+            received+=len(chunk)
+            with DOWNLOAD_JOB_LOCK:
+                job['progress']=max(1,min(99,int(received*100/total))) if total else min(99,job.get('progress',0)+1)
+                job['message']=f'Downloading direct media ({received} bytes)'
+            _job_changed(job)
+    if received==0:
+        try: target.unlink()
+        except OSError: pass
+        raise RuntimeError('The media server returned an empty file')
+    _job_transition(job,'completed',progress=100,message='Download complete',filename=target.name,output_path=str(target),completed_at=time.time())
+    _job_changed(job)
+    return True
+
 def _run_download_job(job_id,url,fmt):
     with DOWNLOAD_JOB_LOCK: job=DOWNLOAD_JOBS[job_id]
     if job.get('cancel_requested'): return
@@ -291,11 +333,15 @@ def _run_download_job(job_id,url,fmt):
         ok,err=valid_url(url)
         if not ok:
             job.update({"state":"failed","error":err}); _job_changed(job); return
+        _cleanup_download_outputs()
+        DOWNLOAD_OUTPUT_DIR.mkdir(parents=True,exist_ok=True)
+        # Direct MP4/MP3/WebM links should use a plain HTTP stream first; this avoids
+        # depending on extractor heuristics for files that are already directly hosted.
+        if _download_direct_media(url,job_id,job):
+            return
         if shutil.which('yt-dlp') is None:
             _job_transition(job,"failed",error="yt-dlp is not installed",message="Provider unavailable")
             _job_changed(job); return
-        _cleanup_download_outputs()
-        DOWNLOAD_OUTPUT_DIR.mkdir(parents=True,exist_ok=True)
         out=str(DOWNLOAD_OUTPUT_DIR/(job_id+'.%(ext)s'))
         p=subprocess.Popen(['yt-dlp','--no-playlist','-f',fmt or 'bv*+ba/b','-o',out,'--restrict-filenames','--newline',url],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
         with DOWNLOAD_JOB_LOCK: job['process']=p
