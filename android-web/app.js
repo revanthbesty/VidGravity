@@ -69,8 +69,7 @@ $('#inspectBtn').onclick=async()=>{
   }
   if(!response.ok)throw Error(data.error||('Inspection failed (HTTP '+response.status+')')+(data.details?' · '+data.details:''));
   const size=data.size&&data.size!=='unknown'&&Number.isFinite(Number(data.size))?formatBytes(Number(data.size)):(data.size||'size unknown');
-  box.innerHTML=`<div class="inspectHeading"><span class="inspectMediaIcon" aria-hidden="true">${String(data.type||'').toLowerCase().includes('audio')?'♫':'🎬'}</span><div><b>${esc(data.title||'Media detected')}</b><div class="mediaMeta">${esc(data.type||'media')} · ${esc(size)} · ${esc(data.source||'server')}${data.duration?' · '+esc(formatDuration(data.duration)):''}</div></div></div><div class="formatChooserHead"><div><b>Choose video quality</b><small>Higher resolution looks sharper and usually creates a larger file. Choose Best available if you are unsure.</small></div><span class="formatCount">${Number(data.format_count||((data.formats||[]).length))} option(s)</span></div><div id="formatPanel"></div><button class="primary downloadBest" id="downloadNow">Download best available</button>`;
-  $('#downloadNow').onclick=()=>serverDownload(url,{...data,format:data.default_format||undefined});
+  box.innerHTML=`<div class="inspectHeading"><span class="inspectMediaIcon" aria-hidden="true">${String(data.type||'').toLowerCase().includes('audio')?'♫':'🎬'}</span><div><b>${esc(data.title||'Media detected')}</b><div class="mediaMeta">${esc(data.type||'media')} · ${esc(size)} · ${esc(data.source||'server')}${data.duration?' · '+esc(formatDuration(data.duration)):''}</div></div></div><div class="formatChooserHead"><div><b>Choose video quality</b><small>Select a quality below, then click Download selected quality. Highest available uses the best compatible video and audio streams returned by the provider.</small></div><span class="formatCount">${Number(data.format_count||((data.formats||[]).length))} option(s)</span></div><div id="formatPanel"></div><div class="downloadActionRow"><div id="selectedFormatSummary" class="mediaMeta" aria-live="polite">Choose a format to continue.</div><button class="primary downloadBest" id="downloadNow" disabled>Download selected quality</button></div>`;
   renderAvailableFormats(box.querySelector('#formatPanel'),data.formats||[],url,data);
  }catch(error){
   box.innerHTML=`<b>Inspection failed</b><div class="mediaMeta">${esc(error.name==='AbortError'?'Inspection timed out after 45 seconds':error.message||'The companion server could not inspect this URL.')}</div><div class="mediaMeta">No formats will be invented. Check the companion server and try a public, supported media URL.</div><button class="smallBtn" id="retryInspect">Retry Inspect</button>`;
@@ -80,20 +79,36 @@ $('#inspectBtn').onclick=async()=>{
 
 function renderAvailableFormats(panel,formats,url,info){
  const fs=(formats||[]).filter(f=>f&&f.id).slice(0,40);
- if(!fs.length){panel.innerHTML='<div class="mediaMeta formatEmpty">The provider did not return selectable formats for this URL. Use Download best available only if the server confirms a supported media resource.</div>';return}
- panel.innerHTML='<div class="formatList">'+fs.map(f=>{
-  const isAudio=!!(f.has_audio&&!f.has_video);
-  const icon=isAudio?'♫':'🎬';
-  const quality=String(f.resolution||'').trim();
+ const downloadButton=$('#downloadNow'),summary=$('#selectedFormatSummary');
+ if(!fs.length){panel.innerHTML='<div class="mediaMeta formatEmpty">The provider did not return selectable formats for this URL. Try another public media URL.</div>';if(downloadButton)downloadButton.disabled=true;return}
+ // Present concise standard quality choices first, then keep other source formats available.
+ const rank=f=>{
+  if(f.has_audio&&!f.has_video)return 1000;
+  const m=String(f.resolution||'').match(/(\\d{3,4})p|^(\\d{3,4})x(\\d{3,4})$/i);
+  const h=m?(Number(m[1])||Number(m[3])||0):0;
+  return h?Math.abs(h-1080):500;
+ };
+ const sorted=[...fs].sort((a,b)=>rank(a)-rank(b));
+ panel.innerHTML='<div class="formatList">'+sorted.map((f,i)=>{
+  const isAudio=!!(f.has_audio&&!f.has_video),quality=String(f.resolution||'').trim();
   const label=isAudio?'Audio only':(quality&&quality!=='quality unknown'?quality:'Original quality');
   const size=Number(f.filesize)>0?formatBytes(Number(f.filesize)):'Size unavailable';
-  const note=f.note?String(f.note):'';
-  const streams=f.has_video&&!f.has_audio?'Video stream · audio will be combined':'';
-  const detail=[isAudio?'Audio':(f.has_video?'Video':'Media'),String(f.ext||'media').toUpperCase(),size,note,streams].filter(Boolean).join(' · ');
-  const buttonLabel=isAudio?'Download audio':'Choose '+label;
-  return `<div class="formatOption"><span class="formatFileIcon" aria-hidden="true">${icon}</span><div class="formatText"><b>${esc(label)} <span class="qualityBadge">${esc(isAudio?'AUDIO':(f.ext||'MEDIA').toUpperCase())}</span></b><div class="mediaMeta">${esc(detail)}</div></div><button class="smallBtn fmt" data-f="${esc(f.selector||f.id)}" aria-label="${esc(buttonLabel)}">${esc(buttonLabel)}</button></div>`;
+  const streams=f.has_video&&!f.has_audio?'Video + audio will be combined':'';
+  const detail=[isAudio?'Audio':(f.has_video?'Video':'Media'),String(f.ext||'media').toUpperCase(),size,f.note||'',streams].filter(Boolean).join(' · ');
+  const selector=String(f.selector||f.id);
+  return `<button type="button" class="formatOption formatChoice" data-f="${esc(selector)}" data-label="${esc(label)}" aria-pressed="false"><span class="formatFileIcon" aria-hidden="true">${isAudio?'♫':'🎬'}</span><span class="formatText"><b>${esc(label)} <span class="qualityBadge">${esc(isAudio?'AUDIO':(f.ext||'MEDIA').toUpperCase())}</span></b><span class="mediaMeta">${esc(detail)}</span></span><span class="smallBtn chooseLabel">Choose</span></button>`;
  }).join('')+'</div>';
- panel.querySelectorAll('.fmt').forEach(b=>b.onclick=()=>serverDownload(url,{...info,format:b.dataset.f,title:info.title}));
+ let selected=null;
+ const choose=button=>{
+  selected={format:button.dataset.f,label:button.dataset.label};
+  panel.querySelectorAll('.formatChoice').forEach(b=>{const active=b===button;b.classList.toggle('selected',active);b.setAttribute('aria-pressed',String(active));const label=b.querySelector('.chooseLabel');if(label)label.textContent=active?'Selected':'Choose';});
+  if(downloadButton){downloadButton.disabled=false;downloadButton.textContent='Download '+(selected.label==='Audio only'?'audio':selected.label);}
+  if(summary)summary.textContent='Selected: '+selected.label+'. Your download will appear in Downloads with progress.';
+ };
+ panel.querySelectorAll('.formatChoice').forEach(b=>b.addEventListener('click',()=>choose(b)));
+ if(downloadButton){
+  downloadButton.onclick=()=>{if(!selected)return;serverDownload(url,{...info,format:selected.format,title:info.title});nav('downloads');toast('Download added to queue');};
+ }
 }
 const activeJobRunners=new Set();
 function makeJob(url,mode,info={}){
