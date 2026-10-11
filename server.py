@@ -573,8 +573,10 @@ class Handler(SimpleHTTPRequestHandler):
     def log_message(self,fmt,*args): print('%s - %s'%(self.address_string(),fmt%args))
 if __name__=='__main__':
     ap=argparse.ArgumentParser(description='VidGravity companion server')
-    ap.add_argument('--host',default='127.0.0.1',help='bind address; use 0.0.0.0 only behind a trusted reverse proxy/container network')
-    ap.add_argument('--port',type=int,default=5173)
+    ap.add_argument('--host', default=os.environ.get('HOST', '127.0.0.1'),
+                help='bind address; use 0.0.0.0 only behind a trusted reverse proxy/container network')
+    ap.add_argument('--port', type=int, default=int(os.environ.get('PORT', '5173')))
+
     ap.add_argument('--allow-local',action='store_true',help='allow localhost/private network URLs for development ONLY')
     args=ap.parse_args()
     ALLOW_LOCAL=args.allow_local
