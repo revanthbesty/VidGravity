@@ -27,7 +27,7 @@ class DirectMediaDownloadTests(unittest.TestCase):
             original_dir = server.DOWNLOAD_OUTPUT_DIR
             server.DOWNLOAD_OUTPUT_DIR = Path(temp)
             job = {"id": "unit-test-job", "state": "running", "progress": 0}
-            mp4 = b"\\x00\\x00\\x00\\x18ftypmp42"
+            mp4 = b"\x00\x00\x00\x18ftypmp42"
             head = FakeResponse({"Content-Type": "video/mp4", "Content-Length": str(len(mp4))})
             body = FakeResponse({"Content-Type": "video/mp4"}, [mp4[:5], mp4[5:], b""])
             try:
@@ -48,7 +48,7 @@ class DirectMediaDownloadTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             original_dir = server.DOWNLOAD_OUTPUT_DIR
             server.DOWNLOAD_OUTPUT_DIR = Path(temp)
-            mp4 = b"\\x00\\x00\\x00\\x18ftypmp42"
+            mp4 = b"\x00\x00\x00\x18ftypmp42"
             job = {"id": "unit-test-octet", "state": "running", "progress": 0}
             head = FakeResponse({"Content-Type": "application/octet-stream", "Content-Length": str(len(mp4))})
             body = FakeResponse({"Content-Type": "application/octet-stream"}, [mp4, b""])
