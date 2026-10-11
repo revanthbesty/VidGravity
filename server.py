@@ -4,6 +4,16 @@ from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
 ALLOW_LOCAL=False
+SERVER_HOST=os.environ.get('HOST','127.0.0.1')
+
+
+def _yt_dlp_command(*args):
+    """Build yt-dlp commands; browser cookies are opt-in and local-only."""
+    command=['yt-dlp', *args]
+    browser=os.environ.get('VIDGRAVITY_YTDLP_COOKIES_FROM_BROWSER','').strip()
+    if browser and SERVER_HOST.strip('[]').lower() in ('127.0.0.1','localhost','::1'):
+        command[1:1]=['--cookies-from-browser',browser]
+    return command
 # P162 security controls: bounded request bodies and per-client in-memory throttles.
 P162_SECURITY=True
 MAX_JSON_BODY_BYTES=1_048_576
@@ -377,7 +387,7 @@ def _run_download_job(job_id,url,fmt):
             _job_transition(job,"failed",error="yt-dlp is not installed",message="Provider unavailable")
             _job_changed(job); return
         out=str(DOWNLOAD_OUTPUT_DIR/(job_id+'.%(ext)s'))
-        p=subprocess.Popen(['yt-dlp','--no-playlist','-f',fmt or 'bv*+ba/b','-o',out,'--restrict-filenames','--newline',url],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
+        p=subprocess.Popen(_yt_dlp_command('--no-playlist','-f',fmt or 'bv*+ba/b','-o',out,'--restrict-filenames','--newline',url),stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
         with DOWNLOAD_JOB_LOCK: job['process']=p
         for line in p.stdout:
             line=line.strip()
@@ -533,14 +543,16 @@ class Handler(SimpleHTTPRequestHandler):
             if not ok: return self._json(400,{'error':err})
             self.send_response(405); self.send_header('Allow','POST'); self.send_header('Content-Type','application/json'); self.end_headers()
             self.wfile.write(json.dumps({'error':'Use POST /api/download with a JSON body'}).encode()); return
-        if self.path=='/api/health': return self._json(200,{'ok':True,'yt_dlp':shutil.which('yt-dlp') is not None,'version':'1.0.3'})
+        if self.path=='/api/health':
+            import importlib.util
+            return self._json(200,{'ok':True,'yt_dlp':shutil.which('yt-dlp') is not None,'deno':shutil.which('deno') is not None,'yt_dlp_ejs':importlib.util.find_spec('yt_dlp_ejs') is not None,'version':'1.0.3'})
         if self.path.startswith('/api/formats'):
             q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query); url=q.get('url',[''])[0]; ok,err=valid_url(url)
             if not ok:return self._json(400,{'error':err})
             if shutil.which('yt-dlp') is None:
                 return self._json(200,{'source':'direct','formats':[],'message':'yt-dlp is not installed'})
             try:
-                p=subprocess.run(['yt-dlp','--no-playlist','-J','--skip-download','--no-warnings',url],capture_output=True,text=True,timeout=45)
+                p=subprocess.run(_yt_dlp_command('--no-playlist','-J','--skip-download','--no-warnings',url),capture_output=True,text=True,timeout=45)
             except subprocess.TimeoutExpired:
                 return self._json(504,{'error':'Format inspection timed out while contacting the provider'})
             if p.returncode!=0:return self._json(502,{'error':p.stderr[-1200:] or 'format inspection failed'})
@@ -602,7 +614,7 @@ class Handler(SimpleHTTPRequestHandler):
             if shutil.which('yt-dlp') is not None:
                 try:
                     p=subprocess.run(
-                        ['yt-dlp','--no-playlist','-J','--skip-download','--no-warnings',url],
+                        _yt_dlp_command('--no-playlist','-J','--skip-download','--no-warnings',url),
                         capture_output=True,text=True,timeout=30
                     )
                     if p.returncode==0:
@@ -814,6 +826,7 @@ if __name__=='__main__':
     ap.add_argument('--allow-local',action='store_true',help='allow localhost/private network URLs for development ONLY')
     args=ap.parse_args()
     ALLOW_LOCAL=args.allow_local
+    SERVER_HOST=args.host
     os.chdir(ROOT)
     print(f'VidGravity server listening on {args.host}:{args.port}')
     ThreadingHTTPServer((args.host,args.port),Handler).serve_forever()
