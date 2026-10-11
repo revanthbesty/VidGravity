@@ -69,7 +69,7 @@ $('#inspectBtn').onclick=async()=>{
   }
   if(!response.ok)throw Error(data.error||('Inspection failed (HTTP '+response.status+')')+(data.details?' · '+data.details:''));
   const size=data.size&&data.size!=='unknown'&&Number.isFinite(Number(data.size))?formatBytes(Number(data.size)):(data.size||'size unknown');
-  box.innerHTML=`<div class="inspectHeading"><span class="inspectMediaIcon" aria-hidden="true">${String(data.type||'').toLowerCase().includes('audio')?'♫':'🎬'}</span><div><b>${esc(data.title||'Media detected')}</b><div class="mediaMeta">${esc(data.type||'media')} · ${esc(size)} · ${esc(data.source||'server')}${data.duration?' · '+esc(formatDuration(data.duration)):''}</div></div></div><div class="formatChooserHead"><div><b>Choose video quality</b><small>Select a quality below, then click Download selected quality. Highest available uses the best compatible video and audio streams returned by the provider.</small></div><span class="formatCount">${Number(data.format_count||((data.formats||[]).length))} option(s)</span></div><div id="formatPanel"></div><div class="downloadActionRow"><div id="selectedFormatSummary" class="mediaMeta" aria-live="polite">Choose a format to continue.</div><button class="primary downloadBest" id="downloadNow" disabled>Download selected quality</button></div>`;
+  box.innerHTML=`<div class="inspectHeading"><span class="inspectMediaIcon" aria-hidden="true">${String(data.type||'').toLowerCase().includes('audio')?'♫':'🎬'}</span><div><b>${esc(data.title||'Media detected')}</b><div class="mediaMeta">${esc(data.type||'media')} · ${esc(size)} · ${esc(data.source||'server')}${data.duration?' · '+esc(formatDuration(data.duration)):''}</div></div></div><div class="formatChooserHead"><div><b>Choose audio or video</b><small>Switch between simple standard quality options. Duplicate codecs and formats are grouped to reduce confusion.</small></div><span class="formatCount">${Number(data.format_count||((data.formats||[]).length))} option(s)</span></div><div id="formatPanel"></div><div class="downloadActionRow"><div id="selectedFormatSummary" class="mediaMeta" aria-live="polite">Choose a format to continue.</div><button class="primary downloadBest" id="downloadNow" disabled>Download selected quality</button></div>`;
   renderAvailableFormats(box.querySelector('#formatPanel'),data.formats||[],url,data);
  }catch(error){
   box.innerHTML=`<b>Inspection failed</b><div class="mediaMeta">${esc(error.name==='AbortError'?'Inspection timed out after 45 seconds':error.message||'The companion server could not inspect this URL.')}</div><div class="mediaMeta">No formats will be invented. Check the companion server and try a public, supported media URL.</div><button class="smallBtn" id="retryInspect">Retry Inspect</button>`;
@@ -78,37 +78,29 @@ $('#inspectBtn').onclick=async()=>{
 };
 
 function renderAvailableFormats(panel,formats,url,info){
- const fs=(formats||[]).filter(f=>f&&f.id).slice(0,40);
+ const usable=(formats||[]).filter(f=>f&&f.id&&(f.has_video||f.has_audio));
+ const video=usable.filter(f=>f.has_video),audio=usable.filter(f=>f.has_audio&&!f.has_video);
  const downloadButton=$('#downloadNow'),summary=$('#selectedFormatSummary');
- if(!fs.length){panel.innerHTML='<div class="mediaMeta formatEmpty">The provider did not return selectable formats for this URL. Try another public media URL.</div>';if(downloadButton)downloadButton.disabled=true;return}
- // Present concise standard quality choices first, then keep other source formats available.
- const rank=f=>{
-  if(f.has_audio&&!f.has_video)return 1000;
-  const m=String(f.resolution||'').match(/(\\d{3,4})p|^(\\d{3,4})x(\\d{3,4})$/i);
-  const h=m?(Number(m[1])||Number(m[3])||0):0;
-  return h?Math.abs(h-1080):500;
+ if(!usable.length){panel.innerHTML='<div class="mediaMeta formatEmpty">No selectable audio or video formats were returned for this URL.</div>';if(downloadButton)downloadButton.disabled=true;return}
+ const heightOf=f=>{const r=String(f.resolution||'');const p=r.match(/(?:^|\D)(\d{3,4})p(?:\D|$)/i);if(p)return Number(p[1]);const xy=r.match(/(\d{3,4})\s*x\s*(\d{3,4})/i);if(xy)return Number(xy[2]);return Number(f.height)||0};
+ const sizeKnown=f=>Number(f.filesize)>0?1:0;
+ const byHeight=new Map();
+ video.forEach(f=>{const h=heightOf(f);if(!h)return;const old=byHeight.get(h);const score=x=>(x.has_audio?100:0)+(String(x.ext).toLowerCase()==='mp4'?20:0)+sizeKnown(x)*10;if(!old||score(f)>score(old))byHeight.set(h,f)});
+ const videoChoices=[...byHeight.entries()].sort((a,b)=>b[0]-a[0]).map(([h,f])=>({format:f.selector||f.id,label:h>=2160?'4K (2160p)':h>=1440?'1440p':h>=1080?'1080p':h>=720?'720p':h>=480?'480p':h>=360?'360p':h>=240?'240p':h+'p',detail:[String(f.ext||'MP4').toUpperCase(),sizeKnown(f)?formatBytes(Number(f.filesize)):'Size estimated during download',f.has_audio?'Video + audio':'Audio will be combined'].join(' · '),kind:'video'}));
+ const rank=q=>({'high':3,'medium':2,'low':1,'tiny':0,'small':0})[String(q||'').toLowerCase()]??-1;
+ const audioByQuality=new Map();
+ audio.forEach(f=>{const q=String(f.note||'').toLowerCase().match(/\b(high|medium|low|tiny|small)\b/)?.[1]||'';const key=q||'standard';const old=audioByQuality.get(key);const score=x=>(String(x.ext).toLowerCase()==='m4a'?30:0)+sizeKnown(x)*10;if(!old||score(f)>score(old))audioByQuality.set(key,f)});
+ const audioChoices=[];if(audio.length)audioChoices.push({format:'bestaudio/best',label:'Best available audio',detail:'Automatically select the best compatible audio stream',kind:'audio'});
+ [...audioByQuality.entries()].sort((a,b)=>rank(b[0])-rank(a[0])).forEach(([q,f])=>{const label=q==='high'?'High quality':q==='medium'?'Medium quality':q==='low'?'Low size':q==='tiny'||q==='small'?'Small file':'Standard quality';if(audioChoices.some(x=>x.label===label))return;audioChoices.push({format:f.selector||f.id,label,detail:[String(f.ext||'audio').toUpperCase(),sizeKnown(f)?formatBytes(Number(f.filesize)):'Size varies by source',f.acodec&&f.acodec!=='none'?f.acodec.toUpperCase():'Audio'].join(' · '),kind:'audio'})});
+ let activeTab=videoChoices.length?'video':'audio',selected=null;
+ panel.innerHTML='<div class="mediaTypeTabs" role="tablist" aria-label="Media type"><button type="button" class="mediaTypeTab active" id="videoTab" role="tab" aria-selected="true">Video <span>'+videoChoices.length+'</span></button><button type="button" class="mediaTypeTab" id="audioTab" role="tab" aria-selected="false">Audio <span>'+audioChoices.length+'</span></button></div><div class="standardQualityHint" id="qualityHint"></div><div class="standardQualityList" id="standardQualityList"></div>';
+ const list=panel.querySelector('#standardQualityList'),hint=panel.querySelector('#qualityHint');
+ const renderChoices=()=>{const choices=activeTab==='video'?videoChoices:audioChoices;hint.textContent=activeTab==='video'?'Choose a standard video resolution. Duplicate formats and codec variants are grouped together.':'Choose audio quality. Best available is recommended for most users.';list.innerHTML=choices.length?choices.map((c,i)=>'<button type="button" class="standardQualityChoice" data-index="'+i+'" aria-pressed="false"><span class="standardQualityIcon">'+(activeTab==='video'?'▶':'♫')+'</span><span class="standardQualityText"><b>'+esc(c.label)+'</b><small>'+esc(c.detail)+'</small></span><span class="qualitySelectMark">Select</span></button>').join(''):'<div class="mediaMeta formatEmpty">No formats of this type are available for this video.</div>';
+  list.querySelectorAll('.standardQualityChoice').forEach(b=>b.addEventListener('click',()=>{const c=choices[Number(b.dataset.index)];selected={format:c.format,label:c.label,kind:c.kind};list.querySelectorAll('.standardQualityChoice').forEach(row=>{const active=row===b;row.classList.toggle('selected',active);row.setAttribute('aria-pressed',String(active));row.querySelector('.qualitySelectMark').textContent=active?'Selected':'Select'});if(downloadButton){downloadButton.disabled=false;downloadButton.textContent='Download '+c.label}if(summary)summary.textContent='Selected: '+c.label+'. Progress will appear in Downloads.'}));
  };
- const sorted=[...fs].sort((a,b)=>rank(a)-rank(b));
- panel.innerHTML='<div class="formatList">'+sorted.map((f,i)=>{
-  const isAudio=!!(f.has_audio&&!f.has_video),quality=String(f.resolution||'').trim();
-  const label=isAudio?'Audio only':(quality&&quality!=='quality unknown'?quality:'Original quality');
-  const size=Number(f.filesize)>0?formatBytes(Number(f.filesize)):'Size unavailable';
-  const streams=f.has_video&&!f.has_audio?'Video + audio will be combined':'';
-  const detail=[isAudio?'Audio':(f.has_video?'Video':'Media'),String(f.ext||'media').toUpperCase(),size,f.note||'',streams].filter(Boolean).join(' · ');
-  const selector=String(f.selector||f.id);
-  return `<button type="button" class="formatOption formatChoice" data-f="${esc(selector)}" data-label="${esc(label)}" aria-pressed="false"><span class="formatFileIcon" aria-hidden="true">${isAudio?'♫':'🎬'}</span><span class="formatText"><b>${esc(label)} <span class="qualityBadge">${esc(isAudio?'AUDIO':(f.ext||'MEDIA').toUpperCase())}</span></b><span class="mediaMeta">${esc(detail)}</span></span><span class="smallBtn chooseLabel">Choose</span></button>`;
- }).join('')+'</div>';
- let selected=null;
- const choose=button=>{
-  selected={format:button.dataset.f,label:button.dataset.label};
-  panel.querySelectorAll('.formatChoice').forEach(b=>{const active=b===button;b.classList.toggle('selected',active);b.setAttribute('aria-pressed',String(active));const label=b.querySelector('.chooseLabel');if(label)label.textContent=active?'Selected':'Choose';});
-  if(downloadButton){downloadButton.disabled=false;downloadButton.textContent='Download '+(selected.label==='Audio only'?'audio':selected.label);}
-  if(summary)summary.textContent='Selected: '+selected.label+'. Your download will appear in Downloads with progress.';
- };
- panel.querySelectorAll('.formatChoice').forEach(b=>b.addEventListener('click',()=>choose(b)));
- if(downloadButton){
-  downloadButton.onclick=()=>{if(!selected)return;serverDownload(url,{...info,format:selected.format,title:info.title});nav('downloads');toast('Download added to queue');};
- }
+ const setTab=tab=>{activeTab=tab;selected=null;panel.querySelectorAll('.mediaTypeTab').forEach(b=>{const active=b.id===(tab==='video'?'videoTab':'audioTab');b.classList.toggle('active',active);b.setAttribute('aria-selected',String(active))});if(downloadButton){downloadButton.disabled=true;downloadButton.textContent='Download selected quality'}if(summary)summary.textContent='Choose a quality to continue.';renderChoices()};
+ panel.querySelector('#videoTab').addEventListener('click',()=>setTab('video'));panel.querySelector('#audioTab').addEventListener('click',()=>setTab('audio'));renderChoices();
+ if(downloadButton)downloadButton.onclick=()=>{if(!selected)return;serverDownload(url,{...info,format:selected.format,title:info.title});nav('downloads');toast('Download added to queue')};
 }
 const activeJobRunners=new Set();
 function makeJob(url,mode,info={}){
