@@ -42,9 +42,9 @@ $('#inspectBtn').onclick=async()=>{
    const r=await timedFetch(vgApiUrl('/api/inspect?url='+encodeURIComponent(url)),{},42000);
    const d=await r.json().catch(()=>({}));
    if(r.ok){
-    box.innerHTML=`<b>${esc(d.title||'Media detected')}</b><div class="mediaMeta">${esc(d.type||'unknown')} · ${esc(d.size||'size unknown')} · ${esc(d.source||'server')}</div><button class="smallBtn" id="formatsBtn">Show formats</button> <button class="primary" id="downloadNow">Add to Downloads</button><div id="formatPanel" class="hidden"></div>`;
+    box.innerHTML=`<div class="inspectHeading"><span class="inspectMediaIcon" aria-hidden="true">${String(d.type||'').toLowerCase().includes('audio')?'♫':'🎬'}</span><div><b>${esc(d.title||'Media detected')}</b><div class="mediaMeta">${esc(d.type||'media')} · ${esc(d.size&&d.size!=='unknown'?formatBytes(Number(d.size)):d.size||'size unknown')} · ${esc(d.source||'server')}</div></div></div><div class="mediaMeta inspectFormatSummary">${Number(d.format_count||((d.formats||[]).length))} available format(s). Choose a format below or download the best available.</div><div id="formatPanel"></div><button class="primary" id="downloadNow">Download best available</button>`;
     $('#downloadNow').onclick=()=>serverDownload(url,d);
-    $('#formatsBtn').onclick=()=>showFormats(url,d,box);
+    renderAvailableFormats(box.querySelector('#formatPanel'),d.formats||[],url,d);
     return;
    }
    serverError=d.error||('Companion server returned HTTP '+r.status);
@@ -63,7 +63,17 @@ $('#inspectBtn').onclick=async()=>{
  }finally{button.disabled=false;button.textContent='Inspect'}
 };
 
-async function showFormats(url,info,box){const panel=box.querySelector('#formatPanel');panel.classList.remove('hidden');panel.innerHTML='<div class="mediaMeta">Loading available formats…</div>';try{const r=await fetch(vgApiUrl('/api/formats?url='+encodeURIComponent(url)));const d=await r.json();if(!r.ok)throw Error(d.error||'Format inspection failed');const fs=(d.formats||[]).filter(f=>f.id).slice(-30);panel.innerHTML=fs.length?'<div class="formatList">'+fs.map(f=>`<button class="smallBtn fmt" data-f="${esc(f.id)}">${esc(f.ext||'file')} · ${esc(f.resolution||'unknown')} ${f.note?'· '+esc(f.note):''}</button>`).join('')+'</div>':'<div class="mediaMeta">No provider formats available. The direct browser path will be used.</div>';panel.querySelectorAll('.fmt').forEach(b=>b.onclick=()=>serverDownload(url,{...info,format:b.dataset.f,title:info.title}));}catch(e){panel.innerHTML='<div class="mediaMeta">'+esc(e.message||'Format inspection failed')+'</div>'}}
+function renderAvailableFormats(panel,formats,url,info){
+ const fs=(formats||[]).filter(f=>f&&f.id).slice(0,40);
+ if(!fs.length){panel.innerHTML='<div class="mediaMeta formatEmpty">No selectable formats were returned by the provider. Try Download best available, or use a direct media-file URL.</div>';return}
+ panel.innerHTML='<div class="formatList">'+fs.map((f,i)=>{
+  const size=Number(f.filesize)>0?' · '+formatBytes(Number(f.filesize)):'';
+  const note=f.note?' · '+f.note:'';
+  const resolution=f.resolution||'quality unknown';
+  return `<div class="formatOption"><span class="formatFileIcon" aria-hidden="true">${String(f.vcodec||'').toLowerCase()==='none'?'♫':'🎬'}</span><div class="formatText"><b>${esc(f.ext||'media').toUpperCase()} · ${esc(resolution)}</b><div class="mediaMeta">Format ${esc(f.id)}${esc(size)}${esc(note)}</div></div><button class="smallBtn fmt" data-f="${esc(f.id)}">Download</button></div>`;
+ }).join('')+'</div>';
+ panel.querySelectorAll('.fmt').forEach(b=>b.onclick=()=>serverDownload(url,{...info,format:b.dataset.f,title:info.title}));
+}
 const activeJobRunners=new Set();
 function makeJob(url,mode,info={}){
  const job={id:(crypto.randomUUID?crypto.randomUUID():String(Date.now())+Math.random().toString(16).slice(2)),
@@ -233,7 +243,7 @@ function titleFrom(url){try{return decodeURIComponent(new URL(url).pathname.spli
 function renderAll(){renderStats();renderRecent();renderLibrary();renderJobs();$('#queueBadge').textContent=jobs.filter(j=>['running','queued'].includes(j.status)).length}
 function renderStats(){$('#statLibrary').textContent=media.length;$('#statDownloads').textContent=jobs.filter(j=>j.status==='completed').length;$('#statStorage').textContent=formatBytes(media.reduce((n,m)=>n+(m.size||0),0))}
 function card(m){const thumb=m.thumbnail?`<img src="${m.thumbnail}" alt="" loading="lazy">`:`<span>${iconFor(m.type)}</span>`;const detail=[m.duration?formatDuration(m.duration):'',m.width&&m.height?`${m.width}×${m.height}`:'',formatBytes(m.size)].filter(Boolean).join(' · ');return `<article class="media card"><div class="selectRow"><input type="checkbox" class="mediaSelect" data-id="${m.id}"></div><div class="thumb">${thumb}</div><div class="mediaBody"><div class="mediaTitle" title="${esc(m.title)}">${esc(m.title)}</div><div class="mediaMeta">${esc(m.type||'media')} · ${detail||'metadata pending'}</div><div class="actions"><button class="smallBtn play" data-id="${m.id}">Play</button><button class="smallBtn save" data-id="${m.id}">Save</button><button class="smallBtn info" data-id="${m.id}">Details</button><button class="smallBtn del" data-id="${m.id}">Delete</button></div></div></article>`}
-function iconFor(type=''){return /audio/i.test(type)?'♫':/image/i.test(type)?'▧':'▶'}
+function iconFor(type=''){return /audio/i.test(type)?'♫':/image/i.test(type)?'▧':/video|mp4|webm|quicktime|matroska|avi/i.test(type)?'🎬':'🎞️'}
 function renderRecent(){const x=$('#recentGrid');x.innerHTML=media.slice(0,4).map(card).join('')||empty('No media yet. Paste a direct media URL above.');bindCards(x)}
 
 function orgState(){
