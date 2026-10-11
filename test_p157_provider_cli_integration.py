@@ -18,7 +18,7 @@ class ProviderCliIntegrationTests(unittest.TestCase):
         cls.fake_cli.write_text("""#!/bin/sh
 case " $* " in
   *" --version "*) echo '2026.10.01-test-adapter'; exit 0 ;;
-  *" -J "*) printf '%s\\n' '{"title":"Controlled Integration Clip","duration":2,"thumbnail":null,"formats":[{"format_id":"18","ext":"mp4","resolution":"360p","vcodec":"avc1","acodec":"mp4a"}]}'; exit 0 ;;
+  *" -J "*) printf '%s\\n' '{"title":"Controlled Integration Clip","duration":2,"thumbnail":null,"formats":[{"format_id":"18","url":"https://media.invalid/clip.mp4","ext":"mp4","resolution":"360p","vcodec":"avc1","acodec":"mp4a","filesize":1234}]}'; exit 0 ;;
 esac
 out=''
 prev=''
