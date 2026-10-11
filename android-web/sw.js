@@ -1,5 +1,5 @@
 /* VidGravity P160: offline app shell only; never cache API, license, or download responses. */
-const CACHE_NAME = "vidgravity-p173-shell-v2";
+const CACHE_NAME = "vidgravity-p174-shell-v3";
 const APP_SHELL = ["./","./index.html","./styles.css","./app.js","./manifest.webmanifest","./icons/icon-192.svg","./icons/icon-512.svg"];
 self.addEventListener("install", event => event.waitUntil((async () => {
   const cache = await caches.open(CACHE_NAME); await cache.addAll(APP_SHELL); await self.skipWaiting();
@@ -18,7 +18,7 @@ self.addEventListener("fetch", event => {
   const request = event.request, url = new URL(request.url);
   if (isSensitiveRequest(url, request)) return;
   const shellBase = new URL("./", self.location.href);
-  const knownAsset = APP_SHELL.some(asset => new URL(asset, shellBase).href === url.href);
+  const knownAsset = APP_SHELL.some(asset => { const candidate = new URL(asset, shellBase); return candidate.origin === url.origin && candidate.pathname === url.pathname; });
   if (!knownAsset && request.mode !== "navigate") return;
   if (request.mode === "navigate") {
     event.respondWith((async () => {
@@ -38,7 +38,7 @@ self.addEventListener("fetch", event => {
       }
       return response;
     } catch (_) {
-      const cached = await caches.match(request);
+      const cached = await caches.match(request, { ignoreSearch: true });
       return cached || Response.error();
     }
   })());
