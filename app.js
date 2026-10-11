@@ -66,7 +66,7 @@ $('#inspectBtn').onclick=async()=>{
       }
     }catch(localError){
       if(localError.name==='AbortError')throw localError;
-      data={...data,error:'The hosted server could not inspect this media URL, and the local companion is not reachable.',details:'Hosted response: '+hostedError+'. Start the VidGravity companion server on this PC at http://127.0.0.1:5173 and retry. The website cannot access your PC session unless that local service is running.'};
+      data={...data,error:'The hosted server could not inspect this media URL, and the local companion is not reachable.',details:'Hosted response: '+hostedError+'. Start the VidGravity companion on this PC (run start_vidgravity.bat) so http://127.0.0.1:5173 responds, then retry. If it is already running, allow "Local network access" for this site in Chrome (lock icon in the address bar → Site settings).'};
     }
   }
   if(!response.ok){const message=[data.error||('Inspection failed (HTTP '+response.status+')'),data.details].filter(Boolean).join(' · ');throw Error(message);}

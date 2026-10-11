@@ -14,6 +14,31 @@ def _yt_dlp_command(*args):
     if browser and SERVER_HOST.strip('[]').lower() in ('127.0.0.1','localhost','::1'):
         command[1:1]=['--cookies-from-browser',browser]
     return command
+_YT_DLP_VERSION_CACHE={}
+def _yt_dlp_version():
+    """Return the installed yt-dlp version (cached); stale yt-dlp is the most common cause of failed downloads."""
+    if 'v' in _YT_DLP_VERSION_CACHE: return _YT_DLP_VERSION_CACHE['v']
+    version=None
+    if shutil.which('yt-dlp') is not None:
+        try:
+            r=subprocess.run(['yt-dlp','--version'],capture_output=True,text=True,timeout=10)
+            if r.returncode==0: version=r.stdout.strip() or None
+        except (OSError,subprocess.TimeoutExpired): version=None
+    _YT_DLP_VERSION_CACHE['v']=version
+    return version
+
+def _download_format_chain(requested, ffmpeg_available=True):
+    """Ordered yt-dlp format selectors to try. Falls back to progressively more compatible choices
+    so one unavailable stream does not fail the whole download."""
+    chain=[]
+    for candidate in ((requested or 'bv*+ba/b'),'bv*+ba/b','b','best'):
+        if candidate and candidate not in chain: chain.append(candidate)
+    if not ffmpeg_available:
+        # Without ffmpeg yt-dlp cannot merge separate video and audio streams; prefer single-file formats first.
+        single=[c for c in chain if '+' not in c]
+        chain=single+[c for c in chain if '+' in c]
+    return chain
+
 # P162 security controls: bounded request bodies and per-client in-memory throttles.
 P162_SECURITY=True
 MAX_JSON_BODY_BYTES=1_048_576
@@ -387,28 +412,37 @@ def _run_download_job(job_id,url,fmt):
             _job_transition(job,"failed",error="yt-dlp is not installed",message="Provider unavailable")
             _job_changed(job); return
         out=str(DOWNLOAD_OUTPUT_DIR/(job_id+'.%(ext)s'))
-        p=subprocess.Popen(_yt_dlp_command('--no-playlist','-f',fmt or 'bv*+ba/b','-o',out,'--restrict-filenames','--newline',url),stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
-        with DOWNLOAD_JOB_LOCK: job['process']=p
-        for line in p.stdout:
-            line=line.strip()
-            m=re.search(r'(\d+(?:\.\d+)?)%',line)
-            if m: job["progress"]=max(1,min(99,int(float(m.group(1)))))
-            if line: job["message"]=line[-240:]
-            _job_changed(job)
+        # Try the requested format first, then progressively more compatible selectors, so one
+        # unavailable stream (or a missing ffmpeg merge) does not fail an otherwise downloadable URL.
+        attempts=_download_format_chain(fmt,shutil.which('ffmpeg') is not None)
+        rc=1
+        for attempt_index,attempt_fmt in enumerate(attempts):
+            p=subprocess.Popen(_yt_dlp_command('--no-playlist','--retries','10','--fragment-retries','10','-f',attempt_fmt,'-o',out,'--restrict-filenames','--newline',url),stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
+            with DOWNLOAD_JOB_LOCK: job['process']=p
+            for line in p.stdout:
+                line=line.strip()
+                m=re.search(r'(\d+(?:\.\d+)?)%',line)
+                if m: job["progress"]=max(1,min(99,int(float(m.group(1)))))
+                if line: job["message"]=line[-240:]
+                _job_changed(job)
+                if job.get("cancel_requested"):
+                    _stop_download_process(p)
+                    break
+            rc=p.wait()
+            with DOWNLOAD_JOB_LOCK: job.pop("process",None)
             if job.get("cancel_requested"):
-                _stop_download_process(p)
-                break
-        rc=p.wait()
-        with DOWNLOAD_JOB_LOCK: job.pop("process",None)
-        if job.get("cancel_requested"):
+                for leftover in DOWNLOAD_OUTPUT_DIR.glob(job_id+'.*'):
+                    try: leftover.unlink()
+                    except OSError: pass
+                _job_transition(job,"cancelled",message="Download cancelled"); _job_changed(job); return
+            if rc==0: break
             for leftover in DOWNLOAD_OUTPUT_DIR.glob(job_id+'.*'):
                 try: leftover.unlink()
                 except OSError: pass
-            _job_transition(job,"cancelled",message="Download cancelled"); _job_changed(job); return
+            if attempt_index+1<len(attempts):
+                with DOWNLOAD_JOB_LOCK: job.update({"progress":0,"message":"Selected format unavailable; retrying with a compatible format"})
+                _job_changed(job)
         if rc!=0:
-            for leftover in DOWNLOAD_OUTPUT_DIR.glob(job_id+'.*'):
-                try: leftover.unlink()
-                except OSError: pass
             _job_transition(job,"failed",error=job.get("message") or "yt-dlp failed"); _job_changed(job); return
         files=[f for f in DOWNLOAD_OUTPUT_DIR.glob(job_id+'.*') if f.is_file()]
         if not files:
@@ -549,7 +583,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({'error':'Use POST /api/download with a JSON body'}).encode()); return
         if self.path=='/api/health':
             import importlib.util
-            return self._json(200,{'ok':True,'yt_dlp':shutil.which('yt-dlp') is not None,'deno':shutil.which('deno') is not None,'yt_dlp_ejs':importlib.util.find_spec('yt_dlp_ejs') is not None,'version':'1.0.3'})
+            return self._json(200,{'ok':True,'yt_dlp':shutil.which('yt-dlp') is not None,'yt_dlp_version':_yt_dlp_version(),'ffmpeg':shutil.which('ffmpeg') is not None,'deno':shutil.which('deno') is not None,'yt_dlp_ejs':importlib.util.find_spec('yt_dlp_ejs') is not None,'version':'1.0.3'})
         if self.path.startswith('/api/formats'):
             q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query); url=q.get('url',[''])[0]; ok,err=valid_url(url)
             if not ok:return self._json(400,{'error':err})
