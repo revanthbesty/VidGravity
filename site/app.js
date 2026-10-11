@@ -1055,8 +1055,13 @@ function vgLicenseRender(status,message){
  if(deactivate)deactivate.disabled=!status.active;
 }
 async function vgLicenseRefresh(){
+ const configured=(localStorage.getItem("vg-api-base-url")||"").trim();
+ if(!configured){
+  vgLicenseRender({active:false,reason:"unavailable"},"Companion server not configured. Deploy the API, then add its HTTPS address in Settings.");
+  return;
+ }
  try{const r=await fetch(vgApiUrl("/api/license/status?device_id="+encodeURIComponent(vgLicenseDeviceId())));const d=await r.json();if(!r.ok)throw Error(d.error||"Status check failed");vgLicenseRender(d,"")}
- catch(e){vgLicenseRender({active:false,reason:"unavailable"},"License service unavailable. Start the companion server and try again.")}
+ catch(e){vgLicenseRender({active:false,reason:"unavailable"},"License service unavailable at the configured companion server. Check the API URL and server logs.")}
 }
 async function vgLicenseAction(action){
  const key=document.getElementById("licenseKeyInput")?.value?.trim()||"";
