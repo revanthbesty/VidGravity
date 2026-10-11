@@ -406,7 +406,11 @@ def _run_download_job(job_id,url,fmt):
         _job_transition(job,"completed",progress=100,message="Download complete",filename=f.name,output_path=str(f),completed_at=time.time())
         _job_changed(job)
     except Exception as e:
-        _job_transition(job,"failed",error=str(e)[:500]); _job_changed(job)
+        # A failed direct transfer can leave a partial file; never retain or publish it.
+        for leftover in DOWNLOAD_OUTPUT_DIR.glob(job_id+'.*'):
+            try: leftover.unlink()
+            except OSError: pass
+        _job_transition(job,"failed",error=str(e)[:500],message="Download failed; partial output removed"); _job_changed(job)
 
 _init_job_store()
 
@@ -676,9 +680,20 @@ class Handler(SimpleHTTPRequestHandler):
                 path=_safe_output_path(job.get('output_path',''))
                 if not path or not path.is_file():
                     return self._json(410,{'error':'Download output has expired or is unavailable','state':'expired'})
-                b=path.read_bytes()
                 filename=Path(job.get('filename','media.bin')).name.replace('"','')
-                self.send_response(200); self.send_header('Content-Type','application/octet-stream'); self.send_header('Content-Disposition',f'attachment; filename="{filename}"'); self.send_header('Content-Length',str(len(b))); self.end_headers(); self.wfile.write(b); return
+                size=path.stat().st_size
+                self.send_response(200)
+                self.send_header('Content-Type',job.get('content_type') or 'application/octet-stream')
+                self.send_header('Content-Disposition',f'attachment; filename="{filename}"')
+                self.send_header('Content-Length',str(size))
+                self.end_headers()
+                # Stream the completed output instead of reading the whole file into RAM.
+                with path.open('rb') as media_file:
+                    while True:
+                        chunk=media_file.read(256*1024)
+                        if not chunk: break
+                        self.wfile.write(chunk)
+                return
             with DOWNLOAD_JOB_LOCK: view=_job_public_view(job)
             return self._json(200,view)
         return super().do_GET()
