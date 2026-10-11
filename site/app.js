@@ -104,9 +104,22 @@ async function runDownloadLifecycle(job){
    if(state.state==="completed"){
     const result=await fetch(vgApiUrl("/api/download-jobs/"+encodeURIComponent(job.serverJobId)+"/result"));
     if(!result.ok){const e=await result.json().catch(()=>({}));throw Error(e.error||"Could not retrieve completed download");}
-    const blob=await result.blob();
-    await finishBlob(job,blob,blob.type||"application/octet-stream");
-    toast("Media saved to Library");return;
+    job.message="Transferring completed file to your device…";job.progress=0;saveJobs();renderJobs();
+    const total=Number(result.headers.get("content-length")||0),reader=result.body?.getReader();
+    const chunks=[];let received=0;
+    if(reader){
+     while(true){
+      const part=await reader.read();if(part.done)break;
+      chunks.push(part.value);received+=part.value.byteLength;
+      job.progress=total?Math.min(99,Math.round(received/total*100)):Math.min(95,job.progress+2);
+      job.message="Transferring file to your device…";saveJobs();renderJobs();
+      if(job.cancelRequested)throw new DOMException("Download cancelled","AbortError");
+     }
+    }else{chunks.push(new Uint8Array(await result.arrayBuffer()));received=chunks[0].byteLength;}
+    const blob=new Blob(chunks,{type:result.headers.get("content-type")||"application/octet-stream"});
+    job.message="Verifying media file…";job.progress=99;saveJobs();renderJobs();
+    await finishBlob(job,blob,blob.type);
+    toast("Media saved to your device and VidGravity Library");return;
    }
    await new Promise(resolve=>setTimeout(resolve,650));
   }
@@ -201,15 +214,20 @@ function downloadBlobToDevice(blob,title,type,url){
  setTimeout(()=>URL.revokeObjectURL(objectUrl),60000);
 }
 async function finishBlob(job,blob,type){
- const mediaType=inferredMediaType(blob.type||type,job.title,job.url);
+ const detectedType=await detectMediaSignature(blob);
+ if(!detectedType)throw Error("Download verification failed: the returned file is not a recognized media file. It was not marked complete or saved to the Library.");
+ if(detectedType.startsWith("image/"))throw Error("The URL returned an image, not an audio or video file.");
+ const mediaType=detectedType;
  const normalizedBlob=blob.type===mediaType?blob:blob.slice(0,blob.size,mediaType);
+ if(!normalizedBlob.size)throw Error("Download verification failed: the media file is empty.");
+ job.message="Saving verified media to your device…";job.progress=99;saveJobs();renderJobs();
  const meta=await extractMetadata(normalizedBlob,mediaType,job.title);
  const item={id:job.id,url:job.url,type:mediaType,title:job.title,size:normalizedBlob.size,created:Date.now(),blob:normalizedBlob,...meta};
  await dbPut(item);
- job.status='completed';job.progress=100;job.mediaId=item.id;saveJobs();media.unshift(item);renderAll();
- // Keep a browser Library copy and also trigger a real device download.
+ job.status='completed';job.progress=100;job.message='Verified and saved to device and Library';job.mediaId=item.id;saveJobs();media.unshift(item);renderAll();
+ // Browsers save to the user's configured Downloads folder; the user may be prompted by browser settings.
  downloadBlobToDevice(normalizedBlob,item.title,item.type,job.url);
- toast('Downloaded to your device and saved to Library');
+ toast('Verified media saved to your device and VidGravity Library');
 }
 function titleFrom(url){try{return decodeURIComponent(new URL(url).pathname.split('/').pop()||'Untitled media')}catch{return'Untitled media'}}
 function renderAll(){renderStats();renderRecent();renderLibrary();renderJobs();$('#queueBadge').textContent=jobs.filter(j=>['running','queued'].includes(j.status)).length}
@@ -278,7 +296,7 @@ function renderLibrary(){
 
 function bindCards(root){root.querySelectorAll('.play').forEach(b=>b.onclick=()=>play(b.dataset.id));root.querySelectorAll('.save').forEach(b=>b.onclick=()=>saveFile(b.dataset.id));root.querySelectorAll('.info').forEach(b=>b.onclick=()=>showDetails(b.dataset.id));root.querySelectorAll('.del').forEach(b=>b.onclick=()=>removeMedia(b.dataset.id))}
 function empty(t){return `<div class="card" style="padding:25px;color:#777083;grid-column:1/-1">${t}</div>`}
-function renderJobs(){const x=$('#downloadList');x.innerHTML=`<div class="bulkBar"><button class="smallBtn" id="retryFailed">Retry failed</button><button class="smallBtn" id="cancelQueued">Cancel queued</button></div>`+jobs.map(j=>`<div class="job card"><div><div class="jobTitle">${esc(j.title)}</div><div class="jobUrl">${esc(j.url)}</div><div class="bar"><i style="width:${j.progress}%"></i></div></div><div class="jobStatus">${esc(j.status)}${j.error?`<br>${esc(j.error)}`:''}</div><div class="jobStatus">${j.progress}%<div class="actions jobActions">${j.status==='completed'&&j.mediaId?`<button class="smallBtn saveDeviceJob" data-id="${j.mediaId}">Save to device</button>`:''}${['running','queued','recoverable'].includes(j.status)?`<button class="smallBtn cancelJob" data-id="${j.id}">Cancel</button>`:''}${['failed','cancelled','recoverable'].includes(j.status)?`<button class="smallBtn retryJob" data-id="${j.id}">Retry</button>`:''}</div></div></div>`).join('')||empty('No downloads yet.');x.querySelectorAll('.cancelJob').forEach(b=>b.onclick=()=>cancelJob(b.dataset.id));x.querySelectorAll('.retryJob').forEach(b=>b.onclick=()=>retryJob(b.dataset.id));x.querySelectorAll('.saveDeviceJob').forEach(b=>b.onclick=()=>saveFile(b.dataset.id));$('#retryFailed')?.addEventListener('click',retryFailed);$('#cancelQueued')?.addEventListener('click',cancelQueued)}
+function renderJobs(){const x=$('#downloadList');x.innerHTML=`<div class="bulkBar"><button class="smallBtn" id="retryFailed">Retry failed</button><button class="smallBtn" id="cancelQueued">Cancel queued</button></div>`+jobs.map(j=>`<div class="job card"><div><div class="jobTitle">${esc(j.title)}</div><div class="jobUrl">${esc(j.url)}</div>${j.message?`<div class="jobUrl jobMessage">${esc(j.message)}</div>`:''}<div class="bar"><i style="width:${Math.max(0,Math.min(100,Number(j.progress)||0))}%"></i></div></div><div class="jobStatus">${esc(j.status)}${j.error?`<br>${esc(j.error)}`:''}</div><div class="jobStatus">${Math.max(0,Math.min(100,Number(j.progress)||0))}%<div class="actions jobActions">${j.status==='completed'&&j.mediaId?`<button class="smallBtn saveDeviceJob" data-id="${j.mediaId}">Save to device</button>`:''}${['running','queued','recoverable'].includes(j.status)?`<button class="smallBtn cancelJob" data-id="${j.id}">Cancel</button>`:''}${['failed','cancelled','recoverable'].includes(j.status)?`<button class="smallBtn retryJob" data-id="${j.id}">Retry</button>`:''}</div></div></div>`).join('')||empty('No downloads yet.');x.querySelectorAll('.cancelJob').forEach(b=>b.onclick=()=>cancelJob(b.dataset.id));x.querySelectorAll('.retryJob').forEach(b=>b.onclick=()=>retryJob(b.dataset.id));x.querySelectorAll('.saveDeviceJob').forEach(b=>b.onclick=()=>saveFile(b.dataset.id));$('#retryFailed')?.addEventListener('click',retryFailed);$('#cancelQueued')?.addEventListener('click',cancelQueued)}
 
 async function retryFailed(){const failed=jobs.filter(j=>j.status==='failed');if(!failed.length)return toast('No failed jobs');for(const j of failed){j.status='queued';j.error='';j.progress=0}saveJobs();renderJobs();pumpQueue();toast(`Retrying ${failed.length} job(s)`)}
 function cancelQueued(){const before=jobs.length;jobs=jobs.filter(j=>!['queued','recoverable'].includes(j.status));saveJobs();renderAll();toast(`${before-jobs.length} queued job(s) cancelled`)}
