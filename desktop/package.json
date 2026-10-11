@@ -1,0 +1,40 @@
+{
+  "name": "vidgravity-desktop",
+  "version": "1.0.0",
+  "description": "VidGravity cloud-connected Windows desktop app",
+  "main": "main.cjs",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.vidgravity.desktop",
+    "productName": "VidGravity",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "VidGravity-Windows-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "VidGravity-Windows-${version}-portable.${ext}"
+    }
+  }
+}
