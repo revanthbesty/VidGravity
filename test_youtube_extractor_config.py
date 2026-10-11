@@ -31,6 +31,8 @@ class YouTubeExtractorConfigTests(unittest.TestCase):
             origins = handler._allowed_origins()
         self.assertIn("tauri://localhost", origins)
         self.assertIn("http://tauri.localhost", origins)
+        self.assertIn("https://vidgravity.onrender.com", origins)
+        self.assertIn("https://vidgravity-web.revanthbesty.workers.dev", origins)
 
     def test_cookie_browser_setting_is_not_required_for_non_youtube_sources(self):
         with patch.object(server, "SERVER_HOST", "127.0.0.1"), patch.dict(os.environ, {}, clear=False):
