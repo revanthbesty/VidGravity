@@ -37,7 +37,7 @@ $('#inspectBtn').onclick=async()=>{
   finally{clearTimeout(timer)}
   if(!response.ok)throw Error(data.error||('Inspection failed (HTTP '+response.status+')')+(data.details?' · '+data.details:''));
   const size=data.size&&data.size!=='unknown'&&Number.isFinite(Number(data.size))?formatBytes(Number(data.size)):(data.size||'size unknown');
-  box.innerHTML=`<div class="inspectHeading"><span class="inspectMediaIcon" aria-hidden="true">${String(data.type||'').toLowerCase().includes('audio')?'♫':'🎬'}</span><div><b>${esc(data.title||'Media detected')}</b><div class="mediaMeta">${esc(data.type||'media')} · ${esc(size)} · ${esc(data.source||'server')}${data.duration?' · '+esc(formatDuration(data.duration)):''}</div></div></div><div class="mediaMeta inspectFormatSummary">${Number(data.format_count||((data.formats||[]).length))} available format(s)</div><div id="formatPanel"></div><button class="primary" id="downloadNow">Download best available</button>`;
+  box.innerHTML=`<div class="inspectHeading"><span class="inspectMediaIcon" aria-hidden="true">${String(data.type||'').toLowerCase().includes('audio')?'♫':'🎬'}</span><div><b>${esc(data.title||'Media detected')}</b><div class="mediaMeta">${esc(data.type||'media')} · ${esc(size)} · ${esc(data.source||'server')}${data.duration?' · '+esc(formatDuration(data.duration)):''}</div></div></div><div class="formatChooserHead"><div><b>Choose video quality</b><small>Higher resolution looks sharper and usually creates a larger file. Choose Best available if you are unsure.</small></div><span class="formatCount">${Number(data.format_count||((data.formats||[]).length))} option(s)</span></div><div id="formatPanel"></div><button class="primary downloadBest" id="downloadNow">Download best available</button>`;
   $('#downloadNow').onclick=()=>serverDownload(url,{...data,format:data.default_format||undefined});
   renderAvailableFormats(box.querySelector('#formatPanel'),data.formats||[],url,data);
  }catch(error){
@@ -50,11 +50,16 @@ function renderAvailableFormats(panel,formats,url,info){
  const fs=(formats||[]).filter(f=>f&&f.id).slice(0,40);
  if(!fs.length){panel.innerHTML='<div class="mediaMeta formatEmpty">The provider did not return selectable formats for this URL. Use Download best available only if the server confirms a supported media resource.</div>';return}
  panel.innerHTML='<div class="formatList">'+fs.map(f=>{
-  const icon=f.has_audio&& !f.has_video?'♫':'🎬';
-  const size=Number(f.filesize)>0?' · '+formatBytes(Number(f.filesize)):'';
-  const note=f.note?' · '+f.note:'';
-  const streams=f.has_video&&!f.has_audio?'video + audio':'';
-  return `<div class="formatOption"><span class="formatFileIcon" aria-hidden="true">${icon}</span><div class="formatText"><b>${esc(String(f.ext||'media').toUpperCase())} · <span class="qualityBadge">${esc(f.resolution||'quality unknown')}</span></b><div class="mediaMeta">Format ${esc(f.id)}${esc(size)}${esc(note)}${streams?' · '+streams:''}</div></div><button class="smallBtn fmt" data-f="${esc(f.selector||f.id)}">Download</button></div>`;
+  const isAudio=!!(f.has_audio&&!f.has_video);
+  const icon=isAudio?'♫':'🎬';
+  const quality=String(f.resolution||'').trim();
+  const label=isAudio?'Audio only':(quality&&quality!=='quality unknown'?quality:'Original quality');
+  const size=Number(f.filesize)>0?formatBytes(Number(f.filesize)):'Size unavailable';
+  const note=f.note?String(f.note):'';
+  const streams=f.has_video&&!f.has_audio?'Video stream · audio will be combined':'';
+  const detail=[isAudio?'Audio':(f.has_video?'Video':'Media'),String(f.ext||'media').toUpperCase(),size,note,streams].filter(Boolean).join(' · ');
+  const buttonLabel=isAudio?'Download audio':'Choose '+label;
+  return `<div class="formatOption"><span class="formatFileIcon" aria-hidden="true">${icon}</span><div class="formatText"><b>${esc(label)} <span class="qualityBadge">${esc(isAudio?'AUDIO':(f.ext||'MEDIA').toUpperCase())}</span></b><div class="mediaMeta">${esc(detail)}</div></div><button class="smallBtn fmt" data-f="${esc(f.selector||f.id)}" aria-label="${esc(buttonLabel)}">${esc(buttonLabel)}</button></div>`;
  }).join('')+'</div>';
  panel.querySelectorAll('.fmt').forEach(b=>b.onclick=()=>serverDownload(url,{...info,format:b.dataset.f,title:info.title}));
 }
