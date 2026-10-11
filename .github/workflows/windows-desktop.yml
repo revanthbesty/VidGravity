@@ -1,0 +1,42 @@
+name: Build VidGravity Windows App
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "desktop/**"
+      - ".github/workflows/windows-desktop.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - name: Install dependencies
+        working-directory: desktop
+        run: npm ci
+
+      - name: Build Windows portable executable
+        working-directory: desktop
+        run: npm run build:win
+
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: VidGravity-Windows
+          path: desktop/dist/*.exe
+          if-no-files-found: error
+          retention-days: 14
