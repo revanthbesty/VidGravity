@@ -25,7 +25,43 @@ $$('.nav').forEach(b=>b.onclick=()=>nav(b.dataset.page));$$('[data-page]').forEa
 $('#menu').onclick=()=>$('.sidebar').classList.toggle('open');
 $('#clearAll').onclick=()=>{jobs=jobs.filter(j=>!['completed','failed'].includes(j.status));saveJobs();renderJobs();toast('Completed jobs cleared')};
 
-$('#inspectBtn').onclick=async()=>{const url=$('#urlInput').value.trim();if(!/^https?:\/\//i.test(url))return toast('Enter a valid http(s) URL');const box=$('#inspectResult');box.classList.remove('hidden');box.innerHTML='<b>Inspecting…</b>';try{const r=await fetch(vgApiUrl('/api/inspect?url='+encodeURIComponent(url)));if(r.ok){const d=await r.json();box.innerHTML=`<b>${esc(d.title||'Media detected')}</b><div class="mediaMeta">${esc(d.type||'unknown')} · ${esc(d.size||'size unknown')} · ${esc(d.source||'server')}</div><button class="smallBtn" id="formatsBtn">Show formats</button> <button class="primary" id="downloadNow">Add to Downloads</button><div id="formatPanel" class="hidden"></div>`;$('#downloadNow').onclick=()=>serverDownload(url,d);$('#formatsBtn').onclick=()=>showFormats(url,d,box)}else throw Error('server unavailable')}catch{try{const r=await fetch(url,{method:'HEAD'});const type=r.headers.get('content-type')||'unknown';box.innerHTML=`<b>Browser-fetchable resource detected</b><div class="mediaMeta">${esc(type)} · ${esc(url)}</div><button class="primary" id="downloadNow">Download to Library</button>`;$('#downloadNow').onclick=()=>startBrowserDownload(url,type)}catch{box.innerHTML=`<b>Direct browser fetch unavailable</b><div class="mediaMeta">The server may block CORS/HEAD requests. Start the companion server for broader provider handling.</div><button class="primary" id="downloadTry">Try browser download</button>`;$('#downloadTry').onclick=()=>startBrowserDownload(url,'')}}};
+$('#inspectBtn').onclick=async()=>{
+ const url=$('#urlInput').value.trim();
+ if(!/^https?:\\/\\//i.test(url))return toast('Enter a valid http(s) URL');
+ const button=$('#inspectBtn'),box=$('#inspectResult');
+ button.disabled=true;button.textContent='Inspecting…';
+ box.classList.remove('hidden');box.innerHTML='<b>Inspecting media…</b><div class="mediaMeta">Checking the companion server. This may take a few seconds.</div>';
+ const timedFetch=async(input,options={},ms=12000)=>{
+  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),ms);
+  try{return await fetch(input,{...options,signal:controller.signal})}
+  finally{clearTimeout(timer)}
+ };
+ try{
+  let serverError='';
+  try{
+   const r=await timedFetch(vgApiUrl('/api/inspect?url='+encodeURIComponent(url)),{},12000);
+   const d=await r.json().catch(()=>({}));
+   if(r.ok){
+    box.innerHTML=`<b>${esc(d.title||'Media detected')}</b><div class="mediaMeta">${esc(d.type||'unknown')} · ${esc(d.size||'size unknown')} · ${esc(d.source||'server')}</div><button class="smallBtn" id="formatsBtn">Show formats</button> <button class="primary" id="downloadNow">Add to Downloads</button><div id="formatPanel" class="hidden"></div>`;
+    $('#downloadNow').onclick=()=>serverDownload(url,d);
+    $('#formatsBtn').onclick=()=>showFormats(url,d,box);
+    return;
+   }
+   serverError=d.error||('Companion server returned HTTP '+r.status);
+  }catch(e){serverError=e.name==='AbortError'?'Companion server timed out':(e.message||'Companion server unavailable')}
+  box.innerHTML='<b>Checking direct media access…</b><div class="mediaMeta">'+esc(serverError)+'</div>';
+  try{
+   const r=await timedFetch(url,{method:'HEAD',mode:'cors'},8000);
+   const type=r.headers.get('content-type')||'unknown';
+   if(!r.ok)throw Error('Media host returned HTTP '+r.status);
+   box.innerHTML=`<b>Browser-fetchable resource detected</b><div class="mediaMeta">${esc(type)} · ${esc(url)}</div><button class="primary" id="downloadNow">Download to Library and device</button>`;
+   $('#downloadNow').onclick=()=>startBrowserDownload(url,type);
+  }catch(e){
+   box.innerHTML=`<b>Inspection could not complete</b><div class="mediaMeta">${esc(serverError)}. Direct browser check: ${esc(e.name==='AbortError'?'timed out':e.message||'blocked by CORS or server policy')}.</div><div class="mediaMeta">Check Settings → Companion server address, then retry. Social platforms generally require the companion server.</div><button class="smallBtn" id="retryInspect">Retry Inspect</button>`;
+   $('#retryInspect').onclick=()=>$('#inspectBtn').click();
+  }
+ }finally{button.disabled=false;button.textContent='Inspect'}
+};
 
 async function showFormats(url,info,box){const panel=box.querySelector('#formatPanel');panel.classList.remove('hidden');panel.innerHTML='<div class="mediaMeta">Loading available formats…</div>';try{const r=await fetch(vgApiUrl('/api/formats?url='+encodeURIComponent(url)));const d=await r.json();if(!r.ok)throw Error(d.error||'Format inspection failed');const fs=(d.formats||[]).filter(f=>f.id).slice(-30);panel.innerHTML=fs.length?'<div class="formatList">'+fs.map(f=>`<button class="smallBtn fmt" data-f="${esc(f.id)}">${esc(f.ext||'file')} · ${esc(f.resolution||'unknown')} ${f.note?'· '+esc(f.note):''}</button>`).join('')+'</div>':'<div class="mediaMeta">No provider formats available. The direct browser path will be used.</div>';panel.querySelectorAll('.fmt').forEach(b=>b.onclick=()=>serverDownload(url,{...info,format:b.dataset.f,title:info.title}));}catch(e){panel.innerHTML='<div class="mediaMeta">'+esc(e.message||'Format inspection failed')+'</div>'}}
 const activeJobRunners=new Set();
