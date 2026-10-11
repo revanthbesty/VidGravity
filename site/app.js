@@ -16,8 +16,9 @@ async function dbAll(){const db=await dbp;return new Promise((res,rej)=>{const r
 async function dbGet(id){const db=await dbp;return new Promise((res,rej)=>{const r=db.transaction(STORE).objectStore(STORE).get(id);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
 async function dbDelete(id){const db=await dbp;return new Promise((res,rej)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).delete(id);tx.oncomplete=res;tx.onerror=()=>rej(tx.error)})}
 function toast(t){const x=$('#toast');x.textContent=t;x.classList.add('show');setTimeout(()=>x.classList.remove('show'),2400)}
-async function load(){try{media=await dbAll()}catch(e){media=[];toast('Local storage unavailable')}try{jobs=JSON.parse(localStorage.getItem('vg-jobs')||'[]')}catch{jobs=[]}jobs=jobs.map(j=>j.status==='running'?{...j,status:'recoverable',error:'Recovered after browser reload'}:j);saveJobs();renderAll();pumpQueue()}
+async function load(){try{media=await dbAll();media.forEach(ensureOrg);await save()}catch(e){media=[];toast('Local storage unavailable')}try{jobs=JSON.parse(localStorage.getItem('vg-jobs')||'[]')}catch{jobs=[]}jobs=jobs.map(j=>j.status==='running'?{...j,status:'recoverable',error:'Recovered after browser reload'}:j);saveJobs();renderAll();pumpQueue()}
 function saveJobs(){localStorage.setItem('vg-jobs',JSON.stringify(jobs))}
+async function save(){try{await Promise.all(media.map(item=>dbPut(item)))}catch(error){console.error('Failed to save media metadata',error);toast('Could not save media changes')}}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function nav(page){$$('.page').forEach(x=>x.classList.toggle('active',x.id===page));$$('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===page));$('#pageTitle').textContent=page==='ask'?'Ask My Media':page[0].toUpperCase()+page.slice(1);if(page==='library')renderLibrary();if(page==='downloads')renderJobs();$('.sidebar')?.classList.remove('open')}
 $$('.nav').forEach(b=>b.onclick=()=>nav(b.dataset.page));$$('[data-page]').forEach(b=>b.onclick=()=>nav(b.dataset.page));
