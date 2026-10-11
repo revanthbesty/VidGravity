@@ -25,6 +25,13 @@ class YouTubeExtractorConfigTests(unittest.TestCase):
             command = server._yt_dlp_command("--no-playlist", "https://www.youtube.com/watch?v=test")
         self.assertNotIn("--cookies-from-browser", command)
 
+    def test_tauri_desktop_origin_is_allowlisted_for_local_companion(self):
+        handler = object.__new__(server.Handler)
+        with patch.dict(os.environ, {}, clear=True):
+            origins = handler._allowed_origins()
+        self.assertIn("tauri://localhost", origins)
+        self.assertIn("http://tauri.localhost", origins)
+
     def test_cookie_browser_setting_is_not_required_for_non_youtube_sources(self):
         with patch.object(server, "SERVER_HOST", "127.0.0.1"), patch.dict(os.environ, {}, clear=False):
             os.environ.pop("VIDGRAVITY_YTDLP_COOKIES_FROM_BROWSER", None)
