@@ -35,36 +35,38 @@ $('#inspectBtn').onclick=async()=>{
   let response,data,usedLocalFallback=false;
   try{response=await fetch(vgApiUrl('/api/inspect?url='+encodeURIComponent(url)),{signal:controller.signal});data=await response.json().catch(()=>({}));}
   finally{clearTimeout(timer)}
-  const ytUrl=/^https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be)\//i.test(url);
+  const urlHost=(()=>{try{return new URL(url).hostname.toLowerCase()}catch{return ''}})();
+  const ytUrl=['youtube.com','youtu.be'].some(host=>urlHost===host||urlHost.endsWith('.'+host));
   const failureText=String((data.error||'')+' '+(data.details||'')).toLowerCase();
-  const hostedYoutubeBlock=ytUrl&&!response.ok&&(/sign in to confirm|not a bot|bot verification|youtube blocked|metadata from this webpage|login_required/.test(failureText));
-  if(hostedYoutubeBlock){
-    // Hosted instances can be challenged by YouTube's datacenter bot checks.
-    // If the user's local companion is running, retry there without uploading browser cookies.
+  // Hosted extractors can fail for any provider because of bot checks, regional restrictions,
+  // login walls, or cloud-IP blocking. Retry locally on recoverable provider/server failures.
+  const shouldTryLocal=!response.ok&&(response.status>=500||[401,403,422,429].includes(response.status)||(ytUrl&&/sign in|not a bot|bot verification|blocked|login_required|unavailable/.test(failureText)));
+  if(shouldTryLocal){
     const localBase='http://127.0.0.1:5173';
+    const hostedError=String(data.error||('Hosted inspection failed (HTTP '+response.status+')'));
     try{
-      const healthResponse=await fetch(localBase+'/api/health',{cache:'no-store',signal:controller.signal});
-      const health=await healthResponse.json().catch(()=>({}));
-      if(healthResponse.ok&&health.ok&&health.yt_dlp){
-        const localResponse=await fetch(localBase+'/api/inspect?url='+encodeURIComponent(url),{signal:controller.signal});
-        const localData=await localResponse.json().catch(()=>({}));
-        if(localResponse.ok){
-          response=localResponse;data=localData;usedLocalFallback=true;
+      const localResponse=await fetch(localBase+'/api/health',{cache:'no-store',signal:controller.signal});
+      const health=await localResponse.json().catch(()=>({}));
+      if(localResponse.ok&&health.ok&&health.yt_dlp){
+        const retryResponse=await fetch(localBase+'/api/inspect?url='+encodeURIComponent(url),{signal:controller.signal});
+        const retryData=await retryResponse.json().catch(()=>({}));
+        if(retryResponse.ok){
+          response=retryResponse;data=retryData;usedLocalFallback=true;
           localStorage.setItem('vg-api-base-url',localBase);
           const apiInput=$('#vgApiBaseInput'),apiMessage=$('#vgApiMessage');
           if(apiInput)apiInput.value=localBase;
-          if(apiMessage)apiMessage.textContent='Using your local companion server for provider downloads.';
-          if(typeof vgUXNotify==='function')vgUXNotify('Connected to the local companion server. YouTube inspection is using your PC.','success');
+          if(apiMessage)apiMessage.textContent='Using your local companion server for media inspection and downloads.';
+          if(typeof vgUXNotify==='function')vgUXNotify('Connected to the local companion server. Media inspection is using your PC.','success');
         }else{
-          data={...localData,error:localData.error||'Your local companion server also could not inspect this YouTube URL.',details:localData.details||'Try a public video that is available without sign-in, or check the local server output.'};
-          response=localResponse;
+          response=retryResponse;
+          data={...retryData,error:retryData.error||'The local companion could not inspect this media URL.',details:[retryData.details, 'Hosted server response: '+hostedError].filter(Boolean).join(' · ')};
         }
       }else{
-        data={...data,error:'YouTube is blocking the hosted server. Start the VidGravity local companion server on this PC to retry the URL locally.',details:'The hosted API connection works, but YouTube may reject cloud server IP addresses. This is not a UI setting. The local companion must be running at http://127.0.0.1:5173.'};
+        data={...data,error:'The hosted server could not inspect this media URL, and the local companion is not ready.',details:'Hosted response: '+hostedError+'. Start the VidGravity companion server on this PC (http://127.0.0.1:5173) and retry. Some providers block cloud-server requests or require sign-in; protected or unavailable media cannot be guaranteed.'};
       }
     }catch(localError){
       if(localError.name==='AbortError')throw localError;
-      data={...data,error:'YouTube is blocking the hosted server, and the local companion server is not reachable.',details:'Start VidGravity’s local companion server on this PC at http://127.0.0.1:5173, then click Inspect again. The hosted server cannot use your PC’s local network or browser session.'};
+      data={...data,error:'The hosted server could not inspect this media URL, and the local companion is not reachable.',details:'Hosted response: '+hostedError+'. Start the VidGravity companion server on this PC at http://127.0.0.1:5173 and retry. The website cannot access your PC session unless that local service is running.'};
     }
   }
   if(!response.ok)throw Error(data.error||('Inspection failed (HTTP '+response.status+')')+(data.details?' · '+data.details:''));
