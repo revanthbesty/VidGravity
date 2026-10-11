@@ -86,7 +86,8 @@ function renderAvailableFormats(panel,formats,url,info){
  const sizeKnown=f=>Number(f.filesize)>0?1:0;
  const byHeight=new Map();
  video.forEach(f=>{const h=heightOf(f);if(!h)return;const old=byHeight.get(h);const score=x=>(x.has_audio?100:0)+(String(x.ext).toLowerCase()==='mp4'?20:0)+sizeKnown(x)*10;if(!old||score(f)>score(old))byHeight.set(h,f)});
- const videoChoices=[...byHeight.entries()].sort((a,b)=>b[0]-a[0]).map(([h,f])=>({format:f.selector||f.id,label:h>=2160?'4K (2160p)':h>=1440?'1440p':h>=1080?'1080p':h>=720?'720p':h>=480?'480p':h>=360?'360p':h>=240?'240p':h+'p',detail:[String(f.ext||'MP4').toUpperCase(),sizeKnown(f)?formatBytes(Number(f.filesize)):'Size estimated during download',f.has_audio?'Video + audio':'Audio will be combined'].join(' · '),kind:'video'}));
+ const standardHeights=[2160,1440,1080,720,480,360];
+ const videoChoices=[{format:'bv*+ba/b',label:'Highest available',detail:'Maximum quality supported by this source · best compatible video and audio',kind:'video'},...standardHeights.filter(h=>byHeight.has(h)).map(h=>{const f=byHeight.get(h);return {format:f.selector||f.id,label:h===2160?'4K (2160p)':h+'p',detail:[h===2160?'Large screens and high detail':h===1440?'High quality with less data than 4K':h===1080?'Standard Full HD choice':h===720?'Balanced quality and file size':h===480?'Smaller file for slower connections':'Low-bandwidth use',String(f.ext||'MP4').toUpperCase(),f.has_audio?'Video + audio':'Audio will be combined'].join(' · '),kind:'video'}})];
  const rank=q=>({'high':3,'medium':2,'low':1,'tiny':0,'small':0})[String(q||'').toLowerCase()]??-1;
  const audioByQuality=new Map();
  audio.forEach(f=>{const q=String(f.note||'').toLowerCase().match(/\b(high|medium|low|tiny|small)\b/)?.[1]||'';const key=q||'standard';const old=audioByQuality.get(key);const score=x=>(String(x.ext).toLowerCase()==='m4a'?30:0)+sizeKnown(x)*10;if(!old||score(f)>score(old))audioByQuality.set(key,f)});
