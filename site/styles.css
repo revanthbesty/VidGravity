@@ -156,7 +156,7 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 .vg-api-controls button{min-height:42px}
 .vg-api-setting{display:block}
 
-/* Inspect format picker and explicit media-type icons */
+/* Media inspection, format selection, and download lifecycle feedback */
 .inspectHeading{display:flex;align-items:center;gap:12px;margin-bottom:10px}
 .inspectMediaIcon,.formatFileIcon{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:44px;height:44px;border-radius:12px;background:linear-gradient(145deg,#2b2042,#171326);border:1px solid var(--line);font-size:24px}
 .inspectFormatSummary{margin:10px 0}
