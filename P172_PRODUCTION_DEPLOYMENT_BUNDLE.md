@@ -5,6 +5,7 @@ This milestone provides an operator-executable container deployment scaffold; it
 ## What is included
 
 - `compose.production.yml`: app container remains private to the Docker backend network; Caddy exposes only 80/443, provides automatic HTTPS, and applies HTTP Basic Auth to the site and API.
+- `vidgravity_data` is a separate writable persistent volume mounted at `/data`; set `VIDGRAVITY_DATA_DIR` to the mount path so the read-only app filesystem can still persist job and license databases and downloaded outputs.
 - `Caddyfile.production`: TLS reverse proxy, authentication, and baseline response headers.
 - `.env.production.example`: non-secret template. Replace the example domain and generated hash on the server.
 - `deploy_p172.sh`: validates prerequisites and Compose configuration, then builds and starts the stack.
@@ -25,7 +26,7 @@ This milestone provides an operator-executable container deployment scaffold; it
 
 - HTTP Basic Auth is a temporary access gate, not a customer account system. Use only for restricted pilot access; configure account-level authentication before public customer launch.
 - The current flag `VIDGRAVITY_PROVIDER_EGRESS_ISOLATED=false` explicitly indicates that container egress is **not** proven isolated. Docker bridge networking does not itself block access to private, link-local, or metadata endpoints. Enforce egress policy at the host/network layer and verify it independently before enabling untrusted URL fetches.
-- The app container has a read-only root filesystem and a temporary `/tmp`; verify that all intended download/output paths work under this constraint before launch.
+- The app container has a read-only root filesystem. The production Compose file mounts `vidgravity_data` at `/data` and sets `VIDGRAVITY_DATA_DIR=/data` for persistent databases and downloads. Verify volume permissions, capacity, backup, and restore on the actual host before launch.
 - This scaffold does not configure Razorpay secrets or prove payment/webhook correctness. Do not add live keys until the payment path has been independently verified.
 - A green container health endpoint only proves the process is responding. It does not prove media-provider success, secure egress, payment, licensing, Android, or production readiness.
 - Do not use DRM bypass, authenticated private media, or paywalled content in provider acceptance tests.
