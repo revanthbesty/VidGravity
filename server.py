@@ -285,13 +285,13 @@ DOWNLOAD_JOB_RETENTION_SECONDS=7*24*60*60
 def _media_signature_type(data):
     """Return a MIME type only when a known media container/audio signature is present."""
     if len(data)>=12 and data[4:8]==b'ftyp': return 'video/mp4'
-    if data.startswith(b'\\x1a\\x45\\xdf\\xa3'): return 'video/webm'
+    if data.startswith(b'\x1a\x45\xdf\xa3'): return 'video/webm'
     if len(data)>=12 and data[:4]==b'RIFF' and data[8:12]==b'AVI ': return 'video/x-msvideo'
     if len(data)>=12 and data[:4]==b'RIFF' and data[8:12]==b'WAVE': return 'audio/wav'
     if data.startswith(b'ID3') or (len(data)>=2 and data[0]==0xff and (data[1]&0xe0)==0xe0): return 'audio/mpeg'
     if data.startswith(b'OggS'): return 'audio/ogg'
     if data.startswith(b'fLaC'): return 'audio/flac'
-    if data.startswith(b'\\x00\\x00\\x01\\xba') or data.startswith(b'\\x00\\x00\\x01\\xb3'): return 'video/mpeg'
+    if data.startswith(b'\x00\x00\x01\xba') or data.startswith(b'\x00\x00\x01\xb3'): return 'video/mpeg'
     return ''
 
 
