@@ -12,7 +12,9 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 RUN useradd --system --uid 10001 --home-dir /nonexistent --shell /usr/sbin/nologin vidgravity \
-    && chown -R vidgravity:vidgravity /app
+    && chown -R vidgravity:vidgravity /app \
+    && mkdir -p /data \
+    && chown vidgravity:vidgravity /data
 USER vidgravity
 EXPOSE 5173
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
