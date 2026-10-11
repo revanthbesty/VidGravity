@@ -235,12 +235,23 @@ async function finishBlob(job,blob,type){
  if(!detectedType)throw Error("The downloaded response is not a recognized media file. It was not marked completed.");
  const mediaType=detectedType,normalized=blob.type===mediaType?blob:blob.slice(0,blob.size,mediaType);
  if(!normalized.size)throw Error("The downloaded media file is empty.");
- job.message="Saving verified media to your device…";job.progress=99;saveJobs();renderJobs();
+ job.message="Preparing browser download…";job.progress=99;saveJobs();renderJobs();
  const meta=await extractMetadata(normalized,mediaType,job.title);
  const item={id:job.id,url:job.url,type:mediaType,title:job.title,size:normalized.size,created:Date.now(),blob:normalized,...meta};
- await dbPut(item);
+ // Start the device download before IndexedDB persistence: browser storage can stall or
+ // run out of quota, and must never prevent the user's file from being offered.
  downloadBlobToDevice(normalized,item.title,item.type,item.url);
- job.status='completed';job.progress=100;job.message='Verified and saved to device and Library';job.mediaId=item.id;saveJobs();media.unshift(item);renderAll();
+ job.status='completed';job.progress=100;job.message='Download started in your browser; saving a Library copy…';job.mediaId=item.id;
+ saveJobs();renderJobs();
+ // Keep the Library write off the critical download path. Report storage failures clearly.
+ dbPut(item).then(()=>{
+  media.unshift(item);
+  job.message='Download started in browser; verified copy saved to Library';
+  saveJobs();renderAll();
+ }).catch(()=>{
+  job.message='Download started in browser; Library copy could not be saved (browser storage may be full).';
+  saveJobs();renderJobs();
+ });
 }
 function titleFrom(url){try{return decodeURIComponent(new URL(url).pathname.split('/').pop()||'Untitled media')}catch{return'Untitled media'}}
 function renderAll(){renderStats();renderRecent();renderLibrary();renderJobs();$('#queueBadge').textContent=jobs.filter(j=>['running','queued'].includes(j.status)).length}
