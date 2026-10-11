@@ -29,7 +29,7 @@ The hosted service may be blocked by YouTube's IP reputation or bot-verification
 
 The backend uses yt-dlp's default YouTube client selection and installs the `default` extra (including the matching `yt-dlp-ejs` challenge scripts). Full YouTube extraction also requires a supported JavaScript runtime; the Dockerfile installs Deno. The `/api/health` response reports whether yt-dlp, Deno, and yt-dlp-ejs are available.
 
-For a **local-only** companion server on Windows, install dependencies and run the service bound to loopback. If YouTube still requires a signed-in session, you can explicitly opt into reading Chrome's local session:
+For a **local-only** companion server on Windows, install Deno with `winget install --id DenoLand.Deno -e`, open a new PowerShell window, and verify `deno --version`. Then install dependencies and run the service bound to loopback. If YouTube still requires a signed-in session, you can explicitly opt into reading Chrome's local session:
 
 ```powershell
 python -m pip install -r requirements.txt
