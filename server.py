@@ -537,6 +537,31 @@ class Handler(SimpleHTTPRequestHandler):
                             sizes=[f.get('filesize') or f.get('filesize_approx') for f in usable]
                             sizes=[n for n in sizes if isinstance(n,(int,float))]
                             size=max(sizes) if sizes else 'unknown'
+                        format_rows=[]
+                        for f in usable:
+                            format_rows.append({
+                                'id':str(f.get('format_id') or ''),
+                                'ext':f.get('ext') or d.get('ext') or 'media',
+                                'resolution':f.get('resolution') or (
+                                    f"{f.get('height')}p" if f.get('height') else
+                                    ('audio' if f.get('vcodec')=='none' else 'unknown')
+                                ),
+                                'fps':f.get('fps'),
+                                'filesize':f.get('filesize') or f.get('filesize_approx'),
+                                'note':f.get('format_note') or '',
+                                'vcodec':f.get('vcodec'),
+                                'acodec':f.get('acodec')
+                            })
+                        # Some extractors return one combined downloadable result but
+                        # no formats array. Preserve a truthful single-format option.
+                        if not format_rows and d.get('url'):
+                            format_rows=[{
+                                'id':str(d.get('format_id') or 'best'),
+                                'ext':d.get('ext') or 'media',
+                                'resolution':d.get('resolution') or 'best available',
+                                'filesize':size if isinstance(size,(int,float)) else None,
+                                'note':'Best available'
+                            }]
                         return self._json(200,{
                             'title':d.get('title') or 'Media detected',
                             'type':d.get('ext') or 'media',
@@ -544,8 +569,9 @@ class Handler(SimpleHTTPRequestHandler):
                             'duration':d.get('duration'),
                             'thumbnail':d.get('thumbnail'),
                             'source':'yt-dlp',
-                            'format_count':len(usable),
-                            'formats_available':bool(usable)
+                            'format_count':len(format_rows),
+                            'formats_available':bool(format_rows),
+                            'formats':format_rows[:40]
                         })
                     extractor_error=(p.stderr or p.stdout or 'The media provider could not identify this URL')[-1200:]
                 except subprocess.TimeoutExpired:
@@ -564,7 +590,15 @@ class Handler(SimpleHTTPRequestHandler):
                             'type':content_type,
                             'size':int(n) if n and n.isdigit() else 'unknown',
                             'source':'direct',
-                            'formats_available':True
+                            'format_count':1,
+                            'formats_available':True,
+                            'formats':[{
+                                'id':'best',
+                                'ext':content_type.split('/')[-1],
+                                'resolution':'original quality',
+                                'filesize':int(n) if n and n.isdigit() else None,
+                                'note':'Direct media file'
+                            }]
                         })
                     if content_type in ('text/html','application/xhtml+xml') or content_type.startswith('text/'):
                         message='This URL returned a webpage, not a direct media file.'
