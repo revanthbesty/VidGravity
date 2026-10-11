@@ -506,13 +506,31 @@ class Handler(SimpleHTTPRequestHandler):
             if not ok:return self._json(400,{'error':err})
             if shutil.which('yt-dlp') is None:
                 return self._json(200,{'source':'direct','formats':[],'message':'yt-dlp is not installed'})
-            p=subprocess.run(['yt-dlp','--no-playlist','-J','--skip-download',url],capture_output=True,text=True,timeout=60)
+            try:
+                p=subprocess.run(['yt-dlp','--no-playlist','-J','--skip-download','--no-warnings',url],capture_output=True,text=True,timeout=45)
+            except subprocess.TimeoutExpired:
+                return self._json(504,{'error':'Format inspection timed out while contacting the provider'})
             if p.returncode!=0:return self._json(502,{'error':p.stderr[-1200:] or 'format inspection failed'})
             try:
                 d=json.loads(p.stdout); rows=[]
                 for f in d.get('formats',[]):
-                    rows.append({'id':f.get('format_id'),'ext':f.get('ext'),'resolution':f.get('resolution') or ('audio' if f.get('vcodec')=='none' else 'unknown'),'fps':f.get('fps'),'vcodec':f.get('vcodec'),'acodec':f.get('acodec'),'filesize':f.get('filesize') or f.get('filesize_approx'),'note':f.get('format_note')})
-                return self._json(200,{'source':'yt-dlp','title':d.get('title') or 'Media','duration':d.get('duration'),'thumbnail':d.get('thumbnail'),'formats':rows})
+                    fid=str(f.get('format_id') or '')
+                    vcodec=f.get('vcodec') or 'none'; acodec=f.get('acodec') or 'none'
+                    has_video=vcodec!='none'; has_audio=acodec!='none'
+                    if not fid or not f.get('url') or not (has_video or has_audio): continue
+                    # Selecting a video-only stream must also fetch audio; otherwise
+                    # users get a silent video even though the job reports success.
+                    selector=fid if has_audio or not has_video else fid+'+bestaudio/best'
+                    rows.append({
+                        'id':fid,'selector':selector,'ext':f.get('ext'),
+                        'resolution':f.get('resolution') or (f"{f.get('height')}p" if f.get('height') else ('audio' if not has_video else 'unknown')),
+                        'fps':f.get('fps'),'vcodec':vcodec,'acodec':acodec,
+                        'filesize':f.get('filesize') or f.get('filesize_approx'),
+                        'note':f.get('format_note') or '',
+                        'has_video':has_video,'has_audio':has_audio
+                    })
+                rows.sort(key=lambda f: (not f['has_video'], not f['has_audio'], f.get('filesize') or 0), reverse=False)
+                return self._json(200,{'source':'yt-dlp','title':d.get('title') or 'Media','duration':d.get('duration'),'thumbnail':d.get('thumbnail'),'format_count':len(rows),'formats_available':bool(rows),'default_format':'bv*+ba/b','formats':rows[:40]})
             except Exception as e:return self._json(502,{'error':f'invalid resolver response: {e}'})
         if self.path.startswith('/api/inspect'):
             q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
@@ -539,18 +557,23 @@ class Handler(SimpleHTTPRequestHandler):
                             size=max(sizes) if sizes else 'unknown'
                         format_rows=[]
                         for f in usable:
+                            fid=str(f.get('format_id') or '')
+                            vcodec=f.get('vcodec') or 'none'; acodec=f.get('acodec') or 'none'
+                            has_video=vcodec!='none'; has_audio=acodec!='none'
+                            if not fid: continue
+                            selector=fid if has_audio or not has_video else fid+'+bestaudio/best'
                             format_rows.append({
-                                'id':str(f.get('format_id') or ''),
+                                'id':fid,'selector':selector,
                                 'ext':f.get('ext') or d.get('ext') or 'media',
                                 'resolution':f.get('resolution') or (
                                     f"{f.get('height')}p" if f.get('height') else
-                                    ('audio' if f.get('vcodec')=='none' else 'unknown')
+                                    ('audio' if not has_video else 'unknown')
                                 ),
                                 'fps':f.get('fps'),
                                 'filesize':f.get('filesize') or f.get('filesize_approx'),
                                 'note':f.get('format_note') or '',
-                                'vcodec':f.get('vcodec'),
-                                'acodec':f.get('acodec')
+                                'vcodec':vcodec,'acodec':acodec,
+                                'has_video':has_video,'has_audio':has_audio
                             })
                         # Some extractors return one combined downloadable result but
                         # no formats array. Preserve a truthful single-format option.
@@ -571,6 +594,7 @@ class Handler(SimpleHTTPRequestHandler):
                             'source':'yt-dlp',
                             'format_count':len(format_rows),
                             'formats_available':bool(format_rows),
+                            'default_format':'bv*+ba/b',
                             'formats':format_rows[:40]
                         })
                     extractor_error=(p.stderr or p.stdout or 'The media provider could not identify this URL')[-1200:]
