@@ -68,7 +68,7 @@
           <button id="inspectBtn" class="primary">Inspect</button>
         </div>
         <div id="inspectResult" class="inspect hidden"></div>
-        <div class="notice"><span class="noticeIcon">ⓘ</span> Some sites require the VidGravity companion server. Protected or unavailable media may not be accessible.</div>
+        <div class="notice"><span class="noticeIcon">ⓘ</span> Some providers restrict cloud extraction. Only publicly available media supported by the provider can be inspected.</div>
       </div>
       <div class="homeWorkflow" aria-label="How VidGravity works"><div class="workflowStep"><span class="workflowNumber">01</span><div><b>Paste a link</b><small>Start with a supported media URL</small></div></div><span class="workflowArrow" aria-hidden="true">→</span><div class="workflowStep"><span class="workflowNumber">02</span><div><b>Choose quality</b><small>Pick video or audio-only</small></div></div><span class="workflowArrow" aria-hidden="true">→</span><div class="workflowStep"><span class="workflowNumber">03</span><div><b>Track & organize</b><small>Follow progress in your workspace</small></div></div></div>
       <div class="stats">
@@ -129,7 +129,7 @@
 <div id="detailsModal" class="modal hidden"><div class="modalBox detailsBox"><button class="close" id="closeDetails">×</button><div id="detailsContent"></div></div></div>
 <div id="playerModal" class="modal hidden"><div class="modalBox playerBox"><button class="close" id="closePlayer">×</button><video id="player" controls playsinline></video><div id="playerMeta"></div><div id="playerTranscript" class="playerTranscript"></div></div></div>
 <div id="toast" class="toast"></div>
-<script src="app.js?v=p175"></script>
+<script src="app.js?v=p176"></script>
 <script id="vgApiConfigRuntime">
 (() => {
  const input=document.getElementById("vgApiBaseInput"), msg=document.getElementById("vgApiMessage");
