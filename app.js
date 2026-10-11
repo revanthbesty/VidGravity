@@ -32,9 +32,41 @@ $('#inspectBtn').onclick=async()=>{
  box.innerHTML='<b>Inspecting media…</b><div class="mediaMeta">Resolving title, duration, and available formats.</div>';
  try{
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);
-  let response,data;
+  let response,data,usedLocalFallback=false;
   try{response=await fetch(vgApiUrl('/api/inspect?url='+encodeURIComponent(url)),{signal:controller.signal});data=await response.json().catch(()=>({}));}
   finally{clearTimeout(timer)}
+  const ytUrl=/^https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be)\//i.test(url);
+  const failureText=String((data.error||'')+' '+(data.details||'')).toLowerCase();
+  const hostedYoutubeBlock=ytUrl&&!response.ok&&(/sign in to confirm|not a bot|bot verification|youtube blocked|metadata from this webpage|login_required/.test(failureText));
+  if(hostedYoutubeBlock){
+    // Hosted instances can be challenged by YouTube's datacenter bot checks.
+    // If the user's local companion is running, retry there without uploading browser cookies.
+    const localBase='http://127.0.0.1:5173';
+    try{
+      const healthResponse=await fetch(localBase+'/api/health',{cache:'no-store',signal:controller.signal});
+      const health=await healthResponse.json().catch(()=>({}));
+      if(healthResponse.ok&&health.ok&&health.yt_dlp){
+        const localResponse=await fetch(localBase+'/api/inspect?url='+encodeURIComponent(url),{signal:controller.signal});
+        const localData=await localResponse.json().catch(()=>({}));
+        if(localResponse.ok){
+          response=localResponse;data=localData;usedLocalFallback=true;
+          localStorage.setItem('vg-api-base-url',localBase);
+          const apiInput=$('#vgApiBaseInput'),apiMessage=$('#vgApiMessage');
+          if(apiInput)apiInput.value=localBase;
+          if(apiMessage)apiMessage.textContent='Using your local companion server for provider downloads.';
+          if(typeof vgUXNotify==='function')vgUXNotify('Connected to the local companion server. YouTube inspection is using your PC.','success');
+        }else{
+          data={...localData,error:localData.error||'Your local companion server also could not inspect this YouTube URL.',details:localData.details||'Try a public video that is available without sign-in, or check the local server output.'};
+          response=localResponse;
+        }
+      }else{
+        data={...data,error:'YouTube is blocking the hosted server. Start the VidGravity local companion server on this PC to retry the URL locally.',details:'The hosted API connection works, but YouTube may reject cloud server IP addresses. This is not a UI setting. The local companion must be running at http://127.0.0.1:5173.'};
+      }
+    }catch(localError){
+      if(localError.name==='AbortError')throw localError;
+      data={...data,error:'YouTube is blocking the hosted server, and the local companion server is not reachable.',details:'Start VidGravity’s local companion server on this PC at http://127.0.0.1:5173, then click Inspect again. The hosted server cannot use your PC’s local network or browser session.'};
+    }
+  }
   if(!response.ok)throw Error(data.error||('Inspection failed (HTTP '+response.status+')')+(data.details?' · '+data.details:''));
   const size=data.size&&data.size!=='unknown'&&Number.isFinite(Number(data.size))?formatBytes(Number(data.size)):(data.size||'size unknown');
   box.innerHTML=`<div class="inspectHeading"><span class="inspectMediaIcon" aria-hidden="true">${String(data.type||'').toLowerCase().includes('audio')?'♫':'🎬'}</span><div><b>${esc(data.title||'Media detected')}</b><div class="mediaMeta">${esc(data.type||'media')} · ${esc(size)} · ${esc(data.source||'server')}${data.duration?' · '+esc(formatDuration(data.duration)):''}</div></div></div><div class="formatChooserHead"><div><b>Choose video quality</b><small>Higher resolution looks sharper and usually creates a larger file. Choose Best available if you are unsure.</small></div><span class="formatCount">${Number(data.format_count||((data.formats||[]).length))} option(s)</span></div><div id="formatPanel"></div><button class="primary downloadBest" id="downloadNow">Download best available</button>`;
