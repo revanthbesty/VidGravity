@@ -165,6 +165,7 @@ body { padding-bottom: env(safe-area-inset-bottom); }
 .formatFileIcon{width:36px;height:36px;font-size:19px}
 .formatText{flex:1;min-width:0}
 .formatText b{display:block;font-size:13px;overflow-wrap:anywhere}
+.qualityBadge{display:inline-block;margin-left:3px;padding:3px 7px;border:1px solid #62458f;border-radius:6px;background:#2a1e40;color:#d5bdff;font-size:12px;white-space:nowrap}
 .formatText .mediaMeta{overflow-wrap:anywhere}
 .formatOption .fmt{flex:0 0 auto}
 .formatEmpty{padding:12px;border:1px dashed var(--line);border-radius:10px}
