@@ -157,7 +157,7 @@
  install?.addEventListener("click",async()=>{if(!installPrompt)return;installPrompt.prompt();await installPrompt.userChoice.catch(()=>null);installPrompt=null;if(banner)banner.hidden=true;});
  dismiss?.addEventListener("click",()=>{if(banner)banner.hidden=true;try{sessionStorage.setItem("vg-install-dismissed","1");}catch(_){}});
  if("serviceWorker" in navigator&&(location.protocol==="https:"||location.hostname==="localhost"||location.hostname==="127.0.0.1")){
-  window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js?v=p174").catch(()=>{if(status){status.hidden=false;status.textContent="Offline support could not start in this browser session.";}}));
+  window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{if(status){status.hidden=false;status.textContent="Offline support could not start in this browser session.";}}));
  }
 })();
 </script>
