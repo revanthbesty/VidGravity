@@ -13,15 +13,16 @@ export function ShareClipModal({mediaId,title,durationSeconds,outputDirectoryId,
  async function submit(event:FormEvent<HTMLFormElement>) {
   event.preventDefault(); setError("");
   const preset=presets.find(p=>p.value===aspect)!;
-  const request:ClipExportRequest={mediaId,range:{startSeconds:Number(start),endSeconds:Number(end)},aspectRatio:aspect,outputContainer:"mp4",exportMode:mode,outputDirectoryId,includeThumbnail:true,includeMetadata:true,preserveSourceContainer:mode==="original-format",operations:[
+  const operations:ClipExportRequest["operations"]=[
    {op:"trim",startSeconds:Number(start),endSeconds:Number(end)},
-   {op:"scale-crop",width:preset.width,height:preset.height,fit,algorithm:"lanczos"},
    ...(mode==="platform-optimized"?[
+    {op:"scale-crop" as const,width:preset.width,height:preset.height,fit,algorithm:"lanczos" as const},
     {op:"encode-video" as const,codec:"h264" as const,crf:20},
     {op:"encode-audio" as const,codec:"aac" as const,bitrateKbps:192},
     {op:"mux" as const,container:"mp4" as const}
    ]:[])
-  ]};
+  ];
+  const request:ClipExportRequest={mediaId,range:{startSeconds:Number(start),endSeconds:Number(end)},aspectRatio:aspect,outputContainer:"mp4",exportMode:mode,outputDirectoryId,includeThumbnail:true,includeMetadata:true,preserveSourceContainer:mode==="original-format",operations};
   try { validateClipRequest(request); if(request.range.endSeconds>durationSeconds) throw new Error("The end time cannot exceed the media duration."); setBusy(true); await onExport(request); onClose(); }
   catch(e) { setError(e instanceof Error?e.message:"Could not export this clip."); }
   finally { setBusy(false); }
@@ -31,9 +32,9 @@ export function ShareClipModal({mediaId,title,durationSeconds,outputDirectoryId,
    <header className="vg-share-header"><div><h2 id="clip-title">Create a Shareable Clip</h2><p className="vg-muted">{title}</p></div><button type="button" onClick={onClose} disabled={busy} aria-label="Close clip export">Close</button></header>
    <form className="grid gap-vg-4" onSubmit={submit}>
     <div className="grid grid-cols-2 gap-vg-3"><label className="grid gap-vg-1 text-sm">Start time (seconds)<input type="number" min="0" step="0.1" value={start} onChange={e=>setStart(e.target.value)} required /></label><label className="grid gap-vg-1 text-sm">End time (seconds)<input type="number" min="0.1" max={durationSeconds} step="0.1" value={end} onChange={e=>setEnd(e.target.value)} required /></label></div>
-    <fieldset className="grid gap-vg-2"><legend className="text-sm font-semibold">Export format</legend>{([{value:"platform-optimized",label:"Platform optimized",description:"Re-encode for social platforms"},{value:"original-format",label:"Original format",description:"Preserve source codec/container; format depends on source metadata"}] as const).map(o=><label key={o.value} className="flex items-start gap-vg-2"><input type="radio" name="export-mode" checked={mode===o.value} onChange={()=>setMode(o.value)} /><span><strong>{o.label}</strong><span className="block text-xs text-muted">{o.description}</span></span></label>)}</fieldset>\n    <fieldset className="grid gap-vg-2"><legend className="text-sm font-semibold">Aspect Ratio</legend>{presets.map(p=><label key={p.value} className="flex items-center gap-vg-2"><input type="radio" name="aspect" value={p.value} checked={aspect===p.value} onChange={()=>setAspect(p.value)} />{p.label} ({p.width} × {p.height})</label>)}</fieldset>
-    <fieldset className="grid gap-vg-2"><legend className="text-sm font-semibold">Fit and background</legend>{([{value:"cover",label:"Crop to fill"},{value:"contain",label:"Letterbox / contain"},{value:"blurred-backdrop",label:"Blurred backdrop"}] as const).map(o=><label key={o.value} className="flex items-center gap-vg-2"><input type="radio" name="fit" checked={fit===o.value} onChange={()=>setFit(o.value)} />{o.label}</label>)}</fieldset>
-    <p className="vg-muted text-sm">The native export service must validate the operation graph, sandbox the output, verify integrity, and commit atomically. Original format requires backend preservation of compatible source streams.</p>
+    <fieldset className="grid gap-vg-2"><legend className="text-sm font-semibold">Export format</legend>{([{value:"platform-optimized",label:"Platform optimized",description:"Re-encode for social platforms"},{value:"original-format",label:"Original format",description:"Preserve source codec/container; format depends on source metadata"}] as const).map(o=><label key={o.value} className="flex items-start gap-vg-2"><input type="radio" name="export-mode" checked={mode===o.value} onChange={()=>setMode(o.value)} /><span><strong>{o.label}</strong><span className="block text-xs text-muted">{o.description}</span></span></label>)}</fieldset>\n    <fieldset className="grid gap-vg-2" disabled={mode==="original-format"}><legend className="text-sm font-semibold">Aspect Ratio</legend>{presets.map(p=><label key={p.value} className="flex items-center gap-vg-2"><input type="radio" name="aspect" value={p.value} checked={aspect===p.value} onChange={()=>setAspect(p.value)} />{p.label} ({p.width} × {p.height})</label>)}</fieldset>
+    <fieldset className="grid gap-vg-2" disabled={mode==="original-format"}><legend className="text-sm font-semibold">Fit and background</legend>{([{value:"cover",label:"Crop to fill"},{value:"contain",label:"Letterbox / contain"},{value:"blurred-backdrop",label:"Blurred backdrop"}] as const).map(o=><label key={o.value} className="flex items-center gap-vg-2"><input type="radio" name="fit" checked={fit===o.value} onChange={()=>setFit(o.value)} />{o.label}</label>)}</fieldset>
+    <p className="vg-muted text-sm">The native export service must validate the operation graph, sandbox the output, verify integrity, and commit atomically. Original format preserves source streams and container; aspect-ratio conversion and background fitting are disabled in that mode.</p>
     {error&&<p role="alert" className="text-sm" style={{color:"var(--vg-danger)"}}>{error}</p>}
     <div className="vg-share-actions"><button type="submit" disabled={busy}>{busy?"Exporting…":"Export Clip"}</button><button type="button" onClick={onClose} disabled={busy}>Cancel</button></div>
    </form>
