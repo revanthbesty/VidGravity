@@ -40,3 +40,13 @@ python server.py --host 127.0.0.1 --port 5173
 Use this only on your own trusted PC. Close Chrome first if its cookie database is locked. The browser-cookie option is ignored when the service binds to a non-loopback host, and cookies are never forwarded to the hosted Render service by this setting. Do not put cookies, cookie files, or credentials in GitHub, logs, or cloud environment variables. If you do not opt in, the local service makes unauthenticated extraction attempts only.
 
 YouTube can change its access controls at any time; even a correctly configured local extractor cannot guarantee every video or resolution. Test the actual Inspect response and completed media file on the target machine.
+
+## Social export and player refactor
+
+The P172 runtime is a vanilla JavaScript/CSS/HTML PWA with a Python HTTP companion service and Capacitor Android web assets. The social-export/player work in PR #4 targets this runtime directly; it does not introduce disconnected React or Rust/Tauri scaffolding.
+
+- Platform preset and safe-zone preview UI: `site/social-export.js` and `site/social-export.css` (mirrored under `android-web/`).
+- FFmpeg filter graph validation and bounded export endpoint: `media_export.py` and `POST /api/media/export` in `server.py`.
+- Derivative media is stored as a separate IndexedDB Library item; the original item is not overwritten.
+- Run graph/preset tests with `python -m unittest discover -s tests -p "test_media_export.py" -v`.
+- PWA/Android UI and native device behavior still require build/device validation before release.
