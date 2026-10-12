@@ -146,14 +146,16 @@ private fun VidGravityApp() {
                 .filter { it.third != null } + standardVideo
             var rememberQuality by remember(result.title) { mutableStateOf(false) }
             var qualityTab by remember(result.title) { mutableStateOf("Video & Audio") }
-            Dialog(onDismissRequest = { analysis = null }) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth().heightIn(max = 680.dp),
-                    shape = RoundedCornerShape(28.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 8.dp
-                ) {
-                    Column(Modifier.fillMaxWidth().padding(20.dp)) {
+            ModalBottomSheet(
+                onDismissRequest = { analysis = null },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.surface,
+                dragHandle = { BottomSheetDefaults.DragHandle() }
+            ) {
+                    Column(
+                        Modifier.fillMaxWidth().heightIn(max = 680.dp)
+                            .navigationBarsPadding().padding(horizontal = 20.dp, vertical = 12.dp)
+                    ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text("Choose quality", fontSize = 23.sp, fontWeight = FontWeight.Bold)
@@ -272,7 +274,6 @@ private fun VidGravityApp() {
                         Text("Choose one option to add it to Downloads. Transfer status and errors appear there.",
                             fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                }
             }
         }
         notice?.let { msg ->
