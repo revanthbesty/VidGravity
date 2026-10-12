@@ -50,6 +50,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 if (isStopped) throw CancellationException("Work was cancelled")
                 while (DownloadActionReceiver.isPaused(applicationContext, workId)) {
                     promoteOrNotify(title, "Paused", 0, true)
+                    setProgress(workDataOf("state" to "paused", "progress" to jobProgressOrZero()))
                     delay(500)
                     if (isStopped) throw CancellationException("Work was cancelled")
                 }
@@ -129,6 +130,8 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             failureResult(failure.message ?: "Download failed", url, selector, title)
         }
     }
+
+    private fun jobProgressOrZero(): Int = 0
 
     /** Foreground promotion is best-effort: Android may reject it for app-state/quota reasons. */
     private suspend fun promoteOrNotify(title: String, message: String, percent: Int, paused: Boolean) {
