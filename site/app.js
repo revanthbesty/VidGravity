@@ -27,9 +27,21 @@ function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;',
 function nav(page){$$('.page').forEach(x=>x.classList.toggle('active',x.id===page));$$('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===page));$('#pageTitle').textContent=page==='ask'?'Ask My Media':page[0].toUpperCase()+page.slice(1);if(page==='library')renderLibrary();if(page==='downloads')renderJobs();$('.sidebar')?.classList.remove('open')}
 $$('.nav').forEach(b=>b.onclick=()=>nav(b.dataset.page));$$('[data-page]').forEach(b=>b.onclick=()=>nav(b.dataset.page));
 $('#menu').onclick=()=>$('.sidebar').classList.toggle('open');
-function applyTheme(theme){const selected=theme==='light'?'light':'dark';document.documentElement.dataset.theme=selected;try{localStorage.setItem('vg-theme',selected)}catch{}const button=$('#themeToggle');if(button){button.textContent=selected==='dark'?'☀ Light mode':'☾ Dark mode';button.setAttribute('aria-label',selected==='dark'?'Switch to light mode':'Switch to dark mode');button.title=selected==='dark'?'Switch to light mode':'Switch to dark mode'}}
-try{applyTheme(localStorage.getItem('vg-theme')||'dark')}catch{applyTheme('dark')}
-$('#themeToggle')?.addEventListener('click',()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
+const THEME_KEY='vg-theme';
+function systemTheme(){return window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}
+function applyTheme(preference, persist=true){
+ const selected=['light','dark','system'].includes(preference)?preference:'system';
+ const resolved=selected==='system'?systemTheme():selected;
+ document.documentElement.dataset.theme=resolved;
+ document.documentElement.dataset.themePreference=selected;
+ try{if(persist)localStorage.setItem(THEME_KEY,selected)}catch{}
+ const button=$('#themeToggle');
+ if(button){button.textContent=selected==='system'?'◐ System theme':selected==='dark'?'☀ Light mode':'☾ Dark mode';button.setAttribute('aria-label',selected==='system'?'Theme follows system. Activate to change theme.':selected==='dark'?'Switch to light mode':'Switch to dark mode');button.title='Current appearance: '+selected+'. Click to cycle Light, Dark, and System.'}
+}
+try{applyTheme(localStorage.getItem(THEME_KEY)||'system',false)}catch{applyTheme('system',false)}
+$('#themeToggle')?.addEventListener('click',()=>{const current=document.documentElement.dataset.themePreference||'system';applyTheme(current==='dark'?'light':current==='light'?'system':'dark')});
+window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{if((document.documentElement.dataset.themePreference||'system')==='system')applyTheme('system',false)});
+window.addEventListener('storage',event=>{if(event.key===THEME_KEY)applyTheme(event.newValue||'system',false)});
 $('#clearAll').onclick=()=>{jobs=jobs.filter(j=>!['completed','failed'].includes(j.status));saveJobs();renderJobs();toast('Completed jobs cleared')};
 
 $('#inspectBtn').onclick=async()=>{
@@ -252,7 +264,7 @@ async function finishBlob(job,blob,type){
 function titleFrom(url){try{return decodeURIComponent(new URL(url).pathname.split('/').pop()||'Untitled media')}catch{return'Untitled media'}}
 function renderAll(){renderStats();renderRecent();renderLibrary();renderJobs();$('#queueBadge').textContent=jobs.filter(j=>['running','queued'].includes(j.status)).length}
 function renderStats(){$('#statLibrary').textContent=media.length;$('#statDownloads').textContent=jobs.filter(j=>j.status==='completed').length;$('#statStorage').textContent=formatBytes(media.reduce((n,m)=>n+(m.size||0),0))}
-function card(m){const thumb=m.thumbnail?`<img src="${m.thumbnail}" alt="" loading="lazy">`:`<span>${iconFor(m.type)}</span>`;const detail=[m.duration?formatDuration(m.duration):'',m.width&&m.height?`${m.width}×${m.height}`:'',formatBytes(m.size)].filter(Boolean).join(' · ');return `<article class="media card"><div class="selectRow"><input type="checkbox" class="mediaSelect" data-id="${m.id}"></div><div class="thumb">${thumb}</div><div class="mediaBody"><div class="mediaTitle" title="${esc(m.title)}">${esc(m.title)}</div><div class="mediaMeta">${esc(m.type||'media')} · ${detail||'metadata pending'}</div><div class="actions"><button class="smallBtn play" data-id="${m.id}" type="button"><span class="actionIcon" aria-hidden="true">▶</span><span>Play</span></button><button class="smallBtn info" data-id="${m.id}" type="button"><span class="actionIcon" aria-hidden="true">ⓘ</span><span>Details</span></button><button class="smallBtn del" data-id="${m.id}">Delete</button></div></div></article>`}
+function card(m){const thumb=m.thumbnail?`<img src="${m.thumbnail}" alt="" loading="lazy">`:`<span>${iconFor(m.type)}</span>`;const detail=[m.duration?formatDuration(m.duration):'',m.width&&m.height?`${m.width}×${m.height}`:'',formatBytes(m.size)].filter(Boolean).join(' · ');return `<article class="media card"><div class="selectRow"><input type="checkbox" class="mediaSelect" data-id="${m.id}"></div><div class="thumb">${thumb}</div><div class="mediaBody"><div class="mediaTitle" title="${esc(m.title)}">${esc(m.title)}</div><div class="mediaMeta">${esc(m.type||'media')} · ${detail||'metadata pending'}</div><div class="actions"><button class="smallBtn play" data-id="${m.id}" type="button"><span class="actionIcon" aria-hidden="true">▶</span><span>Play</span></button><button class="smallBtn info" data-id="${m.id}" type="button"><span class="actionIcon" aria-hidden="true">ⓘ</span><span>Details</span></button><button class="smallBtn shareMedia" data-id="${m.id}" type="button"><span class="actionIcon" aria-hidden="true">↗</span><span>Share</span></button><button class="smallBtn del" data-id="${m.id}">Delete</button></div></div></article>`}
 function iconFor(type=''){return /audio/i.test(type)?'♫':/image/i.test(type)?'▧':/video|mp4|webm|quicktime|matroska|avi/i.test(type)?'🎬':'🎞️'}
 function renderRecent(){const x=$('#recentGrid');x.innerHTML=media.slice(0,4).map(card).join('')||empty('No media yet. Paste a direct media URL above.');bindCards(x)}
 
@@ -306,7 +318,7 @@ function renderLibrary(){
  renderCollections();
  const x=$("#libraryGrid"); x.innerHTML=filteredMedia().map(m=>{
    ensureOrg(m);
-   return `<article class="media card"><div class="thumb">▶</div><div class="mediaBody"><div class="mediaTitle" title="${esc(m.title)}">${m.favorite?"★ ":""}${esc(m.title)}</div><div class="mediaMeta">${esc(m.type||"media")} · ${formatBytes(m.size)} · ${esc(m.collection||"All")}</div><div class="tagLine">${(m.tags||[]).slice(0,4).map(t=>`<span>#${esc(t)}</span>`).join("")}</div><div class="actions"><button class="smallBtn play" data-id="${m.id}">Play</button><button class="smallBtn favorite" data-id="${m.id}">${m.favorite?"Unfavorite":"Favorite"}</button><button class="smallBtn details" data-id="${m.id}">Details</button></div></div></article>`
+   return `<article class="media card"><div class="thumb">▶</div><div class="mediaBody"><div class="mediaTitle" title="${esc(m.title)}">${m.favorite?"★ ":""}${esc(m.title)}</div><div class="mediaMeta">${esc(m.type||"media")} · ${formatBytes(m.size)} · ${esc(m.collection||"All")}</div><div class="tagLine">${(m.tags||[]).slice(0,4).map(t=>`<span>#${esc(t)}</span>`).join("")}</div><div class="actions"><button class="smallBtn play" data-id="${m.id}">Play</button><button class="smallBtn favorite" data-id="${m.id}">${m.favorite?"Unfavorite":"Favorite"}</button><button class="smallBtn details" data-id="${m.id}">Details</button><button class="smallBtn shareMedia" data-id="${m.id}" type="button">Share</button></div></div></article>`
  }).join("")||empty("No media matches the current filters.");
  bindCards(x);
  x.querySelectorAll(".favorite").forEach(b=>b.onclick=()=>toggleFavorite(b.dataset.id));
@@ -315,21 +327,66 @@ function renderLibrary(){
 
 
 document.addEventListener("click",event=>{const button=event.target.closest(".play");if(!button)return;event.preventDefault();event.stopImmediatePropagation();play(button.dataset.id)},true);
-function bindCards(root){root.querySelectorAll('.play').forEach(b=>b.onclick=()=>play(b.dataset.id));root.querySelectorAll('.save').forEach(b=>b.onclick=()=>saveFile(b.dataset.id));root.querySelectorAll('.info').forEach(b=>b.onclick=()=>showDetails(b.dataset.id));root.querySelectorAll('.del').forEach(b=>b.onclick=()=>removeMedia(b.dataset.id))}
+
+let shareMediaId=null;
+function openShare(id){
+ const item=media.find(m=>m.id===id);if(!item)return toast('Media item was not found');
+ shareMediaId=id;
+ const modal=$('#shareModal');if(!modal)return shareMedia(id);
+ $('#sharePreviewTitle').textContent=item.title||'Media';
+ $('#sharePreviewMeta').textContent=[item.type||'Media',item.duration?formatDuration(item.duration):'',formatBytes(item.size)].filter(Boolean).join(' · ');
+ const image=$('#sharePreviewImage');if(image){if(item.thumbnail){image.src=item.thumbnail;image.hidden=false}else{image.removeAttribute('src');image.hidden=true}}
+ const url=$('#sharePreviewUrl');if(url)url.textContent=item.url||'Local media file';
+ modal.classList.remove('hidden');modal.setAttribute('aria-hidden','false');
+}
+async function shareMedia(id=shareMediaId){
+ const item=media.find(m=>m.id===id);if(!item)return toast('Media item was not found');
+ try{
+  const stored=await dbGet(id);
+  const file=stored?.blob instanceof Blob&&stored.blob.size?new File([stored.blob],(item.title||'vidgravity-media').replace(/[\\/:*?"<>|]+/g,'_'),{type:stored.blob.type||'application/octet-stream'}):null;
+  if(navigator.share){
+   const payload={title:item.title||'VidGravity media',text:'Shared from VidGravity',url:item.url||undefined};
+   if(file&&navigator.canShare?.({files:[file]})){payload.files=[file];delete payload.url}
+   await navigator.share(payload);return true;
+  }
+  if(item.url&&navigator.clipboard?.writeText){await navigator.clipboard.writeText(item.url);toast('Media link copied to the clipboard');return true}
+  toast('System sharing is unavailable here. Use a supported browser or copy a shareable URL.');return false;
+ }catch(error){if(error?.name==='AbortError')return false;toast(error?.message||'Could not share this media');return false}
+}
+function shareTo(target){
+ const item=media.find(m=>m.id===shareMediaId);if(!item)return;
+ const url=item.url||'';const title=item.title||'VidGravity media';let targetUrl='';
+ if(target==='x')targetUrl='https://twitter.com/intent/tweet?'+new URLSearchParams({text:title,url});
+ if(target==='whatsapp')targetUrl='https://wa.me/?text='+encodeURIComponent([title,url].filter(Boolean).join(' '));
+ if(target==='telegram')targetUrl='https://t.me/share/url?'+new URLSearchParams({url,text:title});
+ if(target==='reddit')targetUrl='https://www.reddit.com/submit?'+new URLSearchParams({url,title});
+ if(target==='linkedin')targetUrl='https://www.linkedin.com/sharing/share-offsite/?url='+encodeURIComponent(url);
+ if(target!=='whatsapp'&&target!=='x'&&!url)return toast('This social target needs a shareable URL');
+ window.open(targetUrl,'_blank','noopener,noreferrer');
+}
+$('#shareDeviceButton')?.addEventListener('click',()=>shareMedia());
+$('#shareCopyButton')?.addEventListener('click',async()=>{const item=media.find(m=>m.id===shareMediaId);if(!item?.url)return toast('No shareable URL is available for this media');try{await navigator.clipboard.writeText(item.url);toast('Link copied')}catch{toast('Clipboard access is unavailable in this context')}});
+$$('[data-share-target]').forEach(button=>button.addEventListener('click',()=>shareTo(button.dataset.shareTarget)));
+$('#closeShare')?.addEventListener('click',()=>{$('#shareModal')?.classList.add('hidden');$('#shareModal')?.setAttribute('aria-hidden','true')});
+$('#shareModal')?.addEventListener('click',event=>{if(event.target===$('#shareModal')){$('#shareModal').classList.add('hidden');$('#shareModal').setAttribute('aria-hidden','true')}});
+$('#playerShare')?.addEventListener('click',()=>{if(activeMediaId)openShare(activeMediaId);else toast('Open a saved media item before sharing')});
+
+function bindCards(root){root.querySelectorAll('.play').forEach(b=>b.onclick=()=>play(b.dataset.id));root.querySelectorAll('.save').forEach(b=>b.onclick=()=>saveFile(b.dataset.id));root.querySelectorAll('.info').forEach(b=>b.onclick=()=>showDetails(b.dataset.id));root.querySelectorAll('.shareMedia').forEach(b=>b.onclick=()=>openShare(b.dataset.id));root.querySelectorAll('.del').forEach(b=>b.onclick=()=>removeMedia(b.dataset.id))}
 function empty(t){return `<div class="card" style="padding:25px;color:#777083;grid-column:1/-1">${t}</div>`}
-function renderJobs(){const x=$('#downloadList');const completed=media.slice().sort((a,b)=>(b.created||0)-(a.created||0));const finished=completed.map(m=>{const icon=m.thumbnail?`<img src="${esc(m.thumbnail)}" alt="" loading="lazy">`:`<span class="downloadFileIcon" aria-hidden="true">${iconFor(m.type)}</span>`;return `<article class="downloadItem card"><div class="downloadThumb">${icon}</div><div class="downloadItemMain"><div class="downloadItemTitle" title="${esc(m.title)}">${esc(m.title)}</div><div class="downloadItemMeta"><span class="downloadTypeIcon" aria-hidden="true">${/audio/i.test(m.type||"")?"♫":"▣"}</span><span>${esc((m.type||"media").split("/").pop().toUpperCase())}</span><span>·</span><strong>${formatBytes(m.size)}</strong>${m.duration?`<span>· ${formatDuration(m.duration)}</span>`:""}</div><div class="downloadItemDate">Downloaded ${new Date(m.created).toLocaleString()}</div><div class="actions downloadItemActions"><button class="smallBtn play" data-id="${m.id}" type="button"><span class="actionIcon">▶</span><span>Play</span></button><button class="smallBtn renameMedia" data-id="${m.id}" type="button"><span class="actionIcon">✎</span><span>Rename</span></button><button class="smallBtn info" data-id="${m.id}" type="button"><span class="actionIcon">ⓘ</span><span>Details</span></button><button class="smallBtn del" data-id="${m.id}" type="button"><span class="actionIcon">×</span><span>Delete</span></button></div></div></article>`}).join("");const active=jobs.filter(j=>!['completed'].includes(j.status)).map(j=>`<div class="job card"><div><div class="jobTitle">${esc(j.title)}</div><div class="jobUrl">${esc(j.url)}</div>${j.message?`<div class="jobUrl jobMessage">${esc(j.message)}</div>`:''}<div class="bar"><i style="width:${Math.max(0,Math.min(100,Number(j.progress)||0))}%"></i></div></div><div class="jobStatus">${esc(j.status)}${j.error?`<br>${esc(j.error)}`:''}</div><div class="jobStatus">${Math.max(0,Math.min(100,Number(j.progress)||0))}%<div class="actions jobActions">${['running','queued','recoverable'].includes(j.status)?`<button class="smallBtn cancelJob" data-id="${j.id}">Cancel</button>`:''}${['failed','cancelled','recoverable'].includes(j.status)?`<button class="smallBtn retryJob" data-id="${j.id}">Retry</button>`:''}</div></div></div>`).join("");x.innerHTML=`<div class="downloadsIntro"><div><div class="eyebrow">YOUR FILES</div><h2>Completed downloads <span class="downloadCount">${completed.length}</span></h2><p>Play, rename, inspect details, or remove any saved file.</p></div><div class="bulkBar"><button class="smallBtn" id="retryFailed">Retry failed</button><button class="smallBtn" id="cancelQueued">Cancel queued</button></div></div><div class="downloadsGrid">${finished||empty('Your completed videos and audio files will appear here with file size and format.')}</div>${active?`<div class="downloadsQueueTitle"><h2>Download activity</h2><span>Active and unsuccessful jobs</span></div><div class="list">${active}</div>`:""}`;bindCards(x);x.querySelectorAll('.renameMedia').forEach(b=>b.onclick=()=>renameMedia(b.dataset.id));x.querySelectorAll('.cancelJob').forEach(b=>b.onclick=()=>cancelJob(b.dataset.id));x.querySelectorAll('.retryJob').forEach(b=>b.onclick=()=>retryJob(b.dataset.id));$('#retryFailed')?.addEventListener('click',retryFailed);$('#cancelQueued')?.addEventListener('click',cancelQueued)}
+function renderJobs(){const x=$('#downloadList');const completed=media.slice().sort((a,b)=>(b.created||0)-(a.created||0));const finished=completed.map(m=>{const icon=m.thumbnail?`<img src="${esc(m.thumbnail)}" alt="" loading="lazy">`:`<span class="downloadFileIcon" aria-hidden="true">${iconFor(m.type)}</span>`;return `<article class="downloadItem card"><div class="downloadThumb">${icon}</div><div class="downloadItemMain"><div class="downloadItemTitle" title="${esc(m.title)}">${esc(m.title)}</div><div class="downloadItemMeta"><span class="downloadTypeIcon" aria-hidden="true">${/audio/i.test(m.type||"")?"♫":"▣"}</span><span>${esc((m.type||"media").split("/").pop().toUpperCase())}</span><span>·</span><strong>${formatBytes(m.size)}</strong>${m.duration?`<span>· ${formatDuration(m.duration)}</span>`:""}</div><div class="downloadItemDate">Downloaded ${new Date(m.created).toLocaleString()}</div><div class="actions downloadItemActions"><button class="smallBtn play" data-id="${m.id}" type="button"><span class="actionIcon">▶</span><span>Play</span></button><button class="smallBtn renameMedia" data-id="${m.id}" type="button"><span class="actionIcon">✎</span><span>Rename</span></button><button class="smallBtn info" data-id="${m.id}" type="button"><span class="actionIcon">ⓘ</span><span>Details</span></button><button class="smallBtn shareMedia" data-id="${m.id}" type="button"><span class="actionIcon">↗</span><span>Share</span></button><button class="smallBtn del" data-id="${m.id}" type="button"><span class="actionIcon">×</span><span>Delete</span></button></div></div></article>`}).join("");const active=jobs.filter(j=>!['completed'].includes(j.status)).map(j=>`<div class="job card"><div><div class="jobTitle">${esc(j.title)}</div><div class="jobUrl">${esc(j.url)}</div>${j.message?`<div class="jobUrl jobMessage">${esc(j.message)}</div>`:''}<div class="bar"><i style="width:${Math.max(0,Math.min(100,Number(j.progress)||0))}%"></i></div></div><div class="jobStatus">${esc(j.status)}${j.error?`<br>${esc(j.error)}`:''}</div><div class="jobStatus">${Math.max(0,Math.min(100,Number(j.progress)||0))}%<div class="actions jobActions">${['running','queued','recoverable'].includes(j.status)?`<button class="smallBtn cancelJob" data-id="${j.id}">Cancel</button>`:''}${['failed','cancelled','recoverable'].includes(j.status)?`<button class="smallBtn retryJob" data-id="${j.id}">Retry</button>`:''}</div></div></div>`).join("");x.innerHTML=`<div class="downloadsIntro"><div><div class="eyebrow">YOUR FILES</div><h2>Completed downloads <span class="downloadCount">${completed.length}</span></h2><p>Play, rename, inspect details, or remove any saved file.</p></div><div class="bulkBar"><button class="smallBtn" id="retryFailed">Retry failed</button><button class="smallBtn" id="cancelQueued">Cancel queued</button></div></div><div class="downloadsGrid">${finished||empty('Your completed videos and audio files will appear here with file size and format.')}</div>${active?`<div class="downloadsQueueTitle"><h2>Download activity</h2><span>Active and unsuccessful jobs</span></div><div class="list">${active}</div>`:""}`;bindCards(x);x.querySelectorAll('.renameMedia').forEach(b=>b.onclick=()=>renameMedia(b.dataset.id));x.querySelectorAll('.cancelJob').forEach(b=>b.onclick=()=>cancelJob(b.dataset.id));x.querySelectorAll('.retryJob').forEach(b=>b.onclick=()=>retryJob(b.dataset.id));$('#retryFailed')?.addEventListener('click',retryFailed);$('#cancelQueued')?.addEventListener('click',cancelQueued)}
 async function renameMedia(id){const m=media.find(x=>x.id===id);if(!m)return;const previous=m.title||"Video";const proposed=prompt("Rename downloaded media:",previous);if(proposed===null)return;const title=proposed.trim();if(!title)return toast("Name cannot be empty");m.title=title;await dbPut(m);const job=jobs.find(j=>j.id===id||j.mediaId===id);if(job){job.title=title;saveJobs()}renderAll();toast("Media renamed")}
 
 async function retryFailed(){const failed=jobs.filter(j=>j.status==='failed');if(!failed.length)return toast('No failed jobs');for(const j of failed){j.status='queued';j.error='';j.progress=0}saveJobs();renderJobs();pumpQueue();toast(`Retrying ${failed.length} job(s)`)}
 function cancelQueued(){const before=jobs.length;jobs=jobs.filter(j=>!['queued','recoverable'].includes(j.status));saveJobs();renderAll();toast(`${before-jobs.length} queued job(s) cancelled`)}
 
 let activePlayerObjectUrl=null;
+let activeMediaId=null;
 async function play(id,seek=0){
  const item=await dbGet(id);
  if(!item||!(item.blob instanceof Blob)||!item.blob.size)return toast('Saved media file was not found in the Library');
  const player=$("#player"),modal=$("#playerModal");
  if(!player||!modal)return toast('The media player is unavailable');
- player.pause();
+ player.pause();activeMediaId=id;
  if(activePlayerObjectUrl){URL.revokeObjectURL(activePlayerObjectUrl);activePlayerObjectUrl=null}
  activePlayerObjectUrl=URL.createObjectURL(item.blob);
  player.removeAttribute('src');
