@@ -430,7 +430,7 @@ async function exportAudioPreset(preset){
  if(!activeMediaId)return toast('Open a saved media item before exporting audio');
  const item=media.find(x=>x.id===activeMediaId)||await dbGet(activeMediaId);
  if(!item?.blob)return toast('The local media bytes are unavailable. Re-import the file and retry.');
- const buttons=$('[data-audio-preset]');buttons.forEach(b=>b.disabled=true);
+ const buttons=$$('[data-audio-preset]');buttons.forEach(b=>b.disabled=true);
  if(status)status.textContent='Preparing 320 kbps MP3…';
  try{
   const response=await fetch(vgApiUrl('/api/media/audio-effects'),{method:'POST',headers:{'Content-Type':item.type||'application/octet-stream','X-VG-Audio-Preset':preset},body:item.blob});
