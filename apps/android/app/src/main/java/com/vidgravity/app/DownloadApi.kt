@@ -18,12 +18,16 @@ data class FormatOption(
     val container: String,
     val videoCodec: String,
     val audioCodec: String,
-    val sizeBytes: Long?
+    val sizeBytes: Long?,
+    val height: Int,
+    val hasVideo: Boolean,
+    val hasAudio: Boolean,
+    val note: String
 ) {
     fun displayName(): String {
-        val codecs = listOf(videoCodec, audioCodec).filter { it.isNotBlank() && it != "none" }.joinToString(" · ")
-        val size = sizeBytes?.let { String.format("%.1f MB", it / 1_000_000.0) } ?: "size unknown"
-        return listOf(resolution, container.uppercase(), codecs, size).filter { it.isNotBlank() }.joinToString(" — ")
+        val kind = if (hasVideo && hasAudio) "Video + audio" else if (hasVideo) "Video · audio combined on download" else "Audio only"
+        val size = sizeBytes?.let { String.format("%.1f MB", it / 1_000_000.0) } ?: "Size varies by source"
+        return listOf(container.uppercase(), kind, size).joinToString(" · ")
     }
 }
 
@@ -81,7 +85,11 @@ object DownloadApi {
                         container = item.optString("ext", "mp4"),
                         videoCodec = item.optString("vcodec", "unknown"),
                         audioCodec = item.optString("acodec", "unknown"),
-                        sizeBytes = if (item.has("filesize") && !item.isNull("filesize")) item.optLong("filesize").takeIf { it > 0 } else null
+                        sizeBytes = if (item.has("filesize") && !item.isNull("filesize")) item.optLong("filesize").takeIf { it > 0 } else null,
+                        height = item.optInt("height", Regex("(\\d{3,4})p").find(item.optString("resolution"))?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0),
+                        hasVideo = item.optBoolean("has_video", item.optString("vcodec", "none") != "none"),
+                        hasAudio = item.optBoolean("has_audio", item.optString("acodec", "none") != "none"),
+                        note = item.optString("note", "")
                     ))
                 }
             }
