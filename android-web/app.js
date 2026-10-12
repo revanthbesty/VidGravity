@@ -332,13 +332,13 @@ let shareMediaId=null;
 function getShareItem(id){return id==='__app__'?{id:'__app__',title:'VidGravity',url:location.href,type:'Web app',size:0}:media.find(m=>m.id===id)}
 function openShare(id){
  const item=getShareItem(id);if(!item)return toast('Media item was not found');
- shareMediaId=id;
+ shareMediaId=id;shareReturnFocus=document.activeElement;
  const modal=$('#shareModal');if(!modal)return shareMedia(id);
  $('#sharePreviewTitle').textContent=item.title||'Media';
- $('#sharePreviewMeta').textContent=[item.type||'Media',item.duration?formatDuration(item.duration):'',formatBytes(item.size)].filter(Boolean).join(' · ');
+ $('#sharePreviewMeta').textContent=[item.type||'Media',item.duration?formatDuration(item.duration):'',item.size?formatBytes(item.size):''].filter(Boolean).join(' · ');
  const image=$('#sharePreviewImage');if(image){if(item.thumbnail){image.src=item.thumbnail;image.hidden=false}else{image.removeAttribute('src');image.hidden=true}}
  const url=$('#sharePreviewUrl');if(url)url.textContent=item.url||'Local media file';
- modal.classList.remove('hidden');modal.setAttribute('aria-hidden','false');
+ modal.classList.remove('hidden');modal.setAttribute('aria-hidden','false');$('#closeShare')?.focus();
 }
 async function shareMedia(id=shareMediaId){
  const item=getShareItem(id);if(!item)return toast('Media item was not found');
@@ -367,10 +367,12 @@ function shareTo(target){
 }
 $('#shareAppButton')?.addEventListener('click',()=>openShare('__app__'));
 $('#shareDeviceButton')?.addEventListener('click',()=>shareMedia());
-$('#shareCopyButton')?.addEventListener('click',async()=>{const item=media.find(m=>m.id===shareMediaId);if(!item?.url)return toast('No shareable URL is available for this media');try{await navigator.clipboard.writeText(item.url);toast('Link copied')}catch{toast('Clipboard access is unavailable in this context')}});
+$('#shareCopyButton')?.addEventListener('click',async()=>{const item=getShareItem(shareMediaId);if(!item?.url)return toast('No shareable URL is available for this media');try{await navigator.clipboard.writeText(item.url);toast('Link copied')}catch{toast('Clipboard access is unavailable in this context')}});
 $$('[data-share-target]').forEach(button=>button.addEventListener('click',()=>shareTo(button.dataset.shareTarget)));
-$('#closeShare')?.addEventListener('click',()=>{$('#shareModal')?.classList.add('hidden');$('#shareModal')?.setAttribute('aria-hidden','true')});
-$('#shareModal')?.addEventListener('click',event=>{if(event.target===$('#shareModal')){$('#shareModal').classList.add('hidden');$('#shareModal').setAttribute('aria-hidden','true')}});
+let shareReturnFocus=null;
+$('#closeShare')?.addEventListener('click',()=>{const modal=$('#shareModal');modal?.classList.add('hidden');modal?.setAttribute('aria-hidden','true');shareReturnFocus?.focus?.()});
+$('#shareModal')?.addEventListener('click',event=>{if(event.target===$('#shareModal')){$('#shareModal').classList.add('hidden');$('#shareModal').setAttribute('aria-hidden','true');shareReturnFocus?.focus?.()}});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('#shareModal')?.classList.contains('hidden')){$('#shareModal').classList.add('hidden');$('#shareModal').setAttribute('aria-hidden','true');shareReturnFocus?.focus?.()}});
 $('#playerShare')?.addEventListener('click',()=>{if(activeMediaId)openShare(activeMediaId);else toast('Open a saved media item before sharing')});
 
 function bindCards(root){root.querySelectorAll('.play').forEach(b=>b.onclick=()=>play(b.dataset.id));root.querySelectorAll('.save').forEach(b=>b.onclick=()=>saveFile(b.dataset.id));root.querySelectorAll('.info').forEach(b=>b.onclick=()=>showDetails(b.dataset.id));root.querySelectorAll('.shareMedia').forEach(b=>b.onclick=()=>openShare(b.dataset.id));root.querySelectorAll('.del').forEach(b=>b.onclick=()=>removeMedia(b.dataset.id))}
