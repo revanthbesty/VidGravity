@@ -783,8 +783,21 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                 }
             }
         }
+        Text("Capture", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        OutlinedButton(
+            onClick = {
+                runCatching {
+                    context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
+                }.onFailure { notify("Could not open camera capture: ${it.message ?: "try again"}") }
+            },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp)
+        ) {
+            Icon(Icons.Default.PhotoCamera, null)
+            Spacer(Modifier.width(8.dp))
+            Text("Open POV camera")
+        }
         Text("Creator tools", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        InfoCard("WhatsApp Status", "30-second story segmentation is not enabled in this build yet.", Icons.Default.ContentCut, Modifier.fillMaxWidth())
+        InfoCard("WhatsApp Status", "Story segmentation/export is not connected to the native render pipeline yet.", Icons.Default.ContentCut, Modifier.fillMaxWidth())
         InfoCard("Sticker maker", "Animated WebP rendering requires the media renderer integration.", Icons.Default.AutoAwesome, Modifier.fillMaxWidth())
     }
 }
