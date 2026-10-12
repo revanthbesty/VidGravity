@@ -76,8 +76,8 @@
     const db=await new Promise((resolve,reject)=>{const req=indexedDB.open("vidgravity",2);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
     return new Promise((resolve,reject)=>{const req=db.transaction("media","readonly").objectStore("media").get(id);req.onsuccess=()=>resolve(req.result||null);req.onerror=()=>reject(req.error);});
   }
-  function openModal(id){
-    ensureModal();state.id=id;state.item=null;state.blob=null;state.returnFocus=document.activeElement;
+  function openModal(id, caller){
+    ensureModal();state.id=id;state.item=null;state.blob=null;state.returnFocus=caller||document.activeElement;
     const modal=$("#vgSocialExportModal");modal.classList.remove("hidden");modal.setAttribute("aria-hidden","false");
     state.preset=PRESETS[0];state.outputMode="optimized";state.framing="smart-reframe";renderPresets();updatePreview();setStatus("Loading saved media…");
     loadMedia(id).then(item=>{
@@ -153,6 +153,6 @@
     document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#vgSocialExportModal")?.classList.contains("hidden"))closeModal();});
   }
   const oldOpenShare=window.openShare;
-  if(typeof oldOpenShare==="function"){window.openShare=function(id){oldOpenShare(id);$("#shareModal")?.classList.add("hidden");$("#shareModal")?.setAttribute("aria-hidden","true");openModal(id);};}
+  if(typeof oldOpenShare==="function"){window.openShare=function(id){const caller=document.activeElement;oldOpenShare(id);$("#shareModal")?.classList.add("hidden");$("#shareModal")?.setAttribute("aria-hidden","true");openModal(id,caller);};}
   window.addEventListener("load",()=>{if(!$("#vgSocialExportModal"))ensureModal();});
 })();
