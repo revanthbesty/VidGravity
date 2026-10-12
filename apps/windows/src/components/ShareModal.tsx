@@ -1,6 +1,6 @@
-import { useShare, type ShareMedia, type ShareTarget } from "../hooks/useShare";
+import { useEffect } from "react";\nimport { useShare, type ShareMedia, type ShareTarget } from "../hooks/useShare";
 export function ShareModal({ media, onClose }: { media: ShareMedia; onClose: () => void }) {
-  const s = useShare();
+  const s = useShare();\n  useEffect(() => {\n    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };\n    window.addEventListener("keydown", onKeyDown);\n    return () => window.removeEventListener("keydown", onKeyDown);\n  }, [onClose]);
   const targets: {id:ShareTarget;label:string}[] = [{id:"x",label:"X / Twitter"},{id:"whatsapp",label:"WhatsApp"},{id:"telegram",label:"Telegram"},{id:"reddit",label:"Reddit"},{id:"linkedin",label:"LinkedIn"}];
   return <div className="vg-modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}>
     <section className="vg-share-modal" role="dialog" aria-modal="true" aria-labelledby="share-title">
