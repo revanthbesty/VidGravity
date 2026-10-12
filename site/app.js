@@ -3,10 +3,13 @@ let media=[], jobs=[];
 const ACTIVE_LIMIT=2;
 const activeControllers=new Map();
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
-// P161: the Android shell can connect to a configured HTTPS companion API.
+// Cloud-only API endpoint shared by web and Android clients.
+const VG_CLOUD_API='https://vidgravity.onrender.com';
 function vgApiUrl(path){
- const base=(localStorage.getItem('vg-api-base-url')||'').trim().replace(/\/+$/,'');
- if(!base)return path;
+ const stored=(localStorage.getItem('vg-api-base-url')||'').trim().replace(/\/+$/,'');
+ let base=stored;
+ try{if(base){const u=new URL(base);if(u.protocol!=='https:'||['localhost','127.0.0.1','::1'].includes(u.hostname))base='';}}catch{base='';}
+ base=base||VG_CLOUD_API;
  return base + '/' + String(path).replace(/^\//,'');
 }
 
@@ -35,46 +38,12 @@ $('#inspectBtn').onclick=async()=>{
   let response,data,usedLocalFallback=false;
   try{response=await fetch(vgApiUrl('/api/inspect?url='+encodeURIComponent(url)),{signal:controller.signal});data=await response.json().catch(()=>({}));}
   finally{clearTimeout(timer)}
-  const urlHost=(()=>{try{return new URL(url).hostname.toLowerCase()}catch{return ''}})();
-  const ytUrl=['youtube.com','youtu.be'].some(host=>urlHost===host||urlHost.endsWith('.'+host));
-  const failureText=String((data.error||'')+' '+(data.details||'')).toLowerCase();
-  // Hosted extractors can fail for any provider because of bot checks, regional restrictions,
-  // login walls, or cloud-IP blocking. Retry locally on recoverable provider/server failures.
-  const shouldTryLocal=!response.ok&&(response.status>=500||[401,403,422,429].includes(response.status)||(ytUrl&&/sign in|not a bot|bot verification|blocked|login_required|unavailable/.test(failureText)));
-  if(shouldTryLocal){
-    const localBase='http://127.0.0.1:5173';
-    const hostedError=String(data.error||('Hosted inspection failed (HTTP '+response.status+')'));
-    try{
-      const localResponse=await fetch(localBase+'/api/health',{cache:'no-store',signal:controller.signal});
-      const health=await localResponse.json().catch(()=>({}));
-      if(localResponse.ok&&health.ok&&health.yt_dlp){
-        const retryResponse=await fetch(localBase+'/api/inspect?url='+encodeURIComponent(url),{signal:controller.signal});
-        const retryData=await retryResponse.json().catch(()=>({}));
-        if(retryResponse.ok){
-          response=retryResponse;data=retryData;usedLocalFallback=true;
-          localStorage.setItem('vg-api-base-url',localBase);
-          const apiInput=$('#vgApiBaseInput'),apiMessage=$('#vgApiMessage');
-          if(apiInput)apiInput.value=localBase;
-          if(apiMessage)apiMessage.textContent='Using your local companion server for media inspection and downloads.';
-          if(typeof vgUXNotify==='function')vgUXNotify('Connected to the local companion server. Media inspection is using your PC.','success');
-        }else{
-          response=retryResponse;
-          data={...retryData,error:retryData.error||'The local companion could not inspect this media URL.',details:[retryData.details, 'Hosted server response: '+hostedError].filter(Boolean).join(' · ')};
-        }
-      }else{
-        data={...data,error:'The hosted server could not inspect this media URL, and the local companion is not ready.',details:'Hosted response: '+hostedError+'. Start the VidGravity companion server on this PC (http://127.0.0.1:5173) and retry. Some providers block cloud-server requests or require sign-in; protected or unavailable media cannot be guaranteed.'};
-      }
-    }catch(localError){
-      if(localError.name==='AbortError')throw localError;
-      data={...data,error:'The hosted server could not inspect this media URL, and the local companion is not reachable.',details:'Hosted response: '+hostedError+'. Start the VidGravity companion server on this PC at http://127.0.0.1:5173 and retry. The website cannot access your PC session unless that local service is running.'};
-    }
-  }
   if(!response.ok){const message=[data.error||('Inspection failed (HTTP '+response.status+')'),data.details].filter(Boolean).join(' · ');throw Error(message);}
   const size=data.size&&data.size!=='unknown'&&Number.isFinite(Number(data.size))?formatBytes(Number(data.size)):(data.size||'size unknown');
   box.innerHTML=`<div class="inspectHeading"><span class="inspectMediaIcon" aria-hidden="true">${String(data.type||'').toLowerCase().includes('audio')?'♫':'🎬'}</span><div><b>${esc(data.title||'Media detected')}</b><div class="mediaMeta">${esc(data.type||'media')} · ${esc(size)} · ${esc(data.source||'server')}${data.duration?' · '+esc(formatDuration(data.duration)):''}</div></div></div><div class="formatChooserHead"><div><b>Choose audio or video</b><small>Switch between simple standard quality options. Duplicate codecs and formats are grouped to reduce confusion.</small></div><span class="formatCount">${Number(data.format_count||((data.formats||[]).length))} option(s)</span></div><div id="formatPanel"></div><div class="downloadActionRow"><div id="selectedFormatSummary" class="mediaMeta" aria-live="polite">Choose a format to continue.</div><button class="primary downloadBest" id="downloadNow" disabled>Download selected quality</button></div>`;
   renderAvailableFormats(box.querySelector('#formatPanel'),data.formats||[],url,data);
  }catch(error){
-  box.innerHTML=`<b>Inspection failed</b><div class="mediaMeta">${esc(error.name==='AbortError'?'Inspection timed out after 45 seconds':error.message||'The companion server could not inspect this URL.')}</div><div class="mediaMeta">No formats will be invented. Check the companion server and try a public, supported media URL.</div><button class="smallBtn" id="retryInspect">Retry Inspect</button>`;
+  box.innerHTML=`<b>Inspection failed</b><div class="mediaMeta">${esc(error.name==='AbortError'?'Inspection timed out after 45 seconds':error.message||'The cloud media service could not inspect this URL.')}</div><div class="mediaMeta">VidGravity runs online. Some providers block cloud servers or require sign-in; unavailable media cannot be downloaded until the provider allows access.</div><button class="smallBtn" id="retryInspect">Retry Inspect</button>`;
   $('#retryInspect').onclick=()=>$('#inspectBtn').click();
  }finally{button.disabled=false;button.textContent='Inspect'}
 };
@@ -166,31 +135,6 @@ async function runDownloadLifecycle(job){
   }
   throw Error("Download timed out while waiting for the provider");
  }catch(e){
-  // If the hosted extractor is blocked by a provider, retry on the user's local
-  // companion server when available. This avoids leaving a failed job on Render
-  // when the same URL may work from the user's own network.
-  const localBase="http://127.0.0.1:5173";
-  const configuredBase=(localStorage.getItem("vg-api-base-url")||"").trim().replace(/\/+$/,"");
-  if(!job.cancelRequested&&configuredBase!==localBase){
-   try{
-    const healthResponse=await fetch(localBase+"/api/health",{cache:"no-store"});
-    const health=await healthResponse.json().catch(()=>({}));
-    if(healthResponse.ok&&health.ok&&health.yt_dlp){
-     localStorage.setItem("vg-api-base-url",localBase);
-     const apiInput=$("#vgApiBaseInput"),apiMessage=$("#vgApiMessage");
-     if(apiInput)apiInput.value=localBase;
-     if(apiMessage)apiMessage.textContent="Using your local companion server for media downloads.";
-     if(typeof vgUXNotify==="function")vgUXNotify("The hosted download failed. Retrying through your local companion server.","info");
-     job.serverJobId=null;job.status="running";job.progress=0;job.error="";
-     job.message="Retrying download through your local companion…";
-     saveJobs();renderJobs();
-     activeJobRunners.delete(job.id);
-     return await runDownloadLifecycle(job);
-    }
-   }catch(localError){
-    // Keep the original provider error if the companion is not running or cannot be reached.
-   }
-  }
   if(job.cancelRequested){job.status="cancelled";job.error="Cancelled by user";}
   else{job.status="failed";job.error=e?.message||"Download failed";job.progress=0;}
   saveJobs();renderJobs();
@@ -1259,7 +1203,7 @@ function vgLicenseRender(status,message){
 }
 async function vgLicenseRefresh(){
  try{const r=await fetch(vgApiUrl("/api/license/status?device_id="+encodeURIComponent(vgLicenseDeviceId())));const d=await r.json();if(!r.ok)throw Error(d.error||"Status check failed");vgLicenseRender(d,"")}
- catch(e){vgLicenseRender({active:false,reason:"unavailable"},"License service unavailable. Start the companion server and try again.")}
+ catch(e){vgLicenseRender({active:false,reason:"unavailable"},"Cloud license service unavailable. Please retry when the online service is available.")}
 }
 async function vgLicenseAction(action){
  const key=document.getElementById("licenseKeyInput")?.value?.trim()||"";
