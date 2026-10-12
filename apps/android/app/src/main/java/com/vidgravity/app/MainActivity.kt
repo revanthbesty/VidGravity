@@ -437,27 +437,43 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var media by remember { mutableStateOf(emptyList<LibraryMedia>()) }
     var filter by remember { mutableStateOf("All Media") }
+    var searchQuery by remember { mutableStateOf("") }
     var renameTarget by remember { mutableStateOf<LibraryMedia?>(null) }
     var renameText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<LibraryMedia?>(null) }
     val scope = rememberCoroutineScope()
     suspend fun refreshMedia() { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
     LaunchedEffect(Unit) { refreshMedia() }
-    val visibleMedia = when (filter) {
-        "Video" -> media.filter { it.mimeType.startsWith("video/") }
-        "Audio" -> media.filter { it.mimeType.startsWith("audio/") }
-        else -> media
+    val visibleMedia = media.filter { item ->
+        val matchesCategory = when (filter) {
+            "Video" -> item.mimeType.startsWith("video/")
+            "Audio" -> item.mimeType.startsWith("audio/")
+            "Favorites" -> item.isFavorite
+            else -> true
+        }
+        matchesCategory && item.displayName.contains(searchQuery.trim(), ignoreCase = true)
     }
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Your library", fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Downloaded media saved by VidGravity", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedTextField(
+            value = searchQuery, onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            placeholder = { Text("Search your downloads") },
+            shape = RoundedCornerShape(16.dp)
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("All Media", "Video", "Audio").forEach { value ->
+            listOf("All Media", "Video", "Audio", "Favorites").forEach { value ->
                 FilterChip(selected = filter == value, onClick = { filter = value }, label = { Text(value) })
             }
         }
         if (visibleMedia.isEmpty()) {
-            InfoCard("Your library is empty", "Completed downloads will appear here. Inspect a public link from Home to get started.", Icons.Default.VideoLibrary, Modifier.fillMaxWidth())
+            InfoCard(
+                if (searchQuery.isNotBlank()) "No matching media" else if (filter == "Favorites") "No favorites yet" else "Your library is empty",
+                if (searchQuery.isNotBlank()) "Try another title or clear the search." else "Completed downloads saved by VidGravity will appear here. Use Downloads to check failed transfers.",
+                Icons.Default.VideoLibrary, Modifier.fillMaxWidth()
+            )
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(visibleMedia, key = { it.uri.toString() }) { item ->
