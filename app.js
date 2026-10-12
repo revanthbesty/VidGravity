@@ -396,7 +396,7 @@ async function play(id,seek=0){
  player.removeAttribute('src');
  player.src=activePlayerObjectUrl;
  player.load();
- $("#playerMeta").textContent=item.title||'Media';
+ $("#playerMeta").textContent=[item.title||"Media",item.width&&item.height?(item.width+" × "+item.height):"",item.type||""].filter(Boolean).join(" · ");
  const transcript=transcriptFor(id);
  $("#playerTranscript").innerHTML=transcript?'<div class="ptHead"><b>Transcript</b><small>'+transcript.segments.length+' segments · '+esc(transcript.source)+'</small></div><div class="ptList">'+transcript.segments.map(s=>'<button class="ptSeg" data-time="'+Number(s.start||0)+'"><span>'+formatTime(s.start)+'</span>'+esc(s.text)+'</button>').join('')+'</div>':'<div class="ptEmpty">No transcript or captions available for this media.</div>';
  modal.classList.remove('hidden');

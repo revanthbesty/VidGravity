@@ -15,3 +15,13 @@ export { useDownloader } from "./hooks/useDownloader";
 export { useShare } from "./hooks/useShare";
 export { useTheme } from "./hooks/useTheme";
 export type { ThemePreference } from "./hooks/useTheme";
+
+export { SettingsView } from "./components/SettingsView";
+export type { SettingsViewProps } from "./components/SettingsView";
+export { MediaCard } from "./components/MediaCard";
+export type { MediaCardProps, MediaItem } from "./components/MediaCard";
+export { InputHero } from "./components/InputHero";
+export type { InputHeroProps } from "./components/InputHero";
+
+export { DesktopHeader } from "./components/DesktopHeader";
+export type { DesktopHeaderProps } from "./components/DesktopHeader";

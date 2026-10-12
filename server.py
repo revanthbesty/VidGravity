@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import argparse, ipaddress, json, os, re, shutil, socket, sqlite3, subprocess, tempfile, time, urllib.parse, urllib.request
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+from media_export import ExportError, export_media_file
+import hashlib
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
 ALLOW_LOCAL=False
@@ -22,7 +24,7 @@ _RATE_LOCK=__import__('threading').Lock()
 _RATE_LIMITS={
     'download-create':(10,60), 'download-retry':(10,60),
     'download-cancel':(20,60), 'inspect':(30,60),
-    'formats':(15,60), 'license':(10,60), 'direct-download':(5,60),
+    'formats':(15,60), 'license':(10,60), 'direct-download':(5,60), 'media-export':(3,60),
 }
 
 def _client_ip(handler):
@@ -727,17 +729,47 @@ class Handler(SimpleHTTPRequestHandler):
                     return self._json(410,{'error':'Download output has expired or is unavailable','state':'expired'})
                 filename=Path(job.get('filename','media.bin')).name.replace('"','')
                 size=path.stat().st_size
-                self.send_response(200)
-                self.send_header('Content-Type',job.get('content_type') or 'application/octet-stream')
-                self.send_header('Content-Disposition',f'attachment; filename="{filename}"')
-                self.send_header('Content-Length',str(size))
-                self.end_headers()
-                # Stream the completed output instead of reading the whole file into RAM.
+                digest=hashlib.sha256()
                 with path.open('rb') as media_file:
                     while True:
-                        chunk=media_file.read(256*1024)
+                        chunk=media_file.read(1024*1024)
+                        if not chunk: break
+                        digest.update(chunk)
+                range_header=self.headers.get('Range','').strip()
+                start_byte=0
+                end_byte=size-1
+                ranged=False
+                if range_header:
+                    match=re.fullmatch(r'bytes=(\d*)-(\d*)',range_header)
+                    if not match or (not match.group(1) and not match.group(2)):
+                        self.send_response(416); self.send_header('Content-Range',f'bytes */{size}'); self.send_header('Content-Length','0'); self.end_headers(); return
+                    if match.group(1):
+                        start_byte=int(match.group(1))
+                    else:
+                        suffix=int(match.group(2))
+                        start_byte=max(0,size-suffix)
+                    if match.group(2) and match.group(1):
+                        end_byte=min(size-1,int(match.group(2)))
+                    if start_byte>=size or end_byte<start_byte:
+                        self.send_response(416); self.send_header('Content-Range',f'bytes */{size}'); self.send_header('Content-Length','0'); self.end_headers(); return
+                    ranged=True
+                response_length=end_byte-start_byte+1
+                self.send_response(206 if ranged else 200)
+                self.send_header('Content-Type',job.get('content_type') or 'application/octet-stream')
+                self.send_header('Content-Disposition',f'attachment; filename="{filename}"')
+                self.send_header('Content-Length',str(response_length))
+                self.send_header('X-Content-SHA256',digest.hexdigest())
+                self.send_header('Cache-Control','no-store')
+                if ranged: self.send_header('Content-Range',f'bytes {start_byte}-{end_byte}/{size}')
+                self.end_headers()
+                with path.open('rb') as media_file:
+                    media_file.seek(start_byte)
+                    remaining=response_length
+                    while remaining:
+                        chunk=media_file.read(min(256*1024,remaining))
                         if not chunk: break
                         self.wfile.write(chunk)
+                        remaining-=len(chunk)
                 return
             with DOWNLOAD_JOB_LOCK: view=_job_public_view(job)
             return self._json(200,view)
@@ -745,6 +777,70 @@ class Handler(SimpleHTTPRequestHandler):
     def do_POST(self):
         if self.path.startswith('/api/') and self._origin_rejected():
             return self._json(403,{'error':'Origin is not allowed'})
+        if urllib.parse.urlsplit(self.path).path == '/api/media/export':
+            if self._limited('media-export'):
+                return
+            raw_length = self.headers.get('Content-Length', '0')
+            if not raw_length.isdigit():
+                return self._json(400, {'error': 'Invalid Content-Length'})
+            length = int(raw_length)
+            max_input = 256 * 1024 * 1024
+            if length <= 0:
+                return self._json(400, {'error': 'The source media body is empty'})
+            if length > max_input:
+                return self._json(413, {'error': 'Source media exceeds the 256 MiB export limit'})
+            media_type = (self.headers.get('Content-Type', '') or '').split(';', 1)[0].lower()
+            if not (media_type.startswith('video/') or media_type == 'application/octet-stream'):
+                return self._json(415, {'error': 'Upload a supported video file'})
+            request = {
+                'preset': self.headers.get('X-VG-Preset', ''),
+                'mode': self.headers.get('X-VG-Mode', ''),
+                'width': self.headers.get('X-VG-Width'),
+                'height': self.headers.get('X-VG-Height'),
+                'trim_seconds': self.headers.get('X-VG-Trim-Seconds')
+            }
+            try:
+                with tempfile.TemporaryDirectory(prefix='vidgravity-export-') as temp_dir:
+                    source = Path(temp_dir) / 'source-media.bin'
+                    output = Path(temp_dir) / 'social-derivative.mp4'
+                    with source.open('wb') as handle:
+                        remaining = length
+                        while remaining:
+                            chunk = self.rfile.read(min(256 * 1024, remaining))
+                            if not chunk:
+                                return self._json(400, {'error': 'Source ended before Content-Length bytes were received'})
+                            handle.write(chunk)
+                            remaining -= len(chunk)
+                    result = export_media_file(source, output, request)
+                    if output.stat().st_size > max_input:
+                        return self._json(413, {'error': 'Export exceeds the 256 MiB response limit; trim and retry'})
+                    digest = hashlib.sha256()
+                    with output.open('rb') as handle:
+                        while True:
+                            chunk = handle.read(1024 * 1024)
+                            if not chunk: break
+                            digest.update(chunk)
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'video/mp4')
+                    self.send_header('Content-Length', str(output.stat().st_size))
+                    self.send_header('Content-Disposition', 'attachment; filename="vidgravity-social-export.mp4"')
+                    self.send_header('X-Content-SHA256', digest.hexdigest())
+                    self.send_header('Cache-Control', 'no-store')
+                    self.send_header('X-VG-Export-Width', str(result['width']))
+                    self.send_header('X-VG-Export-Height', str(result['height']))
+                    self.end_headers()
+                    with output.open('rb') as handle:
+                        while True:
+                            chunk = handle.read(256 * 1024)
+                            if not chunk: break
+                            self.wfile.write(chunk)
+                    return
+            except ExportError as exc:
+                message = str(exc)
+                status = 400 if any(x in message.lower() for x in ('unsupported', 'invalid', 'must be', 'between', 'dimensions', 'source and output')) else 422
+                return self._json(status, {'error': message})
+            except (OSError, ValueError) as exc:
+                return self._json(500, {'error': 'Media export failed safely: ' + str(exc)[:240]})
         if self.path=='/api/download-jobs' and self._limited('download-create'): return
         if self.path.endswith('/retry') and self._limited('download-retry'): return
         if self.path.endswith('/cancel') and self._limited('download-cancel'): return
