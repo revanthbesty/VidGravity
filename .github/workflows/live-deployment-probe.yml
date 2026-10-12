@@ -1,0 +1,30 @@
+name: VidGravity Live Deployment Probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Probe public companion API
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Probe configured public HTTPS deployment
+        run: python p169_deployment_probe.py --url https://vidgravity.onrender.com
+      - name: Upload sanitized deployment probe report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vidgravity-live-deployment-probe
+          path: P169_DEPLOYMENT_PROBE_REPORT.json
+          if-no-files-found: error
+          retention-days: 14
