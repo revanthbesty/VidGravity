@@ -486,7 +486,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin',origin)
             self.send_header('Vary','Origin')
             self.send_header('Access-Control-Allow-Methods','GET, POST, OPTIONS')
-            self.send_header('Access-Control-Allow-Headers','Content-Type, Authorization')
+            self.send_header('Access-Control-Allow-Headers','Content-Type, Authorization, X-VG-Preset, X-VG-Mode, X-VG-Width, X-VG-Height, X-VG-Trim-Seconds')
             # Chrome may preflight HTTPS-to-loopback requests with Private Network Access.
             # Only emit this opt-in for an already allowed origin; the service binds to loopback locally.
             if self.headers.get('Access-Control-Request-Private-Network','').lower() == 'true':
