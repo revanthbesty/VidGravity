@@ -19,6 +19,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.CameraController
 import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
+import androidx.camera.video.AudioConfig
 import androidx.camera.video.FileOutputOptions
 import androidx.camera.video.Recording
 import androidx.camera.video.VideoRecordEvent
@@ -136,7 +137,8 @@ class CameraCaptureActivity : ComponentActivity() {
         val file = File(cacheDir, "snap-${System.currentTimeMillis()}.mp4")
         recordingFile = file
         val output = FileOutputOptions.Builder(file).build()
-        recording = controller.startRecording(output, androidx.camera.video.AudioConfig.create(true), executor) { event: VideoRecordEvent ->
+        val audioEnabled = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        recording = controller.startRecording(output, AudioConfig.create(audioEnabled), executor) { event: VideoRecordEvent ->
             when (event) {
                 is VideoRecordEvent.Start -> runOnUiThread { hint.text = "Recording · 0s / 60s" }
                 is VideoRecordEvent.Finalize -> {
