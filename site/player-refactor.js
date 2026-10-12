@@ -34,7 +34,6 @@
       subs.onchange=()=>Array.from(v.textTracks||[]).forEach((track,index)=>{track.mode=subs.value===String(index)?"showing":"disabled";});
     }
   }
-  function renderLoopStatus(){const el=$("#playerABStatus");if(el)el.textContent=pointA===null?"Loop disabled":pointB===null?"A set at "+pointA.toFixed(2)+"s · choose B":"Loop "+pointA.toFixed(2)+"s → "+pointB.toFixed(2)+"s";}
   function bindLoop(){
     $("#playerSetA")?.addEventListener("click",()=>{const v=player();if(!v)return;pointA=v.currentTime;pointB=null;renderLoopStatus();});
     $("#playerSetB")?.addEventListener("click",()=>{const v=player();if(!v)return;if(pointA===null){pointA=v.currentTime;pointB=null;}else if(v.currentTime>pointA)pointB=v.currentTime;else{pointA=v.currentTime;pointB=null;}renderLoopStatus();});
