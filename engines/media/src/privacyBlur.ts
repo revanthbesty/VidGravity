@@ -10,7 +10,7 @@ export function buildPrivacyBlurPlan(inputPath:string,outputPath:string,boxes:re
  safe.forEach((b,i)=>{
   const merged=`merged${i}`,blurIn=`blurIn${i}`,blur=`blur${i}`,splitBase=`splitBase${i}`;
   filters.push(`${previous}split=2[${splitBase}][${blurIn}]`);
-  const blurRadius=Math.max(1,Math.min(10,Math.floor((Math.min(b.width,b.height)-1)/2)));
+  const blurRadius=Math.max(1,Math.min(7,Math.floor((Math.min(b.width,b.height)-1)/2)));
   filters.push(`[${blurIn}]crop=${Math.round(b.width)}:${Math.round(b.height)}:${Math.round(b.x)}:${Math.round(b.y)},boxblur=${blurRadius}:${Math.max(1,Math.floor(blurRadius/2))}[${blur}]`);
   filters.push(`[${splitBase}][${blur}]overlay=${Math.round(b.x)}:${Math.round(b.y)}[${merged}]`);
   previous=`[${merged}]`;
