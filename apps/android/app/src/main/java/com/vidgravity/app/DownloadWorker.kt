@@ -51,13 +51,15 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 if (isStopped) throw CancellationException("Work was cancelled")
                 while (DownloadActionReceiver.isPaused(applicationContext, workId)) {
                     promoteOrNotify(title, "Paused", 0, true)
-                    setProgress(workDataOf("state" to "paused", "progress" to lastKnownProgress))
+                    setProgress(workDataOf("state" to "paused", "progress" to lastKnownProgress,
+                        "media_url" to url, "format_selector" to selector, "media_title" to title))
                     delay(500)
                     if (isStopped) throw CancellationException("Work was cancelled")
                 }
                 job = DownloadApi.getJob(remoteJobId!!)
                 lastKnownProgress = job.progress
-                setProgress(workDataOf("remoteJobId" to remoteJobId, "state" to job.state, "progress" to job.progress))
+                setProgress(workDataOf("remoteJobId" to remoteJobId, "state" to job.state, "progress" to job.progress,
+                    "media_url" to url, "format_selector" to selector, "media_title" to title))
                 promoteOrNotify(title, job.message, job.progress, false)
                 when (job.state) {
                     "completed" -> break
@@ -85,7 +87,8 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 val percent = if (total != null && total > 0) ((bytes * 100) / total).toInt().coerceIn(0, 99) else 0
                 val eta = if (total != null && currentSpeed > 0L) ((total - bytes).coerceAtLeast(0L) / currentSpeed) else -1L
                 setProgressAsync(workDataOf("bytes_downloaded" to bytes, "total_bytes" to (total ?: -1L),
-                    "bytes_per_second" to currentSpeed, "eta_seconds" to eta, "progress" to percent))
+                    "bytes_per_second" to currentSpeed, "eta_seconds" to eta, "progress" to percent,
+                    "media_url" to url, "format_selector" to selector, "media_title" to title))
                 DownloadNotifications.progress(applicationContext, workId, title,
                     if (total != null) (bytes / 1_000_000).toString() + " / " + (total / 1_000_000) + " MB" else (bytes / 1_000_000).toString() + " MB transferred",
                     percent, false)
