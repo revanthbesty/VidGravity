@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.compose.runtime.livedata.observeAsState
@@ -115,31 +116,111 @@ private fun VidGravityApp() {
         if (inspecting) AlertDialog(onDismissRequest = {}, confirmButton = {}, title = { Text("Inspecting media") },
             text = { Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(Modifier.size(24.dp)); Spacer(Modifier.width(12.dp)); Text("Checking available formats…") } })
         analysis?.let { result ->
-            AlertDialog(onDismissRequest = { analysis = null },
-                title = { Text(result.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(result.formats.size.toString() + " formats available")
-                        if (result.formats.isEmpty()) Text("No selectable formats were returned.")
-                        result.formats.take(14).forEach { option ->
-                            OutlinedButton(onClick = {
-                                val downloadPrefs = SecureDownloadPreferences.load(context)
-                                DownloadWorker.enqueue(context, url.trim(), option.selector, result.title, downloadPrefs.unmeteredOnly)
-                                analysis = null
-                                selected = VgTab.Downloads
-                                notice = "Download queued: " + result.title
-                            }, modifier = Modifier.fillMaxWidth()) {
-                                Text(option.displayName(), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            val usable = result.formats.filter { it.selector.isNotBlank() && (it.hasVideo || it.hasAudio) }
+            val videoFormats = usable.filter { it.hasVideo }
+            val audioFormats = usable.filter { it.hasAudio && !it.hasVideo }
+            val standardHeights = listOf(4320, 2160, 1440, 1080, 720, 480, 360)
+            val byHeight = videoFormats.filter { it.height > 0 }.groupBy { it.height }
+            val standardVideo = standardHeights.mapNotNull { height ->
+                byHeight[height]?.maxWithOrNull(compareBy<FormatOption> { if (it.hasAudio) 100 else 0 }
+                    .thenBy { if (it.container.equals("mp4", true)) 20 else 0 }
+                    .thenBy { if ((it.sizeBytes ?: 0L) > 0) 10 else 0 })?.let { option ->
+                    val selector = if (option.hasAudio) option.selector else option.selector + "+bestaudio/best"
+                    Triple(when (height) { 4320 -> "8K · 4320p"; 2160 -> "4K · 2160p"; else -> "${height}p" },
+                        selector, option)
+                }
+            }
+            val videoChoices = listOf(Triple("Highest available", "bv*+ba/b", videoFormats.maxByOrNull { it.height } ?: usable.firstOrNull()))
+                .filter { it.third != null } + standardVideo
+            Dialog(onDismissRequest = { analysis = null }) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth().heightIn(max = 680.dp),
+                    shape = RoundedCornerShape(28.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 8.dp
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(20.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Choose quality", fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                                Text(result.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                            }
+                            IconButton(onClick = { analysis = null }) { Icon(Icons.Default.Close, "Close") }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text("VIDEO · DOWNLOAD WITH SOUND", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp, color = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.height(8.dp))
+                        LazyColumn(
+                            modifier = Modifier.weight(1f, fill = false).heightIn(max = 420.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(videoChoices, key = { it.first }) { choice ->
+                                Surface(
+                                    modifier = Modifier.fillMaxWidth().clickable {
+                                        val preferences = SecureDownloadPreferences.load(context)
+                                        DownloadWorker.enqueue(context, url.trim(), choice.second, result.title, preferences.unmeteredOnly)
+                                        analysis = null
+                                        selected = VgTab.Downloads
+                                        notice = "Download added to queue. Open Downloads to track progress."
+                                    },
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant
+                                ) {
+                                    Row(Modifier.padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.PlayCircle, null, tint = MaterialTheme.colorScheme.primary)
+                                        Spacer(Modifier.width(12.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text(choice.first, fontWeight = FontWeight.SemiBold)
+                                            Text(if (choice.first == "Highest available") "Best compatible quality for this source"
+                                                else choice.third?.container?.uppercase() + " · Video with audio",
+                                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                        Icon(Icons.Default.ChevronRight, null)
+                                    }
+                                }
+                            }
+                            if (audioFormats.isNotEmpty()) {
+                                item {
+                                    Spacer(Modifier.height(8.dp))
+                                    Text("AUDIO ONLY", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                        letterSpacing = 1.sp, color = MaterialTheme.colorScheme.primary)
+                                }
+                                item {
+                                    Surface(
+                                        modifier = Modifier.fillMaxWidth().clickable {
+                                            val preferences = SecureDownloadPreferences.load(context)
+                                            DownloadWorker.enqueue(context, url.trim(), "bestaudio/best", result.title + " — Audio", preferences.unmeteredOnly)
+                                            analysis = null
+                                            selected = VgTab.Downloads
+                                            notice = "Audio download added to queue."
+                                        },
+                                        shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant
+                                    ) {
+                                        Row(Modifier.padding(horizontal = 16.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.MusicNote, null, tint = MaterialTheme.colorScheme.primary)
+                                            Spacer(Modifier.width(12.dp))
+                                            Column(Modifier.weight(1f)) {
+                                                Text("Best available audio", fontWeight = FontWeight.SemiBold)
+                                                Text("Audio only · automatic quality", fontSize = 12.sp,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            Icon(Icons.Default.ChevronRight, null)
+                                        }
+                                    }
+                                }
+                            }
+                            if (videoChoices.isEmpty() && audioFormats.isEmpty()) {
+                                item { Text("No standard video or audio formats were returned for this link.") }
                             }
                         }
-                        if (result.formats.isEmpty()) Button(onClick = {
-                            val downloadPrefs = SecureDownloadPreferences.load(context)
-                            DownloadWorker.enqueue(context, url.trim(), "bv*+ba/b", result.title, downloadPrefs.unmeteredOnly)
-                            analysis = null; selected = VgTab.Downloads; notice = "Best available download queued."
-                        }) { Text("Queue best available") }
+                        Spacer(Modifier.height(12.dp))
+                        Text("Choose one option to add it to Downloads. Transfer status and errors appear there.",
+                            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                },
-                confirmButton = { TextButton(onClick = { analysis = null }) { Text("Close") } })
+                }
+            }
         }
         notice?.let { msg ->
             AlertDialog(onDismissRequest = { notice = null }, confirmButton = {
