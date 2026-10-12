@@ -143,3 +143,12 @@ jobs:
         run: |
           python -m unittest discover -s tests -p "test_media_export.py" -v
           python -m unittest -v test_p174_android_share_pipeline.py
+
+      - name: Upload Android debug APK for device testing
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vidgravity-android-debug-apk
+          path: apps/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
