@@ -35,7 +35,7 @@ data class FormatOption(
 
 data class SourceAnalysisResult(val title: String, val durationSeconds: Double?, val formats: List<FormatOption>)
 data class RemoteDownloadJob(val id: String, val state: String, val progress: Int, val message: String, val filename: String)
-data class TransferReceipt(val bytesWritten: Long, val totalBytes: Long?, val sha256: String?)
+data class TransferReceipt(val bytesWritten: Long, val totalBytes: Long?, val sha256: String?, val calculatedSha256: String? = null)
 
 object DownloadApi {
     private fun baseUrl(): String {
@@ -166,6 +166,19 @@ object DownloadApi {
             val expectedHash = connection.getHeaderField("X-Content-SHA256")
                 ?.takeIf { it.matches(Regex("[a-fA-F0-9]{64}")) }
             destination.parentFile?.mkdirs()
+            val digest = MessageDigest.getInstance("SHA-256")
+            if (append && existingOffset > 0L) {
+                destination.inputStream().buffered(128 * 1024).use { existing ->
+                    val prefix = ByteArray(128 * 1024)
+                    var remaining = existingOffset
+                    while (remaining > 0L) {
+                        val count = existing.read(prefix, 0, minOf(prefix.size.toLong(), remaining).toInt())
+                        if (count < 0) throw IllegalStateException("Partial file changed while resuming the transfer.")
+                        digest.update(prefix, 0, count)
+                        remaining -= count
+                    }
+                }
+            }
             var received = existingOffset
             BufferedInputStream(connection.inputStream).use { input ->
                 FileOutputStream(destination, append).use { output ->
@@ -175,6 +188,7 @@ object DownloadApi {
                         val count = input.read(buffer)
                         if (count < 0) break
                         output.write(buffer, 0, count)
+                        digest.update(buffer, 0, count)
                         received += count
                         if (System.currentTimeMillis() - lastUpdate > 400) {
                             onProgress(received, total)
@@ -185,7 +199,8 @@ object DownloadApi {
                 }
             }
             onProgress(received, total)
-            return TransferReceipt(received, total, expectedHash)
+            val calculatedHash = digest.digest().joinToString("") { "%02x".format(it) }
+            return TransferReceipt(received, total, expectedHash, calculatedHash)
         } finally { connection.disconnect() }
     }
 
