@@ -28,7 +28,7 @@ object CollaborativeStash {
             val raw = match.value.trimEnd('.', ',', ';', ')', ']', '!')
             val uri = runCatching { Uri.parse(raw) }.getOrNull() ?: return@mapNotNull null
             val host = uri.host?.lowercase() ?: return@mapNotNull null
-            if (uri.scheme != "https" || host !in allowedHosts || uri.userInfo != null) return@mapNotNull null
+            if (uri.scheme != "https" || host !in allowedHosts || uri.encodedAuthority?.contains('@') == true) return@mapNotNull null
             StashItem(UUID.randomUUID().toString(), uri.toString(), host)
         }.distinctBy { it.url }.take(50).toList()
     }
