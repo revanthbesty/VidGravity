@@ -11,6 +11,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -363,15 +364,46 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                     }
                     Text("QUICK ACTIONS", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    listOf("⚡ Best Video", "♫ Sound Only (MP3)", "✂ WhatsApp 30s Status", "✦ StudyTok AI").forEach { action ->
-                        Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(14.dp),
-                            modifier = Modifier.fillMaxWidth().clickable {
-                                if (url.isBlank()) notify("Paste a media URL first, then choose " + action + ".")
-                                else inspect()
-                            }) {
-                            Row(Modifier.padding(horizontal = 14.dp, vertical = 13.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(action, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-                                Icon(Icons.Default.ChevronRight, null)
+                    item {
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(end = 4.dp)
+                        ) {
+                            items(listOf("⚡ Grab Best Video", "♫ Sound Only", "✂ WhatsApp 30s", "✦ StudyTok AI")) { action ->
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    shape = RoundedCornerShape(18.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                    modifier = Modifier.width(220.dp).heightIn(min = 112.dp).clickable {
+                                        if (url.isBlank()) notify("Paste a media URL first, then choose " + action + ".")
+                                        else if (action.contains("Sound")) {
+                                            scope.launch {
+                                                try {
+                                                    val result = withContext(Dispatchers.IO) { DownloadApi.analyze(url.trim()) }
+                                                    val audio = result.formats.firstOrNull { it.hasAudio && !it.hasVideo }
+                                                    if (audio == null) notice = "No audio-only stream was found for this link."
+                                                    else {
+                                                        val prefs = SecureDownloadPreferences.load(context)
+                                                        DownloadWorker.enqueue(context, url.trim(), audio.selector, result.title + " — Audio", prefs.unmeteredOnly)
+                                                        selected = VgTab.Downloads
+                                                        notice = "Audio download added to queue."
+                                                    }
+                                                } catch (failure: Exception) {
+                                                    notice = "Could not prepare audio: " + (failure.message ?: "Please try again.")
+                                                }
+                                            }
+                                        } else if (action.contains("WhatsApp") || action.contains("StudyTok")) {
+                                            notify(if (action.contains("WhatsApp")) "Status splitting is not available in this build yet." else "StudyTok processing is not available in this build yet.")
+                                        } else inspect()
+                                    }
+                                ) {
+                                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text(action.substringBefore(" "), fontSize = 24.sp)
+                                        Text(action.substringAfter(" "), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                        Text("Tap to start", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
                             }
                         }
                     }
@@ -570,9 +602,14 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
             placeholder = { Text("Search your downloads") },
             shape = RoundedCornerShape(16.dp)
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("All Media", "Video", "Audio", "Favorites").forEach { value ->
-                FilterChip(selected = filter == value, onClick = { filter = value }, label = { Text(value) })
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+            items(listOf("All Media", "Video", "Audio", "Favorites")) { value ->
+                FilterChip(
+                    selected = filter == value,
+                    onClick = { filter = value },
+                    label = { Text(value) },
+                    modifier = Modifier.heightIn(min = 48.dp)
+                )
             }
         }
         if (visibleMedia.isEmpty()) {
