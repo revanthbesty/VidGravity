@@ -10,6 +10,8 @@ export type ClipFilter =
 export interface ClipExportRequest {
   mediaId:string; range:ClipRange; aspectRatio:ClipAspectRatio; outputContainer:MediaContainer;
   operations:ClipFilter[]; outputDirectoryId:string; includeThumbnail:boolean; includeMetadata:boolean;
+  /** Output is a derivative; original media must remain immutable. */
+  parentMediaId?: string; requestedOutputName?: string;
 }
 export interface SharePreviewMetadata { title:string; durationSeconds:number; thumbnailUrl?:string; mediaUrl?:string; mimeType:string; }
 export function validateClipRequest(request: ClipExportRequest): void {
