@@ -211,17 +211,34 @@ private fun DownloadsContent() {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(works, key = { it.id.toString() }) { work ->
                     val progress = work.progress.getInt("progress", 0).coerceIn(0, 100)
-                    val title = work.outputData.getString("filename") ?: work.progress.getString("title") ?: "Media download"
+                    val title = work.outputData.getString("display_name") ?: work.outputData.getString("filename") ?: work.progress.getString("title") ?: "Media download"
                     Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
                         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             Text(work.state.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            if (work.state == WorkInfo.State.FAILED) {
+                                Text(work.outputData.getString("error") ?: "Download failed. Try inspecting the link again.",
+                                    color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                            }
+                            if (work.state == WorkInfo.State.SUCCEEDED) {
+                                Text("Saved to your device", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
+                            }
                             LinearProgressIndicator(progress = { progress / 100f }, modifier = Modifier.fillMaxWidth())
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(progress.toString() + "%", modifier = Modifier.weight(1f), fontSize = 12.sp)
                                 if (work.state == WorkInfo.State.RUNNING || work.state == WorkInfo.State.ENQUEUED) {
                                     TextButton(onClick = { WorkManager.getInstance(context).cancelWorkById(work.id) }) { Text("Cancel") }
+                                }
+                                if (work.state == WorkInfo.State.FAILED || work.state == WorkInfo.State.CANCELLED) {
+                                    TextButton(onClick = {
+                                        val input = work.outputData
+                                        val sourceUrl = input.getString(DownloadWorker.KEY_URL)
+                                        if (sourceUrl != null) {
+                                            val preferences = SecureDownloadPreferences.load(context)
+                                            DownloadWorker.enqueue(context, sourceUrl, preferences.preferredFormatSelector, title, preferences.unmeteredOnly)
+                                        }
+                                    }) { Text("Retry") }
                                 }
                             }
                         }
@@ -280,7 +297,13 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                                 Text(String.format("%.1f MB", item.sizeBytes / 1_000_000.0), fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Row(verticalAlignment = Alignment.CenterVertically) {\n                                IconButton(onClick = {\n                                    val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = item.mimeType; putExtra(android.content.Intent.EXTRA_STREAM, item.uri); addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }\n                                    context.startActivity(android.content.Intent.createChooser(share, "Share media"))\n                                }) { Icon(Icons.Default.Share, "Share") }\n                                Icon(Icons.Default.PlayCircle, "Play", tint = MaterialTheme.colorScheme.primary)\n                            }
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = {
+                                    val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = item.mimeType; putExtra(android.content.Intent.EXTRA_STREAM, item.uri); addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+                                    context.startActivity(android.content.Intent.createChooser(share, "Share media"))
+                                }) { Icon(Icons.Default.Share, "Share") }
+                                Icon(Icons.Default.PlayCircle, "Play", tint = MaterialTheme.colorScheme.primary)
+                            }
                         }
                     }
                 }
