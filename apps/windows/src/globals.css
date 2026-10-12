@@ -2,32 +2,71 @@
 @tailwind components;
 @tailwind utilities;
 
-/* VidGravity desktop semantic design tokens. */
-:root {
- color-scheme:light;
- --vg-bg:#fafafa; --vg-surface:#fff; --vg-surface-raised:#fff; --vg-surface-overlay:#fff; --vg-input:#f4f4f5;
- --vg-text:#18181b; --vg-muted:#52525b; --vg-border:#e4e4e7; --vg-border-strong:#a1a1aa;
- --vg-accent:#6d28d9; --vg-on-accent:#fff; --vg-danger:#b42332; --vg-success:#166534; --vg-warning:#92400e; --vg-info:#1d4ed8;
- --vg-radius-sm:6px; --vg-radius-md:10px; --vg-radius-lg:14px;
- --vg-font-ui:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
- --vg-focus-ring:0 0 0 3px color-mix(in srgb,var(--vg-accent) 28%,transparent);
- --vg-shadow-sm:0 1px 2px rgb(24 24 27 / 6%),0 1px 1px rgb(24 24 27 / 3%); --vg-shadow-lg:0 24px 70px rgb(24 24 27 / 18%);
- --vg-player-overlay:rgb(9 9 11 / 84%); --vg-player-overlay-text:#fff;
-}
-:root,[data-theme="light"] {
- color-scheme:light; --vg-bg:#fafafa; --vg-surface:#fff; --vg-surface-raised:#fff; --vg-surface-overlay:#fff; --vg-input:#f4f4f5;
- --vg-text:#18181b; --vg-muted:#52525b; --vg-border:#e4e4e7; --vg-border-strong:#a1a1aa;
- --vg-accent:#6d28d9; --vg-on-accent:#fff; --vg-danger:#b42332; --vg-success:#166534; --vg-warning:#92400e; --vg-info:#1d4ed8;
- --vg-player-overlay:rgb(9 9 11 / 84%); --vg-player-overlay-text:#fff;
- --vg-shadow-sm:0 1px 2px rgb(24 24 27 / 6%),0 1px 1px rgb(24 24 27 / 3%); --vg-shadow-lg:0 24px 70px rgb(24 24 27 / 18%);
+/* VidGravity semantic design tokens — components should consume these, not define theme colors. */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --vg-bg: #fafafa;                    /* zinc-50 */
+  --vg-surface: #ffffff;
+  --vg-surface-raised: #ffffff;
+  --vg-surface-overlay: #ffffff;
+  --vg-input: rgb(244 244 245 / 70%);  /* zinc-100 */
+  --vg-text: #18181b;                  /* zinc-900 */
+  --vg-muted: #52525b;                 /* zinc-600; AA contrast on canvas */
+  --vg-border: rgb(228 228 231 / 80%); /* zinc-200 */
+  --vg-border-strong: #a1a1aa;         /* zinc-400 */
+  --vg-accent: #7c3aed;                /* violet-600 */
+  --vg-accent-hover: #8b5cf6;          /* violet-500 */
+  --vg-on-accent: #ffffff;
+  --vg-danger: #b42332;
+  --vg-success: #166534;
+  --vg-warning: #92400e;
+  --vg-info: #1d4ed8;
+  --vg-radius-sm: 6px;
+  --vg-radius-md: 10px;
+  --vg-radius-lg: 14px;
+  --vg-font-ui: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --vg-focus-ring: 0 0 0 3px rgb(124 58 237 / 22%);
+  --vg-shadow-sm: 0 1px 2px rgb(24 24 27 / 6%), 0 1px 1px rgb(24 24 27 / 3%);
+  --vg-shadow-lg: 0 24px 70px rgb(24 24 27 / 18%);
+  --vg-player-overlay: rgb(9 9 11 / 84%);
+  --vg-player-overlay-text: #ffffff;
 }
 [data-theme="dark"] {
- color-scheme:dark; --vg-bg:#09090b; --vg-surface:rgb(24 24 27 / 80%); --vg-surface-raised:#18181b; --vg-surface-overlay:#27272a; --vg-input:rgb(39 39 42 / 70%);
- --vg-text:#f4f4f5; --vg-muted:#a1a1aa; --vg-border:rgb(63 63 70 / 80%); --vg-border-strong:#71717a;
- --vg-accent:#8b5cf6; --vg-on-accent:#fff; --vg-danger:#fda4af; --vg-success:#86efac; --vg-warning:#fbbf24; --vg-info:#93c5fd;
- --vg-player-overlay:rgb(9 9 11 / 90%); --vg-player-overlay-text:#fff; --vg-shadow-sm:0 1px 2px rgb(0 0 0 / 24%); --vg-shadow-lg:0 24px 70px rgb(0 0 0 / 52%);
+  color-scheme: dark;
+  --vg-bg: #09090b;                    /* zinc-950, never pure black */
+  --vg-surface: rgb(24 24 27 / 80%);   /* zinc-900/80 */
+  --vg-surface-raised: #18181b;        /* zinc-900 */
+  --vg-surface-overlay: #27272a;        /* zinc-800 */
+  --vg-input: rgb(39 39 42 / 60%);     /* zinc-800/60 */
+  --vg-text: #f4f4f5;                  /* zinc-100 */
+  --vg-muted: #a1a1aa;                 /* zinc-400; AA contrast on zinc-950 */
+  --vg-border: rgb(39 39 42 / 80%);    /* zinc-800/80 */
+  --vg-border-strong: #71717a;         /* zinc-500 */
+  --vg-accent: #7c3aed;                /* violet-600 */
+  --vg-accent-hover: #8b5cf6;          /* violet-500 */
+  --vg-on-accent: #ffffff;
+  --vg-danger: #fda4af;
+  --vg-success: #86efac;
+  --vg-warning: #fbbf24;
+  --vg-info: #93c5fd;
+  --vg-focus-ring: 0 0 0 3px rgb(139 92 246 / 28%);
+  --vg-shadow-sm: 0 1px 2px rgb(0 0 0 / 24%);
+  --vg-shadow-lg: 0 24px 70px rgb(0 0 0 / 52%);
+  --vg-player-overlay: rgb(9 9 11 / 90%);
+  --vg-player-overlay-text: #ffffff;
 }
-*{box-sizing:border-box} html,body,#root{min-height:100%}
+* { box-sizing: border-box; }
+html, body, #root { min-height: 100%; }
+body {
+  margin: 0;
+  background: var(--vg-bg);
+  color: var(--vg-text);
+  font-family: var(--vg-font-ui);
+  line-height: 1.5;
+  font-feature-settings: "ss01" on, "cv11" on;
+}
+button, input, select, textarea { font: inherit; }
 body{margin:0;background:var(--vg-bg);color:var(--vg-text);font-family:var(--vg-font-ui);line-height:1.5;font-feature-settings:"ss01" on,"cv11" on}
 button,input,select,textarea{font:inherit}
 button{min-height:36px;padding:0 12px;border:1px solid var(--vg-border);border-radius:var(--vg-radius-sm);background:var(--vg-surface-raised);color:var(--vg-text);display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;transition:background .16s ease,border-color .16s ease,transform .16s ease}
@@ -37,7 +76,7 @@ input,select,textarea{color:var(--vg-text);background:var(--vg-input);border:1px
 input::placeholder,textarea::placeholder{color:var(--vg-muted);opacity:1}
 .vg-desktop-header{height:56px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 20px;background:color-mix(in srgb,var(--vg-bg) 84%,transparent);backdrop-filter:blur(16px);border-bottom:1px solid var(--vg-border)}
 .vg-breadcrumbs{display:flex;align-items:center;gap:8px;min-width:0;color:var(--vg-muted);font-size:12px}.vg-breadcrumbs strong{color:var(--vg-text);font-weight:600}.vg-header-actions{display:flex;align-items:center;gap:8px}
-.vg-compact-button{height:32px;min-height:32px;padding:0 12px;font-size:12px;font-weight:500}.vg-primary-button{background:#6d28d9;color:#fff;border-color:transparent}.vg-primary-button:hover:not(:disabled){background:#7c3aed;color:#fff}.vg-ghost-button{background:transparent;border-color:transparent}
+.vg-compact-button{height:32px;min-height:32px;padding:0 12px;font-size:12px;font-weight:500}.vg-primary-button{background:var(--vg-accent);color:var(--vg-on-accent);border-color:transparent}.vg-primary-button:hover:not(:disabled){background:var(--vg-accent-hover);color:var(--vg-on-accent)}.vg-ghost-button{background:transparent;border-color:transparent}
 .vg-panel{background:var(--vg-surface);color:var(--vg-text);border:1px solid var(--vg-border);border-radius:var(--vg-radius-lg);box-shadow:var(--vg-shadow-sm)}.vg-section-heading{font-size:14px;font-weight:650;letter-spacing:-.01em;color:var(--vg-text)}.vg-section-description{font-size:12px;color:var(--vg-muted);margin-top:3px}
 .vg-badge{display:inline-flex;align-items:center;gap:5px;border:1px solid transparent;border-radius:6px;padding:3px 7px;font-size:10px;font-weight:650;line-height:1.3;letter-spacing:.02em}.vg-badge--warning{background:color-mix(in srgb,#f59e0b 11%,transparent);color:var(--vg-warning);border-color:color-mix(in srgb,#f59e0b 25%,transparent)}.vg-badge--success{background:color-mix(in srgb,#22c55e 10%,transparent);color:var(--vg-success);border-color:color-mix(in srgb,#22c55e 24%,transparent)}.vg-badge--info{background:color-mix(in srgb,#3b82f6 10%,transparent);color:var(--vg-info);border-color:color-mix(in srgb,#3b82f6 24%,transparent)}.vg-badge--neutral{background:var(--vg-input);color:var(--vg-muted);border-color:var(--vg-border)}
 .player-shell{display:grid;gap:16px;padding:24px;background:var(--vg-surface);color:var(--vg-text);border:1px solid var(--vg-border);border-radius:var(--vg-radius-lg);box-shadow:var(--vg-shadow-sm)}.player-header,.player-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px}.player-header{justify-content:space-between}.player-shell video{width:100%;max-height:70vh;background:#18181b;border-radius:var(--vg-radius-md)}.player-toolbar label{display:flex;align-items:center;gap:8px}.player-toolbar select{min-height:36px;border:1px solid var(--vg-border);border-radius:8px;padding:0 10px}.player-capability-note{color:var(--vg-muted);font-size:.8125rem}
