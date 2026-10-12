@@ -674,7 +674,7 @@ class Handler(SimpleHTTPRequestHandler):
                         })
                     extractor_error=(p.stderr or p.stdout or 'The media provider could not identify this URL')[-1200:]
                     if 'sign in to confirm you' in extractor_error.lower() or 'login_required' in extractor_error.lower() or 'bot' in extractor_error.lower() and 'verification' in extractor_error.lower():
-                        extractor_error='YouTube requires bot verification that this hosted cloud server cannot complete. This URL is currently unavailable through VidGravity's cloud backend. No local companion or PC installation is required or supported.'
+                        extractor_error="YouTube requires bot verification that this hosted cloud server cannot complete. This URL is currently unavailable through VidGravity's cloud backend. No local companion or PC installation is required or supported."
                 except subprocess.TimeoutExpired:
                     extractor_error='Media inspection timed out while contacting the provider'
                 except (ValueError, OSError) as exc:
@@ -711,7 +711,7 @@ class Handler(SimpleHTTPRequestHandler):
             except Exception as exc:
                 detail=str(exc)[:400]
                 if extractor_error and ('sign in to confirm' in extractor_error.lower() or 'not a bot' in extractor_error.lower() or 'bot verification' in extractor_error.lower()):
-                    return self._json(422,{'error':'YouTube or this provider requires verification that VidGravity's cloud server cannot currently complete. This URL is unavailable through the cloud backend right now.','source':'inspect','details':extractor_error[-700:]})
+                    return self._json(422,{'error':"YouTube or this provider requires verification that VidGravity\'s cloud server cannot currently complete. This URL is unavailable through the cloud backend right now.",'source':'inspect','details':extractor_error[-700:]})
                 return self._json(502,{'error':'Could not inspect this URL from the companion server. Check that the link is public and reachable.','source':'inspect','details':detail or extractor_error[-700:]})
         if self.path.startswith('/api/download-jobs/'):
             _cleanup_download_outputs()

@@ -5,8 +5,7 @@ const activeControllers=new Map();
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 // P161: the Android shell can connect to a configured HTTPS companion API.
 function vgApiUrl(path){
- const savedBase=(localStorage.getItem('vg-api-base-url')||'').trim();
- const base=(savedBase||(location.protocol==='https:'?'https://vidgravity.onrender.com':'')).trim().replace(/\/+$/,'');
+ const base=(localStorage.getItem('vg-api-base-url')||'').trim().replace(/\/+$/,'');
  if(!base)return path;
  return base + '/' + String(path).replace(/^\//,'');
 }
@@ -36,12 +35,46 @@ $('#inspectBtn').onclick=async()=>{
   let response,data,usedLocalFallback=false;
   try{response=await fetch(vgApiUrl('/api/inspect?url='+encodeURIComponent(url)),{signal:controller.signal});data=await response.json().catch(()=>({}));}
   finally{clearTimeout(timer)}
+  const urlHost=(()=>{try{return new URL(url).hostname.toLowerCase()}catch{return ''}})();
+  const ytUrl=['youtube.com','youtu.be'].some(host=>urlHost===host||urlHost.endsWith('.'+host));
+  const failureText=String((data.error||'')+' '+(data.details||'')).toLowerCase();
+  // Hosted extractors can fail for any provider because of bot checks, regional restrictions,
+  // login walls, or cloud-IP blocking. Retry locally on recoverable provider/server failures.
+  const shouldTryLocal=!response.ok&&(response.status>=500||[401,403,422,429].includes(response.status)||(ytUrl&&/sign in|not a bot|bot verification|blocked|login_required|unavailable/.test(failureText)));
+  if(shouldTryLocal){
+    const localBase='http://127.0.0.1:5173';
+    const hostedError=String(data.error||('Hosted inspection failed (HTTP '+response.status+')'));
+    try{
+      const localResponse=await fetch(localBase+'/api/health',{cache:'no-store',signal:controller.signal});
+      const health=await localResponse.json().catch(()=>({}));
+      if(localResponse.ok&&health.ok&&health.yt_dlp){
+        const retryResponse=await fetch(localBase+'/api/inspect?url='+encodeURIComponent(url),{signal:controller.signal});
+        const retryData=await retryResponse.json().catch(()=>({}));
+        if(retryResponse.ok){
+          response=retryResponse;data=retryData;usedLocalFallback=true;
+          localStorage.setItem('vg-api-base-url',localBase);
+          const apiInput=$('#vgApiBaseInput'),apiMessage=$('#vgApiMessage');
+          if(apiInput)apiInput.value=localBase;
+          if(apiMessage)apiMessage.textContent='Using your local companion server for media inspection and downloads.';
+          if(typeof vgUXNotify==='function')vgUXNotify('Connected to the local companion server. Media inspection is using your PC.','success');
+        }else{
+          response=retryResponse;
+          data={...retryData,error:retryData.error||'The local companion could not inspect this media URL.',details:[retryData.details, 'Hosted server response: '+hostedError].filter(Boolean).join(' · ')};
+        }
+      }else{
+        data={...data,error:'The hosted server could not inspect this media URL, and the local companion is not ready.',details:'Hosted response: '+hostedError+'. Start the VidGravity companion server on this PC (http://127.0.0.1:5173) and retry. Some providers block cloud-server requests or require sign-in; protected or unavailable media cannot be guaranteed.'};
+      }
+    }catch(localError){
+      if(localError.name==='AbortError')throw localError;
+      data={...data,error:'The hosted server could not inspect this media URL, and the local companion is not reachable.',details:'Hosted response: '+hostedError+'. Start the VidGravity companion server on this PC at http://127.0.0.1:5173 and retry. The website cannot access your PC session unless that local service is running.'};
+    }
+  }
   if(!response.ok){const message=[data.error||('Inspection failed (HTTP '+response.status+')'),data.details].filter(Boolean).join(' · ');throw Error(message);}
   const size=data.size&&data.size!=='unknown'&&Number.isFinite(Number(data.size))?formatBytes(Number(data.size)):(data.size||'size unknown');
   box.innerHTML=`<div class="inspectHeading"><span class="inspectMediaIcon" aria-hidden="true">${String(data.type||'').toLowerCase().includes('audio')?'♫':'🎬'}</span><div><b>${esc(data.title||'Media detected')}</b><div class="mediaMeta">${esc(data.type||'media')} · ${esc(size)} · ${esc(data.source||'server')}${data.duration?' · '+esc(formatDuration(data.duration)):''}</div></div></div><div class="formatChooserHead"><div><b>Choose audio or video</b><small>Switch between simple standard quality options. Duplicate codecs and formats are grouped to reduce confusion.</small></div><span class="formatCount">${Number(data.format_count||((data.formats||[]).length))} option(s)</span></div><div id="formatPanel"></div><div class="downloadActionRow"><div id="selectedFormatSummary" class="mediaMeta" aria-live="polite">Choose a format to continue.</div><button class="primary downloadBest" id="downloadNow" disabled>Download selected quality</button></div>`;
   renderAvailableFormats(box.querySelector('#formatPanel'),data.formats||[],url,data);
  }catch(error){
-  box.innerHTML=`<b>Inspection failed</b><div class="mediaMeta">${esc(error.name==='AbortError'?'Inspection timed out after 45 seconds':error.message||'The hosted media API could not inspect this URL.')}</div><div class="mediaMeta">No formats will be invented. Try a publicly available video URL. Some providers restrict cloud extraction.</div><button class="smallBtn" id="retryInspect">Retry Inspect</button>`;
+  box.innerHTML=`<b>Inspection failed</b><div class="mediaMeta">${esc(error.name==='AbortError'?'Inspection timed out after 45 seconds':error.message||'The companion server could not inspect this URL.')}</div><div class="mediaMeta">No formats will be invented. Check the companion server and try a public, supported media URL.</div><button class="smallBtn" id="retryInspect">Retry Inspect</button>`;
   $('#retryInspect').onclick=()=>$('#inspectBtn').click();
  }finally{button.disabled=false;button.textContent='Inspect'}
 };
@@ -56,7 +89,7 @@ function renderAvailableFormats(panel,formats,url,info){
  const byHeight=new Map();
  video.forEach(f=>{const h=heightOf(f);if(!h)return;const old=byHeight.get(h);const score=x=>(x.has_audio?100:0)+(String(x.ext).toLowerCase()==='mp4'?20:0)+sizeKnown(x)*10;if(!old||score(f)>score(old))byHeight.set(h,f)});
  const standardHeights=[4320,2160,1440,1080,720,480,360];
- const videoChoices=[{format:'bv*+ba/b',label:'Highest available',detail:'Maximum quality supported by this source · best compatible video and audio',kind:'video'},...standardHeights.filter(h=>byHeight.has(h)).map(h=>{const f=byHeight.get(h);return {format:f.selector||f.id,label:h===4320?'8K (4320p)':h===2160?'4K (2160p)':h+'p',detail:[h===4320?'Ultra-high detail for 8K displays':h===2160?'Large screens and high detail':h===1440?'High quality with less data than 4K':h===1080?'Standard Full HD choice':h===720?'Balanced quality and file size':h===480?'Smaller file for slower connections':'Low-bandwidth use',String(f.ext||'MP4').toUpperCase(),f.has_audio?'Video + audio':'Audio will be combined'].join(' · '),kind:'video'}})];
+ const videoChoices=[{format:'bv*+ba/b',label:'Highest available',detail:'Maximum quality supported by this source · best compatible video and audio',kind:'video'},...standardHeights.filter(h=>byHeight.has(h)).map(h=>{const f=byHeight.get(h);return {format:f.has_audio?(f.selector||f.id):String(f.selector||f.id)+'+bestaudio/best',label:h===4320?'8K (4320p)':h===2160?'4K (2160p)':h+'p',detail:[h===4320?'Ultra-high detail for 8K displays':h===2160?'Large screens and high detail':h===1440?'High quality with less data than 4K':h===1080?'Standard Full HD choice':h===720?'Balanced quality and file size':h===480?'Smaller file for slower connections':'Low-bandwidth use',String(f.ext||'MP4').toUpperCase(),f.has_audio?'Video + audio':'Audio will be combined'].join(' · '),kind:'video'}})];
  const rank=q=>({'high':3,'medium':2,'low':1,'tiny':0,'small':0})[String(q||'').toLowerCase()]??-1;
  const audioByQuality=new Map();
  audio.forEach(f=>{const q=String(f.note||'').toLowerCase().match(/\b(high|medium|low|tiny|small)\b/)?.[1]||'';const key=q||'standard';const old=audioByQuality.get(key);const score=x=>(String(x.ext).toLowerCase()==='m4a'?30:0)+sizeKnown(x)*10;if(!old||score(f)>score(old))audioByQuality.set(key,f)});
@@ -133,6 +166,31 @@ async function runDownloadLifecycle(job){
   }
   throw Error("Download timed out while waiting for the provider");
  }catch(e){
+  // If the hosted extractor is blocked by a provider, retry on the user's local
+  // companion server when available. This avoids leaving a failed job on Render
+  // when the same URL may work from the user's own network.
+  const localBase="http://127.0.0.1:5173";
+  const configuredBase=(localStorage.getItem("vg-api-base-url")||"").trim().replace(/\/+$/,"");
+  if(!job.cancelRequested&&configuredBase!==localBase){
+   try{
+    const healthResponse=await fetch(localBase+"/api/health",{cache:"no-store"});
+    const health=await healthResponse.json().catch(()=>({}));
+    if(healthResponse.ok&&health.ok&&health.yt_dlp){
+     localStorage.setItem("vg-api-base-url",localBase);
+     const apiInput=$("#vgApiBaseInput"),apiMessage=$("#vgApiMessage");
+     if(apiInput)apiInput.value=localBase;
+     if(apiMessage)apiMessage.textContent="Using your local companion server for media downloads.";
+     if(typeof vgUXNotify==="function")vgUXNotify("The hosted download failed. Retrying through your local companion server.","info");
+     job.serverJobId=null;job.status="running";job.progress=0;job.error="";
+     job.message="Retrying download through your local companion…";
+     saveJobs();renderJobs();
+     activeJobRunners.delete(job.id);
+     return await runDownloadLifecycle(job);
+    }
+   }catch(localError){
+    // Keep the original provider error if the companion is not running or cannot be reached.
+   }
+  }
   if(job.cancelRequested){job.status="cancelled";job.error="Cancelled by user";}
   else{job.status="failed";job.error=e?.message||"Download failed";job.progress=0;}
   saveJobs();renderJobs();
@@ -235,23 +293,12 @@ async function finishBlob(job,blob,type){
  if(!detectedType)throw Error("The downloaded response is not a recognized media file. It was not marked completed.");
  const mediaType=detectedType,normalized=blob.type===mediaType?blob:blob.slice(0,blob.size,mediaType);
  if(!normalized.size)throw Error("The downloaded media file is empty.");
- job.message="Preparing browser download…";job.progress=99;saveJobs();renderJobs();
+ job.message="Saving verified media to your device…";job.progress=99;saveJobs();renderJobs();
  const meta=await extractMetadata(normalized,mediaType,job.title);
  const item={id:job.id,url:job.url,type:mediaType,title:job.title,size:normalized.size,created:Date.now(),blob:normalized,...meta};
- // Start the device download before IndexedDB persistence: browser storage can stall or
- // run out of quota, and must never prevent the user's file from being offered.
+ await dbPut(item);
  downloadBlobToDevice(normalized,item.title,item.type,item.url);
- job.status='completed';job.progress=100;job.message='Download started in your browser; saving a Library copy…';job.mediaId=item.id;
- saveJobs();renderJobs();
- // Keep the Library write off the critical download path. Report storage failures clearly.
- dbPut(item).then(()=>{
-  media.unshift(item);
-  job.message='Download started in browser; verified copy saved to Library';
-  saveJobs();renderAll();
- }).catch(()=>{
-  job.message='Download started in browser; Library copy could not be saved (browser storage may be full).';
-  saveJobs();renderJobs();
- });
+ job.status='completed';job.progress=100;job.message='Verified and saved to device and Library';job.mediaId=item.id;saveJobs();media.unshift(item);renderAll();
 }
 function titleFrom(url){try{return decodeURIComponent(new URL(url).pathname.split('/').pop()||'Untitled media')}catch{return'Untitled media'}}
 function renderAll(){renderStats();renderRecent();renderLibrary();renderJobs();$('#queueBadge').textContent=jobs.filter(j=>['running','queued'].includes(j.status)).length}
@@ -320,25 +367,48 @@ function renderLibrary(){
 
 function bindCards(root){root.querySelectorAll('.play').forEach(b=>b.onclick=()=>play(b.dataset.id));root.querySelectorAll('.save').forEach(b=>b.onclick=()=>saveFile(b.dataset.id));root.querySelectorAll('.info').forEach(b=>b.onclick=()=>showDetails(b.dataset.id));root.querySelectorAll('.del').forEach(b=>b.onclick=()=>removeMedia(b.dataset.id))}
 function empty(t){return `<div class="card" style="padding:25px;color:#777083;grid-column:1/-1">${t}</div>`}
-function renderJobs(){const x=$('#downloadList');x.innerHTML=`<div class="bulkBar"><button class="smallBtn" id="retryFailed">Retry failed</button><button class="smallBtn" id="cancelQueued">Cancel queued</button></div>`+jobs.map(j=>`<div class="job card"><div><div class="jobTitle">${esc(j.title)}</div><div class="jobUrl">${esc(j.url)}</div>${j.message?`<div class="jobUrl jobMessage">${esc(j.message)}</div>`:''}<div class="bar"><i style="width:${Math.max(0,Math.min(100,Number(j.progress)||0))}%"></i></div></div><div class="jobStatus">${esc(j.status)}${j.error?`<br>${esc(j.error)}`:''}</div><div class="jobStatus">${Math.max(0,Math.min(100,Number(j.progress)||0))}%<div class="actions jobActions">${j.status==='completed'&&j.mediaId?`<button class="smallBtn saveDeviceJob" data-id="${j.mediaId}">Save to device</button>`:''}${['running','queued','recoverable'].includes(j.status)?`<button class="smallBtn cancelJob" data-id="${j.id}">Cancel</button>`:''}${['failed','cancelled','recoverable'].includes(j.status)?`<button class="smallBtn retryJob" data-id="${j.id}">Retry</button>`:''}</div></div></div>`).join('')||empty('No downloads yet.');x.querySelectorAll('.cancelJob').forEach(b=>b.onclick=()=>cancelJob(b.dataset.id));x.querySelectorAll('.retryJob').forEach(b=>b.onclick=()=>retryJob(b.dataset.id));x.querySelectorAll('.saveDeviceJob').forEach(b=>b.onclick=()=>saveFile(b.dataset.id));$('#retryFailed')?.addEventListener('click',retryFailed);$('#cancelQueued')?.addEventListener('click',cancelQueued)}
+function renderJobs(){const x=$('#downloadList');x.innerHTML=`<div class="bulkBar"><button class="smallBtn" id="retryFailed">Retry failed</button><button class="smallBtn" id="cancelQueued">Cancel queued</button></div>`+jobs.map(j=>`<div class="job card"><div><div class="jobTitle">${esc(j.title)}</div><div class="jobUrl">${esc(j.url)}</div>${j.message?`<div class="jobUrl jobMessage">${esc(j.message)}</div>`:''}<div class="bar"><i style="width:${Math.max(0,Math.min(100,Number(j.progress)||0))}%"></i></div></div><div class="jobStatus">${esc(j.status)}${j.error?`<br>${esc(j.error)}`:''}</div><div class="jobStatus">${Math.max(0,Math.min(100,Number(j.progress)||0))}%<div class="actions jobActions">${['running','queued','recoverable'].includes(j.status)?`<button class="smallBtn cancelJob" data-id="${j.id}">Cancel</button>`:''}${['failed','cancelled','recoverable'].includes(j.status)?`<button class="smallBtn retryJob" data-id="${j.id}">Retry</button>`:''}</div></div></div>`).join('')||empty('No downloads yet.');x.querySelectorAll('.cancelJob').forEach(b=>b.onclick=()=>cancelJob(b.dataset.id));x.querySelectorAll('.retryJob').forEach(b=>b.onclick=()=>retryJob(b.dataset.id));$('#retryFailed')?.addEventListener('click',retryFailed);$('#cancelQueued')?.addEventListener('click',cancelQueued)}
 
 async function retryFailed(){const failed=jobs.filter(j=>j.status==='failed');if(!failed.length)return toast('No failed jobs');for(const j of failed){j.status='queued';j.error='';j.progress=0}saveJobs();renderJobs();pumpQueue();toast(`Retrying ${failed.length} job(s)`)}
 function cancelQueued(){const before=jobs.length;jobs=jobs.filter(j=>!['queued','recoverable'].includes(j.status));saveJobs();renderAll();toast(`${before-jobs.length} queued job(s) cancelled`)}
 
+let activePlayerObjectUrl=null;
 async function play(id,seek=0){
- const m=media.find(x=>x.id===id);if(!m)return;
- $("#player").src=m.objectUrl;$("#playerMeta").textContent=m.title;
- const t=transcriptFor(id);
- $("#playerTranscript").innerHTML=t?`<div class="ptHead"><b>Transcript</b><small>${t.segments.length} segments · ${esc(t.source)}</small></div><div class="ptList">${t.segments.map((s,i)=>`<button class="ptSeg" data-time="${s.start}"><span>${formatTime(s.start)}</span>${esc(s.text)}</button>`).join("")}</div>`:`<div class="ptEmpty">No transcript or captions available for this media.</div>`;
- $("#playerModal").classList.remove("hidden");
- $("#player").onloadedmetadata=()=>{$("#player").currentTime=seek||0};
- $("#player").play().catch(()=>{});
- $("#playerTranscript").querySelectorAll(".ptSeg").forEach(b=>b.onclick=()=>{$("#player").currentTime=Number(b.dataset.time);$("#player").play().catch(()=>{})});
+ const item=await dbGet(id);
+ if(!item||!(item.blob instanceof Blob)||!item.blob.size)return toast('Saved media file was not found in the Library');
+ const player=$("#player"),modal=$("#playerModal");
+ if(!player||!modal)return toast('The media player is unavailable');
+ player.pause();
+ if(activePlayerObjectUrl){URL.revokeObjectURL(activePlayerObjectUrl);activePlayerObjectUrl=null}
+ activePlayerObjectUrl=URL.createObjectURL(item.blob);
+ player.removeAttribute('src');
+ player.src=activePlayerObjectUrl;
+ player.load();
+ $("#playerMeta").textContent=item.title||'Media';
+ const transcript=transcriptFor(id);
+ $("#playerTranscript").innerHTML=transcript?'<div class="ptHead"><b>Transcript</b><small>'+transcript.segments.length+' segments · '+esc(transcript.source)+'</small></div><div class="ptList">'+transcript.segments.map(s=>'<button class="ptSeg" data-time="'+Number(s.start||0)+'"><span>'+formatTime(s.start)+'</span>'+esc(s.text)+'</button>').join('')+'</div>':'<div class="ptEmpty">No transcript or captions available for this media.</div>';
+ modal.classList.remove('hidden');
+ player.onloadedmetadata=()=>{
+   if(Number.isFinite(player.duration)&&player.duration>0)player.currentTime=Math.min(Math.max(0,Number(seek)||0),player.duration);
+ };
+ player.onerror=()=>toast('This saved file could not be played by the browser. Try opening the downloaded file directly.');
+ player.play().catch(()=>{});
+ $("#playerTranscript").querySelectorAll(".ptSeg").forEach(button=>button.onclick=()=>{
+   player.currentTime=Number(button.dataset.time)||0;
+   player.play().catch(()=>{});
+ });
 }
+function closePlayer(){
+ const player=$("#player"),modal=$("#playerModal");
+ if(player){player.pause();player.removeAttribute('src');player.load();player.onerror=null;player.onloadedmetadata=null}
+ if(activePlayerObjectUrl){URL.revokeObjectURL(activePlayerObjectUrl);activePlayerObjectUrl=null}
+ modal?.classList.add('hidden');
+}
+$("#closePlayer")?.addEventListener('click',closePlayer);
+$("#playerModal")?.addEventListener('click',event=>{if(event.target.id==='playerModal')closePlayer()});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$("#playerModal")?.classList.contains('hidden'))closePlayer()});
 
-$('#closePlayer').onclick=()=>{$('#player').pause();const u=$('#player').dataset.objectUrl;if(u)URL.revokeObjectURL(u);$('#player').src='';$('#playerModal').classList.add('hidden')}
-async function saveFile(id){const m=await dbGet(id);if(!m)return;const u=URL.createObjectURL(m.blob);const a=document.createElement('a');a.href=u;a.download=m.title||'vidgravity-media';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
-async function saveFile(id){const m=await dbGet(id);if(!m||!(m.blob instanceof Blob))return toast('Saved media file was not found');downloadBlobToDevice(m.blob,m.title,m.type,m.url);toast('Save to device requested')}
+async function saveFile(id){const m=await dbGet(id);if(!m||!(m.blob instanceof Blob))return toast('Saved media file was not found in the Library');downloadBlobToDevice(m.blob,m.title,m.type,m.url);toast('A copy is being saved to your device')}
 async function removeMedia(id){if(!confirm('Delete this media from VidGravity Library?'))return;await dbDelete(id);media=media.filter(m=>m.id!==id);jobs=jobs.filter(j=>j.mediaId!==id);saveJobs();renderAll();toast('Media deleted')}
 function formatBytes(n){if(!n)return'0 B';const u=['B','KB','MB','GB'];let i=0;while(n>=1024&&i<3){n/=1024;i++}return n.toFixed(i?1:0)+' '+u[i]}
 function formatDuration(s){s=Math.max(0,Math.round(Number(s)||0));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),sec=s%60;return h?`${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`:`${m}:${String(sec).padStart(2,'0')}`}
