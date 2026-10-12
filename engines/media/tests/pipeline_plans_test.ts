@@ -24,7 +24,7 @@ Deno.test("photo dump builds a vertical derivative with one segment per photo", 
   });
   assert(plan.executable === "ffmpeg", "must use FFmpeg");
   assert(plan.args.filter((arg) => arg === "-loop").length === 5, "each photo must be looped");
-  assert(plan.args.includes("1080:1920:force_original_aspect_ratio=increase"), "must render vertical video");
+  assert(plan.args.join(" ").includes("scale=1080:1920:force_original_aspect_ratio=increase"), "must render vertical video");
   assert(plan.args.includes("5:a:0"), "must map audio after five image inputs");
   assert(plan.outputPath === "render.mp4", "must preserve requested derivative path");
 });
