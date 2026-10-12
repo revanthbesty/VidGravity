@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { RefObject } from "react";
 import type { PlaybackSpeed, PlayerCapabilities } from "../../../packages/contracts/src/player";
 
 const SPEEDS: PlaybackSpeed[] = [0.25,0.5,0.75,1,1.25,1.5,1.75,2,2.5,3,3.5,4];
-export function useMediaPlayer(videoRef: React.RefObject<HTMLVideoElement | null>) {
+export function useMediaPlayer(videoRef: RefObject<HTMLVideoElement | null>) {
   const [speed, setSpeed] = useState<PlaybackSpeed>(1);
   const [loopA, setLoopA] = useState<number | null>(null);
   const [loopB, setLoopB] = useState<number | null>(null);
@@ -11,7 +12,7 @@ export function useMediaPlayer(videoRef: React.RefObject<HTMLVideoElement | null
   const capabilities: PlayerCapabilities = useMemo(() => ({
     frameStepping: true,
     pictureInPicture: typeof document !== "undefined" && "pictureInPictureEnabled" in document && document.pictureInPictureEnabled,
-    pitchCorrection: "preservesPitch" in (videoRef.current ?? document.createElement("video")),
+    pitchCorrection: typeof document !== "undefined" && "preservesPitch" in document.createElement("video"),
     loudnessNormalization: false,
     audioTrackSelection: false,
     subtitleSelection: !!videoRef.current?.textTracks,
@@ -47,8 +48,8 @@ export function useMediaPlayer(videoRef: React.RefObject<HTMLVideoElement | null
   useEffect(() => {
     const video = videoRef.current; if (!video) return;
     const enforceLoop = () => { if (loopA !== null && loopB !== null && video.currentTime >= loopB) video.currentTime = loopA; };
-    video.addEventListener("timeupdate", enforceLoop);
     const onEnter = () => setPip(true), onLeave = () => setPip(false);
+    video.addEventListener("timeupdate", enforceLoop);
     video.addEventListener("enterpictureinpicture", onEnter); video.addEventListener("leavepictureinpicture", onLeave);
     return () => { video.removeEventListener("timeupdate", enforceLoop); video.removeEventListener("enterpictureinpicture", onEnter); video.removeEventListener("leavepictureinpicture", onLeave); };
   }, [videoRef, loopA, loopB]);
