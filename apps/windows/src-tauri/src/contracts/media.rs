@@ -32,6 +32,9 @@ pub enum FfmpegOperation {
     Filter { input_id: String, filters: Vec<MediaFilter> },
     Copy { input_id: String, output_id: String },
     Mux { video_input_id: Option<String>, audio_input_id: Option<String>, output_id: String, container: String },
+    Trim { input_id: String, start_seconds: f64, end_seconds: f64 },
+    ScaleCrop { input_id: String, width: u32, height: u32, fit: String, algorithm: String },
+    InjectMetadata { input_id: String, output_id: String, title: Option<String>, artist: Option<String>, album: Option<String>, date: Option<String> },
     Verify { output_id: String, algorithm: String, expected: Option<String> },
 }
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,9 +77,11 @@ pub fn validate_graph(graph: &OperationGraph) -> Result<(), &'static str> {
                     _ => {}
                 }
             },
+            FfmpegOperation::Trim { start_seconds, end_seconds, .. } if !start_seconds.is_finite() || !end_seconds.is_finite() || *start_seconds < 0.0 || end_seconds <= start_seconds => return Err("invalid trim range"),
+            FfmpegOperation::ScaleCrop { width, height, fit, algorithm, .. } if *width == 0 || *height == 0 || fit != "cover" || !["lanczos","bicubic"].contains(&algorithm.as_str()) => return Err("invalid scale-crop operation"),
             FfmpegOperation::Verify { algorithm, .. } if algorithm != "sha256" => return Err("only sha256 verification is allowed"),
             FfmpegOperation::Mux { container, .. } if !["mp4","webm","mkv","mp3","m4a","wav","flac"].contains(&container.as_str()) => return Err("unsupported output container"),
-            FfmpegOperation::Copy { output_id, .. } | FfmpegOperation::Mux { output_id, .. } if output_id == &graph.output_id => output_seen = true,
+            FfmpegOperation::Copy { output_id, .. } | FfmpegOperation::Mux { output_id, .. } | FfmpegOperation::InjectMetadata { output_id, .. } if output_id == &graph.output_id => output_seen = true,
             _ => {}
         }
     }
