@@ -91,9 +91,9 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             }
             throw cancelled
         } catch (timeout: SocketTimeoutException) {
-            partial.delete()
             if (runAttemptCount < 3) Result.retry()
             else {
+                partial.delete()
                 remoteJobId?.let { runCatching { DownloadApi.cancelJob(it) } }
                 DownloadNotifications.terminal(applicationContext, title, "Network timeout after retries", false)
                 Result.failure(workDataOf("error" to "Network timeout after retries"))

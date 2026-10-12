@@ -34,7 +34,8 @@ object MediaLibraryIndexer {
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
         }
-        val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) MediaStore.Downloads.EXTERNAL_CONTENT_URI else if (mime.startsWith("audio/")) MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        val uri = context.contentResolver.insert(collection, values)
             ?: throw IllegalStateException("MediaStore could not create the download item.")
         try {
             context.contentResolver.openOutputStream(uri, "w")?.use { output ->

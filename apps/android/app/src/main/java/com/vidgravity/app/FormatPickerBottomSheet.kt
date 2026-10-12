@@ -48,7 +48,7 @@ class FormatPickerBottomSheet : BottomSheetDialogFragment() {
         root.addView(progress, LinearLayout.LayoutParams(-2, dp(40)).apply { gravity = Gravity.CENTER })
         remember = SwitchMaterial(context).apply { text = "Always use this quality for automatic downloads" }
         root.addView(remember)
-        analyze()
+        root.post { analyze() }
         return root
     }
 

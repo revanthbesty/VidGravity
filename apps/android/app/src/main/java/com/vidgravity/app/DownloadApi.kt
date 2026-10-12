@@ -135,19 +135,28 @@ object DownloadApi {
 
     fun downloadResult(id: String, destination: File, onProgress: (Long, Long?) -> Unit): TransferReceipt {
         require(id.matches(Regex("[A-Fa-f0-9-]{16,64}"))) { "Invalid task ID." }
+        val offset = destination.takeIf { it.isFile }?.length() ?: 0L
         val connection = open("/api/download-jobs/" + id + "/result", "GET")
+        if (offset > 0L) connection.setRequestProperty("Range", "bytes=" + offset + "-")
         try {
             val code = connection.responseCode
             if (code !in 200..299) {
                 val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
                 throw IllegalStateException("Result HTTP " + code + ": " + detail.take(300))
             }
-            val total = connection.getHeaderFieldLong("Content-Length", -1L).takeIf { it >= 0 }
-            val sha256 = connection.getHeaderField("X-Content-SHA256")?.takeIf { it.matches(Regex("[a-fA-F0-9]{64}")) }
+            val contentRange = connection.getHeaderField("Content-Range")
+            val append = offset > 0L && code == HttpURLConnection.HTTP_PARTIAL &&
+                contentRange?.startsWith("bytes " + offset + "-") == true
+            val existingOffset = if (append) offset else 0L
+            val total = if (append && contentRange != null) {
+                contentRange.substringAfterLast('/').toLongOrNull()
+            } else connection.getHeaderFieldLong("Content-Length", -1L).takeIf { it >= 0 }
+            val expectedHash = connection.getHeaderField("X-Content-SHA256")
+                ?.takeIf { it.matches(Regex("[a-fA-F0-9]{64}")) }
             destination.parentFile?.mkdirs()
-            var received = 0L
+            var received = existingOffset
             BufferedInputStream(connection.inputStream).use { input ->
-                FileOutputStream(destination, false).use { output ->
+                FileOutputStream(destination, append).use { output ->
                     val buffer = ByteArray(128 * 1024)
                     var lastUpdate = System.currentTimeMillis()
                     while (true) {
@@ -164,7 +173,7 @@ object DownloadApi {
                 }
             }
             onProgress(received, total)
-            return TransferReceipt(received, total, sha256)
+            return TransferReceipt(received, total, expectedHash)
         } finally { connection.disconnect() }
     }
 

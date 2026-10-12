@@ -735,18 +735,41 @@ class Handler(SimpleHTTPRequestHandler):
                         chunk=media_file.read(1024*1024)
                         if not chunk: break
                         digest.update(chunk)
-                self.send_response(200)
+                range_header=self.headers.get('Range','').strip()
+                start_byte=0
+                end_byte=size-1
+                ranged=False
+                if range_header:
+                    match=re.fullmatch(r'bytes=(\d*)-(\d*)',range_header)
+                    if not match or (not match.group(1) and not match.group(2)):
+                        self.send_response(416); self.send_header('Content-Range',f'bytes */{size}'); self.send_header('Content-Length','0'); self.end_headers(); return
+                    if match.group(1):
+                        start_byte=int(match.group(1))
+                    else:
+                        suffix=int(match.group(2))
+                        start_byte=max(0,size-suffix)
+                    if match.group(2) and match.group(1):
+                        end_byte=min(size-1,int(match.group(2)))
+                    if start_byte>=size or end_byte<start_byte:
+                        self.send_response(416); self.send_header('Content-Range',f'bytes */{size}'); self.send_header('Content-Length','0'); self.end_headers(); return
+                    ranged=True
+                response_length=end_byte-start_byte+1
+                self.send_response(206 if ranged else 200)
                 self.send_header('Content-Type',job.get('content_type') or 'application/octet-stream')
                 self.send_header('Content-Disposition',f'attachment; filename="{filename}"')
-                self.send_header('Content-Length',str(size))
+                self.send_header('Content-Length',str(response_length))
                 self.send_header('X-Content-SHA256',digest.hexdigest())
                 self.send_header('Cache-Control','no-store')
+                if ranged: self.send_header('Content-Range',f'bytes {start_byte}-{end_byte}/{size}')
                 self.end_headers()
                 with path.open('rb') as media_file:
-                    while True:
-                        chunk=media_file.read(256*1024)
+                    media_file.seek(start_byte)
+                    remaining=response_length
+                    while remaining:
+                        chunk=media_file.read(min(256*1024,remaining))
                         if not chunk: break
                         self.wfile.write(chunk)
+                        remaining-=len(chunk)
                 return
             with DOWNLOAD_JOB_LOCK: view=_job_public_view(job)
             return self._json(200,view)
