@@ -99,7 +99,7 @@ private fun VidGravityApp() {
                             inspecting = true
                             scope.launch {
                                 try { analysis = withContext(Dispatchers.IO) { DownloadApi.analyzeSource(url.trim()) } }
-                                catch (failure: Exception) { notice = "Could not inspect link: " + (failure.message ?: "Unknown error").take(180) }
+                                catch (failure: Exception) { notice = friendlyNetworkError(failure) }
                                 finally { inspecting = false }
                             }
                         }
@@ -448,3 +448,20 @@ private fun SettingRow(icon: androidx.compose.ui.graphics.vector.ImageVector, ti
         }
     }
 }
+
+private fun friendlyNetworkError(failure: Exception): String {
+    val chain = generateSequence<Throwable>(failure) { it.cause }.toList()
+    if (chain.any { it is java.net.UnknownHostException }) {
+        return "VidGravity could not find its cloud API address. Check your internet connection and try again. If this keeps happening, the service hostname or DNS configuration needs to be fixed."
+    }
+    if (chain.any { it is java.net.SocketTimeoutException }) {
+        return "The cloud service took too long to respond. It may be waking up from a free-tier idle state. Wait a moment and retry."
+    }
+    val message = failure.message.orEmpty()
+    if (message.contains("Companion HTTP 502") || message.contains("Companion HTTP 503") || message.contains("Companion HTTP 504")) {
+        return "The cloud service is temporarily unavailable. Wait a moment and retry."
+    }
+    if (message.isBlank()) return "VidGravity could not inspect this link. Check your connection and try again."
+    return ("Could not inspect link: " + message).take(240)
+}
+
