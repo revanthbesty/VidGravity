@@ -11,23 +11,51 @@ import java.io.File
 
 data class PublishedMedia(val uri: Uri, val displayName: String, val sizeBytes: Long, val sha256: String)
 
-data class LibraryMedia(val uri: Uri, val displayName: String, val sizeBytes: Long, val mimeType: String, val createdAtMs: Long)
+data class LibraryMedia(val uri: Uri, val displayName: String, val sizeBytes: Long, val mimeType: String, val createdAtMs: Long, val isFavorite: Boolean = false)
 
 object MediaLibraryIndexer {
     fun list(context: Context): List<LibraryMedia> {
         LibraryIndexDb(context).use { helper ->
             val rows = mutableListOf<LibraryMedia>()
             helper.readableDatabase.rawQuery(
-                "SELECT content_uri, display_name, size_bytes, mime_type, created_at_ms FROM media ORDER BY created_at_ms DESC",
+                "SELECT content_uri, display_name, size_bytes, mime_type, created_at_ms, is_favorite FROM media ORDER BY created_at_ms DESC",
                 null
             ).use { cursor ->
                 while (cursor.moveToNext()) {
                     val uri = runCatching { Uri.parse(cursor.getString(0)) }.getOrNull() ?: continue
-                    rows += LibraryMedia(uri, cursor.getString(1), cursor.getLong(2), cursor.getString(3), cursor.getLong(4))
+                    rows += LibraryMedia(uri, cursor.getString(1), cursor.getLong(2), cursor.getString(3), cursor.getLong(4), cursor.getInt(5) != 0)
                 }
             }
             return rows
         }
+    }
+
+    fun setFavorite(context: Context, uri: Uri, favorite: Boolean) {
+        LibraryIndexDb(context).use { db ->
+            db.writableDatabase.update("media", ContentValues().apply { put("is_favorite", if (favorite) 1 else 0) },
+                "content_uri=?", arrayOf(uri.toString()))
+        }
+    }
+
+    fun rename(context: Context, media: LibraryMedia, newName: String): Boolean {
+        val safeName = newName.trim().replace("/", "_").replace("\\", "_").take(140)
+        if (safeName.isBlank()) return false
+        val updated = context.contentResolver.update(media.uri,
+            ContentValues().apply { put(MediaStore.MediaColumns.DISPLAY_NAME, safeName) }, null, null)
+        if (updated <= 0) return false
+        LibraryIndexDb(context).use { db ->
+            db.writableDatabase.update("media", ContentValues().apply { put("display_name", safeName) },
+                "content_uri=?", arrayOf(media.uri.toString()))
+        }
+        return true
+    }
+
+    fun delete(context: Context, media: LibraryMedia): Boolean {
+        val deleted = context.contentResolver.delete(media.uri, null, null) > 0
+        if (deleted) LibraryIndexDb(context).use { db ->
+            db.writableDatabase.delete("media", "content_uri=?", arrayOf(media.uri.toString()))
+        }
+        return deleted
     }
 
     fun publish(context: Context, source: File, originalName: String, hash: String): PublishedMedia {
@@ -81,7 +109,7 @@ object MediaLibraryIndexer {
     }
 }
 
-private class LibraryIndexDb(context: Context) : SQLiteOpenHelper(context, "vidgravity_library.db", null, 1) {
+private class LibraryIndexDb(context: Context) : SQLiteOpenHelper(context, "vidgravity_library.db", null, 2) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""CREATE TABLE media (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,8 +118,11 @@ private class LibraryIndexDb(context: Context) : SQLiteOpenHelper(context, "vidg
             mime_type TEXT NOT NULL,
             size_bytes INTEGER NOT NULL,
             sha256 TEXT NOT NULL,
-            created_at_ms INTEGER NOT NULL
+            created_at_ms INTEGER NOT NULL,
+            is_favorite INTEGER NOT NULL DEFAULT 0
         )""")
     }
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) db.execSQL("ALTER TABLE media ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0")
+    }
 }
