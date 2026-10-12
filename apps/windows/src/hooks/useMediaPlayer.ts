@@ -16,7 +16,7 @@ export function useMediaPlayer(videoRef: RefObject<HTMLVideoElement | null>) {
     loudnessNormalization: false,
     audioTrackSelection: false,
     subtitleSelection: !!videoRef.current?.textTracks,
-    shaderEnhancements: { shaderUpscale: false, sharpening: false, deinterlace: false, colorAdjustments: false,
+    shaderEnhancements: { shaderUpscale: false, sharpening: false, deinterlace: false, denoise: false, deblock: false, stabilization: false, interpolation: false, colorAdjustments: false,
       reasonUnavailable: "GPU shader pipeline is not connected in this build." }
   }), [videoRef]);
   const applySpeed = useCallback((value: PlaybackSpeed) => {
