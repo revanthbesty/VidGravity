@@ -69,8 +69,9 @@ def export_media_file(source,destination,request):
     args += ["-threads","2","-fs",str(MAX_OUTPUT_BYTES),"-c:v","libx264","-preset","veryfast","-crf","20","-pix_fmt","yuv420p","-c:a","aac","-b:a","160k","-movflags","+faststart","-f","mp4",str(destination)]
     try: result=subprocess.run(args,capture_output=True,timeout=600,check=False)
     except subprocess.TimeoutExpired as exc: raise ExportError("Media export timed out. Try a shorter clip.") from exc
-    if result.returncode!=0 or not destination.is_file() or destination.stat().st_size<=0:
+    if result.returncode!=0 or not destination.is_file() or destination.stat().st_size<=0 or destination.stat().st_size >= MAX_OUTPUT_BYTES-1024:
         destination.unlink(missing_ok=True)
         detail=result.stderr.decode("utf-8","replace")[-600:] if result.stderr else ""
+        if destination.is_file() and destination.stat().st_size >= MAX_OUTPUT_BYTES-1024: detail="Output reached the 256 MiB safety limit."
         raise ExportError("FFmpeg could not export this media. "+detail)
     return {"width":checked["width"],"height":checked["height"],"preset":checked["preset"],"mode":checked["mode"],"size":destination.stat().st_size,"mime_type":"video/mp4"}
