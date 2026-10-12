@@ -46,9 +46,9 @@ class CameraCaptureActivity : ComponentActivity() {
     private var finishingCapture = false
 
     private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
-        if (grants[Manifest.permission.CAMERA] == true && grants[Manifest.permission.RECORD_AUDIO] == true) buildCameraUi()
+        if (grants[Manifest.permission.CAMERA] == true || ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) buildCameraUi()
         else {
-            Toast.makeText(this, "Camera and microphone permissions are required to capture media.", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "Camera permission is required to capture media.", Toast.LENGTH_LONG).show()
             finish()
         }
     }
@@ -69,12 +69,13 @@ class CameraCaptureActivity : ComponentActivity() {
             permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
             return
         }
-        buildCameraUi()
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
+        } else buildCameraUi()
     }
 
     private fun hasPermissions(): Boolean =
-        ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
     private fun buildCameraUi() {
         preview = PreviewView(this).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
