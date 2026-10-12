@@ -11,7 +11,25 @@ import java.io.File
 
 data class PublishedMedia(val uri: Uri, val displayName: String, val sizeBytes: Long, val sha256: String)
 
+data class LibraryMedia(val uri: Uri, val displayName: String, val sizeBytes: Long, val mimeType: String, val createdAtMs: Long)
+
 object MediaLibraryIndexer {
+    fun list(context: Context): List<LibraryMedia> {
+        LibraryIndexDb(context).use { helper ->
+            val rows = mutableListOf<LibraryMedia>()
+            helper.readableDatabase.rawQuery(
+                "SELECT content_uri, display_name, size_bytes, mime_type, created_at_ms FROM media ORDER BY created_at_ms DESC",
+                null
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val uri = runCatching { Uri.parse(cursor.getString(0)) }.getOrNull() ?: continue
+                    rows += LibraryMedia(uri, cursor.getString(1), cursor.getLong(2), cursor.getString(3), cursor.getLong(4))
+                }
+            }
+            return rows
+        }
+    }
+
     fun publish(context: Context, source: File, originalName: String, hash: String): PublishedMedia {
         require(source.isFile && source.length() > 0) { "Downloaded media is empty." }
         val safeName = originalName.substringAfterLast('/').substringAfterLast('\\')
