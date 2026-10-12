@@ -674,7 +674,7 @@ class Handler(SimpleHTTPRequestHandler):
                         })
                     extractor_error=(p.stderr or p.stdout or 'The media provider could not identify this URL')[-1200:]
                     if 'sign in to confirm you' in extractor_error.lower() or 'login_required' in extractor_error.lower() or 'bot' in extractor_error.lower() and 'verification' in extractor_error.lower():
-                        extractor_error='YouTube requires bot verification that this hosted cloud server cannot complete. This URL is currently unavailable through VidGravity's cloud backend. No local companion or PC installation is required or supported.'
+                        extractor_error="YouTube requires bot verification that this hosted cloud server cannot complete. This URL is currently unavailable through VidGravity's cloud backend. No local companion or PC installation is required or supported."
                 except subprocess.TimeoutExpired:
                     extractor_error='Media inspection timed out while contacting the provider'
                 except (ValueError, OSError) as exc:
