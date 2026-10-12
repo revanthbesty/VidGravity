@@ -249,11 +249,14 @@ private fun DownloadsContent() {
                                 }
                                 if (work.state == WorkInfo.State.FAILED || work.state == WorkInfo.State.CANCELLED) {
                                     TextButton(onClick = {
-                                        val input = work.inputData
-                                        val sourceUrl = input.getString(DownloadWorker.KEY_URL)
+                                        val sourceUrl = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                        val selector = work.outputData.getString(DownloadWorker.RETRY_FORMAT)
+                                        val retryTitle = work.outputData.getString(DownloadWorker.RETRY_TITLE) ?: title
                                         if (sourceUrl != null) {
                                             val preferences = SecureDownloadPreferences.load(context)
-                                            DownloadWorker.enqueue(context, sourceUrl, preferences.preferredFormatSelector, title, preferences.unmeteredOnly)
+                                            DownloadWorker.enqueue(context, sourceUrl, selector ?: preferences.preferredFormatSelector, retryTitle, preferences.unmeteredOnly)
+                                        } else {
+                                            notify("This download cannot be retried automatically. Inspect the original link again from Home.")
                                         }
                                     }) { Text("Retry") }
                                 }
