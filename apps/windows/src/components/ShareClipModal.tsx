@@ -25,13 +25,13 @@ export function ShareClipModal({mediaId,title,durationSeconds,outputDirectoryId,
  }
  return <div className="vg-modal-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)onClose();}}>
   <section className="vg-share-modal" role="dialog" aria-modal="true" aria-labelledby="clip-title">
-   <header className="vg-share-header"><div><h2 id="clip-title">Create a Shareable Clip</h2><p className="vg-muted">{title}</p></div><button type="button" onClick={onClose} disabled={busy} aria-label="Close clip export">Close</button></header>
+   <header className="vg-share-header"><div><h2 id="clip-title">Create a Shareable Clip</h2><p className="vg-muted">{title}</p></div><button type="button" className="vg-compact-button vg-ghost-button" onClick={onClose} disabled={busy} aria-label="Close clip export">Close</button></header>
    <form className="grid gap-vg-4" onSubmit={submit}>
     <div className="grid grid-cols-2 gap-vg-3"><label className="grid gap-vg-1 text-sm">Start time (seconds)<input type="number" min="0" step="0.1" value={start} onChange={e=>setStart(e.target.value)} required /></label><label className="grid gap-vg-1 text-sm">End time (seconds)<input type="number" min="0.1" max={durationSeconds} step="0.1" value={end} onChange={e=>setEnd(e.target.value)} required /></label></div>
     <fieldset className="grid gap-vg-2"><legend className="text-sm font-semibold">Aspect Ratio</legend>{presets.map(p=><label key={p.value} className="flex items-center gap-vg-2"><input type="radio" name="aspect" value={p.value} checked={aspect===p.value} onChange={()=>setAspect(p.value)} />{p.label} ({p.width} × {p.height})</label>)}</fieldset>
     <p className="vg-muted text-sm">The native export service must validate the operation graph, sandbox the output, verify integrity, and commit atomically.</p>
     {error&&<p role="alert" className="text-sm" style={{color:"var(--vg-danger)"}}>{error}</p>}
-    <div className="vg-share-actions"><button type="submit" disabled={busy}>{busy?"Exporting…":"Export Clip"}</button><button type="button" onClick={onClose} disabled={busy}>Cancel</button></div>
+    <div className="vg-share-actions"><button type="submit" className="vg-compact-button vg-primary-button" disabled={busy}>{busy?"Exporting…":"Export Clip"}</button><button type="button" className="vg-compact-button vg-ghost-button" onClick={onClose} disabled={busy}>Cancel</button></div>
    </form>
   </section>
  </div>;
