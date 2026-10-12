@@ -38,7 +38,7 @@ export function HomeScreen({ onAnalyze, onOpenDownloads, isAnalyzing, statusMess
         <label className="grid gap-vg-2 text-sm font-medium" htmlFor="media-url">{copy["home.url.label"]}
           <input id="media-url" type="url" inputMode="url" autoComplete="url" placeholder={copy["home.url.placeholder"]} value={url} onChange={e=>setUrl(e.target.value)} aria-describedby="url-help" className="min-h-11 w-full rounded-vg-sm border border-line bg-canvas px-vg-4 text-base text-ink placeholder:text-muted" />
         </label>
-        <button type="submit" disabled={isAnalyzing || !url.trim()} className="self-end bg-accent font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60">{isAnalyzing ? "Analyzing…" : copy["home.analyze"]}</button>
+        <button type="submit" disabled={isAnalyzing || !url.trim()} className="self-end bg-accent font-semibold text-onAccent disabled:cursor-not-allowed disabled:opacity-60">{isAnalyzing ? "Analyzing…" : copy["home.analyze"]}</button>
       </form>
       <p id="url-help" className="text-sm text-muted">Only supported sources can be analyzed. Provider availability may vary.</p>
       {(localError || errorMessage) && <p role="alert" className="text-sm font-medium text-danger">{localError || errorMessage}</p>}
