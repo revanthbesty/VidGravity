@@ -287,6 +287,7 @@ private fun VidGravityApp() {
 private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
     val activity = context as? ComponentActivity
     var clipboardSuggestion by remember { mutableStateOf<String?>(null) }
     fun detectClipboardUrl() {
@@ -380,14 +381,13 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                         else if (action.contains("Sound")) {
                                             scope.launch {
                                                 try {
-                                                    val result = withContext(Dispatchers.IO) { DownloadApi.analyze(url.trim()) }
+                                                    val result = withContext(Dispatchers.IO) { DownloadApi.analyzeSource(url.trim()) }
                                                     val audio = result.formats.firstOrNull { it.hasAudio && !it.hasVideo }
                                                     if (audio == null) notice = "No audio-only stream was found for this link."
                                                     else {
                                                         val prefs = SecureDownloadPreferences.load(context)
                                                         DownloadWorker.enqueue(context, url.trim(), audio.selector, result.title + " — Audio", prefs.unmeteredOnly)
-                                                        selected = VgTab.Downloads
-                                                        notice = "Audio download added to queue."
+                                                        notify("Audio download added to queue. Open Downloads to track progress.")
                                                     }
                                                 } catch (failure: Exception) {
                                                     notice = "Could not prepare audio: " + (failure.message ?: "Please try again.")
