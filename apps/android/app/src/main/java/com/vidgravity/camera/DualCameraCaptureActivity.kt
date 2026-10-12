@@ -92,12 +92,18 @@ class DualCameraCaptureActivity : ComponentActivity() {
                     provider.bindToLifecycle(listOf(
                         ConcurrentCamera.SingleCameraConfig(
                                 CameraSelector.DEFAULT_BACK_CAMERA,
-                                listOf(rearPreviewUseCase, capture, video),
+                                androidx.camera.core.UseCaseGroup.Builder()
+                                    .addUseCase(rearPreviewUseCase)
+                                    .addUseCase(capture)
+                                    .addUseCase(video)
+                                    .build(),
                                 this
                             ),
                         ConcurrentCamera.SingleCameraConfig(
                                 CameraSelector.DEFAULT_FRONT_CAMERA,
-                                listOf(frontPreviewUseCase),
+                                androidx.camera.core.UseCaseGroup.Builder()
+                                    .addUseCase(frontPreviewUseCase)
+                                    .build(),
                                 this
                             )
                     ))
