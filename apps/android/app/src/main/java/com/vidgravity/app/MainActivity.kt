@@ -141,6 +141,7 @@ private fun VidGravityApp() {
                 }
             val videoChoices = listOf(Triple("Highest available", "bv*+ba/b", videoFormats.maxByOrNull { it.height } ?: usable.firstOrNull()))
                 .filter { it.third != null } + standardVideo
+            var rememberQuality by remember(result.title) { mutableStateOf(false) }
             Dialog(onDismissRequest = { analysis = null }) {
                 Surface(
                     modifier = Modifier.fillMaxWidth().heightIn(max = 680.dp),
@@ -157,6 +158,11 @@ private fun VidGravityApp() {
                             }
                             IconButton(onClick = { analysis = null }) { Icon(Icons.Default.Close, "Close") }
                         }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = rememberQuality, onCheckedChange = { rememberQuality = it })
+                            Text("Remember this resolution as default", fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                         Spacer(Modifier.height(8.dp))
                         Text("VIDEO · DOWNLOAD WITH SOUND", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp, color = MaterialTheme.colorScheme.primary)
@@ -170,6 +176,12 @@ private fun VidGravityApp() {
                                     modifier = Modifier.fillMaxWidth().clickable {
                                         try {
                                             val preferences = SecureDownloadPreferences.load(context)
+                                            if (rememberQuality && choice.first != "Highest available") {
+                                                SecureDownloadPreferences.save(context, preferences.copy(
+                                                    autoDownloadWithPreferredPreset = true,
+                                                    preferredFormatSelector = choice.second
+                                                ))
+                                            }
                                             DownloadWorker.enqueue(context, url.trim(), choice.second, result.title, preferences.unmeteredOnly)
                                             analysis = null
                                             selected = VgTab.Downloads
@@ -186,8 +198,11 @@ private fun VidGravityApp() {
                                         Spacer(Modifier.width(12.dp))
                                         Column(Modifier.weight(1f)) {
                                             Text(choice.first, fontWeight = FontWeight.SemiBold)
+                                            val option = choice.third
+                                            val sizeLabel = option?.sizeBytes?.let { "~" + String.format("%.1f MB", it / 1_000_000.0) } ?: "Size varies"
+                                            val fpsLabel = option?.note?.takeIf { it.contains("fps", true) } ?: ""
                                             Text(if (choice.first == "Highest available") "Best compatible quality for this source"
-                                                else choice.third?.container?.uppercase() + " · Video with audio",
+                                                else listOfNotNull(option?.container?.uppercase(), option?.videoCodec?.takeIf { it != "none" && it != "unknown" }, fpsLabel, sizeLabel).joinToString(" • "),
                                                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
                                         Icon(Icons.Default.ChevronRight, null)
