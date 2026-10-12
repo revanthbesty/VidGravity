@@ -247,7 +247,7 @@ async function finishBlob(job,blob,type){
 function titleFrom(url){try{return decodeURIComponent(new URL(url).pathname.split('/').pop()||'Untitled media')}catch{return'Untitled media'}}
 function renderAll(){renderStats();renderRecent();renderLibrary();renderJobs();$('#queueBadge').textContent=jobs.filter(j=>['running','queued'].includes(j.status)).length}
 function renderStats(){$('#statLibrary').textContent=media.length;$('#statDownloads').textContent=jobs.filter(j=>j.status==='completed').length;$('#statStorage').textContent=formatBytes(media.reduce((n,m)=>n+(m.size||0),0))}
-function card(m){const thumb=m.thumbnail?`<img src="${m.thumbnail}" alt="" loading="lazy">`:`<span>${iconFor(m.type)}</span>`;const detail=[m.duration?formatDuration(m.duration):'',m.width&&m.height?`${m.width}×${m.height}`:'',formatBytes(m.size)].filter(Boolean).join(' · ');return `<article class="media card"><div class="selectRow"><input type="checkbox" class="mediaSelect" data-id="${m.id}"></div><div class="thumb">${thumb}</div><div class="mediaBody"><div class="mediaTitle" title="${esc(m.title)}">${esc(m.title)}</div><div class="mediaMeta">${esc(m.type||'media')} · ${detail||'metadata pending'}</div><div class="actions"><button class="smallBtn play" data-id="${m.id}">Play</button><button class="smallBtn save" data-id="${m.id}">Save</button><button class="smallBtn info" data-id="${m.id}">Details</button><button class="smallBtn del" data-id="${m.id}">Delete</button></div></div></article>`}
+function card(m){const thumb=m.thumbnail?`<img src="${m.thumbnail}" alt="" loading="lazy">`:`<span>${iconFor(m.type)}</span>`;const detail=[m.duration?formatDuration(m.duration):'',m.width&&m.height?`${m.width}×${m.height}`:'',formatBytes(m.size)].filter(Boolean).join(' · ');return `<article class="media card"><div class="selectRow"><input type="checkbox" class="mediaSelect" data-id="${m.id}"></div><div class="thumb">${thumb}</div><div class="mediaBody"><div class="mediaTitle" title="${esc(m.title)}">${esc(m.title)}</div><div class="mediaMeta">${esc(m.type||'media')} · ${detail||'metadata pending'}</div><div class="actions"><button class="smallBtn play" data-id="${m.id}" type="button"><span class="actionIcon" aria-hidden="true">▶</span><span>Play</span></button><button class="smallBtn info" data-id="${m.id}" type="button"><span class="actionIcon" aria-hidden="true">ⓘ</span><span>Details</span></button><button class="smallBtn del" data-id="${m.id}">Delete</button></div></div></article>`}
 function iconFor(type=''){return /audio/i.test(type)?'♫':/image/i.test(type)?'▧':/video|mp4|webm|quicktime|matroska|avi/i.test(type)?'🎬':'🎞️'}
 function renderRecent(){const x=$('#recentGrid');x.innerHTML=media.slice(0,4).map(card).join('')||empty('No media yet. Paste a direct media URL above.');bindCards(x)}
 
@@ -332,11 +332,13 @@ async function play(id,seek=0){
  const transcript=transcriptFor(id);
  $("#playerTranscript").innerHTML=transcript?'<div class="ptHead"><b>Transcript</b><small>'+transcript.segments.length+' segments · '+esc(transcript.source)+'</small></div><div class="ptList">'+transcript.segments.map(s=>'<button class="ptSeg" data-time="'+Number(s.start||0)+'"><span>'+formatTime(s.start)+'</span>'+esc(s.text)+'</button>').join('')+'</div>':'<div class="ptEmpty">No transcript or captions available for this media.</div>';
  modal.classList.remove('hidden');
+ modal.setAttribute('aria-hidden','false');
+ player.preload='auto';
  player.onloadedmetadata=()=>{
    if(Number.isFinite(player.duration)&&player.duration>0)player.currentTime=Math.min(Math.max(0,Number(seek)||0),player.duration);
  };
- player.onerror=()=>toast('This saved file could not be played by the browser. Try opening the downloaded file directly.');
- player.play().catch(()=>{});
+ player.onerror=()=>{const code=player.error?.code;toast(code===4?'This file format or codec is not supported by this browser. Try downloading MP4/WebM.':'The saved media could not be decoded. Try another available quality.');};
+ player.play().catch(error=>{toast(error?.name==='NotAllowedError'?'Press Play in the player to start playback.':'This format may not be supported by your browser. Try an MP4 or WebM version.');});
  $("#playerTranscript").querySelectorAll(".ptSeg").forEach(button=>button.onclick=()=>{
    player.currentTime=Number(button.dataset.time)||0;
    player.play().catch(()=>{});
@@ -344,9 +346,9 @@ async function play(id,seek=0){
 }
 function closePlayer(){
  const player=$("#player"),modal=$("#playerModal");
- if(player){player.pause();player.removeAttribute('src');player.load();player.onerror=null;player.onloadedmetadata=null}
- if(activePlayerObjectUrl){URL.revokeObjectURL(activePlayerObjectUrl);activePlayerObjectUrl=null}
- modal?.classList.add('hidden');
+ if(player){player.pause();player.onerror=null;player.onloadedmetadata=null;player.removeAttribute("src");player.srcObject=null;player.load();}
+ if(activePlayerObjectUrl){URL.revokeObjectURL(activePlayerObjectUrl);activePlayerObjectUrl=null;}
+ if(modal){modal.classList.add("hidden");modal.setAttribute("aria-hidden","true");}
 }
 $("#closePlayer")?.addEventListener('click',closePlayer);
 $("#playerModal")?.addEventListener('click',event=>{if(event.target.id==='playerModal')closePlayer()});
