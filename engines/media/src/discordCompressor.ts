@@ -10,7 +10,7 @@ export function buildDiscordTwoPassPlans(inputPath:string,outputPath:string,o:Di
  const bitrate=discordVideoBitrateKbps(o);
  const videoCodec=o.videoCodec==="av1"?["-c:v","libsvtav1","-preset","6"]:["-c:v","libx264","-preset","medium"];
  const common=["-nostdin","-hide_banner","-y","-i",inputPath,...videoCodec,"-b:v",`${bitrate}k`,"-passlogfile",passlogPath];
- const pass1:ArgvPlan={executable:"ffmpeg",outputPath:"NUL",args:[...common,"-pass","1","-an","-f","null","NUL"]};
+ const pass1:ArgvPlan={executable:"ffmpeg",outputPath:"analysis-only",args:[...common,"-pass","1","-an","-f","null","-"]};
  const pass2:ArgvPlan={executable:"ffmpeg",outputPath,args:[...common,"-pass","2","-c:a","aac","-b:a",`${o.audioBitrateKbps}k`,"-movflags","+faststart",outputPath]};
  return {pass1,pass2,targetVideoBitrateKbps:bitrate,maxBytes:o.maxBytes};
 }
