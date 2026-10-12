@@ -101,6 +101,8 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             else {
                 partial.delete()
                 remoteJobId?.let { runCatching { DownloadApi.cancelJob(it) } }
+                registry.edit().remove(workId.toString()).commit()
+                DownloadActionReceiver.clear(applicationContext, workId)
                 DownloadNotifications.terminal(applicationContext, title, "Network timeout after retries", false)
                 failureResult("Network timeout after retries", url, selector, title)
             }
