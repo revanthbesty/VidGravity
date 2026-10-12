@@ -45,7 +45,9 @@ export function buildStoryCardArgs(request: StoryCardRequest): StoryCardArgs {
     base = "[covermix]";
   }
   if (request.waveform) {
-    filters.push(`${base}showwaves=s=900x180:mode=line:colors=white@0.9[wavebase]`);
+    // showwaves consumes the input audio stream; it cannot be applied to the video background.
+    filters.push("[0:a]showwaves=s=900x180:mode=line:colors=white@0.9,format=rgba,colorkey=black:0.12:0.0[wave]");
+    filters.push(`${base}[wave]overlay=(W-w)/2:1450:shortest=1[wavebase]`);
     base = "[wavebase]";
   }
   const draw = `drawtext=text='${title}':x=(w-text_w)/2:y=1200:fontsize=48:fontcolor=white:box=1:boxcolor=black@0.42:boxborderw=16`;
