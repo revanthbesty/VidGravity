@@ -100,12 +100,22 @@
   function filename(title,type){let n=String(title||"vidgravity-media").replace(/[\\/:*?"<>|]+/g,"_").slice(0,120);if(!/\.[a-z0-9]{2,5}$/i.test(n))n+=type==="video/webm"?".webm":".mp4";return n;}
   async function directShare(){
     if(!state.item)return setStatus("No media is loaded yet.","error");
+    if(state.outputMode==="optimized"&&!state.blob)return setStatus("A locally saved media file is required for optimized export.","error");
+    busy(true);
     try{
-      const file=state.blob?new File([state.blob],filename(state.item.title,state.blob.type),{type:state.blob.type||"application/octet-stream"}):null;
-      if(navigator.share){const payload={title:state.item.title||"VidGravity media",text:"Shared from VidGravity",url:state.item.url||undefined};if(file&&navigator.canShare&&navigator.canShare({files:[file]})){payload.files=[file];delete payload.url;}await navigator.share(payload);setStatus("Share sheet opened.","success");return;}
+      let blob=state.blob;
+      if(state.outputMode==="optimized"){const rendered=await renderOptimized();blob=rendered.blob;}
+      const file=blob?new File([blob],filename(state.item.title+(state.outputMode==="optimized"?"-"+state.preset.id:""),blob.type),{type:blob.type||"application/octet-stream"}):null;
+      if(navigator.share){
+        const payload={title:state.item.title||"VidGravity media",text:"Shared from VidGravity",url:state.outputMode==="original"?(state.item.url||undefined):undefined};
+        if(file&&navigator.canShare&&navigator.canShare({files:[file]})){payload.files=[file];delete payload.url;}
+        if(payload.files||payload.url){await navigator.share(payload);setStatus("Share sheet opened.","success");return;}
+      }
+      if(state.outputMode==="optimized"&&blob){saveBlob(blob,filename((state.item.title||"media")+"-"+state.preset.id,"video/mp4"));setStatus("This platform cannot share files directly. The rendered clip was saved for sharing.","success");return;}
       if(state.item.url&&navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(state.item.url);setStatus("Sharing unavailable; media URL copied instead.","success");return;}
-      setStatus("This browser does not support sharing local files. Save the derivative and share it from your device.","error");
+      setStatus("This browser does not support sharing local files. Use Save Derivative to export a shareable file.","error");
     }catch(e){if(e.name!=="AbortError")setStatus(e.message||"Direct Share failed.","error");}
+    finally{busy(false);}
   }
   function saveBlob(blob,name){const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
   async function storeDerivative(blob,metadata){
@@ -116,30 +126,50 @@
     return item;
   }
   function apiUrl(path){let base=(localStorage.getItem("vg-api-base-url")||"").trim().replace(/\/+$/,"");try{if(base&&new URL(base).protocol!=="https:")base="";}catch(_){base="";}return (base||"https://vidgravity.onrender.com")+"/"+path.replace(/^\/+/,"");}
+  async function renderOptimized(){
+    if(!state.item||!state.blob)throw Error("A locally saved media file is required for export.");
+    const d=dims(),trimValue=$("#vgExportTrim").value,trim=trimValue===""?0:Number(trimValue);
+    if(trimValue!==""&&(!Number.isFinite(trim)||trim<1||trim>3600))throw Error("Trim must be between 1 and 3600 seconds.");
+    const graph=graphFor(d.w,d.h,state.framing);
+    const headers={"Content-Type":state.blob.type||"application/octet-stream","X-VG-Preset":state.preset.id,"X-VG-Mode":state.framing,"X-VG-Width":String(d.w),"X-VG-Height":String(d.h)};
+    if(trim)headers["X-VG-Trim-Seconds"]=String(trim);
+    const response=await fetch(apiUrl("/api/media/export"),{method:"POST",headers,body:state.blob});
+    if(!response.ok){let msg="Export failed ("+response.status+").";try{msg=(await response.json()).error||msg;}catch(_){}throw Error(msg);}
+    const blob=await response.blob();if(!blob.size)throw Error("The export engine returned an empty file.");
+    return {blob,meta:{mode:state.framing,preset:state.preset.id,width:d.w,height:d.h,sourceId:state.item.id,created:Date.now(),filterGraph:graph}};
+  }
   async function saveDerivative(){
     if(!state.item||!state.blob)return setStatus("A locally saved media file is required for export.","error");
-    if(state.outputMode==="original"){
-      busy(true);try{await storeDerivative(state.blob,{preset:"original",mode:"original-format",width:state.item.width||null,height:state.item.height||null});saveBlob(state.blob,filename(state.item.title,state.blob.type));setStatus("Original-format copy saved as a separate Library version.","success");}catch(e){setStatus(e.message||"Could not save the Library version.","error");}finally{busy(false);}return;
-    }
-    const d=dims(),trimValue=$("#vgExportTrim").value,trim=trimValue===""?0:Number(trimValue);
-    if(trimValue!==""&&(!Number.isFinite(trim)||trim<1||trim>3600))return setStatus("Trim must be between 1 and 3600 seconds.","error");
-    let graph;try{graph=graphFor(d.w,d.h,state.framing);}catch(e){return setStatus(e.message,"error");}
-    busy(true);setStatus("Exporting a new version with the FFmpeg engine…");
+    busy(true);
     try{
-      const headers={"Content-Type":state.blob.type||"application/octet-stream","X-VG-Preset":state.preset.id,"X-VG-Mode":state.framing,"X-VG-Width":String(d.w),"X-VG-Height":String(d.h)};
-      if(trim)headers["X-VG-Trim-Seconds"]=String(trim);
-      const response=await fetch(apiUrl("/api/media/export"),{method:"POST",headers,body:state.blob});
-      if(!response.ok){let msg="Export failed ("+response.status+").";try{msg=(await response.json()).error||msg;}catch(_){}throw Error(msg);}
-      const output=await response.blob();if(!output.size)throw Error("The export engine returned an empty file.");
-      const meta={mode:state.framing,preset:state.preset.id,width:d.w,height:d.h,sourceId:state.item.id,created:Date.now(),filterGraph:graph};
-      await storeDerivative(output,meta);saveBlob(output,filename((state.item.title||"media")+"-"+state.preset.id,"video/mp4"));
-      setStatus("Export complete: "+d.w+" × "+d.h+". Original remains unchanged.","success");
-    }catch(e){setStatus(e.message||"Export failed. Original media was not modified.","error");}finally{busy(false);}
+      if(state.outputMode==="original"){
+        await storeDerivative(state.blob,{preset:"original",mode:"original-format",width:state.item.width||null,height:state.item.height||null});
+        saveBlob(state.blob,filename(state.item.title,state.blob.type));
+        setStatus("Original-format copy saved as a separate Library version.","success");return;
+      }
+      setStatus("Exporting a new version with the FFmpeg engine…");
+      const rendered=await renderOptimized();
+      await storeDerivative(rendered.blob,rendered.meta);
+      saveBlob(rendered.blob,filename((state.item.title||"media")+"-"+state.preset.id,"video/mp4"));
+      setStatus("Export complete: "+rendered.meta.width+" × "+rendered.meta.height+". Original remains unchanged.","success");
+    }catch(e){setStatus(e.message||"Export failed. Original media was not modified.","error");}
+    finally{busy(false);}
   }
   async function copyRendered(){
-    if(state.blob&&window.ClipboardItem&&navigator.clipboard&&navigator.clipboard.write){try{await navigator.clipboard.write([new ClipboardItem({[state.blob.type||"application/octet-stream"]:state.blob})]);setStatus("Media copied to clipboard.","success");return;}catch(_){}}
-    if(state.item&&state.item.url&&navigator.clipboard&&navigator.clipboard.writeText){try{await navigator.clipboard.writeText(state.item.url);setStatus("Shareable media URL copied.","success");return;}catch(_){}}
-    setStatus("This platform cannot place this media file on the clipboard. Use Direct Share or Save Derivative.","error");
+    if(!state.item)return setStatus("No media is loaded yet.","error");
+    busy(true);
+    try{
+      let blob=state.blob;
+      if(state.outputMode==="optimized")blob=(await renderOptimized()).blob;
+      if(blob&&window.ClipboardItem&&navigator.clipboard&&navigator.clipboard.write){
+        try{await navigator.clipboard.write([new ClipboardItem({[blob.type||"application/octet-stream"]:blob})]);setStatus("Media copied to clipboard.","success");return;}catch(_){}
+      }
+      if(state.outputMode==="original"&&state.item.url&&navigator.clipboard&&navigator.clipboard.writeText){
+        await navigator.clipboard.writeText(state.item.url);setStatus("Shareable media URL copied.","success");return;
+      }
+      setStatus("This platform cannot place this media file on the clipboard. Use Direct Share or Save Derivative.","error");
+    }catch(e){setStatus(e.message||"Could not render media for clipboard.","error");}
+    finally{busy(false);}
   }
   function bindModal(){
     $("#vgExportClose").addEventListener("click",closeModal);
