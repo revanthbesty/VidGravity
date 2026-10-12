@@ -136,7 +136,7 @@ class CameraCaptureActivity : ComponentActivity() {
         val file = File(cacheDir, "snap-${System.currentTimeMillis()}.mp4")
         recordingFile = file
         val output = FileOutputOptions.Builder(file).build()
-        recording = controller.startRecording(output, executor) { event ->
+        recording = controller.startRecording(output, androidx.camera.video.AudioConfig.create(true), executor) { event: VideoRecordEvent ->
             when (event) {
                 is VideoRecordEvent.Start -> runOnUiThread { hint.text = "Recording · 0s / 60s" }
                 is VideoRecordEvent.Finalize -> {
