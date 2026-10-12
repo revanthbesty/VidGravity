@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="VidGravity">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="styles.css?v=p188">
+<link rel="stylesheet" href="styles.css?v=p189">
 <title>VidGravity</title>
 </head>
 <body>
@@ -56,12 +56,12 @@
           <div class="heroKicker"><span class="heroKickerDot"></span> YOUR PERSONAL MEDIA WORKSPACE</div>
           <h1>Your media.<br><span>Beautifully organized.</span></h1>
           <p>Bring your video and audio links into one organized workspace. Choose a format and quality, track downloads, and manage your saved media in one place.</p>
-          <div class="heroActions"><a class="heroCta" href="#urlInput"><span class="heroCtaIcon">↓</span> Start with a link <span aria-hidden="true">↗</span></a><span class="heroMicrocopy"><span class="heroCheck">✓</span> Simple by design · Your media, your control</span></div>
+          <div class="heroActions"><a class="heroCta" href="#urlInput"><span class="heroCtaIcon">↓</span> Start With a Link <span aria-hidden="true">↗</span></a><span class="heroMicrocopy"><span class="heroCheck">✓</span> Simple by design · Your media, your control</span><button id="shareAppButton" class="textBtn" type="button">Share VidGravity</button></div>
         </div>
         <div class="heroOrb">V</div>
       </div>
       <div class="intake card">
-        <div class="intakeHead"><div><div class="intakeTitleRow"><span class="intakeIcon">↗</span><b>Add a media link</b></div><small>Paste a supported video or audio link to view available formats and quality options.</small></div><span class="pill intakePill">GET STARTED</span></div>
+        <div class="intakeHead"><div><div class="intakeTitleRow"><span class="intakeIcon">↗</span><b>Add a Media Link</b></div><small>Paste a supported video or audio link to view available formats and quality options.</small></div><span class="pill intakePill">GET STARTED</span></div>
         <div class="urlRow">
           <input id="urlInput" type="url" inputmode="url" aria-label="Media URL" placeholder="Paste a video or audio link here…" autocomplete="url">
           <button id="inspectBtn" class="primary">Inspect</button>
@@ -75,7 +75,7 @@
         <div class="stat card"><small>Downloads</small><strong id="statDownloads">0</strong><span>completed</span></div>
         <div class="stat card"><small>Storage</small><strong id="statStorage">0 MB</strong><span>browser storage</span></div>
       </div>
-      <div class="sectionHead"><div><h2>Your latest downloads</h2><p class="sectionSubcopy">File type, size, and quick actions for every saved item.</p></div><button class="textBtn" data-page="downloads">Manage downloads →</button></div>
+      <div class="sectionHead"><div><h2>Your Latest Downloads</h2><p class="sectionSubcopy">File type, size, and quick actions for every saved item.</p></div><button class="textBtn" data-page="downloads">Manage Downloads →</button></div>
       <div id="recentGrid" class="mediaGrid"></div>
     </section>
 
@@ -129,7 +129,7 @@
 <div id="shareModal" class="modal hidden" aria-hidden="true"><div class="modalBox shareModalBox" role="dialog" aria-modal="true" aria-labelledby="shareTitle"><button class="close" id="closeShare" type="button" aria-label="Close share dialog">×</button><h2 id="shareTitle">Share Media</h2><p>Share a media link or send a saved file using your device’s share sheet.</p><div class="sharePreview"><img id="sharePreviewImage" alt="" hidden><div><b id="sharePreviewTitle">Media</b><div id="sharePreviewMeta" class="jobUrl"></div><p id="sharePreviewUrl" class="jobUrl"></p></div></div><div class="shareActions"><button id="shareDeviceButton" class="primary" type="button">Share Using Device</button><button id="shareCopyButton" class="smallBtn" type="button">Copy Link</button></div><h3>Share To</h3><div class="shareTargets"><button type="button" data-share-target="x">X / Twitter</button><button type="button" data-share-target="whatsapp">WhatsApp</button><button type="button" data-share-target="telegram">Telegram</button><button type="button" data-share-target="reddit">Reddit</button><button type="button" data-share-target="linkedin">LinkedIn</button></div><p class="shareFootnote">Social targets receive a link and title, not an automatic upload of a local file. Device sharing depends on browser or Android support.</p></div></div>
 <div id="playerModal" class="modal hidden" aria-hidden="true"><div class="modalBox playerBox" role="dialog" aria-modal="true" aria-label="Media player"><button class="close" id="closePlayer" type="button" aria-label="Close video player">×</button><div class="playerTopControls"><button id="playerShare" class="smallBtn" type="button">↗ Share</button><label for="playbackSpeed">Playback speed</label><select id="playbackSpeed" aria-label="Playback speed"><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>Normal (1×)</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option></select><button id="playerFullscreen" class="smallBtn" type="button">⛶ Fullscreen</button><button id="playerPip" class="smallBtn" type="button">▣ Picture-in-picture</button></div><video id="player" controls playsinline preload="metadata"></video><div id="playerMeta"></div><div id="playerTranscript" class="playerTranscript"></div></div></div>
 <div id="toast" class="toast"></div>
-<script src="app.js?v=p188"></script>
+<script src="app.js?v=p189"></script>
 <script id="vgApiConfigRuntime">
 (() => {
  const DEFAULT_API="https://vidgravity.onrender.com";
