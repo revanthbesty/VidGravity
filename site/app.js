@@ -423,30 +423,6 @@ $("#playerModal")?.addEventListener("click",event=>{if(event.target===$("#player
 $("#playerModal .modalBox")?.addEventListener("click",event=>event.stopPropagation());
 $("#playbackSpeed")?.addEventListener("change",event=>{const speed=Number(event.target.value);if(Number.isFinite(speed)&&speed>0)$("#player").playbackRate=speed});
 $("#playerFullscreen")?.addEventListener("click",async()=>{const video=$("#player");try{if(document.fullscreenElement)await document.exitFullscreen();else if(video.requestFullscreen)await video.requestFullscreen();else toast("Fullscreen is not supported in this browser")}catch{toast("Fullscreen could not be opened")}});
-async function exportAudioPreset(preset){
- const status=$('#audioPresetStatus');
- const labels={'slowed-reverb':'Slowed + Reverb','nightcore':'Sped Up / Nightcore','bass-warmth':'Bass Boost + Warmth'};
- if(!Object.prototype.hasOwnProperty.call(labels,preset))return toast('Unsupported audio preset');
- if(!activeMediaId)return toast('Open a saved media item before exporting audio');
- const item=media.find(x=>x.id===activeMediaId)||await dbGet(activeMediaId);
- if(!item?.blob)return toast('The local media bytes are unavailable. Re-import the file and retry.');
- const buttons=$$('[data-audio-preset]');buttons.forEach(b=>b.disabled=true);
- if(status)status.textContent='Preparing 320 kbps MP3…';
- try{
-  const response=await fetch(vgApiUrl('/api/media/audio-effects'),{method:'POST',headers:{'Content-Type':item.type||'application/octet-stream','X-VG-Audio-Preset':preset},body:item.blob});
-  if(!response.ok){let detail='Audio export failed (HTTP '+response.status+')';try{const data=await response.json();if(data.error)detail=data.error}catch{}throw Error(detail)}
-  const blob=await response.blob();
-  if(!blob.size||blob.type!=='audio/mpeg')throw Error('The export service returned an invalid MP3 file');
-  const id=crypto.randomUUID?crypto.randomUUID():String(Date.now());
-  const derived={id,title:(item.title||'Media')+' — '+labels[preset],type:'audio/mpeg',size:blob.size,created:Date.now(),blob,favorite:false,tags:['audio-alchemist',preset],sourceMediaId:item.id};
-  await dbPut(derived);media.unshift(derived);save();renderAll();
-  const objectUrl=URL.createObjectURL(blob);const link=document.createElement('a');link.href=objectUrl;link.download=derived.title.replace(/[\\/:*?"<>|]/g,'_')+'.mp3';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(objectUrl),30000);
-  if(status)status.textContent='Export complete — MP3 saved to your VidGravity library and device downloads.';
-  toast('Audio preset exported · 320 kbps MP3');
- }catch(error){const message=error instanceof Error?error.message:'Audio export failed';if(status)status.textContent=message;toast(message)}
- finally{buttons.forEach(b=>b.disabled=false)}
-}
-$('[data-audio-preset]').forEach(button=>button.addEventListener('click',()=>void exportAudioPreset(button.dataset.audioPreset)));
 $("#playerPip")?.addEventListener("click",async()=>{const video=$("#player");try{if(document.pictureInPictureElement)await document.exitPictureInPicture();else if(document.pictureInPictureEnabled&&video.requestPictureInPicture)await video.requestPictureInPicture();else toast("Picture-in-picture is not supported on this device")}catch{toast("Picture-in-picture is unavailable for this file")}});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$("#playerModal")?.classList.contains('hidden'))closePlayer()});
 
