@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="VidGravity">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="styles.css?v=p185">
+<link rel="stylesheet" href="styles.css?v=p186">
 <title>VidGravity</title>
 </head>
 <body>
@@ -75,7 +75,7 @@
         <div class="stat card"><small>Downloads</small><strong id="statDownloads">0</strong><span>completed</span></div>
         <div class="stat card"><small>Storage</small><strong id="statStorage">0 MB</strong><span>browser storage</span></div>
       </div>
-      <div class="sectionHead"><h2>Recent media</h2><button class="textBtn" data-page="library">View library →</button></div>
+      <div class="sectionHead"><div><h2>Your latest downloads</h2><p class="sectionSubcopy">File type, size, and quick actions for every saved item.</p></div><button class="textBtn" data-page="downloads">Manage downloads →</button></div>
       <div id="recentGrid" class="mediaGrid"></div>
     </section>
 
@@ -128,7 +128,7 @@
 <div id="detailsModal" class="modal hidden"><div class="modalBox detailsBox"><button class="close" id="closeDetails">×</button><div id="detailsContent"></div></div></div>
 <div id="playerModal" class="modal hidden"><div class="modalBox playerBox"><button class="close" id="closePlayer">×</button><video id="player" controls playsinline></video><div id="playerMeta"></div><div id="playerTranscript" class="playerTranscript"></div></div></div>
 <div id="toast" class="toast"></div>
-<script src="app.js?v=p185"></script>
+<script src="app.js?v=p186"></script>
 <script id="vgApiConfigRuntime">
 (() => {
  const DEFAULT_API="https://vidgravity.onrender.com";
