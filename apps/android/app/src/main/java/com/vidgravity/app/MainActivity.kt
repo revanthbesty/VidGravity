@@ -159,11 +159,15 @@ private fun VidGravityApp() {
                             items(videoChoices, key = { it.first }) { choice ->
                                 Surface(
                                     modifier = Modifier.fillMaxWidth().clickable {
-                                        val preferences = SecureDownloadPreferences.load(context)
-                                        DownloadWorker.enqueue(context, url.trim(), choice.second, result.title, preferences.unmeteredOnly)
-                                        analysis = null
-                                        selected = VgTab.Downloads
-                                        notice = "Download added to queue. Open Downloads to track progress."
+                                        try {
+                                            val preferences = SecureDownloadPreferences.load(context)
+                                            DownloadWorker.enqueue(context, url.trim(), choice.second, result.title, preferences.unmeteredOnly)
+                                            analysis = null
+                                            selected = VgTab.Downloads
+                                            notice = "Download added to queue. Open Downloads to track progress."
+                                        } catch (failure: Exception) {
+                                            notice = "Could not queue this download: " + (failure.message ?: "Please try again.")
+                                        }
                                     },
                                     shape = RoundedCornerShape(16.dp),
                                     color = MaterialTheme.colorScheme.surfaceVariant
@@ -190,11 +194,15 @@ private fun VidGravityApp() {
                                 item {
                                     Surface(
                                         modifier = Modifier.fillMaxWidth().clickable {
-                                            val preferences = SecureDownloadPreferences.load(context)
-                                            DownloadWorker.enqueue(context, url.trim(), "bestaudio/best", result.title + " — Audio", preferences.unmeteredOnly)
-                                            analysis = null
-                                            selected = VgTab.Downloads
-                                            notice = "Audio download added to queue."
+                                            try {
+                                                val preferences = SecureDownloadPreferences.load(context)
+                                                DownloadWorker.enqueue(context, url.trim(), "bestaudio/best", result.title + " — Audio", preferences.unmeteredOnly)
+                                                analysis = null
+                                                selected = VgTab.Downloads
+                                                notice = "Audio download added to queue."
+                                            } catch (failure: Exception) {
+                                                notice = "Could not queue audio: " + (failure.message ?: "Please try again.")
+                                            }
                                         },
                                         shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant
                                     ) {
