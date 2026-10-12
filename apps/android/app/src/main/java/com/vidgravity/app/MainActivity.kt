@@ -171,7 +171,7 @@ private fun VidGravityApp() {
                             modifier = Modifier.weight(1f, fill = false).heightIn(max = 420.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(videoChoices, key = { it.first }) { choice ->
+                            items(videoChoices, key = { it.first + ":" + (it.third?.formatId ?: it.second) }) { choice ->
                                 Surface(
                                     modifier = Modifier.fillMaxWidth().clickable {
                                         try {
