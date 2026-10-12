@@ -5,25 +5,36 @@ use std::path::{Component, Path};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum DownloadState { Queued, WaitingForWindow, Analyzing, Ready, Downloading, Paused, Verifying, Merging, Committing, Completed, Failed, Cancelled }
+pub enum DownloadState { Created, Queued, Analyzing, Preparing, Running, Downloading, Verifying, Processing, Organizing, Completed, Paused, Cancelled, Failed, Retrying, WaitingForNetwork, WaitingForStorage, WaitingForBattery, WaitingForDevice, WaitingForUser, Unsupported, Restricted, UpgradeRequired }
 impl DownloadState {
     pub fn can_transition_to(&self, next: &Self) -> bool {
         use DownloadState::*;
         matches!((self, next),
-            (Queued, WaitingForWindow | Analyzing | Cancelled | Failed) |
-            (WaitingForWindow, Analyzing | Cancelled | Failed) |
-            (Analyzing, Ready | Failed | Cancelled) |
-            (Ready, Downloading | Cancelled | Failed) |
-            (Downloading, Paused | Verifying | Cancelled | Failed) |
-            (Paused, Downloading | Cancelled | Failed) |
-            (Verifying, Merging | Committing | Failed | Cancelled) |
-            (Merging, Committing | Failed | Cancelled) |
-            (Committing, Completed | Failed))
+            (Created, Queued | Cancelled | Failed) |
+            (Queued, Analyzing | WaitingForNetwork | WaitingForStorage | WaitingForBattery | WaitingForDevice | WaitingForUser | Cancelled | Failed | Unsupported | Restricted | UpgradeRequired) |
+            (Analyzing, Preparing | WaitingForUser | WaitingForNetwork | WaitingForStorage | Unsupported | Restricted | UpgradeRequired | Failed | Cancelled | Retrying) |
+            (Preparing, Running | Downloading | Processing | WaitingForNetwork | WaitingForStorage | WaitingForBattery | WaitingForDevice | WaitingForUser | Failed | Cancelled | Retrying) |
+            (Running, Paused | Verifying | Processing | WaitingForNetwork | WaitingForStorage | WaitingForBattery | Cancelled | Failed | Retrying) |
+            (Downloading, Paused | Verifying | Processing | WaitingForNetwork | WaitingForStorage | WaitingForBattery | Cancelled | Failed | Retrying) |
+            (Verifying, Organizing | Processing | Failed | Cancelled | Retrying) |
+            (Processing, Verifying | Organizing | WaitingForStorage | Failed | Cancelled | Retrying) |
+            (Organizing, Completed | Failed) |
+            (Paused, Queued | Running | Downloading | Cancelled | Failed) |
+            (Retrying, Queued | Analyzing | Preparing | Running | Downloading | Failed | Cancelled) |
+            (WaitingForNetwork, Queued | Analyzing | Preparing | Running | Downloading | Cancelled | Failed) |
+            (WaitingForStorage, Queued | Preparing | Processing | Cancelled | Failed) |
+            (WaitingForBattery, Queued | Preparing | Running | Downloading | Cancelled | Failed) |
+            (WaitingForDevice, Queued | Preparing | Cancelled | Failed) |
+            (WaitingForUser, Queued | Analyzing | Preparing | Cancelled | Failed))
     }
     pub fn require_transition(&self, next: Self) -> Result<Self, &'static str> {
         if self.can_transition_to(&next) { Ok(next) } else { Err("invalid download state transition") }
     }
 }
+pub fn assert_completion_gate(checksum_verified: bool, atomic_rename_succeeded: bool) -> Result<(), &'static str> {
+    if checksum_verified && atomic_rename_succeeded { Ok(()) } else { Err("completion requires integrity verification and atomic commit") }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum FfmpegOperation {
