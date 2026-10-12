@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import argparse, ipaddress, json, os, re, shutil, socket, sqlite3, subprocess, tempfile, time, urllib.parse, urllib.request
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
-from media_export import ExportError, export_media_file
+from media_export import ExportError, export_audio_file, export_media_file
 import hashlib
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
@@ -779,6 +779,63 @@ class Handler(SimpleHTTPRequestHandler):
     def do_POST(self):
         if self.path.startswith('/api/') and self._origin_rejected():
             return self._json(403,{'error':'Origin is not allowed'})
+        if urllib.parse.urlsplit(self.path).path == '/api/media/audio-effects':
+            if self._limited('media-export'):
+                return
+            raw_length = self.headers.get('Content-Length', '0')
+            if not raw_length.isdigit():
+                return self._json(400, {'error': 'Invalid Content-Length'})
+            length = int(raw_length)
+            max_input = 256 * 1024 * 1024
+            if length <= 0:
+                return self._json(400, {'error': 'The source media body is empty'})
+            if length > max_input:
+                return self._json(413, {'error': 'Source media exceeds the 256 MiB audio export limit'})
+            media_type = (self.headers.get('Content-Type', '') or '').split(';', 1)[0].lower()
+            if not (media_type.startswith('audio/') or media_type.startswith('video/') or media_type == 'application/octet-stream'):
+                return self._json(415, {'error': 'Upload a supported audio or video file'})
+            preset = self.headers.get('X-VG-Audio-Preset', '')
+            try:
+                with tempfile.TemporaryDirectory(prefix='vidgravity-audio-') as temp_dir:
+                    source = Path(temp_dir) / 'source-media.bin'
+                    output = Path(temp_dir) / 'audio-alchemist.mp3'
+                    with source.open('wb') as handle:
+                        remaining = length
+                        while remaining:
+                            chunk = self.rfile.read(min(256 * 1024, remaining))
+                            if not chunk:
+                                return self._json(400, {'error': 'Source ended before Content-Length bytes were received'})
+                            handle.write(chunk)
+                            remaining -= len(chunk)
+                    result = export_audio_file(source, output, preset)
+                    if output.stat().st_size > max_input:
+                        return self._json(413, {'error': 'Audio export exceeds the 256 MiB response limit'})
+                    digest = hashlib.sha256()
+                    with output.open('rb') as handle:
+                        while True:
+                            chunk = handle.read(1024 * 1024)
+                            if not chunk: break
+                            digest.update(chunk)
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'audio/mpeg')
+                    self.send_header('Content-Length', str(output.stat().st_size))
+                    self.send_header('Content-Disposition', 'attachment; filename="vidgravity-audio-alchemist.mp3"')
+                    self.send_header('X-Content-SHA256', digest.hexdigest())
+                    self.send_header('X-VG-Audio-Preset', result['preset'])
+                    self.send_header('Cache-Control', 'no-store')
+                    self.end_headers()
+                    with output.open('rb') as handle:
+                        while True:
+                            chunk = handle.read(256 * 1024)
+                            if not chunk: break
+                            self.wfile.write(chunk)
+                    return
+            except ExportError as exc:
+                return self._json(422, {'error': str(exc)[:400]})
+            except Exception as exc:
+                log.exception("Audio preset export failed")
+                return self._json(500, {'error': 'Audio export failed safely: ' + str(exc)[:240]})
+
         if urllib.parse.urlsplit(self.path).path == '/api/media/export':
             if self._limited('media-export'):
                 return
