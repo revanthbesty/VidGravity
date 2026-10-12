@@ -69,7 +69,7 @@ private fun VidGravityApp() {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("VidGravity", fontSize = 25.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.7).sp)
                         Text("Your media, in one place", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
@@ -82,7 +82,7 @@ private fun VidGravityApp() {
                 }
             },
             bottomBar = {
-                NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                NavigationBar(modifier = Modifier.navigationBarsPadding(), containerColor = MaterialTheme.colorScheme.surface) {
                     VgTab.values().forEach { tab ->
                         NavigationBarItem(selected = selected == tab, onClick = { selected = tab },
                             icon = { Icon(tab.icon, contentDescription = tab.title) }, label = { Text(tab.title, maxLines = 1) })
@@ -341,12 +341,26 @@ private fun DownloadsContent() {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(works, key = { it.id.toString() }) { work ->
                     val progress = work.progress.getInt("progress", 0).coerceIn(0, 100)
-                    val title = work.outputData.getString("display_name") ?: work.outputData.getString("filename") ?: work.progress.getString("title") ?: "Media download"
-                    Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
+                    val title = work.outputData.getString("display_name") ?: work.outputData.getString("filename") ?: work.inputData.getString(DownloadWorker.KEY_TITLE) ?: "Media download"
+                    val downloaded = work.progress.getLong("bytes_downloaded", 0L).coerceAtLeast(0L)
+                    val total = work.progress.getLong("total_bytes", -1L)
+                    val speed = work.progress.getLong("bytes_per_second", 0L).coerceAtLeast(0L)
+                    val eta = work.progress.getLong("eta_seconds", -1L)
+                    val sourceUrl = work.inputData.getString(DownloadWorker.KEY_URL).orEmpty()
+                    val platform = when { sourceUrl.contains("youtube", true) || sourceUrl.contains("youtu.be", true) -> "YouTube"; sourceUrl.contains("instagram", true) -> "Instagram"; else -> "Media" }
+                    val selector = work.inputData.getString(DownloadWorker.KEY_FORMAT).orEmpty()
+                    val quality = Regex("(4320|2160|1440|1080|720|480|360)").find(selector)?.value?.let { it + "p" } ?: "Auto"
+                    Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(16.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)) {
                         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text(title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Text(work.state.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(platform + "  •  " + quality, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                                }
+                                Text(work.state.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                             if (work.state == WorkInfo.State.FAILED) {
                                 Text(work.outputData.getString("error") ?: "Download failed. Try inspecting the link again.",
                                     color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
@@ -355,8 +369,30 @@ private fun DownloadsContent() {
                                 Text("Saved to your device", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
                             }
                             LinearProgressIndicator(progress = { progress / 100f }, modifier = Modifier.fillMaxWidth())
+                            if (work.state == WorkInfo.State.RUNNING || work.state == WorkInfo.State.ENQUEUED) {
+                                Text(String.format("%.1f MB", downloaded / 1_000_000.0) +
+                                    (if (total > 0L) " / " + String.format("%.1f MB", total / 1_000_000.0) else " downloaded"),
+                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(String.format("%.2f MB/s", speed / 1_000_000.0) +
+                                    (if (eta >= 0L) "  •  ~" + eta + "s remaining" else "  •  calculating ETA"),
+                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(progress.toString() + "%", modifier = Modifier.weight(1f), fontSize = 12.sp)
+                                if (work.state == WorkInfo.State.RUNNING) {
+                                    TextButton(onClick = {
+                                        context.sendBroadcast(Intent(context, DownloadActionReceiver::class.java)
+                                            .setAction(DownloadActionReceiver.ACTION_PAUSE)
+                                            .putExtra(DownloadActionReceiver.EXTRA_WORK_ID, work.id.toString()))
+                                    }) { Text("Pause") }
+                                }
+                                if (work.state == WorkInfo.State.RUNNING && DownloadActionReceiver.isPaused(context, work.id)) {
+                                    TextButton(onClick = {
+                                        context.sendBroadcast(Intent(context, DownloadActionReceiver::class.java)
+                                            .setAction(DownloadActionReceiver.ACTION_RESUME)
+                                            .putExtra(DownloadActionReceiver.EXTRA_WORK_ID, work.id.toString()))
+                                    }) { Text("Resume") }
+                                }
                                 if (work.state == WorkInfo.State.RUNNING || work.state == WorkInfo.State.ENQUEUED) {
                                     TextButton(onClick = { WorkManager.getInstance(context).cancelWorkById(work.id) }) { Text("Cancel") }
                                 }
