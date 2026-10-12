@@ -16,11 +16,17 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     query.addEventListener?.("change", update);
     return () => query.removeEventListener?.("change", update);
   }, []);
+  useEffect(() => {
+    const syncOtherWindow = (event: StorageEvent) => {
+      if (event.key === KEY && (event.newValue === "light" || event.newValue === "dark" || event.newValue === "system")) setPreference(event.newValue);
+    };
+    window.addEventListener("storage", syncOtherWindow);
+    return () => window.removeEventListener("storage", syncOtherWindow);
+  }, []);
   const resolvedTheme = preference === "system" ? (systemDark ? "dark" : "light") : preference;
   useEffect(() => {
-    const root = document.documentElement;
-    root.dataset.theme = resolvedTheme;
-    root.style.colorScheme = resolvedTheme;
+    document.documentElement.dataset.theme = resolvedTheme;
+    document.documentElement.style.colorScheme = resolvedTheme;
     try { localStorage.setItem(KEY, preference); } catch {}
     window.dispatchEvent(new CustomEvent("vidgravity:themechange", { detail: { preference, resolvedTheme } }));
   }, [preference, resolvedTheme]);
