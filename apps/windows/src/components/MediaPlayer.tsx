@@ -18,6 +18,7 @@ export function MediaPlayer({ src, title, onClose, mediaId, shareUrl, thumbnailU
   const [shareOpen,setShareOpen] = useState(false);
   const [clipOpen,setClipOpen] = useState(false);
   const [frameUrl,setFrameUrl] = useState("");
+  const [captureError,setCaptureError] = useState("");
   const [contrast,setContrast] = useState(100);
   const [brightness,setBrightness] = useState(100);
   const [currentTime,setCurrentTime] = useState(0);
@@ -26,7 +27,7 @@ export function MediaPlayer({ src, title, onClose, mediaId, shareUrl, thumbnailU
   const [subtitles,setSubtitles] = useState(true);
   const [audioBoost,setAudioBoost] = useState(false);
   useEffect(()=>()=>{if(frameUrl)URL.revokeObjectURL(frameUrl)},[frameUrl]);
-  function snapFrame(){const video=videoRef.current;if(!video||!video.videoWidth||!video.videoHeight)return;try{const canvas=document.createElement("canvas");canvas.width=video.videoWidth;canvas.height=video.videoHeight;const ctx=canvas.getContext("2d");if(!ctx)return;ctx.drawImage(video,0,0,canvas.width,canvas.height);canvas.toBlob(blob=>{if(!blob)return;setFrameUrl(old=>{if(old)URL.revokeObjectURL(old);return URL.createObjectURL(blob)})},"image/png")}catch{p.setMessage?.("Frame capture was blocked by the media source. Try a locally downloaded file.")}}
+  function snapFrame(){const video=videoRef.current;if(!video||!video.videoWidth||!video.videoHeight)return;try{const canvas=document.createElement("canvas");canvas.width=video.videoWidth;canvas.height=video.videoHeight;const ctx=canvas.getContext("2d");if(!ctx)return;ctx.drawImage(video,0,0,canvas.width,canvas.height);canvas.toBlob(blob=>{if(!blob)return;setFrameUrl(old=>{if(old)URL.revokeObjectURL(old);return URL.createObjectURL(blob)})},"image/png")}catch{setCaptureError("Frame capture was blocked by the media source. Try a locally downloaded file.")}}
   function seek(value:number){const video=videoRef.current;if(!video)return;video.currentTime=Math.max(0,Math.min(actualDuration||video.duration||0,value));setCurrentTime(video.currentTime)}
   return <section className="player-shell" aria-label={`Player: ${title}`}>
     <header className="player-header"><div className="vg-player-brand-heading"><svg width="30" height="30" viewBox="0 0 40 40" role="img" aria-label="VidGravity"><defs><linearGradient id="vg-player-brand-gradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#8b5cf6"/><stop offset="1" stopColor="#22d3ee"/></linearGradient></defs><circle cx="20" cy="20" r="17" fill="none" stroke="url(#vg-player-brand-gradient)" strokeWidth="2" opacity=".8"/><path d="M9 13 L17 29 L25 13 L31 13 L20 34 L7 13 Z" fill="url(#vg-player-brand-gradient)"/><circle cx="29" cy="9" r="3" fill="#22d3ee"/></svg><div><p className="vg-player-eyebrow">VIDGRAVITY · STUDIO PLAYER</p><h2>{title}</h2><p className="player-capability-note">Pull. Convert. Create.</p></div></div><div className="vg-player-controls"><button type="button" onClick={()=>setShareOpen(true)} disabled={!shareUrl} aria-label="Share media"><Share2 size={16}/>Share</button><button type="button" onClick={()=>setClipOpen(true)} disabled={!onExportClip || !mediaId || !(actualDuration||durationSeconds) || !outputDirectoryId}><Scissors size={16}/>Share Clip</button><button type="button" onClick={onClose} aria-label="Close player"><X size={16}/></button></div></header>
@@ -53,7 +54,7 @@ export function MediaPlayer({ src, title, onClose, mediaId, shareUrl, thumbnailU
       <label className="vg-toggle-row"><input type="checkbox" checked={audioBoost} onChange={e=>setAudioBoost(e.target.checked)}/><Volume2 size={15}/> Audio boost preference</label>
       <p className="player-capability-note">Display adjustments are active. Silence detection, audio normalization/boost and external subtitle loading require their processing adapters before they can alter playback.</p>
     </div></details>
-    {p.message && <p role="status" className="vg-player-status">{p.message}<button type="button" onClick={p.clearMessage} aria-label="Dismiss message">Dismiss</button></p>}
+    {(p.message||captureError) && <p role={captureError?"alert":"status"} className="vg-player-status">{captureError||p.message}<button type="button" onClick={()=>{setCaptureError("");p.clearMessage()}} aria-label="Dismiss message">Dismiss</button></p>}
     {shareOpen && <ShareModal media={{title,text:`Clip from ${title}`,url:shareUrl,thumbnailUrl,durationSeconds:actualDuration||durationSeconds}} onClose={()=>setShareOpen(false)} />}
     {clipOpen && mediaId && (actualDuration||durationSeconds) && outputDirectoryId && onExportClip && <ShareClipModal mediaId={mediaId} title={title} durationSeconds={actualDuration||durationSeconds||1} outputDirectoryId={outputDirectoryId} onExport={onExportClip} onClose={()=>setClipOpen(false)} />}
     {frameUrl&&<FrameStudioModal imageUrl={frameUrl} onClose={()=>setFrameUrl("")}/>}
