@@ -48,6 +48,7 @@ private fun VidGravityApp() {
     val prefs = remember { context.getSharedPreferences("vg-ui", 0) }
     var dark by remember { mutableStateOf(prefs.getBoolean("dark", true)) }
     var selected by remember { mutableStateOf(VgTab.Home) }
+    var playingMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var url by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf<String?>(null) }
     var analysis by remember { mutableStateOf<SourceAnalysisResult?>(null) }
@@ -89,7 +90,9 @@ private fun VidGravityApp() {
             }
         ) { padding ->
             Column(Modifier.fillMaxSize().padding(padding)) {
-                when (selected) {
+                if (playingMedia != null) {
+                    PlayerScreen(media = playingMedia!!, onBack = { playingMedia = null })
+                } else when (selected) {
                     VgTab.Home -> HomeContent(url, { url = it }, {
                         if (url.isBlank()) notice = "Paste a public media URL first."
                         else {
@@ -102,8 +105,7 @@ private fun VidGravityApp() {
                         }
                     }, { notice = it })
                     VgTab.Downloads -> DownloadsContent()
-                    VgTab.Library -> SimpleCollectionScreen("Your library", "Downloaded media in one place", Icons.Default.VideoLibrary,
-                        listOf("Videos", "Audio", "Recently added"))
+                    VgTab.Library -> LibraryContent(onPlay = { playingMedia = it })
                     VgTab.Create -> SimpleCollectionScreen("Create studio", "Tools for your next post", Icons.Default.AutoAwesome,
                         listOf("WhatsApp Status · 30 seconds", "Extract audio", "Prepare a shareable clip"))
                     VgTab.Settings -> SettingsContent(dark, { dark = it; prefs.edit().putBoolean("dark", it).apply() })
@@ -237,6 +239,41 @@ private fun InfoCard(title: String, detail: String, icon: androidx.compose.ui.gr
             Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
             Text(title, fontWeight = FontWeight.Bold)
             Text(detail, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var media by remember { mutableStateOf(emptyList<LibraryMedia>()) }
+    LaunchedEffect(Unit) { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
+    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text("Your library", fontSize = 27.sp, fontWeight = FontWeight.Bold)
+        Text("Downloaded media saved by VidGravity", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (media.isEmpty()) {
+            InfoCard("Your library is empty", "Completed downloads will appear here. Inspect a public link from Home to get started.", Icons.Default.VideoLibrary, Modifier.fillMaxWidth())
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(media, key = { it.uri.toString() }) { item ->
+                    Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp),
+                        modifier = Modifier.fillMaxWidth().clickable { onPlay(item) }) {
+                        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp)) {
+                                Icon(if (item.mimeType.startsWith("audio/")) Icons.Default.MusicNote else Icons.Default.PlayArrow,
+                                    null, modifier = Modifier.padding(14.dp), tint = MaterialTheme.colorScheme.primary)
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(item.displayName, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                Text(String.format("%.1f MB", item.sizeBytes / 1_000_000.0), fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Icon(Icons.Default.PlayCircle, "Play", tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
         }
     }
 }
