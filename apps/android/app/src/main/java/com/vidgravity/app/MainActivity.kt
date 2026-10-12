@@ -581,6 +581,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
     var renameTarget by remember { mutableStateOf<LibraryMedia?>(null) }
     var renameText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<LibraryMedia?>(null) }
+    var swipeFeedOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     suspend fun refreshMedia() { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
     LaunchedEffect(Unit) { refreshMedia() }
@@ -593,9 +594,31 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
         }
         matchesCategory && item.displayName.contains(searchQuery.trim(), ignoreCase = true)
     }
+    if (swipeFeedOpen) {
+        SwipeFeedScreen(
+            media = visibleMedia,
+            onClose = { swipeFeedOpen = false },
+            onFavorite = { item, favorite ->
+                scope.launch {
+                    withContext(Dispatchers.IO) { MediaLibraryIndexer.setFavorite(context, item.uri, favorite) }
+                    refreshMedia()
+                }
+            },
+            onMakeSticker = { android.widget.Toast.makeText(context, "Sticker renderer integration is not available yet.", android.widget.Toast.LENGTH_LONG).show() },
+            onStatusSplit = { android.widget.Toast.makeText(context, "30-second status splitting is not available yet.", android.widget.Toast.LENGTH_LONG).show() }
+        )
+        return
+    }
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Your library", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Downloaded media saved by VidGravity", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Your library", fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                Text("Downloaded media saved by VidGravity", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            FilledTonalButton(onClick = { swipeFeedOpen = true }, modifier = Modifier.heightIn(min = 48.dp)) {
+                Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Swipe Feed")
+            }
+        }
         OutlinedTextField(
             value = searchQuery, onValueChange = { searchQuery = it },
             modifier = Modifier.fillMaxWidth(), singleLine = true,
