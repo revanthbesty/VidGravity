@@ -703,7 +703,7 @@ class Handler(SimpleHTTPRequestHandler):
                 if content_type in ('text/html','application/xhtml+xml') or content_type.startswith('text/'):
                     message='This URL returned a webpage, not a direct media file.'
                     if extractor_error and ('sign in to confirm' in extractor_error.lower() or 'not a bot' in extractor_error.lower() or 'bot verification' in extractor_error.lower()):
-                        message='YouTube or this provider requires verification that VidGravity's cloud server cannot currently complete. This URL is unavailable through the cloud backend right now.'
+                        message="YouTube or this provider requires verification that VidGravity's cloud server cannot currently complete. This URL is unavailable through the cloud backend right now."
                     elif extractor_error:
                         message='The provider could not extract media metadata from this webpage.'
                     return self._json(422,{'error':message,'source':'inspect','details':extractor_error[-700:]})
