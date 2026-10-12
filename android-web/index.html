@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="VidGravity">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="styles.css?v=p186">
+<link rel="stylesheet" href="styles.css?v=p187">
 <title>VidGravity</title>
 </head>
 <body>
@@ -47,7 +47,7 @@
     <header class="topbar">
       <button id="menu" class="icon mobileOnly">☰</button>
       <div class="crumb">Workspace <span>/</span> <b id="pageTitle">Home</b></div>
-      <button id="clearAll" class="ghost">Clear completed</button>
+      <div class="topbarActions"><button id="themeToggle" class="ghost" type="button" aria-label="Switch to light mode" title="Switch theme">☀ Light mode</button><button id="clearAll" class="ghost" type="button">Clear completed</button></div>
     </header>
 
     <section id="home" class="page active">
@@ -55,21 +55,21 @@
         <div>
           <div class="heroKicker"><span class="heroKickerDot"></span> YOUR PERSONAL MEDIA WORKSPACE</div>
           <h1>Your media.<br><span>Beautifully organized.</span></h1>
-          <p>Bring video and audio links into one calm, powerful workspace. Choose your quality, follow downloads, and keep your media library close.</p>
-          <div class="heroActions"><a class="heroCta" href="#urlInput"><span class="heroCtaIcon">↓</span> Start with a link <span aria-hidden="true">↗</span></a><span class="heroMicrocopy"><span class="heroCheck">✓</span> Simple by design · Your workspace, your control</span></div>
+          <p>Bring your video and audio links into one organized workspace. Choose a format and quality, track downloads, and manage your saved media in one place.</p>
+          <div class="heroActions"><a class="heroCta" href="#urlInput"><span class="heroCtaIcon">↓</span> Start with a link <span aria-hidden="true">↗</span></a><span class="heroMicrocopy"><span class="heroCheck">✓</span> Simple by design · Your media, your control</span></div>
         </div>
         <div class="heroOrb">V</div>
       </div>
       <div class="intake card">
-        <div class="intakeHead"><div><div class="intakeTitleRow"><span class="intakeIcon">↗</span><b>Add a media link</b></div><small>Paste a supported video or audio URL to inspect available options.</small></div><span class="pill intakePill">GET STARTED</span></div>
+        <div class="intakeHead"><div><div class="intakeTitleRow"><span class="intakeIcon">↗</span><b>Add a media link</b></div><small>Paste a supported video or audio link to view available formats and quality options.</small></div><span class="pill intakePill">GET STARTED</span></div>
         <div class="urlRow">
           <input id="urlInput" type="url" inputmode="url" aria-label="Media URL" placeholder="Paste a video or audio link here…" autocomplete="url">
           <button id="inspectBtn" class="primary">Inspect</button>
         </div>
         <div id="inspectResult" class="inspect hidden"></div>
-        <div class="notice"><span class="noticeIcon">ⓘ</span> Some providers restrict requests from cloud servers or require sign-in. Protected or unavailable media may not be accessible.</div>
+        <div class="notice"><span class="noticeIcon">ⓘ</span> Some providers restrict cloud downloads or require sign-in. Protected or unavailable media may not be downloadable.</div>
       </div>
-      <div class="homeWorkflow" aria-label="How VidGravity works"><div class="workflowStep"><span class="workflowNumber">01</span><div><b>Paste a link</b><small>Start with a supported media URL</small></div></div><span class="workflowArrow" aria-hidden="true">→</span><div class="workflowStep"><span class="workflowNumber">02</span><div><b>Choose quality</b><small>Pick video or audio-only</small></div></div><span class="workflowArrow" aria-hidden="true">→</span><div class="workflowStep"><span class="workflowNumber">03</span><div><b>Track & organize</b><small>Follow progress in your workspace</small></div></div></div>
+      <div class="homeWorkflow" aria-label="How VidGravity works"><div class="workflowStep"><span class="workflowNumber">01</span><div><b>Paste a link</b><small>Start with a supported media URL</small></div></div><span class="workflowArrow" aria-hidden="true">→</span><div class="workflowStep"><span class="workflowNumber">02</span><div><b>Choose quality</b><small>Pick video or audio-only</small></div></div><span class="workflowArrow" aria-hidden="true">→</span><div class="workflowStep"><span class="workflowNumber">03</span><div><b>Track and organize</b><small>Monitor progress in your workspace</small></div></div></div>
       <div class="stats">
         <div class="stat card"><small>Library</small><strong id="statLibrary">0</strong><span>saved items</span></div>
         <div class="stat card"><small>Downloads</small><strong id="statDownloads">0</strong><span>completed</span></div>
@@ -80,7 +80,7 @@
     </section>
 
     <section id="downloads" class="page">
-      <div class="sectionTitle"><div><div class="eyebrow">QUEUE</div><h1>Downloads</h1><p>Browser download jobs and their current state.</p></div></div>
+      <div class="sectionTitle"><div><div class="eyebrow">QUEUE</div><h1>Downloads</h1><p>Track active downloads and manage completed files.</p></div></div>
       <div id="downloadList" class="list"></div>
     </section>
 
@@ -125,10 +125,10 @@
   </main>
 </div>
 
-<div id="detailsModal" class="modal hidden"><div class="modalBox detailsBox"><button class="close" id="closeDetails">×</button><div id="detailsContent"></div></div></div>
-<div id="playerModal" class="modal hidden"><div class="modalBox playerBox"><button class="close" id="closePlayer">×</button><video id="player" controls playsinline></video><div id="playerMeta"></div><div id="playerTranscript" class="playerTranscript"></div></div></div>
+<div id="detailsModal" class="modal hidden" aria-hidden="true"><div class="modalBox detailsBox" role="dialog" aria-modal="true" aria-label="Downloaded media details"><button class="close" id="closeDetails" type="button" aria-label="Close media details">×</button><div id="detailsContent"></div></div></div>
+<div id="playerModal" class="modal hidden" aria-hidden="true"><div class="modalBox playerBox" role="dialog" aria-modal="true" aria-label="Media player"><button class="close" id="closePlayer" type="button" aria-label="Close video player">×</button><div class="playerTopControls"><label for="playbackSpeed">Playback speed</label><select id="playbackSpeed" aria-label="Playback speed"><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>Normal (1×)</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="1.75">1.75×</option><option value="2">2×</option></select><button id="playerFullscreen" class="smallBtn" type="button">⛶ Fullscreen</button><button id="playerPip" class="smallBtn" type="button">▣ Picture-in-picture</button></div><video id="player" controls playsinline preload="metadata"></video><div id="playerMeta"></div><div id="playerTranscript" class="playerTranscript"></div></div></div>
 <div id="toast" class="toast"></div>
-<script src="app.js?v=p186"></script>
+<script src="app.js?v=p187"></script>
 <script id="vgApiConfigRuntime">
 (() => {
  const DEFAULT_API="https://vidgravity.onrender.com";
