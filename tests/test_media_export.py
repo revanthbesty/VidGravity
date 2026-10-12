@@ -1,4 +1,6 @@
 import unittest
+import tempfile
+from pathlib import Path
 from media_export import ExportError, PRESETS, build_filter_graph, validate_export_request
 
 class SocialExportPresetTests(unittest.TestCase):
@@ -25,5 +27,13 @@ class SocialExportPresetTests(unittest.TestCase):
     def test_custom_dimensions_are_even(self):
         result=validate_export_request("custom","smart-reframe",1081,1351)
         self.assertEqual((result["width"],result["height"]),(1080,1350))
+    def test_original_protection_rejects_same_source_and_destination(self):
+        from media_export import export_media_file
+        with tempfile.TemporaryDirectory() as directory:
+            source=Path(directory)/"original.mp4"
+            source.write_bytes(b"immutable-original")
+            with self.assertRaises(ExportError):
+                export_media_file(source,source,{"preset":"square","mode":"smart-reframe"})
+            self.assertEqual(source.read_bytes(),b"immutable-original")
 
 if __name__=="__main__": unittest.main()
