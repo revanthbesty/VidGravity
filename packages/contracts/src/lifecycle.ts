@@ -1,16 +1,24 @@
 import type { DownloadState } from "./downloader";
 
+/** Mirrors the D1–D42 Master Specification task lifecycle. */
 const transitions: Record<DownloadState, readonly DownloadState[]> = {
-  QUEUED: ["WAITING_FOR_WINDOW","ANALYZING","CANCELLED","FAILED"],
-  WAITING_FOR_WINDOW: ["ANALYZING","CANCELLED","FAILED"],
-  ANALYZING: ["READY","FAILED","CANCELLED"],
-  READY: ["DOWNLOADING","CANCELLED","FAILED"],
-  DOWNLOADING: ["PAUSED","VERIFYING","CANCELLED","FAILED"],
-  PAUSED: ["DOWNLOADING","CANCELLED","FAILED"],
-  VERIFYING: ["MERGING","COMMITTING","FAILED","CANCELLED"],
-  MERGING: ["COMMITTING","FAILED","CANCELLED"],
-  COMMITTING: ["COMPLETED","FAILED"],
-  COMPLETED: [], FAILED: [], CANCELLED: []
+  CREATED: ["QUEUED","CANCELLED","FAILED"],
+  QUEUED: ["ANALYZING","WAITING_FOR_NETWORK","WAITING_FOR_STORAGE","WAITING_FOR_BATTERY","WAITING_FOR_DEVICE","WAITING_FOR_USER","CANCELLED","FAILED","UNSUPPORTED","RESTRICTED","UPGRADE_REQUIRED"],
+  ANALYZING: ["PREPARING","WAITING_FOR_USER","WAITING_FOR_NETWORK","WAITING_FOR_STORAGE","UNSUPPORTED","RESTRICTED","UPGRADE_REQUIRED","FAILED","CANCELLED","RETRYING"],
+  PREPARING: ["RUNNING","DOWNLOADING","PROCESSING","WAITING_FOR_NETWORK","WAITING_FOR_STORAGE","WAITING_FOR_BATTERY","WAITING_FOR_DEVICE","WAITING_FOR_USER","FAILED","CANCELLED","RETRYING"],
+  RUNNING: ["PAUSED","VERIFYING","PROCESSING","WAITING_FOR_NETWORK","WAITING_FOR_STORAGE","WAITING_FOR_BATTERY","CANCELLED","FAILED","RETRYING"],
+  DOWNLOADING: ["PAUSED","VERIFYING","PROCESSING","WAITING_FOR_NETWORK","WAITING_FOR_STORAGE","WAITING_FOR_BATTERY","CANCELLED","FAILED","RETRYING"],
+  VERIFYING: ["ORGANIZING","PROCESSING","FAILED","CANCELLED","RETRYING"],
+  PROCESSING: ["VERIFYING","ORGANIZING","WAITING_FOR_STORAGE","FAILED","CANCELLED","RETRYING"],
+  ORGANIZING: ["COMPLETED","FAILED"],
+  PAUSED: ["QUEUED","RUNNING","DOWNLOADING","CANCELLED","FAILED"],
+  RETRYING: ["QUEUED","ANALYZING","PREPARING","RUNNING","DOWNLOADING","FAILED","CANCELLED"],
+  WAITING_FOR_NETWORK: ["QUEUED","ANALYZING","PREPARING","RUNNING","DOWNLOADING","CANCELLED","FAILED"],
+  WAITING_FOR_STORAGE: ["QUEUED","PREPARING","PROCESSING","CANCELLED","FAILED"],
+  WAITING_FOR_BATTERY: ["QUEUED","PREPARING","RUNNING","DOWNLOADING","CANCELLED","FAILED"],
+  WAITING_FOR_DEVICE: ["QUEUED","PREPARING","CANCELLED","FAILED"],
+  WAITING_FOR_USER: ["QUEUED","ANALYZING","PREPARING","CANCELLED","FAILED"],
+  COMPLETED: [], FAILED: [], CANCELLED: [], UNSUPPORTED: [], RESTRICTED: [], UPGRADE_REQUIRED: []
 };
 export function canTransition(from: DownloadState, to: DownloadState): boolean {
   return transitions[from].includes(to);
@@ -18,9 +26,6 @@ export function canTransition(from: DownloadState, to: DownloadState): boolean {
 export function assertTransition(from: DownloadState, to: DownloadState): void {
   if (!canTransition(from, to)) throw new Error(`Invalid download state transition: ${from} -> ${to}`);
 }
-/** COMPLETED is only legal after checksum verification and atomic final rename. */
 export function assertCompletionGate(input: { checksumVerified: boolean; atomicRenameSucceeded: boolean }): void {
-  if (!input.checksumVerified || !input.atomicRenameSucceeded) {
-    throw new Error("Completion requires verified integrity and successful atomic commit");
-  }
+  if (!input.checksumVerified || !input.atomicRenameSucceeded) throw new Error("Completion requires verified integrity and successful atomic commit");
 }
