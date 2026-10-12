@@ -23,7 +23,7 @@ _RATE_LOCK=__import__('threading').Lock()
 _RATE_LIMITS={
     'download-create':(10,60), 'download-retry':(10,60),
     'download-cancel':(20,60), 'inspect':(30,60),
-    'formats':(15,60), 'license':(10,60), 'direct-download':(5,60),
+    'formats':(15,60), 'license':(10,60), 'direct-download':(5,60), 'media-export':(2,60),
 }
 
 def _client_ip(handler):
@@ -753,11 +753,11 @@ class Handler(SimpleHTTPRequestHandler):
             if not raw_length.isdigit():
                 return self._json(400, {'error': 'Invalid Content-Length'})
             length = int(raw_length)
-            max_input = 256 * 1024 * 1024
+            max_input = 128 * 1024 * 1024
             if length <= 0:
                 return self._json(400, {'error': 'The source media body is empty'})
             if length > max_input:
-                return self._json(413, {'error': 'Source media exceeds the 256 MiB export limit'})
+                return self._json(413, {'error': 'Source media exceeds the 128 MiB export limit'})
             media_type = (self.headers.get('Content-Type', '') or '').split(';', 1)[0].lower()
             if not (media_type.startswith('video/') or media_type == 'application/octet-stream'):
                 return self._json(415, {'error': 'Upload a supported video file'})
