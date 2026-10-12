@@ -442,14 +442,14 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 items(works, key = { it.id.toString() }) { work ->
                     val progress = work.progress.getInt("progress", 0).coerceIn(0, 100)
                     val paused = DownloadActionReceiver.isPaused(context, work.id)
-                    val title = work.outputData.getString("display_name") ?: work.outputData.getString("filename") ?: work.inputData.getString(DownloadWorker.KEY_TITLE) ?: "Media download"
+                    val title = work.outputData.getString("display_name") ?: work.outputData.getString("filename") ?: work.progress.getString("media_title") ?: "Media download"
                     val downloaded = work.progress.getLong("bytes_downloaded", 0L).coerceAtLeast(0L)
                     val total = work.progress.getLong("total_bytes", -1L)
                     val speed = work.progress.getLong("bytes_per_second", 0L).coerceAtLeast(0L)
                     val eta = work.progress.getLong("eta_seconds", -1L)
-                    val sourceUrl = work.inputData.getString(DownloadWorker.KEY_URL).orEmpty()
+                    val sourceUrl = work.progress.getString("media_url").orEmpty()
                     val platform = when { sourceUrl.contains("youtube", true) || sourceUrl.contains("youtu.be", true) -> "YouTube"; sourceUrl.contains("instagram", true) -> "Instagram"; else -> "Media" }
-                    val selector = work.inputData.getString(DownloadWorker.KEY_FORMAT).orEmpty()
+                    val selector = work.progress.getString("format_selector").orEmpty()
                     val quality = Regex("(4320|2160|1440|1080|720|480|360)").find(selector)?.value?.let { it + "p" } ?: "Auto"
                     Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(16.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.surfaceVariant)) {
