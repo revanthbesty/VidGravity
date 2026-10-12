@@ -1,5 +1,6 @@
 package com.vidgravity.app
 
+import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
@@ -15,6 +16,9 @@ data class LibraryMedia(val uri: Uri, val displayName: String, val sizeBytes: Lo
 
 object MediaLibraryIndexer {
     fun list(context: Context): List<LibraryMedia> {
+        // Reconcile the index with MediaStore on every refresh. This recovers downloads that
+        // were published before a process died or before the SQLite insert completed.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) reconcileMediaStore(context)
         LibraryIndexDb(context).use { helper ->
             val rows = mutableListOf<LibraryMedia>()
             helper.readableDatabase.rawQuery(
@@ -23,10 +27,57 @@ object MediaLibraryIndexer {
             ).use { cursor ->
                 while (cursor.moveToNext()) {
                     val uri = runCatching { Uri.parse(cursor.getString(0)) }.getOrNull() ?: continue
+                    if (runCatching { context.contentResolver.openAssetFileDescriptor(uri, "r") }.getOrNull()?.use { true } != true) {
+                        helper.writableDatabase.delete("media", "content_uri=?", arrayOf(uri.toString()))
+                        continue
+                    }
                     rows += LibraryMedia(uri, cursor.getString(1), cursor.getLong(2), cursor.getString(3), cursor.getLong(4), cursor.getInt(5) != 0)
                 }
             }
             return rows
+        }
+    }
+
+    private fun reconcileMediaStore(context: Context) {
+        val resolver = context.contentResolver
+        val sources = listOf(
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI to "Movies/VidGravity/",
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI to "Music/VidGravity/"
+        )
+        LibraryIndexDb(context).use { helper ->
+            val db = helper.writableDatabase
+            for ((collection, relativePath) in sources) {
+                val projection = arrayOf(
+                    MediaStore.MediaColumns._ID,
+                    MediaStore.MediaColumns.DISPLAY_NAME,
+                    MediaStore.MediaColumns.SIZE,
+                    MediaStore.MediaColumns.MIME_TYPE,
+                    MediaStore.MediaColumns.DATE_ADDED,
+                    MediaStore.MediaColumns.RELATIVE_PATH
+                )
+                resolver.query(collection, projection, "${MediaStore.MediaColumns.RELATIVE_PATH} = ?",
+                    arrayOf(relativePath), "${MediaStore.MediaColumns.DATE_ADDED} DESC")?.use { cursor ->
+                    while (cursor.moveToNext()) {
+                        val id = cursor.getLong(0)
+                        val uri = ContentUris.withAppendedId(collection, id)
+                        val name = cursor.getString(1) ?: "VidGravity media"
+                        val size = cursor.getLong(2).coerceAtLeast(0L)
+                        val mime = cursor.getString(3) ?: if (collection == MediaStore.Audio.Media.EXTERNAL_CONTENT_URI) "audio/*" else "video/*"
+                        val created = cursor.getLong(4) * 1000L
+                        val existing = db.rawQuery("SELECT is_favorite FROM media WHERE content_uri=?", arrayOf(uri.toString())).use {
+                            if (it.moveToFirst()) it.getInt(0) else -1
+                        }
+                        if (existing < 0) db.insertWithOnConflict("media", null, ContentValues().apply {
+                            put("content_uri", uri.toString()); put("display_name", name); put("size_bytes", size)
+                            put("mime_type", mime); put("created_at_ms", created); put("sha256", "")
+                            put("is_favorite", 0)
+                        }, SQLiteDatabase.CONFLICT_IGNORE)
+                        else db.update("media", ContentValues().apply {
+                            put("display_name", name); put("size_bytes", size); put("mime_type", mime); put("created_at_ms", created)
+                        }, "content_uri=?", arrayOf(uri.toString()))
+                    }
+                }
+            }
         }
     }
 
@@ -80,7 +131,8 @@ object MediaLibraryIndexer {
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
         }
-        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) MediaStore.Downloads.EXTERNAL_CONTENT_URI else if (mime.startsWith("audio/")) MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        // Save into the matching media collection so Android indexes it as playable audio/video.
+        val collection = if (mime.startsWith("audio/")) MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
         val uri = context.contentResolver.insert(collection, values)
             ?: throw IllegalStateException("MediaStore could not create the download item.")
         try {
