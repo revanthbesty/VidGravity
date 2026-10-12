@@ -33,7 +33,7 @@
       '<button class="close" id="vgExportClose" type="button" aria-label="Close social export">×</button>'+
       '<div class="vg-export-head"><div><h2 id="vgExportTitle">Share to Social Media</h2><p>Choose the original media or prepare a platform-optimized derivative.</p></div></div>'+
       '<div class="vg-export-layout"><section class="vg-export-preview-panel"><div class="vg-export-preview-top"><strong>Live framing preview</strong><span class="vg-export-chip" id="vgExportSizeChip">1080 × 1920</span></div>'+
-      '<div class="vg-export-stage"><div class="vg-export-canvas" id="vgExportCanvas" data-mode="smart-reframe"><video id="vgExportVideo" playsinline muted loop></video><div class="vg-export-safe" id="vgExportSafe"></div></div></div>'+
+      '<div class="vg-export-stage"><div class="vg-export-canvas" id="vgExportCanvas" data-mode="smart-reframe"><video id="vgExportBackdrop" class="vg-export-backdrop" playsinline muted loop aria-hidden="true"></video><video id="vgExportVideo" class="vg-export-foreground" playsinline muted loop></video><div class="vg-export-safe" id="vgExportSafe"></div></div></div>'+
       '<p class="vg-export-hint" id="vgExportPreviewHint">Preview is illustrative; final framing is applied by the FFmpeg engine.</p>'+
       '<div class="vg-export-row"><button type="button" class="smallBtn" id="vgExportPreviewPlay">▶ Preview</button><span class="vg-export-chip" id="vgExportDuration">Duration: —</span><span class="vg-export-chip" id="vgExportOriginalSize">Original: —</span></div></section>'+
       '<section class="vg-export-controls"><div class="vg-export-section"><h3>Output mode</h3><div class="vg-export-modes">'+
@@ -56,7 +56,7 @@
     root.querySelectorAll("[data-vg-preset]").forEach(b=>b.addEventListener("click",()=>{state.preset=presetById(b.dataset.vgPreset);renderPresets();updatePreview();}));
   }
   function updatePreview(){
-    const d=dims(),canvas=$("#vgExportCanvas"),safe=$("#vgExportSafe");
+    const d=state.outputMode==="original"&&state.item&&state.item.width&&state.item.height?{w:state.item.width,h:state.item.height}:dims(),canvas=$("#vgExportCanvas"),safe=$("#vgExportSafe");
     $("#vgExportSizeChip").textContent=d.w+" × "+d.h;
     canvas.style.aspectRatio=d.w+" / "+d.h;canvas.dataset.mode=state.framing;
     safe.hidden=state.outputMode==="original"||state.preset.shape!=="story";
@@ -64,7 +64,7 @@
     $("#vgExportCustomFields").hidden=state.preset.id!=="custom";
     $("#vgExportMode").disabled=state.outputMode==="original";
     document.querySelectorAll("[data-vg-output]").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.vgOutput===state.outputMode)));
-    const video=$("#vgExportVideo");video.style.objectFit=state.outputMode==="original"||state.framing==="fit-letterbox"||state.framing==="blurred-backdrop"?"contain": "cover";
+    const video=$("#vgExportVideo"),backdrop=$("#vgExportBackdrop");video.style.objectFit=state.outputMode==="original"||state.framing==="fit-letterbox"||state.framing==="blurred-backdrop"?"contain":"cover";if(backdrop){backdrop.hidden=state.outputMode==="original"||state.framing!=="blurred-backdrop";backdrop.style.display=backdrop.hidden?"none":"block";}
     const duration=Number(state.item&&state.item.duration)||0;
     $("#vgExportDuration").textContent="Duration: "+(duration?formatTime(duration):"—");
     $("#vgExportOriginalSize").textContent="Original: "+(state.item&&state.item.width&&state.item.height?state.item.width+" × "+state.item.height:"metadata unavailable");
@@ -93,7 +93,7 @@
   }
   function closeModal(){
     const modal=$("#vgSocialExportModal");if(!modal)return;modal.classList.add("hidden");modal.setAttribute("aria-hidden","true");
-    const video=$("#vgExportVideo");video.pause();video.removeAttribute("src");video.load();
+    const video=$("#vgExportVideo"),backdrop=$("#vgExportBackdrop");video.pause();video.removeAttribute("src");video.load();if(backdrop){backdrop.pause();backdrop.removeAttribute("src");backdrop.load();}
     if(state.sourceUrl)URL.revokeObjectURL(state.sourceUrl);state.sourceUrl=null;
     if(state.returnFocus&&state.returnFocus.focus)state.returnFocus.focus();
   }
@@ -179,7 +179,7 @@
     $("#vgExportWidth").addEventListener("change",e=>{state.customW=even(e.target.value);e.target.value=state.customW;updatePreview();});
     $("#vgExportHeight").addEventListener("change",e=>{state.customH=even(e.target.value);e.target.value=state.customH;updatePreview();});
     $("#vgExportDirectShare").addEventListener("click",directShare);$("#vgExportSave").addEventListener("click",saveDerivative);$("#vgExportCopy").addEventListener("click",copyRendered);
-    $("#vgExportPreviewPlay").addEventListener("click",()=>{const v=$("#vgExportVideo");if(v.paused)v.play().catch(()=>setStatus("Preview playback could not start.","error"));else v.pause();});
+    $("#vgExportPreviewPlay").addEventListener("click",()=>{const v=$("#vgExportVideo"),bg=$("#vgExportBackdrop");if(v.paused){v.play().catch(()=>setStatus("Preview playback could not start.","error"));if(bg)bg.play().catch(()=>{});}else{v.pause();if(bg)bg.pause();}});\n    $("#vgExportVideo").addEventListener("timeupdate",()=>{const v=$("#vgExportVideo"),bg=$("#vgExportBackdrop");if(bg&&Math.abs(bg.currentTime-v.currentTime)>.15){try{bg.currentTime=v.currentTime;}catch(_){}}});
     document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#vgSocialExportModal")?.classList.contains("hidden"))closeModal();});
   }
   const oldOpenShare=window.openShare;
