@@ -38,7 +38,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
         remoteJobId = registry.getString(workId.toString(), null)
 
         try {
-            setForeground(DownloadNotifications.foreground(applicationContext, workId, title, "Analyzing source", 0, false))
+            promoteOrNotify(title, "Analyzing source", 0, false)
             val analysis = DownloadApi.analyzeSource(url)
             title = analysis.title.ifBlank { title }
             if (remoteJobId == null) {
@@ -49,13 +49,13 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             while (true) {
                 if (isStopped) throw CancellationException("Work was cancelled")
                 while (DownloadActionReceiver.isPaused(applicationContext, workId)) {
-                    setForeground(DownloadNotifications.foreground(applicationContext, workId, title, "Paused", 0, true))
+                    promoteOrNotify(title, "Paused", 0, true)
                     delay(500)
                     if (isStopped) throw CancellationException("Work was cancelled")
                 }
                 job = DownloadApi.getJob(remoteJobId!!)
                 setProgress(workDataOf("remoteJobId" to remoteJobId, "state" to job.state, "progress" to job.progress))
-                setForeground(DownloadNotifications.foreground(applicationContext, workId, title, job.message, job.progress, false))
+                promoteOrNotify(title, job.message, job.progress, false)
                 when (job.state) {
                     "completed" -> break
                     "failed", "cancelled", "expired", "restricted" -> {
@@ -71,13 +71,15 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             val receipt = DownloadApi.downloadResult(remoteJobId!!, partial) { bytes, total ->
                 val percent = if (total != null && total > 0) ((bytes * 100) / total).toInt().coerceIn(0, 99) else 0
                 setProgressAsync(workDataOf("bytes_downloaded" to bytes, "total_bytes" to (total ?: -1L), "eta_seconds" to -1L, "progress" to percent))
-                setForegroundAsync(DownloadNotifications.foreground(applicationContext, workId, title,
+                DownloadNotifications.progress(applicationContext, workId, title,
                     if (total != null) (bytes / 1_000_000).toString() + " / " + (total / 1_000_000) + " MB" else (bytes / 1_000_000).toString() + " MB transferred",
-                    percent, false))
+                    percent, false)
             }
-            val expected = receipt.sha256 ?: throw IllegalStateException("The companion omitted a trusted SHA-256 checksum; media was not published.")
+            // The provider may omit a precomputed checksum. Hash received bytes locally;
+            // compare against the companion only when it supplied a valid SHA-256.
             val actual = DownloadApi.sha256(partial)
-            if (!actual.equals(expected, ignoreCase = true)) {
+            val expected = receipt.sha256
+            if (expected != null && !actual.equals(expected, ignoreCase = true)) {
                 partial.delete()
                 throw IllegalStateException("SHA-256 verification failed; the partial file was discarded.")
             }
@@ -113,6 +115,16 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             DownloadActionReceiver.clear(applicationContext, workId)
             DownloadNotifications.terminal(applicationContext, title, failure.message ?: "Download failed", false)
             failureResult(failure.message ?: "Download failed", url, selector, title)
+        }
+    }
+
+    /** Foreground promotion is best-effort: Android may reject it for app-state/quota reasons. */
+    private suspend fun promoteOrNotify(title: String, message: String, percent: Int, paused: Boolean) {
+        try {
+            setForeground(DownloadNotifications.foreground(applicationContext, workId, title, message, percent, paused))
+        } catch (failure: RuntimeException) {
+            // Do not fail a requested transfer only because Android denied foreground promotion.
+            DownloadNotifications.progress(applicationContext, workId, title, message, percent, paused)
         }
     }
 
