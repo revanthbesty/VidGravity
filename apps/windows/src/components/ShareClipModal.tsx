@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import type { ClipAspectRatio, ClipExportRequest } from "../../../packages/contracts/src/share";
 import { validateClipRequest } from "../../../packages/contracts/src/share";
@@ -8,7 +8,7 @@ const presets: {value:ClipAspectRatio;label:string;width:number;height:number}[]
  {value:"16:9",label:"Landscape · 16:9",width:1920,height:1080}
 ];
 export function ShareClipModal({mediaId,title,durationSeconds,outputDirectoryId,onClose,onExport}:{mediaId:string;title:string;durationSeconds:number;outputDirectoryId:string;onClose:()=>void;onExport:(request:ClipExportRequest)=>Promise<void>}) {
- const [start,setStart]=useState("0"); const [end,setEnd]=useState(String(Math.max(1,Math.floor(durationSeconds)))); const [aspect,setAspect]=useState<ClipAspectRatio>("9:16"); const [busy,setBusy]=useState(false); const [error,setError]=useState("");
+ useEffect(() => {\n  const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape" && !busy) onClose(); };\n  window.addEventListener("keydown", onKeyDown);\n  return () => window.removeEventListener("keydown", onKeyDown);\n }, [busy, onClose]);\n const [start,setStart]=useState("0"); const [end,setEnd]=useState(String(Math.max(1,Math.floor(durationSeconds)))); const [aspect,setAspect]=useState<ClipAspectRatio>("9:16"); const [busy,setBusy]=useState(false); const [error,setError]=useState("");
  async function submit(event:FormEvent<HTMLFormElement>) {
   event.preventDefault(); setError("");
   const preset=presets.find(p=>p.value===aspect)!;
