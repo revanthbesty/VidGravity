@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse, ipaddress, json, os, re, shutil, socket, sqlite3, subprocess, tempfile, time, urllib.parse, urllib.request
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
+from media_export import ExportError, export_media_file
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
 ALLOW_LOCAL=False
@@ -745,6 +746,64 @@ class Handler(SimpleHTTPRequestHandler):
     def do_POST(self):
         if self.path.startswith('/api/') and self._origin_rejected():
             return self._json(403,{'error':'Origin is not allowed'})
+        if urllib.parse.urlsplit(self.path).path == '/api/media/export':
+            if self._limited('media-export'):
+                return
+            raw_length = self.headers.get('Content-Length', '0')
+            if not raw_length.isdigit():
+                return self._json(400, {'error': 'Invalid Content-Length'})
+            length = int(raw_length)
+            max_input = 256 * 1024 * 1024
+            if length <= 0:
+                return self._json(400, {'error': 'The source media body is empty'})
+            if length > max_input:
+                return self._json(413, {'error': 'Source media exceeds the 256 MiB export limit'})
+            media_type = (self.headers.get('Content-Type', '') or '').split(';', 1)[0].lower()
+            if not (media_type.startswith('video/') or media_type == 'application/octet-stream'):
+                return self._json(415, {'error': 'Upload a supported video file'})
+            request = {
+                'preset': self.headers.get('X-VG-Preset', ''),
+                'mode': self.headers.get('X-VG-Mode', ''),
+                'width': self.headers.get('X-VG-Width'),
+                'height': self.headers.get('X-VG-Height'),
+                'trim_seconds': self.headers.get('X-VG-Trim-Seconds')
+            }
+            try:
+                with tempfile.TemporaryDirectory(prefix='vidgravity-export-') as temp_dir:
+                    source = Path(temp_dir) / 'source-media.bin'
+                    output = Path(temp_dir) / 'social-derivative.mp4'
+                    with source.open('wb') as handle:
+                        remaining = length
+                        while remaining:
+                            chunk = self.rfile.read(min(256 * 1024, remaining))
+                            if not chunk:
+                                return self._json(400, {'error': 'Upload ended before Content-Length bytes were received'})
+                            handle.write(chunk)
+                            remaining -= len(chunk)
+                    result = export_media_file(source, output, request)
+                    if output.stat().st_size > max_input:
+                        return self._json(413, {'error': 'Export exceeds the 256 MiB response limit; trim the clip and retry'})
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'video/mp4')
+                    self.send_header('Content-Length', str(output.stat().st_size))
+                    self.send_header('Content-Disposition', 'attachment; filename="vidgravity-social-export.mp4"')
+                    self.send_header('Cache-Control', 'no-store')
+                    self.send_header('X-VG-Export-Width', str(result['width']))
+                    self.send_header('X-VG-Export-Height', str(result['height']))
+                    self.end_headers()
+                    with output.open('rb') as handle:
+                        while True:
+                            chunk = handle.read(256 * 1024)
+                            if not chunk:
+                                break
+                            self.wfile.write(chunk)
+                    return
+            except ExportError as exc:
+                message = str(exc)
+                status = 400 if any(x in message.lower() for x in ('unsupported', 'invalid', 'must be', 'between', 'dimensions', 'source and output')) else 422
+                return self._json(status, {'error': message})
+            except (OSError, ValueError) as exc:
+                return self._json(500, {'error': 'Media export failed safely: ' + str(exc)[:240]})
         if self.path=='/api/download-jobs' and self._limited('download-create'): return
         if self.path.endswith('/retry') and self._limited('download-retry'): return
         if self.path.endswith('/cancel') and self._limited('download-cancel'): return
