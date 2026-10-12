@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.foundation.clickable
@@ -109,8 +110,7 @@ private fun VidGravityApp() {
                     }, { notice = it })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     VgTab.Library -> LibraryContent(onPlay = { playingMedia = it })
-                    VgTab.Create -> SimpleCollectionScreen("Create studio", "Tools for your next post", Icons.Default.AutoAwesome,
-                        listOf("WhatsApp Status · 30 seconds", "Extract audio", "Prepare a shareable clip"))
+                    VgTab.Create -> CreateStudioContent(onPlay = { playingMedia = it }, notify = { notice = it })
                     VgTab.Settings -> SettingsContent(dark, { dark = it; prefs.edit().putBoolean("dark", it).apply() })
                 }
             }
@@ -651,6 +651,80 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
             }) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel") } }
         )
+    }
+}
+
+@Composable
+private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var selectedMedia by remember { mutableStateOf<LibraryMedia?>(null) }
+    val picker = rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            val metadata = runCatching {
+                context.contentResolver.query(uri, arrayOf(
+                    android.provider.OpenableColumns.DISPLAY_NAME,
+                    android.provider.OpenableColumns.SIZE
+                ), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val name = cursor.getString(0) ?: "Selected media"
+                        val sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                        val size = if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) cursor.getLong(sizeIndex) else 0L
+                        name to size
+                    } else "Selected media" to 0L
+                } ?: ("Selected media" to 0L)
+            }.getOrDefault("Selected media" to 0L)
+            val mime = context.contentResolver.getType(uri) ?: "video/*"
+            selectedMedia = LibraryMedia(uri, metadata.first, metadata.second, mime, System.currentTimeMillis())
+            notify("Media selected. Choose Preview or Share to continue.")
+        }
+    }
+    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text("Create studio", fontSize = 27.sp, fontWeight = FontWeight.Bold)
+        Text("Choose a local video or audio file to preview and share. Your original stays unchanged.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
+            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
+                Text("Start with your own media", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text("Select a file from this device. VidGravity will keep the selected source intact while you preview or share it.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                Button(onClick = { picker.launch(arrayOf("video/*", "audio/*")) }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("Choose media")
+                }
+            }
+        }
+        selectedMedia?.let { media ->
+            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(18.dp)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(media.displayName, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(if (media.sizeBytes > 0) String.format("%.1f MB · %s", media.sizeBytes / 1_000_000.0, media.mimeType)
+                        else media.mimeType, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { onPlay(media) }, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(5.dp)); Text("Preview")
+                        }
+                        Button(onClick = {
+                            runCatching {
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = media.mimeType; putExtra(Intent.EXTRA_STREAM, media.uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(intent, "Share media"))
+                            }.onFailure { notify("Could not open Android sharing: ${it.message ?: "try again"}") }
+                        }, modifier = Modifier.weight(1f)) {
+                            Icon(Icons.Default.Share, null); Spacer(Modifier.width(5.dp)); Text("Share")
+                        }
+                    }
+                }
+            }
+        }
+        Text("Creator tools", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        InfoCard("WhatsApp Status", "30-second story segmentation is not enabled in this build yet.", Icons.Default.ContentCut, Modifier.fillMaxWidth())
+        InfoCard("Sticker maker", "Animated WebP rendering requires the media renderer integration.", Icons.Default.AutoAwesome, Modifier.fillMaxWidth())
     }
 }
 
