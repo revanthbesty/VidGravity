@@ -247,15 +247,26 @@ private fun InfoCard(title: String, detail: String, icon: androidx.compose.ui.gr
 private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var media by remember { mutableStateOf(emptyList<LibraryMedia>()) }
+    var filter by remember { mutableStateOf("All Media") }
     LaunchedEffect(Unit) { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
+    val visibleMedia = when (filter) {
+        "Video" -> media.filter { it.mimeType.startsWith("video/") }
+        "Audio" -> media.filter { it.mimeType.startsWith("audio/") }
+        else -> media
+    }
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Your library", fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Downloaded media saved by VidGravity", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (media.isEmpty()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("All Media", "Video", "Audio").forEach { value ->
+                FilterChip(selected = filter == value, onClick = { filter = value }, label = { Text(value) })
+            }
+        }
+        if (visibleMedia.isEmpty()) {
             InfoCard("Your library is empty", "Completed downloads will appear here. Inspect a public link from Home to get started.", Icons.Default.VideoLibrary, Modifier.fillMaxWidth())
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(media, key = { it.uri.toString() }) { item ->
+                items(visibleMedia, key = { it.uri.toString() }) { item ->
                     Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp),
                         modifier = Modifier.fillMaxWidth().clickable { onPlay(item) }) {
                         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -269,7 +280,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                                 Text(String.format("%.1f MB", item.sizeBytes / 1_000_000.0), fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Icon(Icons.Default.PlayCircle, "Play", tint = MaterialTheme.colorScheme.primary)
+                            Row(verticalAlignment = Alignment.CenterVertically) {\n                                IconButton(onClick = {\n                                    val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = item.mimeType; putExtra(android.content.Intent.EXTRA_STREAM, item.uri); addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }\n                                    context.startActivity(android.content.Intent.createChooser(share, "Share media"))\n                                }) { Icon(Icons.Default.Share, "Share") }\n                                Icon(Icons.Default.PlayCircle, "Play", tint = MaterialTheme.colorScheme.primary)\n                            }
                         }
                     }
                 }
@@ -297,6 +308,9 @@ private fun SimpleCollectionScreen(title: String, subtitle: String, icon: androi
 
 @Composable
 private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var unmeteredOnly by remember { mutableStateOf(SecureDownloadPreferences.load(context).unmeteredOnly) }
+    var autoPreset by remember { mutableStateOf(SecureDownloadPreferences.load(context).autoDownloadWithPreferredPreset) }
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Settings", fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Make VidGravity work your way.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -314,7 +328,34 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
         }
         Text("DOWNLOADS", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
         SettingRow(Icons.Default.Folder, "Save location", "Managed by Android app storage")
-        SettingRow(Icons.Default.Wifi, "Network preference", "Wi-Fi-only setting is stored securely")
+        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Wifi, null)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Wi-Fi only", fontWeight = FontWeight.SemiBold)
+                    Text("Queue downloads only on unmetered networks", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(checked = unmeteredOnly, onCheckedChange = {
+                    unmeteredOnly = it
+                    SecureDownloadPreferences.save(context, SecureDownloadPreferences.load(context).copy(unmeteredOnly = it))
+                })
+            }
+        }
+        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Bolt, null)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Automatic share downloads", fontWeight = FontWeight.SemiBold)
+                    Text("Use the saved format preset when sharing a link", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(checked = autoPreset, onCheckedChange = {
+                    autoPreset = it
+                    SecureDownloadPreferences.save(context, SecureDownloadPreferences.load(context).copy(autoDownloadWithPreferredPreset = it))
+                })
+            }
+        }
         Text("ACCOUNT & LICENSE", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
         SettingRow(Icons.Default.VerifiedUser, "License activation", "License activation UI is a future step")
         SettingRow(Icons.Default.Storage, "Storage", "Downloaded files stay on your device")
