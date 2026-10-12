@@ -16,3 +16,25 @@ The browser/native player hook reports unavailable capabilities honestly. Frame 
 
 ## Accessibility and UI
 Home copy is in apps/windows/src/locales/en.json. Theme tokens use semantic CSS variables and 4/8/12/16/24/32 px spacing. Keep visible focus, reduced-motion support, accessible labels, live status, and no fake progress indicators. Theme preference supports system, light, and dark.
+
+
+## D1–D42 Master Specification alignment
+
+The task lifecycle uses the specification's CREATED → QUEUED → ANALYZING → PREPARING → RUNNING/DOWNLOADING/PROCESSING → VERIFYING → ORGANIZING → COMPLETED path, with PAUSED, CANCELLED, FAILED, RETRYING, waiting, unsupported, restricted and upgrade-required states. Internal merge/commit work belongs inside processing/organizing and must not bypass verification.
+
+D24/D33 require source analysis, quality selection, resumable/ranged transfer, verification, atomic completion, cancellation/recovery and safe paths. The TypeScript contracts describe these boundaries; the current PWA still needs native worker integration to provide all of them.
+
+D26 requires intent-driven Home, truthful task states, accessible navigation and media-detail actions. The existing PWA now has a system-aware theme cycle, semantic surface tokens, a share dialog and Share actions on Home/recent downloads, Downloads and Library cards.
+
+D38 requires ffprobe analysis, validated operation graphs, enhancement/normalization, clip creation, social formatting, derivative versioning, output verification, hashes, atomic commit, crash recovery and CPU/GPU capability fallback. Clip presets are represented in the React component and typed contract, but a native export service must be supplied to enable the export action.
+
+## Sharing and platform notes
+
+- PWA/browser sharing uses Web Share API when available, allowing Android browsers to show the system share sheet and supported local files to be shared. Clipboard and direct social share URLs are fallbacks.
+- The VidGravityAndroid.shareMedia bridge is an integration point, not an installed Android Intent implementation. Register a native bridge that uses Intent.ACTION_SEND, content URIs/FileProvider and an optional thumbnail before claiming native Android integration.
+- Social share targets receive a title/link. They do not upload local media files directly to third-party sites.
+- The Windows React AppProviders wrapper must be mounted above the app router for its Context provider to govern every React route and modal. The deployed vanilla PWA theme engine is independent and is already wired to its shared document root.
+
+## Verification status
+
+The JavaScript application and service-worker files passed a syntax-parse check, and root/site/android-web copies were verified to have matching contents. No Windows build, Rust compile, browser E2E, Android native build, accessibility audit, FFmpeg execution or production deployment was run during this change. These are still required before release.
