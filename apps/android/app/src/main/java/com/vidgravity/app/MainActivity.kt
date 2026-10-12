@@ -341,6 +341,7 @@ private fun DownloadsContent() {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(works, key = { it.id.toString() }) { work ->
                     val progress = work.progress.getInt("progress", 0).coerceIn(0, 100)
+                    val paused = DownloadActionReceiver.isPaused(context, work.id)
                     val title = work.outputData.getString("display_name") ?: work.outputData.getString("filename") ?: work.inputData.getString(DownloadWorker.KEY_TITLE) ?: "Media download"
                     val downloaded = work.progress.getLong("bytes_downloaded", 0L).coerceAtLeast(0L)
                     val total = work.progress.getLong("total_bytes", -1L)
@@ -379,14 +380,14 @@ private fun DownloadsContent() {
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(progress.toString() + "%", modifier = Modifier.weight(1f), fontSize = 12.sp)
-                                if (work.state == WorkInfo.State.RUNNING) {
+                                if (work.state == WorkInfo.State.RUNNING && !paused) {
                                     TextButton(onClick = {
                                         context.sendBroadcast(Intent(context, DownloadActionReceiver::class.java)
                                             .setAction(DownloadActionReceiver.ACTION_PAUSE)
                                             .putExtra(DownloadActionReceiver.EXTRA_WORK_ID, work.id.toString()))
                                     }) { Text("Pause") }
                                 }
-                                if (work.state == WorkInfo.State.RUNNING && DownloadActionReceiver.isPaused(context, work.id)) {
+                                if (work.state == WorkInfo.State.RUNNING && paused) {
                                     TextButton(onClick = {
                                         context.sendBroadcast(Intent(context, DownloadActionReceiver::class.java)
                                             .setAction(DownloadActionReceiver.ACTION_RESUME)
