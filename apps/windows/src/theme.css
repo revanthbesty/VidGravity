@@ -20,11 +20,6 @@
   --vg-player-chrome:#202229; --vg-player-overlay:rgb(9 10 14 / 88%); --vg-player-overlay-text:#fff; --vg-tooltip:#363a46; --vg-tooltip-text:#fff;
   --vg-shadow-sm:0 1px 2px rgb(0 0 0 / 22%); --vg-shadow-lg:0 24px 80px rgb(0 0 0 / 48%);
 }
-:root,[data-theme] {
-  --vg-bg:var(--vg-bg,#f5f6fa);
-  --vg-surface-base:var(--vg-surface);
-  --vg-surface-overlay:var(--vg-surface-overlay,var(--vg-surface-raised));
-}
 * { box-sizing:border-box; }
 html,body,#root { min-height:100%; }
 body { margin:0; background:var(--vg-bg); color:var(--vg-text); font-family:var(--vg-font-ui); line-height:1.5; }
