@@ -200,9 +200,10 @@ private fun VidGravityApp() {
                                             Text(choice.first, fontWeight = FontWeight.SemiBold)
                                             val option = choice.third
                                             val sizeLabel = option?.sizeBytes?.let { "~" + String.format("%.1f MB", it / 1_000_000.0) } ?: "Size varies"
-                                            val fpsLabel = option?.note?.takeIf { it.contains("fps", true) } ?: ""
+                                            val fpsLabel = option?.fps?.let { if (it >= 50) "60 FPS" else "${it.toInt()} FPS" }
+                                            val hdrLabel = option?.dynamicRange?.takeIf { it.isNotBlank() && !it.equals("SDR", true) }?.let { "HDR" }
                                             Text(if (choice.first == "Highest available") "Best compatible quality for this source"
-                                                else listOfNotNull(option?.container?.uppercase(), option?.videoCodec?.takeIf { it != "none" && it != "unknown" }, fpsLabel, sizeLabel).joinToString(" • "),
+                                                else listOfNotNull(option?.container?.uppercase(), option?.videoCodec?.takeIf { it != "none" && it != "unknown" }, fpsLabel, hdrLabel, sizeLabel).joinToString(" • "),
                                                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
                                         Icon(Icons.Default.ChevronRight, null)
