@@ -17,7 +17,10 @@ class P161AndroidScaffoldTests(unittest.TestCase):
   self.assertGreaterEqual(app.count("vgApiUrl("),8)
   html=(ROOT/"index.html").read_text()
   self.assertIn('id="vgApiBaseInput"',html)
-  self.assertIn('Use HTTPS for remote servers',html)
+  self.assertIn('Enter a valid HTTPS cloud API address',html)
+  self.assertIn('https://vidgravity.onrender.com',html)
+  self.assertNotIn('http://127.0.0.1:5173',app)
+  self.assertNotIn('local companion server',app)
  def test_server_cors_uses_explicit_allowlist(self):
   server=(ROOT/"server.py").read_text()
   self.assertIn("VIDGRAVITY_ALLOWED_ORIGINS",server)
