@@ -142,7 +142,7 @@ class CameraCaptureActivity : ComponentActivity() {
         recordingFile = file
         val output = FileOutputOptions.Builder(file).build()
         val audioEnabled = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-        controller.setAudioEnabled(audioEnabled)
+        controller.setAudioCaptureEnabled(audioEnabled)
         recording = controller.startRecording(output, executor) { event ->
             when (event) {
                 is VideoRecordEvent.Start -> runOnUiThread { hint.text = "Recording · 0s / 60s" }
