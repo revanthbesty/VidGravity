@@ -21,10 +21,15 @@ async function dbDelete(id){const db=await dbp;return new Promise((res,rej)=>{co
 function toast(t){const x=$('#toast');x.textContent=t;x.classList.add('show');setTimeout(()=>x.classList.remove('show'),2400)}
 async function load(){try{media=await dbAll()}catch(e){media=[];toast('Local storage unavailable')}try{jobs=JSON.parse(localStorage.getItem('vg-jobs')||'[]')}catch{jobs=[]}jobs=jobs.map(j=>j.status==='running'?{...j,status:'recoverable',error:'Recovered after browser reload'}:j);saveJobs();renderAll();pumpQueue()}
 function saveJobs(){localStorage.setItem('vg-jobs',JSON.stringify(jobs))}
+// Persist media metadata and tags to IndexedDB; blobs remain in the same store.
+function save(){return Promise.all(media.map(item=>dbPut(item)))}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function nav(page){$$('.page').forEach(x=>x.classList.toggle('active',x.id===page));$$('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===page));$('#pageTitle').textContent=page==='ask'?'Ask My Media':page[0].toUpperCase()+page.slice(1);if(page==='library')renderLibrary();if(page==='downloads')renderJobs();$('.sidebar')?.classList.remove('open')}
 $$('.nav').forEach(b=>b.onclick=()=>nav(b.dataset.page));$$('[data-page]').forEach(b=>b.onclick=()=>nav(b.dataset.page));
 $('#menu').onclick=()=>$('.sidebar').classList.toggle('open');
+function applyTheme(theme){const selected=theme==='light'?'light':'dark';document.documentElement.dataset.theme=selected;try{localStorage.setItem('vg-theme',selected)}catch{}const button=$('#themeToggle');if(button){button.textContent=selected==='dark'?'☀ Light mode':'☾ Dark mode';button.setAttribute('aria-label',selected==='dark'?'Switch to light mode':'Switch to dark mode');button.title=selected==='dark'?'Switch to light mode':'Switch to dark mode'}}
+try{applyTheme(localStorage.getItem('vg-theme')||'dark')}catch{applyTheme('dark')}
+$('#themeToggle')?.addEventListener('click',()=>applyTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'));
 $('#clearAll').onclick=()=>{jobs=jobs.filter(j=>!['completed','failed'].includes(j.status));saveJobs();renderJobs();toast('Completed jobs cleared')};
 
 $('#inspectBtn').onclick=async()=>{
@@ -347,12 +352,16 @@ async function play(id,seek=0){
 }
 function closePlayer(){
  const player=$("#player"),modal=$("#playerModal");
- if(player){player.pause();player.onerror=null;player.onloadedmetadata=null;player.removeAttribute("src");player.srcObject=null;player.load();}
+ if(player){player.pause();player.onerror=null;player.onloadedmetadata=null;player.removeAttribute("src");player.srcObject=null;player.playbackRate=1;player.load();const speed=$("#playbackSpeed");if(speed)speed.value="1"}
  if(activePlayerObjectUrl){URL.revokeObjectURL(activePlayerObjectUrl);activePlayerObjectUrl=null;}
- if(modal){modal.classList.add("hidden");modal.setAttribute("aria-hidden","true");}
+ if(modal){modal.classList.add("hidden");modal.setAttribute("aria-hidden","true");modal.style.display=""}
 }
 $("#closePlayer")?.addEventListener('click',closePlayer);
-$("#playerModal")?.addEventListener('click',event=>{if(event.target.id==='playerModal')closePlayer()});
+$("#playerModal")?.addEventListener("click",event=>{if(event.target===$("#playerModal"))closePlayer()});
+$("#playerModal .modalBox")?.addEventListener("click",event=>event.stopPropagation());
+$("#playbackSpeed")?.addEventListener("change",event=>{const speed=Number(event.target.value);if(Number.isFinite(speed)&&speed>0)$("#player").playbackRate=speed});
+$("#playerFullscreen")?.addEventListener("click",async()=>{const video=$("#player");try{if(document.fullscreenElement)await document.exitFullscreen();else if(video.requestFullscreen)await video.requestFullscreen();else toast("Fullscreen is not supported in this browser")}catch{toast("Fullscreen could not be opened")}});
+$("#playerPip")?.addEventListener("click",async()=>{const video=$("#player");try{if(document.pictureInPictureElement)await document.exitPictureInPicture();else if(document.pictureInPictureEnabled&&video.requestPictureInPicture)await video.requestPictureInPicture();else toast("Picture-in-picture is not supported on this device")}catch{toast("Picture-in-picture is unavailable for this file")}});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$("#playerModal")?.classList.contains('hidden'))closePlayer()});
 
 async function saveFile(id){const m=await dbGet(id);if(!m||!(m.blob instanceof Blob))return toast('Saved media file was not found in the Library');downloadBlobToDevice(m.blob,m.title,m.type,m.url);toast('A copy is being saved to your device')}
@@ -1087,7 +1096,9 @@ async function deleteSelected(){const ids=[...document.querySelectorAll('.mediaS
 $("#libraryFilter")?.addEventListener("change",renderLibrary);
 $("#libraryTag")?.addEventListener("input",renderLibrary);
 $("#newCollection")?.addEventListener("click",()=>{const name=prompt("Collection name");if(!name)return;const s=orgState();const n=name.trim().slice(0,30);if(!n)return;if(!s.collections.includes(n))s.collections.push(n);s.active=n;saveOrg(s);renderCollections();renderLibrary();toast("Collection created")});
-$("#closeDetails")?.addEventListener("click",()=>$("#detailsModal").classList.add("hidden"));
+function closeDetails(){const modal=$("#detailsModal");if(modal){modal.classList.add("hidden");modal.setAttribute("aria-hidden","true")}}
+$("#closeDetails")?.addEventListener("click",event=>{event.preventDefault();event.stopPropagation();closeDetails()});
+$("#detailsModal")?.addEventListener("click",event=>{if(event.target===$("#detailsModal"))closeDetails()});
 
 document.querySelector("#addTranscript")?.addEventListener("click",addTranscript);document.querySelector("#findTranscript")?.addEventListener("click",()=>{const q=prompt("Search local transcripts/captions");if(q){$("#askInput").value="transcript "+q;ask()}});
 
