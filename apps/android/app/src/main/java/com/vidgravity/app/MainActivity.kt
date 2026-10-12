@@ -105,7 +105,7 @@ private fun VidGravityApp() {
                             }
                         }
                     }, { notice = it })
-                    VgTab.Downloads -> DownloadsContent()
+                    VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     VgTab.Library -> LibraryContent(onPlay = { playingMedia = it })
                     VgTab.Create -> SimpleCollectionScreen("Create studio", "Tools for your next post", Icons.Default.AutoAwesome,
                         listOf("WhatsApp Status · 30 seconds", "Extract audio", "Prepare a shareable clip"))
@@ -328,8 +328,9 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
 }
 
 @Composable
-private fun DownloadsContent() {
+private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    var expandedErrors by remember { mutableStateOf(setOf<java.util.UUID>()) }
     val liveWorks = remember(context) { WorkManager.getInstance(context).getWorkInfosByTagLiveData("vidgravity-download") }
     val works by liveWorks.observeAsState(emptyList())
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -363,11 +364,52 @@ private fun DownloadsContent() {
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             if (work.state == WorkInfo.State.FAILED) {
-                                Text(work.outputData.getString("error") ?: "Download failed. Try inspecting the link again.",
-                                    color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                                val rawError = work.outputData.getString("error") ?: "Download failed. Try inspecting the link again."
+                                val friendly = when {
+                                    rawError.contains("SHA-256", true) || rawError.contains("checksum", true) -> "We couldn't verify this transfer. Retry the download; the incomplete file was not added to your library."
+                                    rawError.contains("ForegroundServiceStartNotAllowedException", true) || rawError.contains("startForegroundService", true) -> "Android restricted background transfer. Retry with VidGravity open."
+                                    rawError.contains("timeout", true) || rawError.contains("network", true) || rawError.contains("connect", true) -> "Connection interrupted. Check your network and retry."
+                                    else -> "This transfer couldn't finish. Retry it or view troubleshooting details."
+                                }
+                                Text(friendly, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                                TextButton(onClick = {
+                                    expandedErrors = if (work.id in expandedErrors) expandedErrors - work.id else expandedErrors + work.id
+                                }) { Text(if (work.id in expandedErrors) "Hide technical details" else "Troubleshooting details") }
+                                if (work.id in expandedErrors) {
+                                    Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(10.dp)) {
+                                        Text(rawError, Modifier.fillMaxWidth().padding(12.dp), fontSize = 11.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                }
                             }
                             if (work.state == WorkInfo.State.SUCCEEDED) {
                                 Text("Saved to your device", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
+                                val contentUri = work.outputData.getString("content_uri")?.let { runCatching { Uri.parse(it) }.getOrNull() }
+                                if (contentUri != null) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        OutlinedButton(onClick = {
+                                            val mime = if (title.substringAfterLast(".", "").lowercase() in listOf("mp3", "m4a", "aac", "flac", "wav", "opus")) "audio/*" else "video/*"
+                                            onPlay(LibraryMedia(contentUri, title, work.outputData.getLong("bytes_downloaded", downloaded),
+                                                mime, System.currentTimeMillis()))
+                                        }) {
+                                            Icon(Icons.Default.PlayArrow, null)
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Play")
+                                        }
+                                        OutlinedButton(onClick = {
+                                            val mime = if (title.substringAfterLast(".", "").lowercase() in listOf("mp3", "m4a", "aac", "flac", "wav", "opus")) "audio/*" else "video/*"
+                                            val share = Intent(Intent.ACTION_SEND).apply {
+                                                type = mime; putExtra(Intent.EXTRA_STREAM, contentUri)
+                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
+                                            context.startActivity(Intent.createChooser(share, "Share media"))
+                                        }) {
+                                            Icon(Icons.Default.Share, null)
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Share")
+                                        }
+                                    }
+                                }
                             }
                             LinearProgressIndicator(progress = { progress / 100f }, modifier = Modifier.fillMaxWidth())
                             if (work.state == WorkInfo.State.RUNNING || work.state == WorkInfo.State.ENQUEUED) {
