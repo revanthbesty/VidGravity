@@ -436,7 +436,12 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var media by remember { mutableStateOf(emptyList<LibraryMedia>()) }
     var filter by remember { mutableStateOf("All Media") }
-    LaunchedEffect(Unit) { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
+    var renameTarget by remember { mutableStateOf<LibraryMedia?>(null) }
+    var renameText by remember { mutableStateOf("") }
+    var deleteTarget by remember { mutableStateOf<LibraryMedia?>(null) }
+    val scope = rememberCoroutineScope()
+    suspend fun refreshMedia() { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
+    LaunchedEffect(Unit) { refreshMedia() }
     val visibleMedia = when (filter) {
         "Video" -> media.filter { it.mimeType.startsWith("video/") }
         "Audio" -> media.filter { it.mimeType.startsWith("audio/") }
@@ -470,16 +475,58 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 IconButton(onClick = {
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) { MediaLibraryIndexer.setFavorite(context, item.uri, !item.isFavorite) }
+                                        refreshMedia()
+                                    }
+                                }) { Icon(if (item.isFavorite) Icons.Default.Star else Icons.Default.StarBorder, "Favorite", tint = if (item.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
+                                IconButton(onClick = { renameTarget = item; renameText = item.displayName.substringBeforeLast(".", item.displayName) }) { Icon(Icons.Default.Edit, "Rename") }
+                                IconButton(onClick = { deleteTarget = item }) { Icon(Icons.Default.Delete, "Delete") }
+                                IconButton(onClick = {
                                     val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = item.mimeType; putExtra(android.content.Intent.EXTRA_STREAM, item.uri); addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
                                     context.startActivity(android.content.Intent.createChooser(share, "Share media"))
                                 }) { Icon(Icons.Default.Share, "Share") }
-                                Icon(Icons.Default.PlayCircle, "Play", tint = MaterialTheme.colorScheme.primary)
+                                IconButton(onClick = { onPlay(item) }) { Icon(Icons.Default.PlayCircle, "Play", tint = MaterialTheme.colorScheme.primary) }
                             }
                         }
                     }
                 }
             }
         }
+    }
+    renameTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { renameTarget = null },
+            title = { Text("Rename media") },
+            text = { OutlinedTextField(value = renameText, onValueChange = { renameText = it }, singleLine = true, label = { Text("File name") }) },
+            confirmButton = { TextButton(onClick = {
+                val suffix = target.displayName.substringAfterLast(".", "")
+                val finalName = renameText.trim() + if (suffix.isNotBlank() && !renameText.trim().endsWith(".$suffix")) ".$suffix" else ""
+                scope.launch {
+                    val ok = withContext(Dispatchers.IO) { MediaLibraryIndexer.rename(context, target, finalName) }
+                    refreshMedia()
+                    if (!ok) android.widget.Toast.makeText(context, "Could not rename this media item.", android.widget.Toast.LENGTH_LONG).show()
+                    renameTarget = null
+                }
+            }) { Text("Save") } },
+            dismissButton = { TextButton(onClick = { renameTarget = null }) { Text("Cancel") } }
+        )
+    }
+    deleteTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Delete download?") },
+            text = { Text("This permanently deletes \"${target.displayName}\" from this device.") },
+            confirmButton = { TextButton(onClick = {
+                scope.launch {
+                    val ok = withContext(Dispatchers.IO) { MediaLibraryIndexer.delete(context, target) }
+                    refreshMedia()
+                    if (!ok) android.widget.Toast.makeText(context, "Could not delete this media item.", android.widget.Toast.LENGTH_LONG).show()
+                    deleteTarget = null
+                }
+            }) { Text("Delete") } },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel") } }
+        )
     }
 }
 
