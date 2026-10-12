@@ -389,3 +389,21 @@ body{background:radial-gradient(ellipse at 72% -8%,rgba(111,74,195,.24),transpar
 .downloadBundleCopy{display:block;min-width:0;flex:1}.downloadBundleCopy b{display:block;color:#eefbfa;font-size:12px;font-weight:800;letter-spacing:-.01em}.downloadBundleCopy small{display:block;margin-top:4px;color:#97a8bb;font-size:10px;line-height:1.55}
 .bundleBadge{flex:0 0 auto;padding:5px 8px;border:1px solid rgba(112,225,220,.25);border-radius:999px;background:rgba(112,225,220,.08);color:#8ce5dd;font-size:9px;font-weight:850;letter-spacing:.1em}
 @media(max-width:520px){.downloadBundleLabel{align-items:flex-start;padding:13px 12px;gap:9px}.downloadBundleCopy b{font-size:11px}.downloadBundleCopy small{font-size:9px}.bundleBadge{font-size:8px;padding:4px 6px}}
+
+
+/* P182: align home content to a consistent centered grid */
+.page{width:100%;max-width:1324px;box-sizing:border-box;margin-inline:auto}
+.page.active{min-width:0}
+.hero{width:100%;box-sizing:border-box;align-items:center;gap:clamp(24px,4vw,64px)}
+.hero>div:first-child{flex:1 1 0;min-width:0}
+.heroOrb{flex:0 0 176px}
+.intake,.homeWorkflow,.stats,.sectionHead,#recentGrid{width:100%;box-sizing:border-box}
+.intakeHead{display:flex;justify-content:space-between;min-width:0}
+.intakeHead>div{min-width:0}
+.urlRow{display:flex;align-items:stretch;width:100%;min-width:0}
+.urlRow input{flex:1 1 auto;width:100%;min-width:0;box-sizing:border-box}
+.urlRow .primary{flex:0 0 auto}
+.stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+.mediaGrid{grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr))}
+@media(max-width:900px){.page{padding:36px 26px 60px}.hero{gap:24px}.heroOrb{flex-basis:126px}}
+@media(max-width:650px){.page{padding:28px 16px 50px}.hero{align-items:flex-start;gap:12px}.heroOrb{display:none}.intakeHead{gap:12px}.intakePill{flex:0 0 auto}.stats{grid-template-columns:repeat(3,minmax(0,1fr))}}
