@@ -95,8 +95,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
                                 listOf(rearPreviewUseCase, capture, video),
                                 this
                             ),
-                        androidx.camera.lifecycle.ProcessCameraProvider
-                            .ConcurrentCamera.SingleCameraConfig(
+                        ConcurrentCamera.SingleCameraConfig(
                                 CameraSelector.DEFAULT_FRONT_CAMERA,
                                 listOf(frontPreviewUseCase),
                                 this
