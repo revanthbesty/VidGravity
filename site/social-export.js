@@ -123,6 +123,7 @@
     const id="derivative-"+Date.now()+"-"+Math.random().toString(36).slice(2,8);
     const item=Object.assign({},state.item,{id,sourceId:state.item.id,versionType:"social-derivative",created:Date.now(),title:(state.item.title||"Media")+" · "+(metadata.preset||"Original copy"),type:blob.type||"video/mp4",size:blob.size,blob,export:metadata});
     await new Promise((resolve,reject)=>{const tx=db.transaction("media","readwrite");tx.objectStore("media").add(item);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);});
+    window.dispatchEvent(new Event("vg:library-updated"));
     return item;
   }
   function apiUrl(path){let base=(localStorage.getItem("vg-api-base-url")||"").trim().replace(/\/+$/,"");try{if(base&&new URL(base).protocol!=="https:")base="";}catch(_){base="";}return (base||"https://vidgravity.onrender.com")+"/"+path.replace(/^\/+/,"");}
