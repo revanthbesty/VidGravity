@@ -367,25 +367,48 @@ function renderLibrary(){
 
 function bindCards(root){root.querySelectorAll('.play').forEach(b=>b.onclick=()=>play(b.dataset.id));root.querySelectorAll('.save').forEach(b=>b.onclick=()=>saveFile(b.dataset.id));root.querySelectorAll('.info').forEach(b=>b.onclick=()=>showDetails(b.dataset.id));root.querySelectorAll('.del').forEach(b=>b.onclick=()=>removeMedia(b.dataset.id))}
 function empty(t){return `<div class="card" style="padding:25px;color:#777083;grid-column:1/-1">${t}</div>`}
-function renderJobs(){const x=$('#downloadList');x.innerHTML=`<div class="bulkBar"><button class="smallBtn" id="retryFailed">Retry failed</button><button class="smallBtn" id="cancelQueued">Cancel queued</button></div>`+jobs.map(j=>`<div class="job card"><div><div class="jobTitle">${esc(j.title)}</div><div class="jobUrl">${esc(j.url)}</div>${j.message?`<div class="jobUrl jobMessage">${esc(j.message)}</div>`:''}<div class="bar"><i style="width:${Math.max(0,Math.min(100,Number(j.progress)||0))}%"></i></div></div><div class="jobStatus">${esc(j.status)}${j.error?`<br>${esc(j.error)}`:''}</div><div class="jobStatus">${Math.max(0,Math.min(100,Number(j.progress)||0))}%<div class="actions jobActions">${j.status==='completed'&&j.mediaId?`<button class="smallBtn saveDeviceJob" data-id="${j.mediaId}">Save to device</button>`:''}${['running','queued','recoverable'].includes(j.status)?`<button class="smallBtn cancelJob" data-id="${j.id}">Cancel</button>`:''}${['failed','cancelled','recoverable'].includes(j.status)?`<button class="smallBtn retryJob" data-id="${j.id}">Retry</button>`:''}</div></div></div>`).join('')||empty('No downloads yet.');x.querySelectorAll('.cancelJob').forEach(b=>b.onclick=()=>cancelJob(b.dataset.id));x.querySelectorAll('.retryJob').forEach(b=>b.onclick=()=>retryJob(b.dataset.id));x.querySelectorAll('.saveDeviceJob').forEach(b=>b.onclick=()=>saveFile(b.dataset.id));$('#retryFailed')?.addEventListener('click',retryFailed);$('#cancelQueued')?.addEventListener('click',cancelQueued)}
+function renderJobs(){const x=$('#downloadList');x.innerHTML=`<div class="bulkBar"><button class="smallBtn" id="retryFailed">Retry failed</button><button class="smallBtn" id="cancelQueued">Cancel queued</button></div>`+jobs.map(j=>`<div class="job card"><div><div class="jobTitle">${esc(j.title)}</div><div class="jobUrl">${esc(j.url)}</div>${j.message?`<div class="jobUrl jobMessage">${esc(j.message)}</div>`:''}<div class="bar"><i style="width:${Math.max(0,Math.min(100,Number(j.progress)||0))}%"></i></div></div><div class="jobStatus">${esc(j.status)}${j.error?`<br>${esc(j.error)}`:''}</div><div class="jobStatus">${Math.max(0,Math.min(100,Number(j.progress)||0))}%<div class="actions jobActions">${['running','queued','recoverable'].includes(j.status)?`<button class="smallBtn cancelJob" data-id="${j.id}">Cancel</button>`:''}${['failed','cancelled','recoverable'].includes(j.status)?`<button class="smallBtn retryJob" data-id="${j.id}">Retry</button>`:''}</div></div></div>`).join('')||empty('No downloads yet.');x.querySelectorAll('.cancelJob').forEach(b=>b.onclick=()=>cancelJob(b.dataset.id));x.querySelectorAll('.retryJob').forEach(b=>b.onclick=()=>retryJob(b.dataset.id));$('#retryFailed')?.addEventListener('click',retryFailed);$('#cancelQueued')?.addEventListener('click',cancelQueued)}
 
 async function retryFailed(){const failed=jobs.filter(j=>j.status==='failed');if(!failed.length)return toast('No failed jobs');for(const j of failed){j.status='queued';j.error='';j.progress=0}saveJobs();renderJobs();pumpQueue();toast(`Retrying ${failed.length} job(s)`)}
 function cancelQueued(){const before=jobs.length;jobs=jobs.filter(j=>!['queued','recoverable'].includes(j.status));saveJobs();renderAll();toast(`${before-jobs.length} queued job(s) cancelled`)}
 
+let activePlayerObjectUrl=null;
 async function play(id,seek=0){
- const m=media.find(x=>x.id===id);if(!m)return;
- $("#player").src=m.objectUrl;$("#playerMeta").textContent=m.title;
- const t=transcriptFor(id);
- $("#playerTranscript").innerHTML=t?`<div class="ptHead"><b>Transcript</b><small>${t.segments.length} segments · ${esc(t.source)}</small></div><div class="ptList">${t.segments.map((s,i)=>`<button class="ptSeg" data-time="${s.start}"><span>${formatTime(s.start)}</span>${esc(s.text)}</button>`).join("")}</div>`:`<div class="ptEmpty">No transcript or captions available for this media.</div>`;
- $("#playerModal").classList.remove("hidden");
- $("#player").onloadedmetadata=()=>{$("#player").currentTime=seek||0};
- $("#player").play().catch(()=>{});
- $("#playerTranscript").querySelectorAll(".ptSeg").forEach(b=>b.onclick=()=>{$("#player").currentTime=Number(b.dataset.time);$("#player").play().catch(()=>{})});
+ const item=await dbGet(id);
+ if(!item||!(item.blob instanceof Blob)||!item.blob.size)return toast('Saved media file was not found in the Library');
+ const player=$("#player"),modal=$("#playerModal");
+ if(!player||!modal)return toast('The media player is unavailable');
+ player.pause();
+ if(activePlayerObjectUrl){URL.revokeObjectURL(activePlayerObjectUrl);activePlayerObjectUrl=null}
+ activePlayerObjectUrl=URL.createObjectURL(item.blob);
+ player.removeAttribute('src');
+ player.src=activePlayerObjectUrl;
+ player.load();
+ $("#playerMeta").textContent=item.title||'Media';
+ const transcript=transcriptFor(id);
+ $("#playerTranscript").innerHTML=transcript?'<div class="ptHead"><b>Transcript</b><small>'+transcript.segments.length+' segments · '+esc(transcript.source)+'</small></div><div class="ptList">'+transcript.segments.map(s=>'<button class="ptSeg" data-time="'+Number(s.start||0)+'"><span>'+formatTime(s.start)+'</span>'+esc(s.text)+'</button>').join('')+'</div>':'<div class="ptEmpty">No transcript or captions available for this media.</div>';
+ modal.classList.remove('hidden');
+ player.onloadedmetadata=()=>{
+   if(Number.isFinite(player.duration)&&player.duration>0)player.currentTime=Math.min(Math.max(0,Number(seek)||0),player.duration);
+ };
+ player.onerror=()=>toast('This saved file could not be played by the browser. Try opening the downloaded file directly.');
+ player.play().catch(()=>{});
+ $("#playerTranscript").querySelectorAll(".ptSeg").forEach(button=>button.onclick=()=>{
+   player.currentTime=Number(button.dataset.time)||0;
+   player.play().catch(()=>{});
+ });
 }
+function closePlayer(){
+ const player=$("#player"),modal=$("#playerModal");
+ if(player){player.pause();player.removeAttribute('src');player.load();player.onerror=null;player.onloadedmetadata=null}
+ if(activePlayerObjectUrl){URL.revokeObjectURL(activePlayerObjectUrl);activePlayerObjectUrl=null}
+ modal?.classList.add('hidden');
+}
+$("#closePlayer")?.addEventListener('click',closePlayer);
+$("#playerModal")?.addEventListener('click',event=>{if(event.target.id==='playerModal')closePlayer()});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$("#playerModal")?.classList.contains('hidden'))closePlayer()});
 
-$('#closePlayer').onclick=()=>{$('#player').pause();const u=$('#player').dataset.objectUrl;if(u)URL.revokeObjectURL(u);$('#player').src='';$('#playerModal').classList.add('hidden')}
-async function saveFile(id){const m=await dbGet(id);if(!m)return;const u=URL.createObjectURL(m.blob);const a=document.createElement('a');a.href=u;a.download=m.title||'vidgravity-media';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
-async function saveFile(id){const m=await dbGet(id);if(!m||!(m.blob instanceof Blob))return toast('Saved media file was not found');downloadBlobToDevice(m.blob,m.title,m.type,m.url);toast('Save to device requested')}
+async function saveFile(id){const m=await dbGet(id);if(!m||!(m.blob instanceof Blob))return toast('Saved media file was not found in the Library');downloadBlobToDevice(m.blob,m.title,m.type,m.url);toast('A copy is being saved to your device')}
 async function removeMedia(id){if(!confirm('Delete this media from VidGravity Library?'))return;await dbDelete(id);media=media.filter(m=>m.id!==id);jobs=jobs.filter(j=>j.mediaId!==id);saveJobs();renderAll();toast('Media deleted')}
 function formatBytes(n){if(!n)return'0 B';const u=['B','KB','MB','GB'];let i=0;while(n>=1024&&i<3){n/=1024;i++}return n.toFixed(i?1:0)+' '+u[i]}
 function formatDuration(s){s=Math.max(0,Math.round(Number(s)||0));const h=Math.floor(s/3600),m=Math.floor(s%3600/60),sec=s%60;return h?`${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`:`${m}:${String(sec).padStart(2,'0')}`}
