@@ -1,14 +1,16 @@
 import type { MediaContainer } from "./downloader";
-export type ClipAspectRatio = "9:16" | "1:1" | "16:9";
+export type ClipAspectRatio = "9:16" | "4:5" | "1:1" | "16:9";
+export type ClipFit = "cover" | "contain" | "blurred-backdrop";
+export type ClipExportMode = "original-format" | "platform-optimized";
 export interface ClipRange { startSeconds: number; endSeconds: number; }
 export type ClipFilter =
  | { op:"trim"; startSeconds:number; endSeconds:number }
- | { op:"scale-crop"; width:number; height:number; fit:"cover"; algorithm:"lanczos"|"bicubic" }
+ | { op:"scale-crop"; width:number; height:number; fit:ClipFit; algorithm:"lanczos"|"bicubic" }
  | { op:"encode-video"; codec:"h264"|"hevc"|"vp9"; crf:number }
  | { op:"encode-audio"; codec:"aac"|"opus"; bitrateKbps:number }
  | { op:"mux"; container:MediaContainer };
 export interface ClipExportRequest {
-  mediaId:string; range:ClipRange; aspectRatio:ClipAspectRatio; outputContainer:MediaContainer;
+  mediaId:string; range:ClipRange; aspectRatio:ClipAspectRatio; outputContainer:MediaContainer; exportMode?:ClipExportMode;
   operations:ClipFilter[]; outputDirectoryId:string; includeThumbnail:boolean; includeMetadata:boolean;
   /** Output is a derivative; original media must remain immutable. */
   parentMediaId?: string; requestedOutputName?: string;
