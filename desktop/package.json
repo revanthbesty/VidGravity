@@ -6,7 +6,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "build:win": "electron-builder --win portable"
+    "build:win": "electron-builder --win portable appx"
   },
   "devDependencies": {
     "electron": "^37.2.0",
@@ -26,15 +26,28 @@
       "target": [
         {
           "target": "portable",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
+        },
+        {
+          "target": "appx",
+          "arch": ["x64"]
         }
       ],
       "artifactName": "VidGravity-Windows-${version}.${ext}"
     },
     "portable": {
       "artifactName": "VidGravity-Windows-${version}-portable.${ext}"
+    },
+    "appx": {
+      "applicationId": "VidGravity",
+      "identityName": "Revanth.VidGravity",
+      "publisher": "CN=F1FBB9A9-B97A-41AA-8516-4E62A0603245",
+      "publisherDisplayName": "Revanth",
+      "backgroundColor": "#100d1c",
+      "showNameOnTiles": true,
+      "languages": ["en-US"],
+      "minVersion": "10.0.17763.0",
+      "maxVersionTested": "10.0.26100.0"
     }
   }
 }
