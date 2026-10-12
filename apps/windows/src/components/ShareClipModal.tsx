@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { FormEvent } from "react";
 import type { ClipAspectRatio, ClipExportRequest } from "../../../packages/contracts/src/share";
 import { validateClipRequest } from "../../../packages/contracts/src/share";
 const presets: {value:ClipAspectRatio;label:string;width:number;height:number}[]=[
@@ -8,7 +9,7 @@ const presets: {value:ClipAspectRatio;label:string;width:number;height:number}[]
 ];
 export function ShareClipModal({mediaId,title,durationSeconds,outputDirectoryId,onClose,onExport}:{mediaId:string;title:string;durationSeconds:number;outputDirectoryId:string;onClose:()=>void;onExport:(request:ClipExportRequest)=>Promise<void>}) {
  const [start,setStart]=useState("0"); const [end,setEnd]=useState(String(Math.max(1,Math.floor(durationSeconds)))); const [aspect,setAspect]=useState<ClipAspectRatio>("9:16"); const [busy,setBusy]=useState(false); const [error,setError]=useState("");
- async function submit(event:React.FormEvent<HTMLFormElement>) {
+ async function submit(event:FormEvent<HTMLFormElement>) {
   event.preventDefault(); setError("");
   const preset=presets.find(p=>p.value===aspect)!;
   const request:ClipExportRequest={mediaId,range:{startSeconds:Number(start),endSeconds:Number(end)},aspectRatio:aspect,outputContainer:"mp4",outputDirectoryId,includeThumbnail:true,includeMetadata:true,operations:[
