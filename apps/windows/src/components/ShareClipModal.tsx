@@ -8,12 +8,13 @@ const presets: {value:ClipAspectRatio;label:string;width:number;height:number}[]
  {value:"16:9",label:"Landscape · 16:9",width:1920,height:1080}
 ];
 export function ShareClipModal({mediaId,title,durationSeconds,outputDirectoryId,onClose,onExport}:{mediaId:string;title:string;durationSeconds:number;outputDirectoryId:string;onClose:()=>void;onExport:(request:ClipExportRequest)=>Promise<void>}) {
+ const [start,setStart]=useState("0"); const [end,setEnd]=useState(String(Math.max(1,Math.floor(durationSeconds)))); const [aspect,setAspect]=useState<ClipAspectRatio>("9:16"); const [busy,setBusy]=useState(false); const [error,setError]=useState("");
  useEffect(() => {
   const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape" && !busy) onClose(); };
   window.addEventListener("keydown", onKeyDown);
   return () => window.removeEventListener("keydown", onKeyDown);
  }, [busy, onClose]);
- const [start,setStart]=useState("0"); const [end,setEnd]=useState(String(Math.max(1,Math.floor(durationSeconds)))); const [aspect,setAspect]=useState<ClipAspectRatio>("9:16"); const [busy,setBusy]=useState(false); const [error,setError]=useState("");
+
  async function submit(event:FormEvent<HTMLFormElement>) {
   event.preventDefault(); setError("");
   const preset=presets.find(p=>p.value===aspect)!;
