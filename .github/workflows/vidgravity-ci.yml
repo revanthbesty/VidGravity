@@ -31,7 +31,7 @@ jobs:
           deno --version
           python -c "import yt_dlp_ejs; print('yt-dlp-ejs available')"
       - name: Creator media pipeline plan regression tests
-        run: deno test engines/media/tests/pipeline_plans_test.ts
+        run: deno test --sloppy-imports engines/media/tests/pipeline_plans_test.ts
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
