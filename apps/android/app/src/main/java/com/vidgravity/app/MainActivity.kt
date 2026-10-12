@@ -332,6 +332,17 @@ private fun SimpleCollectionScreen(title: String, subtitle: String, icon: androi
 @Composable
 private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    val deviceId = remember {
+        val androidId = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ANDROID_ID).orEmpty()
+        "VG-" + androidId.takeLast(8).uppercase()
+    }
+    var activationKey by remember { mutableStateOf("") }
+    var showActivation by remember { mutableStateOf(false) }
+    var mediaBytes by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(Unit) {
+        mediaBytes = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context).sumOf { it.sizeBytes } }
+    }
     var unmeteredOnly by remember { mutableStateOf(SecureDownloadPreferences.load(context).unmeteredOnly) }
     var autoPreset by remember { mutableStateOf(SecureDownloadPreferences.load(context).autoDownloadWithPreferredPreset) }
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -380,8 +391,51 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
             }
         }
         Text("ACCOUNT & LICENSE", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
-        SettingRow(Icons.Default.VerifiedUser, "License activation", "License activation UI is a future step")
-        SettingRow(Icons.Default.Storage, "Storage", "Downloaded files stay on your device")
+        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.VerifiedUser, null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Device ID", fontWeight = FontWeight.SemiBold)
+                        Text(deviceId, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    TextButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(deviceId)) }) { Text("Copy") }
+                }
+                OutlinedButton(onClick = { showActivation = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Enter license key")
+                }
+            }
+        }
+        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Storage, null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Library storage", fontWeight = FontWeight.SemiBold)
+                        Text(String.format("%.1f MB indexed", mediaBytes / 1_000_000.0), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                LinearProgressIndicator(progress = { (mediaBytes.toFloat() / (2L * 1024 * 1024 * 1024)).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                Text("Gauge is relative to 2 GB; it does not represent total device capacity.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (showActivation) AlertDialog(
+            onDismissRequest = { showActivation = false },
+            title = { Text("License activation") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Enter the license key issued for your account.")
+                    OutlinedTextField(value = activationKey, onValueChange = { activationKey = it.take(160) },
+                        modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("License key") })
+                    Text("Activation requires the licensing API integration, which is not yet connected in this build.",
+                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
+            confirmButton = { TextButton(onClick = { showActivation = false; activationKey = "" }) { Text("Close") } },
+            dismissButton = { TextButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(activationKey)) }) { Text("Copy key") } }
+        )
     }
 }
 
