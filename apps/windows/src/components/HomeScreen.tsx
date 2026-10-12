@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import copy from "../locales/en.json";
+import { ShareModal } from "./ShareModal";
 
 export interface HomeScreenProps {
   onAnalyze: (url: string) => Promise<void>;
@@ -9,10 +10,12 @@ export interface HomeScreenProps {
   statusMessage?: string;
   errorMessage?: string;
   downloadCount: number;
+  shareUrl?: string;
 }
-export function HomeScreen({ onAnalyze, onOpenDownloads, isAnalyzing, statusMessage, errorMessage, downloadCount }: HomeScreenProps) {
+export function HomeScreen({ onAnalyze, onOpenDownloads, isAnalyzing, statusMessage, errorMessage, downloadCount, shareUrl }: HomeScreenProps) {
   const [url, setUrl] = useState("");
   const [localError, setLocalError] = useState("");
+  const [shareOpen,setShareOpen] = useState(false);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const value = url.trim();
@@ -21,7 +24,7 @@ export function HomeScreen({ onAnalyze, onOpenDownloads, isAnalyzing, statusMess
     try { parsed = new URL(value); } catch { setLocalError("Enter a valid URL, including https://."); return; }
     if (!["http:", "https:"].includes(parsed.protocol)) { setLocalError("Only HTTP and HTTPS URLs are supported."); return; }
     setLocalError("");
-    await onAnalyze(value);
+    try { await onAnalyze(value); } catch (error) { setLocalError(error instanceof Error ? error.message : "Media analysis failed."); }
   }
   return <main className="mx-auto grid w-full max-w-6xl gap-vg-8 px-vg-6 py-vg-8">
     <header className="grid gap-vg-2">
@@ -43,7 +46,8 @@ export function HomeScreen({ onAnalyze, onOpenDownloads, isAnalyzing, statusMess
     </section>
     <section className="flex flex-wrap items-center justify-between gap-vg-4 rounded-vg-lg border border-line bg-surface p-vg-6">
       <div className="grid gap-vg-1"><h2 className="text-lg font-semibold">{copy["home.downloads"]}</h2><p className="text-sm text-muted">{downloadCount === 0 ? copy["home.empty.body"] : downloadCount + " saved item" + (downloadCount === 1 ? "" : "s") + " in your library."}</p></div>
-      <button type="button" onClick={onOpenDownloads}>{copy["home.action.openDownloads"]}</button>
+      <div className="flex flex-wrap items-center gap-vg-2"><button type="button" onClick={onOpenDownloads}>{copy["home.action.openDownloads"]}</button><button type="button" onClick={()=>setShareOpen(true)} disabled={!shareUrl} aria-label="Share VidGravity">Share</button></div>
     </section>
+    {shareOpen && <ShareModal media={{title:"VidGravity",text:"Download, organize, and play media in one place.",url:shareUrl}} onClose={()=>setShareOpen(false)} />}
   </main>;
 }
