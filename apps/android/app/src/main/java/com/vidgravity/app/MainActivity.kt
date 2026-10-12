@@ -120,16 +120,25 @@ private fun VidGravityApp() {
             val videoFormats = usable.filter { it.hasVideo }
             val audioFormats = usable.filter { it.hasAudio && !it.hasVideo }
             val standardHeights = listOf(4320, 2160, 1440, 1080, 720, 480, 360)
-            val byHeight = videoFormats.filter { it.height > 0 }.groupBy { it.height }
-            val standardVideo = standardHeights.mapNotNull { height ->
-                byHeight[height]?.maxWithOrNull(compareBy<FormatOption> { if (it.hasAudio) 100 else 0 }
-                    .thenBy { if (it.container.equals("mp4", true)) 20 else 0 }
-                    .thenBy { if ((it.sizeBytes ?: 0L) > 0) 10 else 0 })?.let { option ->
+            // Keep every extractor stream available in the picker, not just exact standard heights.
+            // Many vertical/social sources expose heights like 640 or 854 rather than 720/1080.
+            val sortedVideo = videoFormats.sortedWith(compareByDescending<FormatOption> { it.height }
+                .thenByDescending { it.sizeBytes ?: 0L })
+            val standardVideo = sortedVideo.distinctBy { listOf(it.height, it.container.lowercase(), it.videoCodec, it.audioCodec, it.formatId).joinToString("|") }
+                .map { option ->
+                    val h = option.height
+                    val resolution = when {
+                        h >= 4320 -> "8K UHD · ${h}p"
+                        h >= 2160 -> "4K UHD · ${h}p"
+                        h >= 1440 -> "2K · ${h}p"
+                        h >= 1080 -> "FHD · ${h}p"
+                        h >= 720 -> "HD · ${h}p"
+                        h > 0 -> "${h}p"
+                        else -> option.resolution.take(40).ifBlank { "Video stream" }
+                    }
                     val selector = if (option.hasAudio) option.selector else option.selector + "+bestaudio/best"
-                    Triple(when (height) { 4320 -> "8K · 4320p"; 2160 -> "4K · 2160p"; else -> "${height}p" },
-                        selector, option)
+                    Triple(resolution, selector, option)
                 }
-            }
             val videoChoices = listOf(Triple("Highest available", "bv*+ba/b", videoFormats.maxByOrNull { it.height } ?: usable.firstOrNull()))
                 .filter { it.third != null } + standardVideo
             Dialog(onDismissRequest = { analysis = null }) {
