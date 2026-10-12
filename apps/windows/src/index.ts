@@ -22,3 +22,6 @@ export { MediaCard } from "./components/MediaCard";
 export type { MediaCardProps, MediaItem } from "./components/MediaCard";
 export { InputHero } from "./components/InputHero";
 export type { InputHeroProps } from "./components/InputHero";
+
+export { DesktopHeader } from "./components/DesktopHeader";
+export type { DesktopHeaderProps } from "./components/DesktopHeader";
