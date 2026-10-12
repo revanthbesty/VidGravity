@@ -46,15 +46,17 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 registry.edit().putString(workId.toString(), remoteJobId).commit()
             }
             var job: RemoteDownloadJob
+            var lastKnownProgress = 0
             while (true) {
                 if (isStopped) throw CancellationException("Work was cancelled")
                 while (DownloadActionReceiver.isPaused(applicationContext, workId)) {
                     promoteOrNotify(title, "Paused", 0, true)
-                    setProgress(workDataOf("state" to "paused", "progress" to jobProgressOrZero()))
+                    setProgress(workDataOf("state" to "paused", "progress" to lastKnownProgress))
                     delay(500)
                     if (isStopped) throw CancellationException("Work was cancelled")
                 }
                 job = DownloadApi.getJob(remoteJobId!!)
+                lastKnownProgress = job.progress
                 setProgress(workDataOf("remoteJobId" to remoteJobId, "state" to job.state, "progress" to job.progress))
                 promoteOrNotify(title, job.message, job.progress, false)
                 when (job.state) {
@@ -130,8 +132,6 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             failureResult(failure.message ?: "Download failed", url, selector, title)
         }
     }
-
-    private fun jobProgressOrZero(): Int = 0
 
     /** Foreground promotion is best-effort: Android may reject it for app-state/quota reasons. */
     private suspend fun promoteOrNotify(title: String, message: String, percent: Int, paused: Boolean) {
