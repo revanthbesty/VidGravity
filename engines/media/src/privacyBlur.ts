@@ -8,11 +8,11 @@ export function buildPrivacyBlurPlan(inputPath:string,outputPath:string,boxes:re
  const filters:string[]=[];
  let previous="[0:v]";
  safe.forEach((b,i)=>{
-  const base=`base${i}`,blurIn=`blurIn${i}`,blur=`blur${i}`,next=`base${i+1}`;
-  filters.push(`${previous}split=2[${next}][${blurIn}]`);
+  const merged=`merged${i}`,blurIn=`blurIn${i}`,blur=`blur${i}`,splitBase=`splitBase${i}`;
+  filters.push(`${previous}split=2[${splitBase}][${blurIn}]`);
   filters.push(`[${blurIn}]crop=${Math.round(b.width)}:${Math.round(b.height)}:${Math.round(b.x)}:${Math.round(b.y)},boxblur=20:10[${blur}]`);
-  filters.push(`[${next}][${blur}]overlay=${Math.round(b.x)}:${Math.round(b.y)}[${base}]`);
-  previous=`[${base}]`;
+  filters.push(`[${splitBase}][${blur}]overlay=${Math.round(b.x)}:${Math.round(b.y)}[${merged}]`);
+  previous=`[${merged}]`;
  });
  return {executable:"ffmpeg",outputPath,args:["-nostdin","-hide_banner","-i",inputPath,"-filter_complex",filters.join(";"),"-map",previous,"-map","0:a?","-c:a","copy","-y",outputPath]};
 }
