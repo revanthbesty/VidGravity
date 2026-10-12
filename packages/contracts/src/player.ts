@@ -3,6 +3,7 @@ export type PlaybackSpeed = 0.25|0.5|0.75|1|1.25|1.5|1.75|2|2.5|3|3.5|4;
 export interface ColorAdjustments { exposure: number; contrast: number; saturation: number; sharpen: number; }
 export interface EnhancementCapabilities {
   shaderUpscale: boolean; sharpening: boolean; deinterlace: boolean;
+  denoise: boolean; deblock: boolean; stabilization: boolean; interpolation: boolean;
   colorAdjustments: boolean; reasonUnavailable?: string;
 }
 export interface AudioTrack { id: string; label: string; language?: string; channels?: number; codec?: string; }
