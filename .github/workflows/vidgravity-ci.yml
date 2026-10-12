@@ -118,3 +118,25 @@ jobs:
             P171_OPERATOR_PREFLIGHT_REPORT.json
             P172_DEPLOYMENT_BUNDLE_REPORT.json
           if-no-files-found: warn
+
+
+  android-share-pipeline:
+    name: Android share pipeline and social export
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Build native Android APK
+        run: gradle -p apps/android assembleDebug
+      - name: Run export and Android share tests
+        run: |
+          python -m unittest discover -s tests -p "test_media_export.py" -v
+          python -m unittest -v test_p174_android_share_pipeline.py
