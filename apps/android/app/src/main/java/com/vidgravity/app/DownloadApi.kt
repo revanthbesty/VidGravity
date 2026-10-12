@@ -22,7 +22,9 @@ data class FormatOption(
     val height: Int = 0,
     val hasVideo: Boolean = videoCodec.isNotBlank() && videoCodec != "none",
     val hasAudio: Boolean = audioCodec.isNotBlank() && audioCodec != "none",
-    val note: String = ""
+    val note: String = "",
+    val fps: Double? = null,
+    val dynamicRange: String = ""
 ) {
     fun displayName(): String {
         val kind = if (hasVideo && hasAudio) "Video + audio" else if (hasVideo) "Video · audio combined on download" else "Audio only"
@@ -89,7 +91,9 @@ object DownloadApi {
                         height = item.optInt("height", Regex("(?:\\d{3,4}x(\\d{3,4})|(?:^|\\D)(\\d{3,4})p").find(item.optString("resolution"))?.let { match -> (match.groupValues.getOrNull(1)?.takeIf { it.isNotBlank() } ?: match.groupValues.getOrNull(2))?.toIntOrNull() } ?: 0),
                         hasVideo = item.optBoolean("has_video", item.optString("vcodec", "none") != "none"),
                         hasAudio = item.optBoolean("has_audio", item.optString("acodec", "none") != "none"),
-                        note = item.optString("note", "")
+                        note = item.optString("note", ""),
+                        fps = if (item.has("fps") && !item.isNull("fps")) item.optDouble("fps").takeIf { it > 0 } else null,
+                        dynamicRange = item.optString("dynamic_range", "")
                     ))
                 }
             }
