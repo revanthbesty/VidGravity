@@ -16,14 +16,12 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.video.AudioConfig
 import androidx.camera.view.CameraController
 import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
 import androidx.camera.video.FileOutputOptions
 import androidx.camera.video.Recording
 import androidx.camera.video.VideoRecordEvent
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import java.io.File
 import java.util.concurrent.ExecutorService
@@ -84,8 +82,6 @@ class CameraCaptureActivity : ComponentActivity() {
             cameraSelector = androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA
             isTapToFocusEnabled = true
             isPinchToZoomEnabled = true
-            imageCaptureTargetRotation = windowManager.defaultDisplay.rotation
-            videoCaptureTargetRotation = windowManager.defaultDisplay.rotation
         }
         preview.controller = controller
         controller.bindToLifecycle(this)
@@ -140,8 +136,7 @@ class CameraCaptureActivity : ComponentActivity() {
         val file = File(cacheDir, "snap-${System.currentTimeMillis()}.mp4")
         recordingFile = file
         val output = FileOutputOptions.Builder(file).build()
-        val audioEnabled = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-        recording = controller.startRecording(output, AudioConfig.create(audioEnabled), executor) { event ->
+        recording = controller.startRecording(output, executor) { event ->
             when (event) {
                 is VideoRecordEvent.Start -> runOnUiThread { hint.text = "Recording · 0s / 60s" }
                 is VideoRecordEvent.Finalize -> {
