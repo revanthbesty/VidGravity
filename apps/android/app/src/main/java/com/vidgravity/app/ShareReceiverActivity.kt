@@ -4,12 +4,12 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import java.net.InetAddress
 import java.util.Locale
 import java.util.regex.Pattern
 
-class ShareReceiverActivity : ComponentActivity(), FormatPickerBottomSheet.Listener {
+class ShareReceiverActivity : FragmentActivity(), FormatPickerBottomSheet.Listener {
     private var handled = false
 
     override fun onCreate(savedInstanceState: Bundle?) { super.onCreate(savedInstanceState); DownloadNotifications.ensureChannel(this); handleShare(intent) }
