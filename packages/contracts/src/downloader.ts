@@ -38,9 +38,11 @@ export interface DownloadRequest {
   integrity: IntegrityPolicy; operationGraph?: FfmpegOperationGraph;
 }
 export type DownloadState =
-  | "QUEUED" | "WAITING_FOR_WINDOW" | "ANALYZING" | "READY" | "DOWNLOADING"
-  | "PAUSED" | "VERIFYING" | "MERGING" | "COMMITTING" | "COMPLETED"
-  | "FAILED" | "CANCELLED";
+  | "CREATED" | "QUEUED" | "ANALYZING" | "PREPARING" | "RUNNING" | "DOWNLOADING"
+  | "VERIFYING" | "PROCESSING" | "ORGANIZING" | "COMPLETED"
+  | "PAUSED" | "CANCELLED" | "FAILED" | "RETRYING"
+  | "WAITING_FOR_NETWORK" | "WAITING_FOR_STORAGE" | "WAITING_FOR_BATTERY"
+  | "WAITING_FOR_DEVICE" | "WAITING_FOR_USER" | "UNSUPPORTED" | "RESTRICTED" | "UPGRADE_REQUIRED";
 export interface DownloadProgress {
   taskId: TaskId; state: DownloadState; bytesReceived: number; totalBytes?: number;
   percent?: number; bytesPerSecond: number; previewReadyBytes?: number;
