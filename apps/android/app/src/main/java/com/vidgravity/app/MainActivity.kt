@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +48,7 @@ private enum class VgTab(val title: String, val icon: androidx.compose.ui.graphi
     Settings("Settings", Icons.Default.Settings)
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun VidGravityApp() {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -366,8 +368,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                     }
                     Text("QUICK ACTIONS", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    item {
-                        LazyRow(
+                    LazyRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(end = 4.dp)
@@ -384,14 +385,14 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                                 try {
                                                     val result = withContext(Dispatchers.IO) { DownloadApi.analyzeSource(url.trim()) }
                                                     val audio = result.formats.firstOrNull { it.hasAudio && !it.hasVideo }
-                                                    if (audio == null) notice = "No audio-only stream was found for this link."
+                                                    if (audio == null) notify("No audio-only stream was found for this link.")
                                                     else {
                                                         val prefs = SecureDownloadPreferences.load(context)
                                                         DownloadWorker.enqueue(context, url.trim(), audio.selector, result.title + " — Audio", prefs.unmeteredOnly)
                                                         notify("Audio download added to queue. Open Downloads to track progress.")
                                                     }
                                                 } catch (failure: Exception) {
-                                                    notice = "Could not prepare audio: " + (failure.message ?: "Please try again.")
+                                                    notify("Could not prepare audio: " + (failure.message ?: "Please try again."))
                                                 }
                                             }
                                         } else if (action.contains("WhatsApp") || action.contains("StudyTok")) {
