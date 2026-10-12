@@ -11,7 +11,7 @@ export type ClipFilter =
  | { op:"mux"; container:MediaContainer };
 export interface ClipExportRequest {
   mediaId:string; range:ClipRange; aspectRatio:ClipAspectRatio; outputContainer:MediaContainer; exportMode?:ClipExportMode;
-  operations:ClipFilter[]; outputDirectoryId:string; includeThumbnail:boolean; includeMetadata:boolean;
+  operations:ClipFilter[]; outputDirectoryId:string; includeThumbnail:boolean; includeMetadata:boolean; preserveSourceContainer?:boolean;
   /** Output is a derivative; original media must remain immutable. */
   parentMediaId?: string; requestedOutputName?: string;
 }
