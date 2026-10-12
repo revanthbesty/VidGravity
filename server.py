@@ -754,6 +754,7 @@ class Handler(SimpleHTTPRequestHandler):
                 return self._json(400, {'error': 'Invalid Content-Length'})
             length = int(raw_length)
             max_input = 128 * 1024 * 1024
+            max_output = 256 * 1024 * 1024
             if length <= 0:
                 return self._json(400, {'error': 'The source media body is empty'})
             if length > max_input:
@@ -781,7 +782,7 @@ class Handler(SimpleHTTPRequestHandler):
                             handle.write(chunk)
                             remaining -= len(chunk)
                     result = export_media_file(source, output, request)
-                    if output.stat().st_size > max_input:
+                    if output.stat().st_size > max_output:
                         return self._json(413, {'error': 'Export exceeds the 256 MiB response limit; trim the clip and retry'})
                     self.send_response(200)
                     self.send_header('Content-Type', 'video/mp4')
