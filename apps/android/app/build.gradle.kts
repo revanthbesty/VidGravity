@@ -3,7 +3,11 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
-val configuredApi = providers.gradleProperty("VG_API_BASE_URL").orElse("https://api.vidgravity.com/api/v1").get()
+
+// Keep this aligned with the public cloud endpoint used by the PWA in site/app.js.
+// Override with -PVG_API_BASE_URL=https://your-service.onrender.com for a different deployment.
+// The API is mounted at the service root (/api/formats, /api/download-jobs); do not append /api/v1.
+val configuredApi = providers.gradleProperty("VG_API_BASE_URL").orElse("https://vidgravity.onrender.com").get()
 val safeApi = configuredApi.trim().trimEnd('/').replace("\\", "\\\\").replace("\"", "\\\"")
 android {
     namespace = "com.vidgravity.app"
@@ -12,8 +16,8 @@ android {
         applicationId = "com.vidgravity.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 175
-        versionName = "1.0.5-p175"
+        versionCode = 176
+        versionName = "1.0.6-p176"
         buildConfigField("String", "VG_API_BASE_URL", "\"$safeApi\"")
     }
     buildFeatures { compose = true; buildConfig = true }
