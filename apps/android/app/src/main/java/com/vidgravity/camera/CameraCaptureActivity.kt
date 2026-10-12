@@ -15,6 +15,8 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.video.AudioConfig
 import androidx.camera.view.CameraController
 import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
@@ -44,7 +46,13 @@ class CameraCaptureActivity : ComponentActivity() {
     private var isFront = false
     private var finishingCapture = false
 
-    private val permissionRequest = 7301
+    private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { grants ->
+        if (grants[Manifest.permission.CAMERA] == true && grants[Manifest.permission.RECORD_AUDIO] == true) buildCameraUi()
+        else {
+            Toast.makeText(this, "Camera and microphone permissions are required to capture media.", Toast.LENGTH_LONG).show()
+            finish()
+        }
+    }
     private val timer = object : Runnable {
         override fun run() {
             val active = recording != null
@@ -59,7 +67,7 @@ class CameraCaptureActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (!hasPermissions()) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO), permissionRequest)
+            permissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
             return
         }
         buildCameraUi()
@@ -69,15 +77,6 @@ class CameraCaptureActivity : ComponentActivity() {
         ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == permissionRequest && hasPermissions()) buildCameraUi()
-        else if (requestCode == permissionRequest) {
-            Toast.makeText(this, "Camera and microphone permissions are required to capture media.", Toast.LENGTH_LONG).show()
-            finish()
-        }
-    }
-
     private fun buildCameraUi() {
         preview = PreviewView(this).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
         controller = LifecycleCameraController(this).apply {
@@ -85,8 +84,8 @@ class CameraCaptureActivity : ComponentActivity() {
             cameraSelector = androidx.camera.core.CameraSelector.DEFAULT_BACK_CAMERA
             isTapToFocusEnabled = true
             isPinchToZoomEnabled = true
-            setImageCaptureTargetRotation(windowManager.defaultDisplay.rotation)
-            setVideoCaptureTargetRotation(windowManager.defaultDisplay.rotation)
+            imageCaptureTargetRotation = windowManager.defaultDisplay.rotation
+            videoCaptureTargetRotation = windowManager.defaultDisplay.rotation
         }
         preview.controller = controller
         controller.bindToLifecycle(this)
@@ -142,8 +141,7 @@ class CameraCaptureActivity : ComponentActivity() {
         recordingFile = file
         val output = FileOutputOptions.Builder(file).build()
         val audioEnabled = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-        controller.setAudioCaptureEnabled(audioEnabled)
-        recording = controller.startRecording(output, executor) { event ->
+        recording = controller.startRecording(output, AudioConfig.create(audioEnabled), executor) { event ->
             when (event) {
                 is VideoRecordEvent.Start -> runOnUiThread { hint.text = "Recording · 0s / 60s" }
                 is VideoRecordEvent.Finalize -> {
@@ -174,8 +172,7 @@ class CameraCaptureActivity : ComponentActivity() {
         active.stop()
         progress.visibility = View.GONE
         hint.text = "Finalizing video…"
-        val file = recordingFile
-        if (file != null) handler.postDelayed({ if (file.exists() && file.length() > 0L) handoff(file, "video/mp4") }, 700L)
+        // VideoRecordEvent.Finalize owns the handoff; do not expose a file before muxing completes.
     }
 
     private fun flipCamera() {
