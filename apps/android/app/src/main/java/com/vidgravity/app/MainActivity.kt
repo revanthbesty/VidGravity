@@ -144,6 +144,7 @@ private fun VidGravityApp() {
             val videoChoices = listOf(Triple("Highest available", "bv*+ba/b", videoFormats.maxByOrNull { it.height } ?: usable.firstOrNull()))
                 .filter { it.third != null } + standardVideo
             var rememberQuality by remember(result.title) { mutableStateOf(false) }
+            var qualityTab by remember(result.title) { mutableStateOf("Video & Audio") }
             Dialog(onDismissRequest = { analysis = null }) {
                 Surface(
                     modifier = Modifier.fillMaxWidth().heightIn(max = 680.dp),
@@ -166,13 +167,25 @@ private fun VidGravityApp() {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Spacer(Modifier.height(8.dp))
-                        Text("VIDEO · DOWNLOAD WITH SOUND", fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp, color = MaterialTheme.colorScheme.primary)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("Video & Audio", "Audio Only").forEach { tab ->
+                                FilterChip(
+                                    selected = qualityTab == tab,
+                                    onClick = { qualityTab = tab },
+                                    label = { Text(tab) }
+                                )
+                            }
+                        }
                         Spacer(Modifier.height(8.dp))
                         LazyColumn(
                             modifier = Modifier.weight(1f, fill = false).heightIn(max = 420.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            if (qualityTab == "Video & Audio") {
+                            item {
+                                Text("VIDEO · DOWNLOAD WITH SOUND", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.sp, color = MaterialTheme.colorScheme.primary)
+                            }
                             items(videoChoices, key = { it.first + ":" + (it.third?.formatId ?: it.second) }) { choice ->
                                 Surface(
                                     modifier = Modifier.fillMaxWidth().clickable {
@@ -212,7 +225,8 @@ private fun VidGravityApp() {
                                     }
                                 }
                             }
-                            if (audioFormats.isNotEmpty()) {
+                            }
+                            if (qualityTab == "Audio Only" && audioFormats.isNotEmpty()) {
                                 item {
                                     Spacer(Modifier.height(8.dp))
                                     Text("AUDIO ONLY", fontSize = 11.sp, fontWeight = FontWeight.Bold,
@@ -245,8 +259,12 @@ private fun VidGravityApp() {
                                     }
                                 }
                             }
-                            if (videoChoices.isEmpty() && audioFormats.isEmpty()) {
-                                item { Text("No standard video or audio formats were returned for this link.") }
+                            if ((qualityTab == "Video & Audio" && videoChoices.isEmpty()) ||
+                                (qualityTab == "Audio Only" && audioFormats.isEmpty())) {
+                                item {
+                                    Text(if (qualityTab == "Audio Only") "No audio-only streams were returned for this link."
+                                        else "No standard video formats were returned for this link.")
+                                }
                             }
                         }
                         Spacer(Modifier.height(12.dp))
