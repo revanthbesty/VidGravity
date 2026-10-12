@@ -9,6 +9,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.FileOutputOptions
@@ -78,20 +79,29 @@ class DualCameraCaptureActivity : ComponentActivity() {
             provider.unbindAll()
             try {
                 // Requires device-level concurrent-camera support; check before concurrent binding.
-                val concurrent = provider.availableConcurrentCameraInfos
-                val pair = concurrent.firstOrNull { infos ->
-                    infos.any { it.lensFacing == CameraSelector.LENS_FACING_BACK } &&
-                    infos.any { it.lensFacing == CameraSelector.LENS_FACING_FRONT }
+                val concurrentPair = provider.availableConcurrentCameraInfos.firstOrNull { concurrentCamera ->
+                    val facings = concurrentCamera.cameraInfos.mapNotNull { info ->
+                        runCatching { info.lensFacing }.getOrNull()
+                    }.toSet()
+                    CameraSelector.LENS_FACING_BACK in facings &&
+                        CameraSelector.LENS_FACING_FRONT in facings
                 }
-                if (pair != null) {
-                    val rearInfo = pair.first { it.lensFacing == CameraSelector.LENS_FACING_BACK }
-                    val frontInfo = pair.first { it.lensFacing == CameraSelector.LENS_FACING_FRONT }
-                    val rearSelector = rearInfo.cameraSelector
-                    val frontSelector = frontInfo.cameraSelector
-                    provider.bindToLifecycle(this, rearSelector, rearPreviewUseCase, capture, video)
-                    // Some providers require binding the pair in a single bindToLifecycle call;
-                    // the API exposes concurrent camera configs on supported CameraX versions.
-                    provider.bindToLifecycle(this, frontSelector, frontPreviewUseCase)
+                if (concurrentPair != null) {
+                    // CameraX requires concurrent use cases to be bound as one atomic pair.
+                    provider.bindToLifecycle(listOf(
+                        androidx.camera.lifecycle.ProcessCameraProvider
+                            .ConcurrentCamera.SingleCameraConfig(
+                                CameraSelector.DEFAULT_BACK_CAMERA,
+                                listOf(rearPreviewUseCase, capture, video),
+                                this
+                            ),
+                        androidx.camera.lifecycle.ProcessCameraProvider
+                            .ConcurrentCamera.SingleCameraConfig(
+                                CameraSelector.DEFAULT_FRONT_CAMERA,
+                                listOf(frontPreviewUseCase),
+                                this
+                            )
+                    ))
                     dualBound = true
                 } else {
                     provider.bindToLifecycle(this, rear, rearPreviewUseCase, capture, video)
