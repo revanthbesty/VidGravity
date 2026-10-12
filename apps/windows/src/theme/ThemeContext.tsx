@@ -23,7 +23,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => {
     const syncOtherWindow = (event: StorageEvent) => {
-      if (event.key !== KEY) return;\n      if (event.newValue === "light" || event.newValue === "dark" || event.newValue === "system") setPreference(event.newValue);\n      else if (event.newValue === null) setPreference("system");
+      if (event.key !== KEY) return;
+      if (event.newValue === "light" || event.newValue === "dark" || event.newValue === "system") setPreference(event.newValue);\n      else if (event.newValue === null) setPreference("system");
     };
     window.addEventListener("storage", syncOtherWindow);
     return () => window.removeEventListener("storage", syncOtherWindow);
