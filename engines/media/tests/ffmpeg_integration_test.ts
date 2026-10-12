@@ -31,13 +31,13 @@ Deno.test("real FFmpeg renders privacy blur and wallpaper derivatives without mo
       { x: 20, y: 20, width: 40, height: 30, kind: "face" },
       { x: 90, y: 40, width: 30, height: 25, kind: "license-plate" },
     ], 160, 120);
-    await run(blurPlan.executable, [...blurPlan.args.slice(0, 3), "-loglevel", "error", ...blurPlan.args.slice(3)]);
+    await run(blurPlan.executable, blurPlan.args as string[]);
     assert(await existsNonempty(blurred), "privacy blur should produce a non-empty file");
     const blurMeta = await metadata(blurred);
     assert(blurMeta.streams.some(s => s.codec_type === "video"), "blur output must contain video");
     assert(blurMeta.streams.some(s => s.codec_type === "audio"), "blur output must preserve audio");
     const wallpaperPlan = buildWallpaperPlan(source, wallpaper, 1.5);
-    await run(wallpaperPlan.executable, [...wallpaperPlan.args.slice(0, 2), "-loglevel", "error", ...wallpaperPlan.args.slice(2)]);
+    await run(wallpaperPlan.executable, wallpaperPlan.args as string[]);
     assert(await existsNonempty(wallpaper), "wallpaper should produce a non-empty file");
     const wallMeta = await metadata(wallpaper);
     const video = wallMeta.streams.find(s => s.codec_type === "video");
@@ -62,7 +62,7 @@ Deno.test("real FFmpeg photo dump renders five photos with supplied audio", asyn
     const output = `${dir}/photo-dump.mp4`;
     await run("ffmpeg", ["-nostdin","-hide_banner","-loglevel","error","-f","lavfi","-i","sine=frequency=660:sample_rate=44100","-t","2","-y",audio]);
     const plan = buildPhotoDumpPlan({ photos, audioPath: audio, outputPath: output, beatTimesSeconds: [0.4,0.8,1.2,1.6], durationSeconds: 2 });
-    await run(plan.executable, [...plan.args.slice(0, 2), "-loglevel", "error", ...plan.args.slice(2)]);
+    await run(plan.executable, plan.args as string[]);
     assert(await existsNonempty(output), "photo dump should produce a non-empty MP4");
     const result = await metadata(output);
     const video = result.streams.find(s => s.codec_type === "video");
