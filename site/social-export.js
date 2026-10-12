@@ -79,7 +79,7 @@
   function openModal(id, caller){
     ensureModal();state.id=id;state.item=null;state.blob=null;state.returnFocus=caller||document.activeElement;
     const modal=$("#vgSocialExportModal");modal.classList.remove("hidden");modal.setAttribute("aria-hidden","false");
-    state.preset=PRESETS[0];state.outputMode="optimized";state.framing="smart-reframe";renderPresets();updatePreview();setStatus("Loading saved media…");
+    state.preset=PRESETS[0];state.outputMode=id==="__app__"?"original":"optimized";state.framing="smart-reframe";renderPresets();updatePreview();setStatus("Loading saved media…");
     loadMedia(id).then(item=>{
       if(!item){setStatus("This item is not available in the local Library.","error");return;}
       state.item=item;state.blob=item.blob instanceof Blob?item.blob:null;
