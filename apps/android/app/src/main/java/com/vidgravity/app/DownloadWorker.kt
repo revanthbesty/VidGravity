@@ -68,9 +68,21 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     else -> delay(2000)
                 }
             }
+            var lastProgressBytes = 0L
+            var lastProgressAt = System.currentTimeMillis()
+            var currentSpeed = 0L
             val receipt = DownloadApi.downloadResult(remoteJobId!!, partial) { bytes, total ->
+                val now = System.currentTimeMillis()
+                val elapsed = (now - lastProgressAt).coerceAtLeast(1L)
+                if (elapsed >= 400L) {
+                    currentSpeed = ((bytes - lastProgressBytes).coerceAtLeast(0L) * 1000L) / elapsed
+                    lastProgressBytes = bytes
+                    lastProgressAt = now
+                }
                 val percent = if (total != null && total > 0) ((bytes * 100) / total).toInt().coerceIn(0, 99) else 0
-                setProgressAsync(workDataOf("bytes_downloaded" to bytes, "total_bytes" to (total ?: -1L), "eta_seconds" to -1L, "progress" to percent))
+                val eta = if (total != null && currentSpeed > 0L) ((total - bytes).coerceAtLeast(0L) / currentSpeed) else -1L
+                setProgressAsync(workDataOf("bytes_downloaded" to bytes, "total_bytes" to (total ?: -1L),
+                    "bytes_per_second" to currentSpeed, "eta_seconds" to eta, "progress" to percent))
                 DownloadNotifications.progress(applicationContext, workId, title,
                     if (total != null) (bytes / 1_000_000).toString() + " / " + (total / 1_000_000) + " MB" else (bytes / 1_000_000).toString() + " MB transferred",
                     percent, false)
