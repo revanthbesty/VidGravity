@@ -256,7 +256,9 @@ private fun DownloadsContent() {
                                             val preferences = SecureDownloadPreferences.load(context)
                                             DownloadWorker.enqueue(context, sourceUrl, selector ?: preferences.preferredFormatSelector, retryTitle, preferences.unmeteredOnly)
                                         } else {
-                                            notify("This download cannot be retried automatically. Inspect the original link again from Home.")
+                                            android.widget.Toast.makeText(context,
+                                                "Retry unavailable. Inspect the original link again from Home.",
+                                                android.widget.Toast.LENGTH_LONG).show()
                                         }
                                     }) { Text("Retry") }
                                 }
