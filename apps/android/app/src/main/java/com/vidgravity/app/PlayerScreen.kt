@@ -53,7 +53,7 @@ fun PlayerScreen(media: LibraryMedia, onBack: () -> Unit) {
         AndroidView(modifier = Modifier.fillMaxWidth().weight(1f), factory = { ctx ->
             PlayerView(ctx).apply {
                 layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                player = player
+                setPlayer(player)
                 useController = true
                 controllerAutoShow = true
                 setShowSubtitleButton(true)
