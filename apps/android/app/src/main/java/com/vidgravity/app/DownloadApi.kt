@@ -19,10 +19,10 @@ data class FormatOption(
     val videoCodec: String,
     val audioCodec: String,
     val sizeBytes: Long?,
-    val height: Int,
-    val hasVideo: Boolean,
-    val hasAudio: Boolean,
-    val note: String
+    val height: Int = 0,
+    val hasVideo: Boolean = videoCodec.isNotBlank() && videoCodec != "none",
+    val hasAudio: Boolean = audioCodec.isNotBlank() && audioCodec != "none",
+    val note: String = ""
 ) {
     fun displayName(): String {
         val kind = if (hasVideo && hasAudio) "Video + audio" else if (hasVideo) "Video · audio combined on download" else "Audio only"
