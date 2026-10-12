@@ -575,13 +575,15 @@ class Handler(SimpleHTTPRequestHandler):
                     rows.append({
                         'id':fid,'selector':selector,'ext':f.get('ext'),
                         'resolution':(f"{int(f.get('height'))}p" if has_video and f.get('height') else (f.get('resolution') if has_video and f.get('resolution') else ('audio only' if has_audio and not has_video else ('video quality unavailable' if has_video else 'unknown')))),
+                        'width':f.get('width'),'height':f.get('height'),
                         'fps':f.get('fps'),'vcodec':vcodec,'acodec':acodec,
+                        'dynamic_range':f.get('dynamic_range') or '',
                         'filesize':f.get('filesize') or f.get('filesize_approx'),
                         'note':f.get('format_note') or '',
                         'has_video':has_video,'has_audio':has_audio
                     })
                 rows.sort(key=lambda f: (not f['has_video'], not f['has_audio'], f.get('filesize') or 0), reverse=False)
-                return self._json(200,{'source':'yt-dlp','title':d.get('title') or 'Media','duration':d.get('duration'),'thumbnail':d.get('thumbnail'),'format_count':len(rows),'formats_available':bool(rows),'default_format':'bv*+ba/b','formats':rows[:40]})
+                return self._json(200,{'source':'yt-dlp','title':d.get('title') or 'Media','duration':d.get('duration'),'thumbnail':d.get('thumbnail'),'format_count':len(rows),'formats_available':bool(rows),'default_format':'bv*+ba/b','formats':rows[:80]})
             except Exception as e:return self._json(502,{'error':f'invalid resolver response: {e}'})
         if self.path.startswith('/api/inspect'):
             q=urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
