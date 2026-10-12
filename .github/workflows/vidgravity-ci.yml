@@ -60,6 +60,8 @@ jobs:
           code=$?
           if [ "$code" -ne 0 ] && [ "$code" -ne 2 ]; then exit "$code"; fi
           echo "P170 is expected to remain blocked until external release evidence passes."
+      - name: Social export preset and FFmpeg graph tests
+        run: python -m unittest discover -s tests -p "test_media_export.py" -v
       - name: Direct media download regression tests
         run: python -m unittest -v test_download_job_direct.py
       - name: YouTube extractor configuration regression tests
@@ -68,6 +70,8 @@ jobs:
         run: |
           node --check app.js
           node --check site/app.js
+          node --check site/social-export.js
+          node --check site/player-refactor.js
           node --check android-web/app.js
       - name: Inline JavaScript syntax checks for shipped HTML pages
         run: |
