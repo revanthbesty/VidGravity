@@ -80,8 +80,8 @@ class DualCameraCaptureActivity : ComponentActivity() {
             provider.unbindAll()
             try {
                 // Requires device-level concurrent-camera support; check before concurrent binding.
-                val concurrentPair = provider.availableConcurrentCameraInfos.firstOrNull { concurrentCamera ->
-                    val facings = concurrentCamera.cameraInfos.mapNotNull { info ->
+                val concurrentPair = provider.availableConcurrentCameraInfos.firstOrNull { infos ->
+                    val facings = infos.mapNotNull { info ->
                         runCatching { info.lensFacing }.getOrNull()
                     }.toSet()
                     CameraSelector.LENS_FACING_BACK in facings &&
