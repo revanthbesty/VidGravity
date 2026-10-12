@@ -86,7 +86,7 @@ object DownloadApi {
                         videoCodec = item.optString("vcodec", "unknown"),
                         audioCodec = item.optString("acodec", "unknown"),
                         sizeBytes = if (item.has("filesize") && !item.isNull("filesize")) item.optLong("filesize").takeIf { it > 0 } else null,
-                        height = item.optInt("height", Regex("(\\d{3,4})p").find(item.optString("resolution"))?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0),
+                        height = item.optInt("height", Regex("(?:\\d{3,4}x(\\d{3,4})|(?:^|\\D)(\\d{3,4})p").find(item.optString("resolution"))?.let { match -> (match.groupValues.getOrNull(1)?.takeIf { it.isNotBlank() } ?: match.groupValues.getOrNull(2))?.toIntOrNull() } ?: 0),
                         hasVideo = item.optBoolean("has_video", item.optString("vcodec", "none") != "none"),
                         hasAudio = item.optBoolean("has_audio", item.optString("acodec", "none") != "none"),
                         note = item.optString("note", "")
