@@ -84,8 +84,8 @@
       if(!item){setStatus("This item is not available in the local Library.","error");return;}
       state.item=item;state.blob=item.blob instanceof Blob?item.blob:null;
       if(state.sourceUrl)URL.revokeObjectURL(state.sourceUrl);state.sourceUrl=null;
-      const video=$("#vgExportVideo");video.pause();video.removeAttribute("src");
-      if(state.blob){state.sourceUrl=URL.createObjectURL(state.blob);video.src=state.sourceUrl;video.load();}
+      const video=$("#vgExportVideo"),backdrop=$("#vgExportBackdrop");video.pause();video.removeAttribute("src");if(backdrop){backdrop.pause();backdrop.removeAttribute("src");}
+      if(state.blob){state.sourceUrl=URL.createObjectURL(state.blob);video.src=state.sourceUrl;if(backdrop)backdrop.src=state.sourceUrl;video.load();if(backdrop)backdrop.load();}
       setStatus(state.blob?"Ready. Original media is immutable; exports create a separate Library version.":"No local file is stored. Direct Share can share a URL when available.");
       updatePreview();
     }).catch(e=>setStatus(e.message||"Could not load media.","error"));
