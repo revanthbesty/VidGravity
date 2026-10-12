@@ -92,7 +92,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             }
             // The provider may omit a precomputed checksum. Hash received bytes locally;
             // compare against the companion only when it supplied a valid SHA-256.
-            val actual = DownloadApi.sha256(partial)
+            val actual = receipt.calculatedSha256 ?: DownloadApi.sha256(partial)
             val expected = receipt.sha256
             if (expected != null && !actual.equals(expected, ignoreCase = true)) {
                 partial.delete()
