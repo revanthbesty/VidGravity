@@ -329,8 +329,9 @@ function renderLibrary(){
 document.addEventListener("click",event=>{const button=event.target.closest(".play");if(!button)return;event.preventDefault();event.stopImmediatePropagation();play(button.dataset.id)},true);
 
 let shareMediaId=null;
+function getShareItem(id){return id==='__app__'?{id:'__app__',title:'VidGravity',url:location.href,type:'Web app',size:0}:media.find(m=>m.id===id)}
 function openShare(id){
- const item=media.find(m=>m.id===id);if(!item)return toast('Media item was not found');
+ const item=getShareItem(id);if(!item)return toast('Media item was not found');
  shareMediaId=id;
  const modal=$('#shareModal');if(!modal)return shareMedia(id);
  $('#sharePreviewTitle').textContent=item.title||'Media';
@@ -340,9 +341,9 @@ function openShare(id){
  modal.classList.remove('hidden');modal.setAttribute('aria-hidden','false');
 }
 async function shareMedia(id=shareMediaId){
- const item=media.find(m=>m.id===id);if(!item)return toast('Media item was not found');
+ const item=getShareItem(id);if(!item)return toast('Media item was not found');
  try{
-  const stored=await dbGet(id);
+  const stored=id==='__app__'?null:await dbGet(id);
   const file=stored?.blob instanceof Blob&&stored.blob.size?new File([stored.blob],(item.title||'vidgravity-media').replace(/[\\/:*?"<>|]+/g,'_'),{type:stored.blob.type||'application/octet-stream'}):null;
   if(navigator.share){
    const payload={title:item.title||'VidGravity media',text:'Shared from VidGravity',url:item.url||undefined};
@@ -354,7 +355,7 @@ async function shareMedia(id=shareMediaId){
  }catch(error){if(error?.name==='AbortError')return false;toast(error?.message||'Could not share this media');return false}
 }
 function shareTo(target){
- const item=media.find(m=>m.id===shareMediaId);if(!item)return;
+ const item=getShareItem(shareMediaId);if(!item)return;
  const url=item.url||'';const title=item.title||'VidGravity media';let targetUrl='';
  if(target==='x')targetUrl='https://twitter.com/intent/tweet?'+new URLSearchParams({text:title,url});
  if(target==='whatsapp')targetUrl='https://wa.me/?text='+encodeURIComponent([title,url].filter(Boolean).join(' '));
@@ -364,6 +365,7 @@ function shareTo(target){
  if(target!=='whatsapp'&&target!=='x'&&!url)return toast('This social target needs a shareable URL');
  window.open(targetUrl,'_blank','noopener,noreferrer');
 }
+$('#shareAppButton')?.addEventListener('click',()=>openShare('__app__'));
 $('#shareDeviceButton')?.addEventListener('click',()=>shareMedia());
 $('#shareCopyButton')?.addEventListener('click',async()=>{const item=media.find(m=>m.id===shareMediaId);if(!item?.url)return toast('No shareable URL is available for this media');try{await navigator.clipboard.writeText(item.url);toast('Link copied')}catch{toast('Clipboard access is unavailable in this context')}});
 $$('[data-share-target]').forEach(button=>button.addEventListener('click',()=>shareTo(button.dataset.shareTarget)));
