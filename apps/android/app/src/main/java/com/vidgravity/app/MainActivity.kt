@@ -216,12 +216,12 @@ private fun VidGravityApp() {
                                     Text("AUDIO ONLY", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                                         letterSpacing = 1.sp, color = MaterialTheme.colorScheme.primary)
                                 }
-                                item {
+                                items(audioFormats, key = { "audio:" + it.formatId }) { audio ->
                                     Surface(
                                         modifier = Modifier.fillMaxWidth().clickable {
                                             try {
                                                 val preferences = SecureDownloadPreferences.load(context)
-                                                DownloadWorker.enqueue(context, url.trim(), "bestaudio/best", result.title + " — Audio", preferences.unmeteredOnly)
+                                                DownloadWorker.enqueue(context, url.trim(), audio.selector, result.title + " — Audio", preferences.unmeteredOnly)
                                                 analysis = null
                                                 selected = VgTab.Downloads
                                                 notice = "Audio download added to queue."
@@ -235,11 +235,10 @@ private fun VidGravityApp() {
                                             Icon(Icons.Default.MusicNote, null, tint = MaterialTheme.colorScheme.primary)
                                             Spacer(Modifier.width(12.dp))
                                             Column(Modifier.weight(1f)) {
-                                                Text("Best available audio", fontWeight = FontWeight.SemiBold)
-                                                Text("Audio only · automatic quality", fontSize = 12.sp,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Text(audio.container.uppercase() + " · " + audio.audioCodec.takeIf { it != "none" } .orEmpty(), fontWeight = FontWeight.SemiBold)
+                                                Text(audio.displayName(), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                             }
-                                            Icon(Icons.Default.ChevronRight, null)
+                                            Icon(Icons.Default.Download, null)
                                         }
                                     }
                                 }
