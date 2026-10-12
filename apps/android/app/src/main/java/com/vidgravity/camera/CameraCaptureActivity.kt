@@ -142,8 +142,24 @@ class CameraCaptureActivity : ComponentActivity() {
         recordingFile = file
         val output = FileOutputOptions.Builder(file).build()
         val audioEnabled = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-        recording = controller.startRecording(output, executor, object : androidx.camera.video.RecordingCallback() {})
-        // Replaced below by the controller's recording event callback in CameraX 1.4 API.
+        controller.setAudioEnabled(audioEnabled)
+        recording = controller.startRecording(output, executor) { event ->
+            when (event) {
+                is VideoRecordEvent.Start -> runOnUiThread { hint.text = "Recording · 0s / 60s" }
+                is VideoRecordEvent.Finalize -> {
+                    recording = null
+                    handler.removeCallbacks(timer)
+                    runOnUiThread {
+                        progress.visibility = View.GONE
+                        if (!event.hasError() && file.exists() && file.length() > 0L) handoff(file, "video/mp4")
+                        else hint.text = "Recording failed. Tap to try again."
+                    }
+                }
+                is VideoRecordEvent.Status -> Unit
+                is VideoRecordEvent.Pause -> Unit
+                is VideoRecordEvent.Resume -> Unit
+            }
+        }
         recordingStartedAt = System.currentTimeMillis()
         progress.visibility = View.VISIBLE
         progress.progress = 0
