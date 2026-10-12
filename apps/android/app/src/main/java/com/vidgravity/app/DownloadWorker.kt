@@ -26,7 +26,8 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
     private val workId: UUID get() = id
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        val url = inputData.getString(KEY_URL)?.let(ShareReceiverActivity::normalizeSharedUrl)
+        val rawUrl = inputData.getString(KEY_URL)
+        val url = rawUrl?.let(ShareReceiverActivity::normalizeSharedUrl)
             ?: return@withContext Result.failure(workDataOf("error" to "Invalid shared URL"))
         val preferences = SecureDownloadPreferences.load(applicationContext)
         val selector = inputData.getString(KEY_FORMAT)?.takeIf { it.isNotBlank() } ?: preferences.preferredFormatSelector
@@ -57,7 +58,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 setForeground(DownloadNotifications.foreground(applicationContext, workId, title, job.message, job.progress, false))
                 when (job.state) {
                     "completed" -> break
-                    "failed", "cancelled", "expired", "restricted" -> return@withContext Result.failure(workDataOf("error" to job.message))
+                    "failed", "cancelled", "expired", "restricted" -> return@withContext failureResult(job.message, url, selector, title)
                     "queued", "running", "processing", "downloading", "cancelling" -> delay(if (job.state == "queued") 2500 else 1500)
                     else -> delay(2000)
                 }
@@ -96,7 +97,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 partial.delete()
                 remoteJobId?.let { runCatching { DownloadApi.cancelJob(it) } }
                 DownloadNotifications.terminal(applicationContext, title, "Network timeout after retries", false)
-                Result.failure(workDataOf("error" to "Network timeout after retries"))
+                failureResult("Network timeout after retries", url, selector, title)
             }
         } catch (failure: Exception) {
             remoteJobId?.let { runCatching { DownloadApi.cancelJob(it) } }
@@ -104,7 +105,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             registry.edit().remove(workId.toString()).commit()
             DownloadActionReceiver.clear(applicationContext, workId)
             DownloadNotifications.terminal(applicationContext, title, failure.message ?: "Download failed", false)
-            Result.failure(workDataOf("error" to (failure.message ?: "Download failed").take(300)))
+            failureResult(failure.message ?: "Download failed", url, selector, title)
         }
     }
 
@@ -112,7 +113,18 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
         const val KEY_URL = "shared_url"
         const val KEY_FORMAT = "format_selector"
         const val KEY_TITLE = "media_title"
+        const val RETRY_URL = "retry_url"
+        const val RETRY_FORMAT = "retry_format"
+        const val RETRY_TITLE = "retry_title"
         private const val REGISTRY = "vg_remote_job_registry"
+
+        private fun failureResult(message: String, url: String, selector: String, title: String): Result =
+            Result.failure(workDataOf(
+                "error" to message.take(300),
+                RETRY_URL to url,
+                RETRY_FORMAT to selector,
+                RETRY_TITLE to title.take(180)
+            ))
 
         fun enqueue(context: Context, url: String, selector: String, title: String, unmeteredOnly: Boolean): UUID {
             val constraints = Constraints.Builder()
