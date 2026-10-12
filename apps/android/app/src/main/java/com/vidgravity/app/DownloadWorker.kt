@@ -58,7 +58,12 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 setForeground(DownloadNotifications.foreground(applicationContext, workId, title, job.message, job.progress, false))
                 when (job.state) {
                     "completed" -> break
-                    "failed", "cancelled", "expired", "restricted" -> return@withContext failureResult(job.message, url, selector, title)
+                    "failed", "cancelled", "expired", "restricted" -> {
+                        partial.delete()
+                        registry.edit().remove(workId.toString()).commit()
+                        DownloadActionReceiver.clear(applicationContext, workId)
+                        return@withContext failureResult(job.message, url, selector, title)
+                    }
                     "queued", "running", "processing", "downloading", "cancelling" -> delay(if (job.state == "queued") 2500 else 1500)
                     else -> delay(2000)
                 }
