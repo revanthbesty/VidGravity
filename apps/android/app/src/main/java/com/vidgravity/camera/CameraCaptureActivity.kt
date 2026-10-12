@@ -89,7 +89,7 @@ class CameraCaptureActivity : ComponentActivity() {
             setVideoCaptureTargetRotation(windowManager.defaultDisplay.rotation)
         }
         preview.controller = controller
-        bindToLifecycle(this)
+        controller.bindToLifecycle(this)
 
         val root = FrameLayout(this)
         root.addView(preview, FrameLayout.LayoutParams(-1, -1))
