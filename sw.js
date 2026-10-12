@@ -1,5 +1,5 @@
 /* VidGravity P160: offline app shell only; never cache API, license, or download responses. */
-const CACHE_NAME = "vidgravity-p189-shell-v3";
+const CACHE_NAME = "vidgravity-p190-shell-v3";
 const APP_SHELL = ["./","./index.html","./styles.css","./app.js","./manifest.webmanifest","./icons/icon-192.svg","./icons/icon-512.svg"];
 self.addEventListener("install", event => event.waitUntil((async () => {
   const cache = await caches.open(CACHE_NAME); await cache.addAll(APP_SHELL); await self.skipWaiting();
