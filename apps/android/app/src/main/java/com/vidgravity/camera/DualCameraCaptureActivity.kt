@@ -12,6 +12,7 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.lifecycle.ConcurrentCamera
 import androidx.camera.video.FileOutputOptions
 import androidx.camera.video.Quality
 import androidx.camera.video.QualitySelector
@@ -89,8 +90,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
                 if (concurrentPair != null) {
                     // CameraX requires concurrent use cases to be bound as one atomic pair.
                     provider.bindToLifecycle(listOf(
-                        androidx.camera.lifecycle.ProcessCameraProvider
-                            .ConcurrentCamera.SingleCameraConfig(
+                        ConcurrentCamera.SingleCameraConfig(
                                 CameraSelector.DEFAULT_BACK_CAMERA,
                                 listOf(rearPreviewUseCase, capture, video),
                                 this
