@@ -32,8 +32,8 @@ export function MediaPlayer({ src, title, onClose, mediaId, shareUrl, thumbnailU
       <button type="button" onClick={p.togglePip} disabled={!p.capabilities.pictureInPicture}>{p.pip ? "Exit Picture-in-Picture" : "Picture-in-Picture"}</button>
     </div>
     <details><summary>Video Adjustments</summary><div className="player-toolbar">
-      <label>Brightness <input type="range" min="50" max="150" value={brightness} onChange={e=>setBrightness(Number(e.target.value)} /></label>
-      <label>Contrast <input type="range" min="50" max="150" value={contrast} onChange={e=>setContrast(Number(e.target.value)} /></label>
+      <label>Brightness <input type="range" min="50" max="150" value={brightness} onChange={e=>setBrightness(Number(e.target.value))} /></label>
+      <label>Contrast <input type="range" min="50" max="150" value={contrast} onChange={e=>setContrast(Number(e.target.value))} /></label>
       <p className="player-capability-note">These controls adjust display brightness and contrast. GPU sharpening and super-resolution require the native shader pipeline.</p>
     </div></details>
     {p.message && <p role="status">{p.message}<button type="button" onClick={p.clearMessage} aria-label="Dismiss message">Dismiss</button></p>}
