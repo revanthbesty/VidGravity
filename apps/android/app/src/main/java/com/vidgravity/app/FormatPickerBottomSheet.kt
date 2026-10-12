@@ -60,7 +60,8 @@ class FormatPickerBottomSheet : BottomSheetDialogFragment() {
                 status.text = result.title + " · " + result.formats.size + " formats"
                 if (result.formats.isEmpty()) {
                     addChoice(FormatOption("bv*+ba/b", "best", "Best available", "mp4", "unknown", "unknown", null), result.title)
-                } else result.formats.take(32).forEach { addChoice(it, result.title) }
+                } else result.formats.sortedWith(compareByDescending<FormatOption> { it.height }
+                    .thenByDescending { it.sizeBytes ?: 0L }).take(80).forEach { addChoice(it, result.title) }
             } catch (failure: Exception) {
                 progress.visibility = View.GONE
                 status.text = "Could not analyze provider: " + (failure.message ?: "").take(160)
@@ -72,7 +73,9 @@ class FormatPickerBottomSheet : BottomSheetDialogFragment() {
 
     private fun addChoice(option: FormatOption, title: String) {
         root.addView(Button(requireContext()).apply {
-            text = option.displayName()
+            text = option.resolution + " · " + option.displayName() +
+                (option.fps?.let { " · " + it.toInt() + " FPS" } ?: "") +
+                (option.dynamicRange.takeIf { it.isNotBlank() && !it.equals("SDR", true) }?.let { " · HDR" } ?: "")
             isAllCaps = false
             setOnClickListener {
                 (activity as? Listener)?.onFormatChosen(sharedUrl, option, remember.isChecked, title)
