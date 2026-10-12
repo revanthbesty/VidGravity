@@ -156,8 +156,25 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
         item {
             Surface(shape = RoundedCornerShape(26.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text("Everything you want to keep.", fontSize = 26.sp, lineHeight = 31.sp, fontWeight = FontWeight.Bold)
-                    Text("Paste a public media link to inspect formats and start a download.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(50)
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(7.dp)
+                        ) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
+                            Text("YOUR MEDIA WORKSPACE", fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                    Text("Your media, all in one place.", fontSize = 28.sp, lineHeight = 33.sp,
+                        fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp)
+                    Text("Paste a public video or audio link. Inspect available quality, then choose exactly what to save.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedTextField(value = url, onValueChange = onUrl, modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("Paste video or audio URL") }, leadingIcon = { Icon(Icons.Default.Link, null) },
                         trailingIcon = { IconButton(onClick = { clipboard.getText()?.text?.let(onUrl) }) { Icon(Icons.Default.ContentPaste, "Paste") } },
