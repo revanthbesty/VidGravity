@@ -411,7 +411,6 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                     }
                 }
             }
-        }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 InfoCard("Downloads", "Real transfer status", Icons.Default.Download, Modifier.weight(1f))
