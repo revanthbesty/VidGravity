@@ -9,7 +9,7 @@ function initialPreference(): ThemePreference {
 }
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [preference, setPreference] = useState<ThemePreference>(initialPreference);
-  const [systemDark, setSystemDark] = useState(() => typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const [systemDark, setSystemDark] = useState(() => typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches);
   useEffect(() => {
     const query = window.matchMedia("(prefers-color-scheme: dark)");
     const update = () => setSystemDark(query.matches);
@@ -18,7 +18,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
   useEffect(() => {
     const syncOtherWindow = (event: StorageEvent) => {
-      if (event.key === KEY && (event.newValue === "light" || event.newValue === "dark" || event.newValue === "system")) setPreference(event.newValue);
+      if (event.key !== KEY) return;\n      if (event.newValue === "light" || event.newValue === "dark" || event.newValue === "system") setPreference(event.newValue);\n      else if (event.newValue === null) setPreference("system");
     };
     window.addEventListener("storage", syncOtherWindow);
     return () => window.removeEventListener("storage", syncOtherWindow);
