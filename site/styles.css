@@ -472,3 +472,15 @@ html[data-theme="light"] .nav:not(.active),html[data-theme="light"] .smallBtn,ht
 html[data-theme="light"] .jobUrl,html[data-theme="light"] .setting small,html[data-theme="light"] .sideFoot,html[data-theme="light"] .stat small,html[data-theme="light"] .stat span,html[data-theme="light"] .downloadItemDate,html[data-theme="light"] .mediaMeta,html[data-theme="light"] .jobStatus,html[data-theme="light"] .shareFootnote{color:var(--text-muted)!important}
 html[data-theme="light"] .modal video,html[data-theme="light"] .vg-player-video-wrap,html[data-theme="light"] .thumb{background:#111318}
 html[data-theme="dark"] .card,html[data-theme="dark"] .job,html[data-theme="dark"] .setting,html[data-theme="dark"] .stat,html[data-theme="dark"] .intake,html[data-theme="dark"] .ask,html[data-theme="dark"] .downloadItem,html[data-theme="dark"] .media{border-color:var(--border-subtle)}
+
+
+/* Audio Alchemist — compact, thumb-friendly preset controls inside the player. */
+.audioAlchemist{display:grid;gap:12px;margin:14px 0;padding:16px;border:1px solid var(--line,#30303a);border-radius:16px;background:var(--surface,#18181b)}
+.audioAlchemist>div:first-child{display:grid;gap:4px}
+.audioAlchemist>div:first-child strong{font-size:1rem}
+.audioAlchemist small{color:var(--muted,#b9b9c7);font-size:.82rem}
+.audioPresetButtons{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.audioPresetButtons button{min-height:48px;padding:10px 12px;border:1px solid var(--line,#30303a);border-radius:12px;background:var(--surface-raised,#23232c);color:var(--text,#f4f2fa);font:inherit;font-weight:600;cursor:pointer}
+.audioPresetButtons button:hover:not(:disabled),.audioPresetButtons button:focus-visible{border-color:var(--accent,#9b6cff);outline:2px solid color-mix(in srgb,var(--accent,#9b6cff) 45%,transparent);outline-offset:2px}
+.audioPresetButtons button:disabled{opacity:.55;cursor:wait}
+#audioPresetStatus{min-height:1.25rem;margin:0;color:var(--muted,#b9b9c7);font-size:.85rem}
