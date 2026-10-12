@@ -232,7 +232,7 @@ private fun DownloadsContent() {
                                 }
                                 if (work.state == WorkInfo.State.FAILED || work.state == WorkInfo.State.CANCELLED) {
                                     TextButton(onClick = {
-                                        val input = work.outputData
+                                        val input = work.inputData
                                         val sourceUrl = input.getString(DownloadWorker.KEY_URL)
                                         if (sourceUrl != null) {
                                             val preferences = SecureDownloadPreferences.load(context)
