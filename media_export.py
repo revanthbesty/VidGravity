@@ -11,7 +11,9 @@ PRESETS = {
 }
 MODES = {"smart-reframe","blurred-backdrop","fit-letterbox"}
 MAX_DIMENSION=2160
-MAX_TRIM_SECONDS=3600
+MAX_TRIM_SECONDS=1800
+MAX_MEDIA_SECONDS=1800
+MAX_OUTPUT_BYTES=256*1024*1024
 
 class ExportError(ValueError):
     """Rejected export request or unsuccessful media transcode."""
@@ -48,13 +50,24 @@ def export_media_file(source,destination,request):
     if source.resolve()==destination.resolve(): raise ExportError("Source and output paths must be different.")
     if shutil.which("ffmpeg") is None: raise ExportError("FFmpeg is not installed on this server.")
     checked=validate_export_request(request.get("preset",""),request.get("mode",""),request.get("width"),request.get("height"),request.get("trim_seconds"))
+    if shutil.which("ffprobe") is None: raise ExportError("ffprobe is not installed on this server.")
+    try:
+        probe=subprocess.run(["ffprobe","-v","error","-show_entries","format=duration","-of","default=noprint_wrappers=1:nokey=1",str(source)],capture_output=True,text=True,timeout=20,check=False)
+        duration=float(probe.stdout.strip())
+    except (subprocess.TimeoutExpired,ValueError) as exc:
+        raise ExportError("Could not safely inspect the source media duration.") from exc
+    if probe.returncode != 0 or duration <= 0:
+        raise ExportError("The uploaded file is not a valid media file.")
+    permitted_duration=checked["trim_seconds"] if checked["trim_seconds"] is not None else MAX_MEDIA_SECONDS
+    if duration > permitted_duration and checked["trim_seconds"] is None:
+        raise ExportError("Source duration exceeds 30 minutes. Add a trim duration and retry.")
     graph=build_filter_graph(checked["width"],checked["height"],checked["mode"])
     args=["ffmpeg","-hide_banner","-loglevel","error","-nostdin","-y","-i",str(source)]
     if checked["trim_seconds"] is not None: args += ["-t",f'{checked["trim_seconds"]:.3f}']
     if checked["mode"]=="blurred-backdrop": args += ["-filter_complex",f"[0:v]{graph}[vout]","-map","[vout]","-map","0:a?"]
     else: args += ["-vf",graph,"-map","0:v:0","-map","0:a?"]
-    args += ["-c:v","libx264","-preset","veryfast","-crf","20","-pix_fmt","yuv420p","-c:a","aac","-b:a","160k","-movflags","+faststart","-f","mp4",str(destination)]
-    try: result=subprocess.run(args,capture_output=True,timeout=1800,check=False)
+    args += ["-threads","2","-fs",str(MAX_OUTPUT_BYTES),"-c:v","libx264","-preset","veryfast","-crf","20","-pix_fmt","yuv420p","-c:a","aac","-b:a","160k","-movflags","+faststart","-f","mp4",str(destination)]
+    try: result=subprocess.run(args,capture_output=True,timeout=600,check=False)
     except subprocess.TimeoutExpired as exc: raise ExportError("Media export timed out. Try a shorter clip.") from exc
     if result.returncode!=0 or not destination.is_file() or destination.stat().st_size<=0:
         destination.unlink(missing_ok=True)
