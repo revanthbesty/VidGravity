@@ -3,10 +3,6 @@ package com.vidgravity.sync
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.work.Constraints
-import androidx.work.NetworkType
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -39,14 +35,18 @@ object CollaborativeStash {
             URLEncoder.encode(stashId, StandardCharsets.UTF_8.name()) + "&invite=" +
             URLEncoder.encode(inviteToken, StandardCharsets.UTF_8.name())
     }
-    fun enqueueUnmeteredTransfer(context: Context, url: String) {
-        val parsed = parseSharedUrls(url).singleOrNull() ?: throw IllegalArgumentException("Unsupported or unsafe media URL")
-        // A real Worker must be registered by the app; this request deliberately waits for Wi-Fi.
-        val request = OneTimeWorkRequestBuilder<StashTransferWorker>()
-            .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.UNMETERED).build())
-            .addTag("stash:${parsed.id}")
-            .build()
-        WorkManager.getInstance(context).enqueue(request)
+    fun enqueueUnmeteredTransfer(context: Context, url: String): java.util.UUID {
+        val parsed = parseSharedUrls(url).singleOrNull()
+            ?: throw IllegalArgumentException("Unsupported or unsafe media URL")
+        // Reuse the production download lifecycle (remote job, progress, checksum and library
+        // indexing) rather than enqueueing a worker that cannot perform a transfer.
+        return com.vidgravity.app.DownloadWorker.enqueue(
+            context = context,
+            url = parsed.url,
+            selector = "bv*+ba/b",
+            title = parsed.title,
+            unmeteredOnly = true
+        )
     }
     fun shareInvite(context: Context, inviteLink: String) {
         val uri = Uri.parse(inviteLink)
@@ -57,11 +57,3 @@ object CollaborativeStash {
     }
 }
 
-/** Placeholder worker prevents silently pretending downloads are implemented. */
-class StashTransferWorker(appContext: Context, params: androidx.work.WorkerParameters) :
-    androidx.work.Worker(appContext, params) {
-    override fun doWork(): Result {
-        // URL storage, authorization, deduplication and media-download worker must be connected.
-        return Result.failure()
-    }
-}
