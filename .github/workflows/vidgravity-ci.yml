@@ -73,6 +73,10 @@ jobs:
           node --check site/social-export.js
           node --check site/player-refactor.js
           node --check android-web/app.js
+          node --check android-web/social-export.js
+          node --check android-web/player-refactor.js
+          node --check site/sw.js
+          node --check android-web/sw.js
       - name: Inline JavaScript syntax checks for shipped HTML pages
         run: |
           python - <<'PY'
