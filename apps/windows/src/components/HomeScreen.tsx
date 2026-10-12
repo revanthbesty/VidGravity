@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { FormEvent } from "react";
 import copy from "../locales/en.json";
 
 export interface HomeScreenProps {
@@ -12,7 +13,7 @@ export interface HomeScreenProps {
 export function HomeScreen({ onAnalyze, onOpenDownloads, isAnalyzing, statusMessage, errorMessage, downloadCount }: HomeScreenProps) {
   const [url, setUrl] = useState("");
   const [localError, setLocalError] = useState("");
-  async function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const value = url.trim();
     if (!value) { setLocalError("Enter a media URL to continue."); return; }
