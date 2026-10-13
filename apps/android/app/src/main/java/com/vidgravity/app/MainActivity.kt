@@ -838,21 +838,6 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 onValueChange = { downloadSearch = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                label = { Text("Search downloads") },
-                placeholder = { Text("Name, source URL, status, or error") },
-                trailingIcon = {
-                    if (downloadSearch.isNotEmpty()) {
-                        IconButton(onClick = { downloadSearch = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear download search")
-                        }
-                    }
-                }
-            )
-            OutlinedTextField(
-                value = downloadSearch,
-                onValueChange = { downloadSearch = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
                 label = { Text("Search download history") },
                 placeholder = { Text("Filename, source URL, error, or status") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
