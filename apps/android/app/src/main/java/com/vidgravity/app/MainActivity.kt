@@ -124,7 +124,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                     }, { notice = it }, { showInbox = true })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     VgTab.Library -> LibraryContent(onPlay = { playingMedia = it })
-                    VgTab.Create -> CreateStudioContent(onPlay = { playingMedia = it }, notify = { notice = it })
+                    VgTab.Create -> CreateStudioContent(onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true })
                     VgTab.Settings -> SettingsContent(dark, { dark = it; prefs.edit().putBoolean("dark", it).apply() })
                 }
             }
@@ -773,7 +773,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
 }
 
 @Composable
-private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit) {
+private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit, openInbox: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var selectedMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     val picker = rememberLauncherForActivityResult(
