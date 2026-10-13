@@ -1,5 +1,6 @@
 package com.vidgravity.app
 
+import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
@@ -11,7 +12,103 @@ import java.io.File
 
 data class PublishedMedia(val uri: Uri, val displayName: String, val sizeBytes: Long, val sha256: String)
 
+data class LibraryMedia(val uri: Uri, val displayName: String, val sizeBytes: Long, val mimeType: String, val createdAtMs: Long, val isFavorite: Boolean = false)
+
 object MediaLibraryIndexer {
+    fun list(context: Context): List<LibraryMedia> {
+        // Reconcile the index with MediaStore on every refresh. This recovers downloads that
+        // were published before a process died or before the SQLite insert completed.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) reconcileMediaStore(context)
+        LibraryIndexDb(context).use { helper ->
+            val rows = mutableListOf<LibraryMedia>()
+            helper.readableDatabase.rawQuery(
+                "SELECT content_uri, display_name, size_bytes, mime_type, created_at_ms, is_favorite FROM media ORDER BY created_at_ms DESC",
+                null
+            ).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val uri = runCatching { Uri.parse(cursor.getString(0)) }.getOrNull() ?: continue
+                    if (runCatching { context.contentResolver.openAssetFileDescriptor(uri, "r") }.getOrNull()?.use { true } != true) {
+                        helper.writableDatabase.delete("media", "content_uri=?", arrayOf(uri.toString()))
+                        continue
+                    }
+                    rows += LibraryMedia(uri, cursor.getString(1), cursor.getLong(2), cursor.getString(3), cursor.getLong(4), cursor.getInt(5) != 0)
+                }
+            }
+            return rows
+        }
+    }
+
+    private fun reconcileMediaStore(context: Context) {
+        val resolver = context.contentResolver
+        val sources = listOf(
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI to "Movies/VidGravity/",
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI to "Music/VidGravity/"
+        )
+        LibraryIndexDb(context).use { helper ->
+            val db = helper.writableDatabase
+            for ((collection, relativePath) in sources) {
+                val projection = arrayOf(
+                    MediaStore.MediaColumns._ID,
+                    MediaStore.MediaColumns.DISPLAY_NAME,
+                    MediaStore.MediaColumns.SIZE,
+                    MediaStore.MediaColumns.MIME_TYPE,
+                    MediaStore.MediaColumns.DATE_ADDED,
+                    MediaStore.MediaColumns.RELATIVE_PATH
+                )
+                resolver.query(collection, projection, "${MediaStore.MediaColumns.RELATIVE_PATH} = ?",
+                    arrayOf(relativePath), "${MediaStore.MediaColumns.DATE_ADDED} DESC")?.use { cursor ->
+                    while (cursor.moveToNext()) {
+                        val id = cursor.getLong(0)
+                        val uri = ContentUris.withAppendedId(collection, id)
+                        val name = cursor.getString(1) ?: "VidGravity media"
+                        val size = cursor.getLong(2).coerceAtLeast(0L)
+                        val mime = cursor.getString(3) ?: if (collection == MediaStore.Audio.Media.EXTERNAL_CONTENT_URI) "audio/*" else "video/*"
+                        val created = cursor.getLong(4) * 1000L
+                        val existing = db.rawQuery("SELECT is_favorite FROM media WHERE content_uri=?", arrayOf(uri.toString())).use {
+                            if (it.moveToFirst()) it.getInt(0) else -1
+                        }
+                        if (existing < 0) db.insertWithOnConflict("media", null, ContentValues().apply {
+                            put("content_uri", uri.toString()); put("display_name", name); put("size_bytes", size)
+                            put("mime_type", mime); put("created_at_ms", created); put("sha256", "")
+                            put("is_favorite", 0)
+                        }, SQLiteDatabase.CONFLICT_IGNORE)
+                        else db.update("media", ContentValues().apply {
+                            put("display_name", name); put("size_bytes", size); put("mime_type", mime); put("created_at_ms", created)
+                        }, "content_uri=?", arrayOf(uri.toString()))
+                    }
+                }
+            }
+        }
+    }
+
+    fun setFavorite(context: Context, uri: Uri, favorite: Boolean) {
+        LibraryIndexDb(context).use { db ->
+            db.writableDatabase.update("media", ContentValues().apply { put("is_favorite", if (favorite) 1 else 0) },
+                "content_uri=?", arrayOf(uri.toString()))
+        }
+    }
+
+    fun rename(context: Context, media: LibraryMedia, newName: String): Boolean {
+        val safeName = newName.trim().replace("/", "_").replace("\\", "_").take(140)
+        if (safeName.isBlank()) return false
+        val updated = context.contentResolver.update(media.uri,
+            ContentValues().apply { put(MediaStore.MediaColumns.DISPLAY_NAME, safeName) }, null, null)
+        if (updated <= 0) return false
+        LibraryIndexDb(context).use { db ->
+            db.writableDatabase.update("media", ContentValues().apply { put("display_name", safeName) },
+                "content_uri=?", arrayOf(media.uri.toString()))
+        }
+        return true
+    }
+
+    fun delete(context: Context, media: LibraryMedia): Boolean {
+        val deleted = context.contentResolver.delete(media.uri, null, null) > 0
+        if (deleted) LibraryIndexDb(context).use { db ->
+            db.writableDatabase.delete("media", "content_uri=?", arrayOf(media.uri.toString()))
+        }
+        return deleted
+    }
+
     fun publish(context: Context, source: File, originalName: String, hash: String): PublishedMedia {
         require(source.isFile && source.length() > 0) { "Downloaded media is empty." }
         val safeName = originalName.substringAfterLast('/').substringAfterLast('\\')
@@ -34,7 +131,8 @@ object MediaLibraryIndexer {
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
         }
-        val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) MediaStore.Downloads.EXTERNAL_CONTENT_URI else if (mime.startsWith("audio/")) MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        // Save into the matching media collection so Android indexes it as playable audio/video.
+        val collection = if (mime.startsWith("audio/")) MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
         val uri = context.contentResolver.insert(collection, values)
             ?: throw IllegalStateException("MediaStore could not create the download item.")
         try {
@@ -63,7 +161,7 @@ object MediaLibraryIndexer {
     }
 }
 
-private class LibraryIndexDb(context: Context) : SQLiteOpenHelper(context, "vidgravity_library.db", null, 1) {
+private class LibraryIndexDb(context: Context) : SQLiteOpenHelper(context, "vidgravity_library.db", null, 2) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("""CREATE TABLE media (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -72,8 +170,11 @@ private class LibraryIndexDb(context: Context) : SQLiteOpenHelper(context, "vidg
             mime_type TEXT NOT NULL,
             size_bytes INTEGER NOT NULL,
             sha256 TEXT NOT NULL,
-            created_at_ms INTEGER NOT NULL
+            created_at_ms INTEGER NOT NULL,
+            is_favorite INTEGER NOT NULL DEFAULT 0
         )""")
     }
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) = Unit
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        if (oldVersion < 2) db.execSQL("ALTER TABLE media ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0")
+    }
 }
