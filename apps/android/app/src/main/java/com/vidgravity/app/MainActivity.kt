@@ -574,6 +574,34 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
             }
             OutlinedButton(
                 onClick = {
+                    fun csvCell(value: String): String = "\"" + value.replace("\"", "\"\"").replace("\r", " ").replace("\n", " ") + "\""
+                    val csv = buildString {
+                        appendLine("Title,Status,Progress,Source URL,Error")
+                        filteredWorks.forEach { work ->
+                            val title = work.outputData.getString("display_name")
+                                ?: work.progress.getString("media_title")
+                                ?: work.progress.getString("title")
+                                ?: "Media download"
+                            val source = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                ?: work.progress.getString("media_url")
+                                ?: ""
+                            val percent = work.progress.getInt("progress", -1)
+                            val error = work.outputData.getString("error") ?: ""
+                            appendLine(listOf(title, work.state.name, if (percent >= 0) "$percent%" else "", source, error).joinToString(",") { csvCell(it) })
+                        }
+                    }
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(csv))
+                    android.widget.Toast.makeText(context, "CSV download report copied.", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                enabled = filteredWorks.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.TableChart, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Copy CSV report (${filteredWorks.size})")
+            }
+            OutlinedButton(
+                onClick = {
                     val report = buildString {
                         appendLine("VidGravity download report")
                         appendLine("Filter: $downloadFilter")
