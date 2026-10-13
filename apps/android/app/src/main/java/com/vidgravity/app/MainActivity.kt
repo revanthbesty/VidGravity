@@ -1162,6 +1162,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
         "Largest" -> filteredMedia.sortedByDescending { it.sizeBytes }
         "Smallest" -> filteredMedia.sortedBy { it.sizeBytes }
         "Type" -> filteredMedia.sortedWith(compareBy<LibraryMedia> { it.mimeType.substringBefore("/") }.thenBy { it.displayName.lowercase() })
+        "Extension" -> filteredMedia.sortedWith(compareBy<LibraryMedia> { it.displayName.substringAfterLast('.', "").lowercase() }.thenBy { it.displayName.lowercase() })
         else -> filteredMedia.sortedByDescending { it.createdAtMs }
     }
     // Drop selections for items that have been deleted or are no longer indexed.
@@ -1481,7 +1482,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
             Text("Sort by", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.width(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(listOf("Newest", "Oldest", "Name A-Z", "Largest", "Smallest", "Type")) { value ->
+                items(listOf("Newest", "Oldest", "Name A-Z", "Largest", "Smallest", "Type", "Extension")) { value ->
                     FilterChip(
                         selected = sortBy == value,
                         onClick = { sortBy = value },
