@@ -620,6 +620,41 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     Text("Retry failed (${failedWorks.size})")
                 }
             }
+            val runningWorks = works.filter { it.state == WorkInfo.State.RUNNING }
+            val pausableWorks = runningWorks.filterNot { DownloadActionReceiver.isPaused(context, it.id) }
+            val resumableWorks = runningWorks.filter { DownloadActionReceiver.isPaused(context, it.id) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        pausableWorks.forEach { work ->
+                            context.sendBroadcast(Intent(context, DownloadActionReceiver::class.java)
+                                .setAction(DownloadActionReceiver.ACTION_PAUSE)
+                                .putExtra(DownloadActionReceiver.EXTRA_WORK_ID, work.id.toString()))
+                        }
+                    },
+                    enabled = pausableWorks.isNotEmpty(),
+                    modifier = Modifier.weight(1f).heightIn(min = 46.dp)
+                ) {
+                    Icon(Icons.Default.Pause, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Pause running (${pausableWorks.size})")
+                }
+                OutlinedButton(
+                    onClick = {
+                        resumableWorks.forEach { work ->
+                            context.sendBroadcast(Intent(context, DownloadActionReceiver::class.java)
+                                .setAction(DownloadActionReceiver.ACTION_RESUME)
+                                .putExtra(DownloadActionReceiver.EXTRA_WORK_ID, work.id.toString()))
+                        }
+                    },
+                    enabled = resumableWorks.isNotEmpty(),
+                    modifier = Modifier.weight(1f).heightIn(min = 46.dp)
+                ) {
+                    Icon(Icons.Default.PlayArrow, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Resume paused (${resumableWorks.size})")
+                }
+            }
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(listOf("All", "Active", "Completed", "Failed")) { filter ->
                     val count = when (filter) {
