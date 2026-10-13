@@ -777,6 +777,22 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     }
                 }
             )
+            OutlinedTextField(
+                value = downloadSearch,
+                onValueChange = { downloadSearch = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Search download history") },
+                placeholder = { Text("Filename, source URL, error, or status") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (downloadSearch.isNotBlank()) {
+                        IconButton(onClick = { downloadSearch = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear search")
+                        }
+                    }
+                }
+            )
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(listOf("All", "Active", "Completed", "Failed")) { filter ->
                     val count = when (filter) {
