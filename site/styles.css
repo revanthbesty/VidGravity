@@ -492,3 +492,7 @@ html[data-theme="dark"] .card,html[data-theme="dark"] .job,html[data-theme="dark
 .selectVisibleLabel input{width:16px;height:16px;accent-color:var(--accent,#8b5cf6)}
 #bulkDelete:disabled,#copySelectedNames:disabled{opacity:.5;cursor:not-allowed}
 @media(max-width:620px){.libraryTools .search{max-width:100%;width:100%}.selectVisibleLabel{min-height:36px}}
+
+.playerKeyboardHelp{margin:8px 0 2px;font-size:11px;line-height:1.7;color:var(--text-muted);text-align:right}
+.playerKeyboardHelp kbd{display:inline-block;min-width:20px;padding:1px 5px;border:1px solid var(--border-subtle);border-radius:5px;background:var(--surface-raised);color:var(--text-primary);font:inherit;text-align:center}
+@media(max-width:620px){.playerKeyboardHelp{text-align:left;font-size:10px}}
