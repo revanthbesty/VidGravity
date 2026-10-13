@@ -536,6 +536,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
     val clipboard = LocalClipboardManager.current
     var expandedErrors by remember { mutableStateOf(setOf<java.util.UUID>()) }
     var downloadFilter by remember { mutableStateOf("All") }
+    var showClearHistoryConfirm by remember { mutableStateOf(false) }
     var downloadSearch by remember { mutableStateOf("") }
     val liveWorks = remember(context) { WorkManager.getInstance(context).getWorkInfosByTagLiveData("vidgravity-download") }
     val works by liveWorks.observeAsState(emptyList())
@@ -649,6 +650,15 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 Icon(Icons.Default.ContentCopy, null)
                 Spacer(Modifier.width(8.dp))
                 Text("Copy download report (${filteredWorks.size})")
+            }
+            OutlinedButton(
+                onClick = { showClearHistoryConfirm = true },
+                enabled = completedWorks.isNotEmpty() || failedWorks.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.DeleteSweep, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Clear finished history")
             }
             if (failedWorks.isNotEmpty()) {
                 OutlinedButton(
@@ -925,6 +935,23 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             }
         }
+    }
+    if (showClearHistoryConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearHistoryConfirm = false },
+            title = { Text("Clear finished download history?") },
+            text = { Text("This removes completed, failed, and cancelled download records from the download history. Active downloads are not cancelled. Downloaded media files are kept.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    WorkManager.getInstance(context).pruneWork()
+                    showClearHistoryConfirm = false
+                    android.widget.Toast.makeText(context, "Finished download history cleared.", android.widget.Toast.LENGTH_LONG).show()
+                }) { Text("Clear history") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearHistoryConfirm = false }) { Text("Keep history") }
+            }
+        )
     }
 }
 
