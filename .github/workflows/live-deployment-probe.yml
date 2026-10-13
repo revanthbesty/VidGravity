@@ -1,6 +1,11 @@
 name: VidGravity Live Deployment Probe
 
 on:
+  # Run a read-only live smoke test alongside release-candidate updates.
+  push:
+    branches:
+      - "fix/**"
+      - "release/**"
   workflow_dispatch:
 
 permissions:
