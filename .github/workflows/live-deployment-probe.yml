@@ -1,14 +1,23 @@
 name: VidGravity Live Deployment Probe
 
 on:
+  push:
+    branches:
+      - main
+      - "fix/**"
+      - "release/**"
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: vidgravity-live-probe-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   probe:
-    name: Probe public companion API
+    name: Probe public backend and PWA
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -18,13 +27,32 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Probe configured public HTTPS deployment
+      - name: Probe configured public HTTPS backend
         run: python p169_deployment_probe.py --url https://vidgravity.onrender.com
-      - name: Upload sanitized deployment probe report
+      - name: Verify PWA origin serves the app
+        run: |
+          python - <<'PY'
+          import urllib.request
+          url = "https://vidgravity-web.revanthbesty.workers.dev/"
+          req = urllib.request.Request(url, headers={"User-Agent": "VidGravity-PWA-Smoke/1.0"})
+          with urllib.request.urlopen(req, timeout=12) as response:
+              body = response.read(1024 * 1024 + 1)
+              content_type = response.headers.get("Content-Type", "")
+              if not 200 <= response.status < 300:
+                  raise SystemExit(f"PWA returned HTTP {response.status}")
+              if "text/html" not in content_type.lower():
+                  raise SystemExit(f"PWA content type is not HTML: {content_type}")
+              if len(body) > 1024 * 1024:
+                  raise SystemExit("PWA homepage exceeded 1 MiB")
+              if b"VidGravity" not in body:
+                  raise SystemExit("PWA homepage is missing the VidGravity marker")
+              print(f"PWA smoke test passed: HTTP {response.status}, {content_type}, {len(body)} bytes")
+          PY
+      - name: Upload sanitized backend probe report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: vidgravity-live-deployment-probe
           path: P169_DEPLOYMENT_PROBE_REPORT.json
-          if-no-files-found: error
+          if-no-files-found: ignore
           retention-days: 14
