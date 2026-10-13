@@ -166,9 +166,25 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                 }
             }
             val qualityHeight: (FormatOption) -> Int = { option ->
-                val raw = rawQualityHeight(option)
-                // If only the long side is available, avoid bogus 1920p/1280p labels.
-                qualityTier(raw).takeIf { it > 0 } ?: raw
+                val w = option.width
+                val h = option.height
+                if (w > 0 && h > 0) {
+                    val shortSide = minOf(w, h)
+                    when {
+                        shortSide >= 4320 -> 4320
+                        shortSide >= 2160 -> 2160
+                        shortSide >= 1440 -> 1440
+                        shortSide >= 1080 -> 1080
+                        shortSide >= 720 -> 720
+                        shortSide >= 480 -> 480
+                        shortSide >= 360 -> 360
+                        else -> shortSide
+                    }
+                } else {
+                    // A lone 1920/1280 dimension is commonly the long side of portrait media.
+                    val raw = rawQualityHeight(option)
+                    qualityTier(raw).takeIf { it > 0 } ?: raw
+                }
             }
             val sortedVideo = videoFormats
                 .filter { qualityHeight(it) > 0 && (it.selector.isNotBlank() || it.formatId.isNotBlank()) }
