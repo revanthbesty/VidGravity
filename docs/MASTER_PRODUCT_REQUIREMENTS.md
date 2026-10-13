@@ -202,3 +202,59 @@ Official references (checked 2026-10-13):
 - Security/privacy implications and required permissions disclosed.
 - Current social platform constraints checked against official documentation and date-stamped.
 - Status accurately reported as implemented, partial, blocked, or not started.
+
+
+### O. Affordable alternatives to premium social-app features (reviewed 2026-10-13)
+
+**Goal:** give people useful creation, personalization, organization, accessibility, and privacy tools inside VidGravity without requiring subscriptions to Snapchat+, Instagram Plus, Facebook Plus, WhatsApp Plus, or Meta One. This is an independent companion feature set, not an unlocker or replacement for private features inside other apps. The social platforms' own core apps remain separate.
+
+#### O1. Premium-feature alternative catalogue
+
+- **Themes and self-expression:** app themes, light/dark/system and expressive palettes; custom VidGravity app icon where Android launcher support allows; editable chat/share-card colors and wallpapers inside VidGravity-owned screens; generated profile/story backgrounds; sticker, emoji, avatar, pet/car/home-themed overlays that are original VidGravity assets.
+- **AI creative tools:** bounded optional AI-assisted background generation, captions, bio drafts, image restyling, voice effects, and story/reel ideas. Show preview, disclose whether processing is local or remote, enforce explicit consent and cost quotas, and allow edits/rejection. Do not clone a real person's voice or likeness without informed consent and rights.
+- **Creator studio:** original camera effects and Lens Lab filters, text and typography packs, Story/Status Studio, cover/thumbnail maker, Reels/Shorts templates, reactions and split/PiP layouts, custom sound/caption tools, and export presets. Proprietary Snapchat Lenses and private app-only effects are not included; evaluate licensed official SDKs separately and disclose compatibility/cost.
+- **Messaging and sharing utilities:** wallpaper/sticker packs, share-pack preparation, media compression, status/story splitting, caption and translation drafts, and user-controlled scheduled quiet/focus settings within VidGravity. These tools must not read or modify private WhatsApp/Instagram/Facebook/Snapchat chats.
+- **Ephemeral media:** offer an optional **VidGravity One-Time Share** flow for user-selected media shared through VidGravity-controlled sessions. Use authenticated encryption, recipient/session authorization, expiry, replay protection, explicit recipient identity confirmation, and clear warning that recipients can still capture content with another device. Do not claim guaranteed screenshot detection, secure erasure on flash storage, or control over another app's view-once behavior.
+- **Story and engagement insights:** provide local analytics for content the user owns or metrics they manually enter; timestamps and history for VidGravity-hosted shares; and a creator experiment notebook. Do not promise access to private story views, rewatch indicators, Snapscore, friends' activity, or third-party story notifications.
+- **Storage and organization:** local-first media library, user-controlled backup/transfer, duplicate review, larger local collections, queueing, project handoff/resume, and transparent storage estimates. Never advertise unlimited free cloud storage; cloud sync must be optional, metered, and clearly costed.
+- **Healthy-use and accessibility:** focus schedules, quiet hours, captions, translation drafts, readable text, reduced motion, Tamil localization when supported, and optional learning prompts. No surveillance of unrelated apps, manipulative engagement loops, or shame-based streak loss.
+- **Trust and rights:** original-content checklist, music-license notes, permission/credit cards, AI disclosure, impersonation evidence packs, and explicit source/rights review before export. These are assistance and records, not legal clearance or platform endorsement.
+
+#### O2. Platform boundaries and implementation rules
+
+1. **VidGravity-only controls:** themes, app icon, wallpapers, overlays, one-time share, local story/replay records, notifications, and ephemeral-share policies apply only to VidGravity-owned surfaces and sessions.
+2. **OS handoff first:** accept user-shared links/files through Android Sharesheet, paste, and supported browser integration. Never auto-download, auto-post, scrape private feeds, or automate uploads without a documented authorized API and user confirmation.
+3. **No subscription circumvention:** never unlock Snapchat+, Snapchat Lens+, Instagram Plus, Facebook Plus, WhatsApp Plus, Meta One, or paid third-party assets; never impersonate their app UI or use credentials/cookies to access subscriber-only features.
+4. **Original effects before SDK integrations:** create VidGravity-owned effects first. Any Snap Camera Kit or other third-party SDK evaluation requires a separate licensing, compatibility, privacy, cost, distribution, and attribution review.
+5. **Capability matrix:** keep a dated platform/app-version matrix distinguishing supported OS share workflows, official APIs, licensed SDK features, local processing, and unsupported/private behaviors. Recheck official docs before each release.
+6. **AI and cost safety:** core utilities should remain useful without paid AI. Use local processing where practical, quotas and opt-in remote AI, clear progress/error states, and no false claims of unlimited generation.
+7. **Privacy by default:** private drafts, local-first metadata, minimum permissions, no contact uploads by default, visible expiry, delete controls, and clear export/share confirmation.
+
+#### O3. Acceptance criteria
+
+- User can customize VidGravity's appearance without changing another app.
+- A selected local/authorized video can be prepared for Status/Story/Reels/Shorts with preview, captions and platform-spec warnings; original remains unchanged.
+- One-Time Share cannot be opened without the intended session authorization; expiry/replay checks are tested; capture limitations are shown before sending.
+- AI features show whether remote processing is used, support cancel/reject, and enforce quota/failure behavior without fake success.
+- No feature claims to reveal private third-party story views, detect gestures inside other apps, unlock subscriptions, or guarantee social reach.
+- Tests cover permission denial, offline mode, expiry, invalid recipients, replay attempts, deletion, accessibility, dark/light themes, and unsupported-platform fallbacks.
+- Release notes distinguish **implemented**, **partial**, **planned**, and **blocked** capabilities; this catalogue alone is not evidence that features are shipped.
+
+#### O4. Current subscription landscape and research references
+
+As of 2026-10-13, official Snapchat support lists features such as custom themes/icons, chat wallpapers, generative backgrounds, AI creative tools, Story timestamps/rewatch/view notifications, Snapscore multiplier, and other subscriber features. Meta's official September 2026 Meta One announcement describes Instagram Plus, Facebook Plus, WhatsApp Plus and bundle plans, with availability and benefits varying by region/account. Use these as product research inputs, not as permission to access internal app data.
+
+- Snapchat+ feature list: https://help.snapchat.com/hc/en-us/articles/7121577610900-What-is-Snapchat
+- Snap subscription direction: https://newsroom.snap.com/checking-in-on-snapchat-plus?lang=en-GB
+- Meta One and app subscription plans: https://about.fb.com/news/2026/09/introducing-meta-one-subscription-service-more-features-ai/
+- Instagram creator/local-language tools: https://about.fb.com/news/2025/11/instagram-empowers-creators-to-go-global-with-local-voice-translations-and-fonts/
+- Facebook originality guidance: https://about.fb.com/news/2026/03/rewarding-original-creators-on-facebook/
+
+#### O5. Delivery order
+
+1. Stabilize Android build and prove the share receiver with CI, tests, and an APK artifact.
+2. Implement Universal Share Inbox as the entry point: share/paste URL or file, capability status, Save Link, Watch/Learn Later, Inspect, Add to Collection, and Open Source.
+3. Complete Library/queue persistence and safe player/share actions.
+4. Deliver Status/Story Studio, caption/translation drafts, social export checker, original creative effects, and thumbnail/cover tools.
+5. Add VidGravity One-Time Share only after threat model and security tests pass.
+6. Add optional AI creation and deeper creator analytics only after quotas, privacy disclosures, and failure handling are tested.
