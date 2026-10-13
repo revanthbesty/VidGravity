@@ -1222,6 +1222,36 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             }
         }
+        OutlinedButton(
+            onClick = {
+                val report = buildString {
+                    appendLine("VidGravity media library")
+                    appendLine("Visible: ${visibleMedia.size} | Total indexed: ${media.size} | Favorites: ${favoriteCount}")
+                    appendLine("Visible size: ${String.format("%.1f MB", visibleBytes / 1_000_000.0)}")
+                    appendLine()
+                    visibleMedia.forEachIndexed { index, item ->
+                        appendLine("${index + 1}. ${item.displayName}")
+                        appendLine("   Type: ${item.mimeType} | Size: ${if (item.sizeBytes > 0) String.format("%.1f MB", item.sizeBytes / 1_000_000.0) else "Unknown"}")
+                    }
+                }
+                runCatching {
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_SUBJECT, "VidGravity media library report")
+                        putExtra(Intent.EXTRA_TEXT, report)
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "Share library report"))
+                }.onFailure {
+                    android.widget.Toast.makeText(context, "Could not open the sharing menu.", android.widget.Toast.LENGTH_LONG).show()
+                }
+            },
+            enabled = visibleMedia.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+        ) {
+            Icon(Icons.Default.Share, null)
+            Spacer(Modifier.width(8.dp))
+            Text("Share visible library report")
+        }
         if (visibleMedia.isNotEmpty()) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(onClick = {
