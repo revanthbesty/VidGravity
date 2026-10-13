@@ -783,6 +783,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
     var renameTarget by remember { mutableStateOf<LibraryMedia?>(null) }
     var renameText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<LibraryMedia?>(null) }
+    var selectedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
     var swipeFeedOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     suspend fun refreshMedia() { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
@@ -825,6 +826,39 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
             }
             FilledTonalButton(onClick = { swipeFeedOpen = true }, modifier = Modifier.heightIn(min = 48.dp)) {
                 Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Swipe Feed")
+            }
+        }
+        if (visibleMedia.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = {
+                    val allSelected = visibleMedia.all { it.uri.toString() in selectedUris }
+                    selectedUris = if (allSelected) emptySet() else visibleMedia.map { it.uri.toString() }.toSet()
+                }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                    Icon(Icons.Default.Checklist, null); Spacer(Modifier.width(6.dp))
+                    Text(if (visibleMedia.all { it.uri.toString() in selectedUris }) "Clear selection" else "Select all")
+                }
+                Button(enabled = selectedUris.isNotEmpty(), onClick = {
+                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    runCatching {
+                        val streams = ArrayList<Uri>()
+                        chosen.forEach { streams.add(it.uri) }
+                        val majorTypes = chosen.map { it.mimeType.substringBefore('/') }.distinct()
+                        val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                            type = if (majorTypes.size == 1) majorTypes.first() + "/*" else "*/*"
+                            putParcelableArrayListExtra(Intent.EXTRA_STREAM, streams)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            if (streams.isNotEmpty()) {
+                                clipData = android.content.ClipData.newUri(context.contentResolver, "VidGravity media", streams.first())
+                                streams.drop(1).forEach { clipData?.addItem(android.content.ClipData.Item(it)) }
+                            }
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share selected media"))
+                    }.onFailure {
+                        android.widget.Toast.makeText(context, "Could not share selected media. Try fewer files.", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Share (${selectedUris.size})")
+                }
             }
         }
         OutlinedTextField(
@@ -870,6 +904,12 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                     Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp),
                         modifier = Modifier.fillMaxWidth().clickable { onPlay(item) }) {
                         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = item.uri.toString() in selectedUris,
+                                onCheckedChange = { checked ->
+                                    selectedUris = if (checked) selectedUris + item.uri.toString() else selectedUris - item.uri.toString()
+                                }
+                            )
                             Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp)) {
                                 Icon(if (item.mimeType.startsWith("audio/")) Icons.Default.MusicNote else Icons.Default.PlayArrow,
                                     null, modifier = Modifier.padding(14.dp), tint = MaterialTheme.colorScheme.primary)
