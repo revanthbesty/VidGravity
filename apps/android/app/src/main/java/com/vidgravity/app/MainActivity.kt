@@ -137,15 +137,57 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
             val audioFormats = usable.filter { it.hasAudio && !it.hasVideo }
             // Normalize portrait and landscape streams to the shorter pixel dimension:
             // 720x1280 is 720p, not 1280p. Keep one best compatible stream per quality.
-            val qualityHeight: (FormatOption) -> Int = { option ->
+            // Normalize every stream into a user-facing quality tier. Providers can return
+            // portrait dimensions, partial dimensions, or several codec variants for the same tier.
+            val rawQualityHeight: (FormatOption) -> Int = { option ->
+                val w = option.width
+                val h = option.height
                 when {
-                    option.width > 0 && option.height > 0 -> minOf(option.width, option.height)
-                    option.height > 0 -> option.height
+                    w > 0 && h > 0 -> minOf(w, h)
+                    h > 0 -> h
+                    w > 0 -> w
+                    else -> Regex("(\\d{3,4})\\s*x\\s*(\\d{3,4})")
+                        .find(option.resolution)?.let { match ->
+                            minOf(match.groupValues[1].toInt(), match.groupValues[2].toInt())
+                        } ?: 0
+                }
+            }
+            val qualityTier: (Int) -> Int = { height ->
+                when {
+                    height >= 7000 -> 4320
+                    height >= 3800 -> 2160
+                    height >= 2500 -> 1440
+                    height >= 1800 -> 1080
+                    height >= 1200 -> 720
+                    height >= 800 -> 480
+                    height >= 600 -> 360
+                    height >= 360 -> height
                     else -> 0
                 }
             }
+            val qualityHeight: (FormatOption) -> Int = { option ->
+                val w = option.width
+                val h = option.height
+                if (w > 0 && h > 0) {
+                    val shortSide = minOf(w, h)
+                    when {
+                        shortSide >= 4320 -> 4320
+                        shortSide >= 2160 -> 2160
+                        shortSide >= 1440 -> 1440
+                        shortSide >= 1080 -> 1080
+                        shortSide >= 720 -> 720
+                        shortSide >= 480 -> 480
+                        shortSide >= 360 -> 360
+                        else -> shortSide
+                    }
+                } else {
+                    // A lone 1920/1280 dimension is commonly the long side of portrait media.
+                    val raw = rawQualityHeight(option)
+                    qualityTier(raw).takeIf { it > 0 } ?: raw
+                }
+            }
             val sortedVideo = videoFormats
-                .filter { qualityHeight(it) > 0 }
+                .filter { qualityHeight(it) > 0 && (it.selector.isNotBlank() || it.formatId.isNotBlank()) }
                 .sortedWith(
                     compareByDescending<FormatOption> { qualityHeight(it) }
                         .thenByDescending { it.hasAudio }
@@ -249,8 +291,10 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                             val sizeLabel = option?.sizeBytes?.let { "~" + String.format("%.1f MB", it / 1_000_000.0) } ?: "Size varies"
                                             val fpsLabel = option?.fps?.let { if (it >= 50) "60 FPS" else "${it.toInt()} FPS" }
                                             val hdrLabel = option?.dynamicRange?.takeIf { it.isNotBlank() && !it.equals("SDR", true) }?.let { "HDR" }
+                                            val safeContainer = option?.container?.uppercase()
+                                                ?.takeIf { it.matches(Regex("[A-Z0-9]{2,5}")) } ?: "MEDIA"
                                             Text(if (choice.first == "Highest available") "Best compatible quality for this source"
-                                                else listOfNotNull(option?.container?.uppercase(), fpsLabel, hdrLabel, sizeLabel).joinToString(" • "),
+                                                else listOfNotNull(safeContainer, fpsLabel, hdrLabel, sizeLabel).joinToString(" • "),
                                                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
                                         Icon(Icons.Default.ChevronRight, null)
