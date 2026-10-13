@@ -575,6 +575,11 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                         work.state.name.contains(searchTerm, ignoreCase = true)
                 }
             }
+            val retryableFilteredWorks = filteredWorks.filter { work ->
+                (work.state == WorkInfo.State.FAILED || work.state == WorkInfo.State.CANCELLED) &&
+                    !(work.outputData.getString(DownloadWorker.RETRY_URL)
+                        ?: work.progress.getString("media_url")).isNullOrBlank()
+            }
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Download overview", fontWeight = FontWeight.SemiBold)
@@ -621,6 +626,26 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 Icon(Icons.Default.TableChart, null)
                 Spacer(Modifier.width(8.dp))
                 Text("Copy CSV report (${filteredWorks.size})")
+            }
+            OutlinedButton(
+                onClick = {
+                    val links = filteredWorks.mapNotNull { work ->
+                        (work.outputData.getString(DownloadWorker.RETRY_URL)
+                            ?: work.progress.getString("media_url"))
+                            ?.takeIf { it.isNotBlank() }
+                    }.distinct()
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(links.joinToString("\n")))
+                    android.widget.Toast.makeText(context, "Copied ${links.size} source link(s).", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                enabled = filteredWorks.any { work ->
+                    !(work.outputData.getString(DownloadWorker.RETRY_URL)
+                        ?: work.progress.getString("media_url")).isNullOrBlank()
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.Link, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Copy visible source links")
             }
             OutlinedButton(
                 onClick = {
@@ -744,7 +769,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     onClick = {
                         var queued = 0
                         val preferences = SecureDownloadPreferences.load(context)
-                        retryableWorks.forEach { work ->
+                        retryableFilteredWorks.forEach { work ->
                             val sourceUrl = work.outputData.getString(DownloadWorker.RETRY_URL)
                                 ?: work.progress.getString("media_url")
                             val selector = work.outputData.getString(DownloadWorker.RETRY_FORMAT)
@@ -765,12 +790,12 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                             android.widget.Toast.LENGTH_LONG
                         ).show()
                     },
-                    enabled = retryableWorks.isNotEmpty(),
+                    enabled = retryableFilteredWorks.isNotEmpty(),
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(Icons.Default.Refresh, null)
                     Spacer(Modifier.width(6.dp))
-                    Text("Retry eligible (${retryableWorks.size})")
+                    Text("Retry visible (${retryableFilteredWorks.size})")
                 }
             }
             val runningWorks = works.filter { it.state == WorkInfo.State.RUNNING }
