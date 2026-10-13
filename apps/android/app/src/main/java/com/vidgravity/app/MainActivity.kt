@@ -533,6 +533,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
 @Composable
 private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val clipboard = LocalClipboardManager.current
     var expandedErrors by remember { mutableStateOf(setOf<java.util.UUID>()) }
     var downloadFilter by remember { mutableStateOf("All") }
     val liveWorks = remember(context) { WorkManager.getInstance(context).getWorkInfosByTagLiveData("vidgravity-download") }
@@ -638,8 +639,16 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                     Text(title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                     Text(platform + "  •  " + quality, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
                                 }
-                                Text(work.state.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(work.state.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (sourceUrl.isNotBlank()) {
+                                        IconButton(onClick = {
+                                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(sourceUrl))
+                                            android.widget.Toast.makeText(context, "Source link copied.", android.widget.Toast.LENGTH_SHORT).show()
+                                        }) { Icon(Icons.Default.ContentCopy, contentDescription = "Copy source link") }
+                                    }
+                                }
                             }
                             if (work.state == WorkInfo.State.FAILED) {
                                 val rawError = work.outputData.getString("error") ?: "Download failed. Try inspecting the link again."
@@ -655,8 +664,17 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                 }) { Text(if (work.id in expandedErrors) "Hide technical details" else "Troubleshooting details") }
                                 if (work.id in expandedErrors) {
                                     Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(10.dp)) {
-                                        Text(rawError, Modifier.fillMaxWidth().padding(12.dp), fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text(rawError, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            TextButton(onClick = {
+                                                clipboard.setText(androidx.compose.ui.text.AnnotatedString(rawError))
+                                                android.widget.Toast.makeText(context, "Error details copied.", android.widget.Toast.LENGTH_SHORT).show()
+                                            }) {
+                                                Icon(Icons.Default.ContentCopy, null)
+                                                Spacer(Modifier.width(6.dp))
+                                                Text("Copy error details")
+                                            }
+                                        }
                                     }
                                 }
                             }
