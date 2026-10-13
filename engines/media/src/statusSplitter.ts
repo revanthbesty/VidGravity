@@ -22,7 +22,7 @@ export function buildStatusSplitPlan(
    "-nostdin","-hide_banner","-i",inputPath,
    "-map","0:v:0","-map","0:a?",
    "-c:v","libx264","-preset","veryfast","-crf","20",
-   "-force_key_frames",`expr:gte(t,n_forced*\${segmentSeconds})`,
+   "-force_key_frames","expr:gte(t,n_forced*" + String(segmentSeconds) + ")",
    "-c:a","aac","-b:a","192k",
    "-f","segment","-segment_time",String(segmentSeconds),
    "-reset_timestamps","1","-y",outputPattern
