@@ -863,6 +863,27 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
             }
             OutlinedButton(
                 enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                onClick = {
+                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    val markFavorite = chosen.any { !it.isFavorite }
+                    scope.launch {
+                        val updated = withContext(Dispatchers.IO) {
+                            chosen.map { item -> MediaLibraryIndexer.setFavorite(context, item.uri, markFavorite) }
+                        }
+                        refreshMedia()
+                        val count = updated.count { it }
+                        val message = if (markFavorite) "Added $count item(s) to Favorites." else "Removed $count item(s) from Favorites."
+                        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            ) {
+                Icon(Icons.Default.Star, null); Spacer(Modifier.width(6.dp))
+                val chosenItems = visibleMedia.filter { it.uri.toString() in selectedUris }
+                Text(if (chosenItems.isNotEmpty() && chosenItems.all { it.isFavorite }) "Remove selected from Favorites" else "Add selected to Favorites")
+            }
+            OutlinedButton(
+                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
                 onClick = { showBulkDeleteConfirm = true },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
             ) {
