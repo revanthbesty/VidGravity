@@ -152,6 +152,14 @@ object DownloadApi {
         if (offset > 0L) connection.setRequestProperty("Range", "bytes=" + offset + "-")
         try {
             val code = connection.responseCode
+            if (code == HttpURLConnection.HTTP_REQUESTED_RANGE_NOT_SATISFIABLE && offset > 0L) {
+                // A stale or corrupt partial can no longer be resumed. Discard it and
+                // retry this request once from byte zero rather than leaving WorkManager
+                // to repeat the same invalid Range request.
+                connection.disconnect()
+                destination.delete()
+                return downloadResult(id, destination, onProgress)
+            }
             if (code !in 200..299) {
                 val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
                 throw IllegalStateException("Result HTTP " + code + ": " + detail.take(300))
@@ -206,6 +214,9 @@ object DownloadApi {
             }
             val calculatedHash = digest.digest().joinToString("") { "%02x".format(it) }
             if (expectedHash != null && !calculatedHash.equals(expectedHash, ignoreCase = true)) {
+                // Never resume a file whose content failed integrity validation. A retry
+                // must begin with a clean destination or the stale bytes will recur.
+                destination.delete()
                 throw java.io.IOException("SHA-256 verification failed: downloaded bytes do not match the companion checksum.")
             }
             return TransferReceipt(received, total, expectedHash, calculatedHash)
