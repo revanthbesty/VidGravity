@@ -152,7 +152,7 @@ object DownloadApi {
         if (offset > 0L) connection.setRequestProperty("Range", "bytes=" + offset + "-")
         try {
             val code = connection.responseCode
-            if (code == HttpURLConnection.HTTP_REQUESTED_RANGE_NOT_SATISFIABLE && offset > 0L) {
+            if (code == 416 && offset > 0L) {
                 // A stale or corrupt partial can no longer be resumed. Discard it and
                 // retry this request once from byte zero rather than leaving WorkManager
                 // to repeat the same invalid Range request.
