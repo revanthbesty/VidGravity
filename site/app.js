@@ -318,11 +318,12 @@ function renderLibrary(){
  renderCollections();
  const x=$("#libraryGrid"); x.innerHTML=filteredMedia().map(m=>{
    ensureOrg(m);
-   return `<article class="media card"><div class="thumb">▶</div><div class="mediaBody"><div class="mediaTitle" title="${esc(m.title)}">${m.favorite?"★ ":""}${esc(m.title)}</div><div class="mediaMeta">${esc(m.type||"media")} · ${formatBytes(m.size)} · ${esc(m.collection||"All")}</div><div class="tagLine">${(m.tags||[]).slice(0,4).map(t=>`<span>#${esc(t)}</span>`).join("")}</div><div class="actions"><button class="smallBtn play" data-id="${m.id}">Play</button><button class="smallBtn favorite" data-id="${m.id}">${m.favorite?"Unfavorite":"Favorite"}</button><button class="smallBtn details" data-id="${m.id}">Details</button><button class="smallBtn shareMedia" data-id="${m.id}" type="button">Share</button></div></div></article>`
+   return `<article class="media card"><div class="thumb"><label class="mediaSelectLabel" title="Select ${esc(m.title)}"><input class="mediaSelect" type="checkbox" data-id="${esc(m.id)}" aria-label="Select ${esc(m.title)}"><span>▶</span></label></div><div class="mediaBody"><div class="mediaTitle" title="${esc(m.title)}">${m.favorite?"★ ":""}${esc(m.title)}</div><div class="mediaMeta">${esc(m.type||"media")} · ${formatBytes(m.size)} · ${esc(m.collection||"All")}</div><div class="tagLine">${(m.tags||[]).slice(0,4).map(t=>`<span>#${esc(t)}</span>`).join("")}</div><div class="actions"><button class="smallBtn play" data-id="${m.id}">Play</button><button class="smallBtn favorite" data-id="${m.id}">${m.favorite?"Unfavorite":"Favorite"}</button><button class="smallBtn details" data-id="${m.id}">Details</button><button class="smallBtn shareMedia" data-id="${m.id}" type="button">Share</button></div></div></article>`
  }).join("")||empty("No media matches the current filters.");
  bindCards(x);
  x.querySelectorAll(".favorite").forEach(b=>b.onclick=()=>toggleFavorite(b.dataset.id));
  x.querySelectorAll(".details").forEach(b=>b.onclick=()=>showDetails(b.dataset.id));
+ updateSelection();
 }
 
 
@@ -1168,10 +1169,38 @@ function ask(){
 }
 
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
-load();document.querySelector('#bulkDelete')?.addEventListener('click',deleteSelected);
+load();document.querySelector('#bulkDelete')?.addEventListener('click',deleteSelected);document.querySelector('#copySelectedNames')?.addEventListener('click',copySelectedNames);document.querySelector('#selectVisibleMedia')?.addEventListener('change',e=>selectVisibleMedia(e.target.checked));
 
 document.addEventListener('change',e=>{if(e.target.matches('.mediaSelect'))updateSelection()});
-function updateSelection(){const n=document.querySelectorAll('.mediaSelect:checked').length;const b=document.querySelector('#bulkDelete');if(b)b.textContent=`Delete selected (${n})`;}
+function updateSelection(){
+ const checks=[...document.querySelectorAll('#libraryGrid .mediaSelect')];
+ const selected=checks.filter(x=>x.checked).length;
+ const bulk=document.querySelector('#bulkDelete');
+ const copy=document.querySelector('#copySelectedNames');
+ const all=document.querySelector('#selectVisibleMedia');
+ if(bulk){bulk.textContent=`Delete selected (${selected})`;bulk.disabled=selected===0;}
+ if(copy)copy.disabled=selected===0;
+ if(all){all.checked=checks.length>0&&selected===checks.length;all.indeterminate=selected>0&&selected<checks.length;all.disabled=checks.length===0;}
+}
+function selectVisibleMedia(checked){
+ document.querySelectorAll('#libraryGrid .mediaSelect').forEach(input=>{input.checked=checked;});
+ updateSelection();
+}
+async function copySelectedNames(){
+ const ids=[...document.querySelectorAll('#libraryGrid .mediaSelect:checked')].map(x=>x.dataset.id);
+ if(!ids.length)return toast('Select media first');
+ const names=media.filter(m=>ids.includes(m.id)).map(m=>String(m.filename||m.title||'media').trim()).filter(Boolean);
+ if(!names.length)return toast('No filenames are available for the selected items');
+ const text=names.join('\\n');
+ try{
+  if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);}
+  else{
+   const field=document.createElement('textarea');field.value=text;field.setAttribute('readonly','');field.style.position='fixed';field.style.opacity='0';document.body.appendChild(field);field.select();
+   const copied=document.execCommand('copy');field.remove();if(!copied)throw new Error('Clipboard access is unavailable');
+  }
+  toast(`Copied ${names.length} filename(s)`);
+ }catch(error){toast(error?.message||'Could not copy filenames');}
+}
 async function deleteSelected(){const ids=[...document.querySelectorAll('.mediaSelect:checked')].map(x=>x.dataset.id);if(!ids.length)return toast('Select media first');if(!confirm(`Delete ${ids.length} selected item(s)?`))return;for(const id of ids)await dbDelete(id);media=media.filter(m=>!ids.includes(m.id));jobs=jobs.filter(j=>!ids.includes(j.mediaId));saveJobs();renderAll();toast(`${ids.length} media item(s) deleted`)}
 
 $("#libraryFilter")?.addEventListener("change",renderLibrary);
