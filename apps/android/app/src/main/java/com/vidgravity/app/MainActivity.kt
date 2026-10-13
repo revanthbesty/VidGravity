@@ -869,6 +869,13 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
         "Largest" -> filteredMedia.sortedByDescending { it.sizeBytes }
         else -> filteredMedia.sortedByDescending { it.createdAtMs }
     }
+    // Drop selections for items that have been deleted or are no longer indexed.
+    LaunchedEffect(media) {
+        val existingUris = media.map { it.uri.toString() }.toSet()
+        selectedUris = selectedUris.intersect(existingUris)
+    }
+    val visibleBytes = visibleMedia.sumOf { it.sizeBytes.coerceAtLeast(0L) }
+    val favoriteCount = media.count { it.isFavorite }
     if (swipeFeedOpen) {
         SwipeFeedScreen(
             media = visibleMedia,
@@ -892,6 +899,20 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
             }
             FilledTonalButton(onClick = { swipeFeedOpen = true }, modifier = Modifier.heightIn(min = 48.dp)) {
                 Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Swipe Feed")
+            }
+        }
+        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(16.dp)) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text("${visibleMedia.size} shown", fontWeight = FontWeight.SemiBold)
+                    Text(String.format("%.1f MB", visibleBytes / 1_000_000.0),
+                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("${media.size} total", fontWeight = FontWeight.SemiBold)
+                    Text("${favoriteCount} favorites", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
         if (visibleMedia.isNotEmpty()) {
