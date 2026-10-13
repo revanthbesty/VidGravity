@@ -38,7 +38,8 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { VidGravityApp() }
+        val openInbox = intent?.getBooleanExtra(ShareReceiverActivity.EXTRA_OPEN_INBOX, false) == true
+        setContent { VidGravityApp(openInboxInitially = openInbox) }
     }
 }
 
@@ -50,11 +51,12 @@ private enum class VgTab(val title: String, val icon: androidx.compose.ui.graphi
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun VidGravityApp() {
+private fun VidGravityApp(openInboxInitially: Boolean = false) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("vg-ui", 0) }
     var dark by remember { mutableStateOf(prefs.getBoolean("dark", true)) }
     var selected by remember { mutableStateOf(VgTab.Home) }
+    var showInbox by remember { mutableStateOf(openInboxInitially) }
     var playingMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var url by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf<String?>(null) }
@@ -99,6 +101,15 @@ private fun VidGravityApp() {
             Column(Modifier.fillMaxSize().padding(padding)) {
                 if (playingMedia != null) {
                     PlayerScreen(media = playingMedia!!, onBack = { playingMedia = null })
+                } else if (showInbox) {
+                    ShareInboxContent(
+                        onBack = { showInbox = false },
+                        onInspect = { sharedUrl -> url = sharedUrl; showInbox = false; selected = VgTab.Home },
+                        onOpen = { sharedUrl ->
+                            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(sharedUrl))) }
+                                .onFailure { notice = "Could not open this link in another app." }
+                        }
+                    )
                 } else when (selected) {
                     VgTab.Home -> HomeContent(url, { url = it }, {
                         if (url.isBlank()) notice = "Paste a public media URL first."
@@ -110,7 +121,7 @@ private fun VidGravityApp() {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it })
+                    }, { notice = it }, { showInbox = true })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     VgTab.Library -> LibraryContent(onPlay = { playingMedia = it })
                     VgTab.Create -> CreateStudioContent(onPlay = { playingMedia = it }, notify = { notice = it })
@@ -287,7 +298,7 @@ private fun VidGravityApp() {
 }
 
 @Composable
-private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit) {
+private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -573,6 +584,52 @@ private fun InfoCard(title: String, detail: String, icon: androidx.compose.ui.gr
 }
 
 @Composable
+private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, onOpen: (String) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var items by remember { mutableStateOf(ShareInboxStore.list(context)) }
+    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
+            Column(Modifier.weight(1f)) {
+                Text("Share Inbox", fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                Text("Links you choose to save. Nothing downloads automatically.", fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (items.isEmpty()) {
+            Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.Default.Inbox, null, modifier = Modifier.size(36.dp), tint = MaterialTheme.colorScheme.primary)
+                    Text("Your inbox is clear", fontWeight = FontWeight.Bold)
+                    Text("Use Share in another app and choose VidGravity to save a public link here.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                items(items, key = { it.id }) { item ->
+                    Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(item.url, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = { onInspect(item.url) }) { Text("Inspect") }
+                                OutlinedButton(onClick = { onOpen(item.url) }) { Text("Open source") }
+                                IconButton(onClick = { ShareInboxStore.remove(context, item.id); items = ShareInboxStore.list(context) }) {
+                                    Icon(Icons.Default.DeleteOutline, "Remove saved link")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var media by remember { mutableStateOf(emptyList<LibraryMedia>()) }
@@ -743,6 +800,11 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
         }
     }
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        OutlinedButton(onClick = openInbox, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+            Icon(Icons.Default.Inbox, null)
+            Spacer(Modifier.width(8.dp))
+            Text("Share Inbox · Watch / Learn Later")
+        }
         Text("Create studio", fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Choose a local video or audio file to preview and share. Your original stays unchanged.",
             color = MaterialTheme.colorScheme.onSurfaceVariant)
