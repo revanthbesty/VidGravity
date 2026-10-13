@@ -20,7 +20,6 @@ class WebSocialExportSyntaxTests(unittest.TestCase):
 
     def test_timeupdate_handler_is_not_joined_by_literal_escape(self):
         script = (ROOT / "site" / "social-export.js").read_text(encoding="utf-8")
-        self.assertIn('$("#{selector}")', '$("#{selector}")')  # regression test imports no browser runtime
         self.assertIn('$("#vgExportVideo").addEventListener("timeupdate"', script)
         self.assertNotIn('\\\\n    $("#vgExportVideo").addEventListener("timeupdate"', script)
 
