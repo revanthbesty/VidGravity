@@ -1298,6 +1298,19 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                 Text("Select all visible (" + visibleMedia.size + ")")
             }
             OutlinedButton(
+                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                onClick = {
+                    val visibleUris = visibleMedia.map { it.uri.toString() }.toSet()
+                    selectedUris = selectedUris - visibleUris
+                    android.widget.Toast.makeText(context, "Cleared selection for " + visibleUris.size + " visible item(s).", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
+            ) {
+                Icon(Icons.Default.Deselect, null)
+                Spacer(Modifier.width(6.dp))
+                Text("Deselect visible items")
+            }
+            OutlinedButton(
                 enabled = visibleMedia.isNotEmpty(),
                 onClick = {
                     val visibleUris = visibleMedia.map { it.uri.toString() }.toSet()
