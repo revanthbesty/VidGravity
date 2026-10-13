@@ -18,10 +18,10 @@ class WebSocialExportSyntaxTests(unittest.TestCase):
         finally:
             Path(path).unlink(missing_ok=True)
 
-    def test_timeupdate_handler_is_not_joined_by_literal_escape(self):
+    def test_timeupdate_handler_has_real_statement_boundary(self):
         script = (ROOT / "site" / "social-export.js").read_text(encoding="utf-8")
         self.assertIn('$("#vgExportVideo").addEventListener("timeupdate"', script)
-        self.assertNotIn('\\\\n    $("#vgExportVideo").addEventListener("timeupdate"', script)
+        self.assertNotIn(r'\n    $("#vgExportVideo").addEventListener("timeupdate"', script)
 
 
 if __name__ == "__main__":
