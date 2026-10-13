@@ -1141,6 +1141,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
         val matchesCategory = when (filter) {
             "Video" -> item.mimeType.startsWith("video/")
             "Audio" -> item.mimeType.startsWith("audio/")
+            "Images" -> item.mimeType.startsWith("image/")
             "Favorites" -> item.isFavorite
             else -> true
         }
@@ -1432,7 +1433,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
             shape = RoundedCornerShape(16.dp)
         )
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-            items(listOf("All Media", "Video", "Audio", "Favorites")) { value ->
+            items(listOf("All Media", "Video", "Audio", "Images", "Favorites")) { value ->
                 FilterChip(
                     selected = filter == value,
                     onClick = { filter = value },
