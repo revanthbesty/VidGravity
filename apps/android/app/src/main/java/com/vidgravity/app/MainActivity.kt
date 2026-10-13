@@ -121,7 +121,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it }, { showInbox = true })
+                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     VgTab.Library -> LibraryContent(onPlay = { playingMedia = it })
                     VgTab.Create -> CreateStudioContent(onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true })
@@ -358,7 +358,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
 }
 
 @Composable
-private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit) {
+private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -430,9 +430,43 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                     Text("Paste a public video or audio link. Inspect available quality, then choose exactly what to save.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedTextField(value = url, onValueChange = onUrl, modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Paste video or audio URL") }, leadingIcon = { Icon(Icons.Default.Link, null) },
+                        placeholder = { Text("Paste one link or multiple links (one per line)") }, leadingIcon = { Icon(Icons.Default.Link, null) },
                         trailingIcon = { IconButton(onClick = { clipboard.getText()?.text?.let(onUrl) }) { Icon(Icons.Default.ContentPaste, "Paste") } },
-                        shape = RoundedCornerShape(16.dp), singleLine = true)
+                        shape = RoundedCornerShape(16.dp), minLines = 1, maxLines = 4)
+                    OutlinedButton(
+                        onClick = {
+                            val candidates = Regex("https?://[^\\s<>\\\"']+", RegexOption.IGNORE_CASE)
+                                .findAll(url)
+                                .mapNotNull { ShareReceiverActivity.normalizeSharedUrl(it.value.trimEnd(',', ';', ')', ']', '.')) }
+                                .distinctBy { it.lowercase() }
+                                .take(11)
+                                .toList()
+                            if (candidates.isEmpty()) {
+                                notify("Paste at least one complete public URL. Put each link on a new line.")
+                            } else if (candidates.size > 10) {
+                                notify("Please queue up to 10 links at a time.")
+                            } else {
+                                var queued = 0
+                                val preferences = SecureDownloadPreferences.load(context)
+                                candidates.forEach { link ->
+                                    runCatching {
+                                        DownloadWorker.enqueue(context, link, "bv*+ba/b",
+                                            ShareReceiverActivity.friendlyTitle(link), preferences.unmeteredOnly)
+                                    }.onSuccess { queued++ }
+                                }
+                                if (queued > 0) {
+                                    onBatchQueued()
+                                    notify("${queued} of ${candidates.size} links added to Downloads using best available quality.")
+                                } else notify("No links could be queued. Please check the URLs and try again.")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Icon(Icons.Default.PlaylistAdd, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Queue multiple links · best quality")
+                    }
                     Button(onClick = { if (url.startsWith("http://") || url.startsWith("https://")) inspect() else notify("Enter a complete public URL starting with https://") },
                         modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
                         Icon(Icons.Default.Search, null); Spacer(Modifier.width(8.dp)); Text("Inspect link")
