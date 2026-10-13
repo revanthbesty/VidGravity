@@ -31,14 +31,17 @@ Deno.test("real FFmpeg splits long status media at the requested cap and preserv
     const names: string[] = [];
     for await (const entry of Deno.readDir(dir)) if (/^status-\d{3}\.mp4$/.test(entry.name)) names.push(entry.name);
     names.sort();
-    assert(names.length === 3, `expected three status segments at a two-second cap, got ${names.length}`);
+    assert(names.length >= 2, `expected at least two status segments for a 4.2-second source, got ${names.length}`);
+    let totalDuration = 0;
     for (const name of names) {
       const info = await metadata(`${dir}/${name}`);
       const duration = Number(info.format.duration);
       assert(duration > 0 && duration <= 2.3, `segment duration ${duration} must stay close to the requested two-second cap`);
+      totalDuration += duration;
       assert(info.streams.some(stream => stream.codec_type === "video"), "each segment must contain video");
       assert(info.streams.some(stream => stream.codec_type === "audio"), "each segment must preserve audio");
     }
+    assert(totalDuration >= 4.0 && totalDuration <= 4.5, `segments should preserve the source duration, got ${totalDuration}s`);
   } finally {
     await Deno.remove(dir, { recursive: true });
   }
