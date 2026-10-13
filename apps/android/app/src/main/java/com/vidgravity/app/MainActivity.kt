@@ -560,16 +560,16 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                             val title = work.outputData.getString("display_name")
                                 ?: work.progress.getString("media_title") ?: "Media download"
                             val error = work.outputData.getString("error") ?: "No technical error was saved."
-                            "$" + "{title}\nStatus: $" + "{work.state.name}\nError: $" + "{error}"
+                            "${title}\nStatus: ${work.state.name}\nError: ${error}"
                         }
                         clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
-                        android.widget.Toast.makeText(context, "Failure report copied ($" + "{failedWorks.size} item(s)).", android.widget.Toast.LENGTH_LONG).show()
+                        android.widget.Toast.makeText(context, "Failure report copied (${failedWorks.size} item(s)).", android.widget.Toast.LENGTH_LONG).show()
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Default.ContentCopy, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Copy failure report ($" + "{failedWorks.size})")
+                    Text("Copy failure report (${failedWorks.size})")
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
