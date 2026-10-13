@@ -1325,6 +1325,37 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                 enabled = visibleMedia.any { it.uri.toString() in selectedUris },
                 onClick = {
                     val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    val report = buildString {
+                        appendLine("VidGravity selected media report")
+                        appendLine("Selected visible items: ${chosen.size}")
+                        appendLine("Total size: ${String.format("%.1f MB", chosen.sumOf { it.sizeBytes.coerceAtLeast(0L) } / 1_000_000.0)}")
+                        appendLine()
+                        chosen.forEachIndexed { index, item ->
+                            appendLine("${index + 1}. ${item.displayName}")
+                            appendLine("Type: ${item.mimeType} | Size: ${if (item.sizeBytes > 0) String.format("%.1f MB", item.sizeBytes / 1_000_000.0) else "Unknown"} | Favorite: ${if (item.isFavorite) "Yes" else "No"}")
+                        }
+                    }
+                    runCatching {
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_SUBJECT, "VidGravity selected media report")
+                            putExtra(Intent.EXTRA_TEXT, report)
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share selected media report"))
+                    }.onFailure {
+                        android.widget.Toast.makeText(context, "Could not open the sharing menu.", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
+            ) {
+                Icon(Icons.Default.Share, null)
+                Spacer(Modifier.width(6.dp))
+                Text("Share selected media report")
+            }
+            OutlinedButton(
+                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                onClick = {
+                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
                     val markFavorite = chosen.any { !it.isFavorite }
                     scope.launch {
                         withContext(Dispatchers.IO) {
