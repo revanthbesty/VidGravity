@@ -356,18 +356,21 @@ async function shareMedia(id=shareMediaId){
 }
 function shareTo(target){
  const item=getShareItem(shareMediaId);if(!item)return;
- const url=item.url||'';const title=item.title||'VidGravity media';let targetUrl='';
- if(target==='x')targetUrl='https://twitter.com/intent/tweet?'+new URLSearchParams({text:title,url});
- if(target==='whatsapp')targetUrl='https://wa.me/?text='+encodeURIComponent([title,url].filter(Boolean).join(' '));
- if(target==='telegram')targetUrl='https://t.me/share/url?'+new URLSearchParams({url,text:title});
- if(target==='reddit')targetUrl='https://www.reddit.com/submit?'+new URLSearchParams({url,title});
- if(target==='linkedin')targetUrl='https://www.linkedin.com/sharing/share-offsite/?url='+encodeURIComponent(url);
- if(target!=='whatsapp'&&target!=='x'&&!url)return toast('This social target needs a shareable URL');
- window.open(targetUrl,'_blank','noopener,noreferrer');
+ const url=item.url||location.href;const title=item.title||'VidGravity media';const text=[title,url].filter(Boolean).join(' ');
+ const encUrl=encodeURIComponent(url),encTitle=encodeURIComponent(title),encText=encodeURIComponent(text);
+ const destinations={x:'https://twitter.com/intent/tweet?text='+encTitle+'&url='+encUrl,whatsapp:'https://wa.me/?text='+encText,telegram:'https://t.me/share/url?url='+encUrl+'&text='+encTitle,reddit:'https://www.reddit.com/submit?url='+encUrl+'&title='+encTitle,linkedin:'https://www.linkedin.com/sharing/share-offsite/?url='+encUrl,facebook:'https://www.facebook.com/sharer/sharer.php?u='+encUrl,threads:'https://www.threads.net/intent/post?text='+encText,bluesky:'https://bsky.app/intent/compose?text='+encText,pinterest:'https://www.pinterest.com/pin/create/button/?url='+encUrl+'&description='+encTitle,tumblr:'https://www.tumblr.com/widgets/share/tool?canonicalUrl='+encUrl+'&title='+encTitle,email:'mailto:?subject='+encTitle+'&body='+encText};
+ if(target==='instagram'||target==='snapchat'){if(navigator.share){shareMedia(shareMediaId);return}copyShareLink(url).then(ok=>toast(ok?'Link copied. Paste it into '+(target==='instagram'?'Instagram':'Snapchat')+'.':'Copy the link first, then open '+(target==='instagram'?'Instagram':'Snapchat')+'.'));return}
+ const targetUrl=destinations[target];if(!targetUrl)return toast('This sharing destination is not supported yet');
+ const opened=window.open(targetUrl,'_blank','noopener,noreferrer');if(!opened){toast('Your browser blocked the share window. Allow pop-ups or use Share Using Device.');return}
+ toast('Opening '+({x:'X',whatsapp:'WhatsApp',telegram:'Telegram',reddit:'Reddit',linkedin:'LinkedIn',facebook:'Facebook',threads:'Threads',bluesky:'Bluesky',pinterest:'Pinterest',tumblr:'Tumblr',email:'email'}[target]||'share destination')+'.');
+}
+async function copyShareLink(url){
+ try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(url);return true}}catch{}
+ try{const field=document.createElement('textarea');field.value=url;field.setAttribute('readonly','');field.style.position='fixed';field.style.opacity='0';document.body.appendChild(field);field.select();const ok=document.execCommand('copy');field.remove();return ok}catch{return false}
 }
 $('#shareAppButton')?.addEventListener('click',()=>openShare('__app__'));
 $('#shareDeviceButton')?.addEventListener('click',()=>shareMedia());
-$('#shareCopyButton')?.addEventListener('click',async()=>{const item=getShareItem(shareMediaId);if(!item?.url)return toast('No shareable URL is available for this media');try{await navigator.clipboard.writeText(item.url);toast('Link copied')}catch{toast('Clipboard access is unavailable in this context')}});
+$('if(!item?.url)return toast('No shareable URL is available for this media');try{await navigator.clipboard.writeText(item.url);toast('Link copied')}catch{toast('Clipboard access is unavailable in this context')}});
 $$('[data-share-target]').forEach(button=>button.addEventListener('click',()=>shareTo(button.dataset.shareTarget)));
 let shareReturnFocus=null;
 $('#closeShare')?.addEventListener('click',()=>{const modal=$('#shareModal');modal?.classList.add('hidden');modal?.setAttribute('aria-hidden','true');shareReturnFocus?.focus?.()});
