@@ -536,6 +536,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
     val clipboard = LocalClipboardManager.current
     var expandedErrors by remember { mutableStateOf(setOf<java.util.UUID>()) }
     var downloadFilter by remember { mutableStateOf("All") }
+    var downloadSearch by remember { mutableStateOf("") }
     val liveWorks = remember(context) { WorkManager.getInstance(context).getWorkInfosByTagLiveData("vidgravity-download") }
     val works by liveWorks.observeAsState(emptyList())
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -547,11 +548,27 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
             val activeWorks = works.filter { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
             val failedWorks = works.filter { it.state == WorkInfo.State.FAILED || it.state == WorkInfo.State.CANCELLED }
             val completedWorks = works.filter { it.state == WorkInfo.State.SUCCEEDED }
-            val filteredWorks = when (downloadFilter) {
+            val statusFilteredWorks = when (downloadFilter) {
                 "Active" -> activeWorks
                 "Completed" -> completedWorks
                 "Failed" -> failedWorks
                 else -> works
+            }
+            val searchTerm = downloadSearch.trim()
+            val filteredWorks = statusFilteredWorks.filter { work ->
+                if (searchTerm.isBlank()) true else {
+                    val title = work.outputData.getString("display_name")
+                        ?: work.outputData.getString("filename")
+                        ?: work.progress.getString("media_title")
+                        ?: "Media download"
+                    val source = work.outputData.getString(DownloadWorker.RETRY_URL)
+                        ?: work.progress.getString("media_url").orEmpty()
+                    val error = work.outputData.getString("error").orEmpty()
+                    title.contains(searchTerm, ignoreCase = true) ||
+                        source.contains(searchTerm, ignoreCase = true) ||
+                        error.contains(searchTerm, ignoreCase = true) ||
+                        work.state.name.contains(searchTerm, ignoreCase = true)
+                }
             }
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -735,6 +752,21 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     Text("Resume paused (${resumableWorks.size})")
                 }
             }
+            OutlinedTextField(
+                value = downloadSearch,
+                onValueChange = { downloadSearch = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Search downloads") },
+                placeholder = { Text("Name, source URL, status, or error") },
+                trailingIcon = {
+                    if (downloadSearch.isNotEmpty()) {
+                        IconButton(onClick = { downloadSearch = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear download search")
+                        }
+                    }
+                }
+            )
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(listOf("All", "Active", "Completed", "Failed")) { filter ->
                     val count = when (filter) {
