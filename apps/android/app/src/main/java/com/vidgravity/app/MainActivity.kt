@@ -1025,6 +1025,29 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                 enabled = visibleMedia.any { it.uri.toString() in selectedUris },
                 onClick = {
                     val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    val report = buildString {
+                        appendLine("VidGravity selected media report")
+                        appendLine("Selected visible items: ${chosen.size}")
+                        appendLine("Total size: ${String.format("%.1f MB", chosen.sumOf { it.sizeBytes.coerceAtLeast(0L) } / 1_000_000.0)}")
+                        appendLine()
+                        chosen.forEachIndexed { index, item ->
+                            appendLine("${index + 1}. ${item.displayName}")
+                            appendLine("   Type: ${item.mimeType} | Size: ${if (item.sizeBytes > 0) String.format("%.1f MB", item.sizeBytes / 1_000_000.0) else "Unknown"} | Favorite: ${if (item.isFavorite) "Yes" else "No"}")
+                        }
+                    }
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
+                    android.widget.Toast.makeText(context, "Selected media report copied.", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
+            ) {
+                Icon(Icons.Default.ContentCopy, null)
+                Spacer(Modifier.width(6.dp))
+                Text("Copy selected media report")
+            }
+            OutlinedButton(
+                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                onClick = {
+                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
                     val markFavorite = chosen.any { !it.isFavorite }
                     scope.launch {
                         val updated = withContext(Dispatchers.IO) {
