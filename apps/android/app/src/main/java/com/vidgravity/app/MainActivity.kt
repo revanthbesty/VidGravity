@@ -837,7 +837,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                     Icon(Icons.Default.Checklist, null); Spacer(Modifier.width(6.dp))
                     Text(if (visibleMedia.all { it.uri.toString() in selectedUris }) "Clear selection" else "Select all")
                 }
-                Button(enabled = selectedUris.isNotEmpty(), onClick = {
+                Button(enabled = visibleMedia.any { it.uri.toString() in selectedUris }, onClick = {
                     val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
                     runCatching {
                         val streams = ArrayList<Uri>()
