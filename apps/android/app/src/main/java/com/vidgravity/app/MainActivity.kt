@@ -135,28 +135,44 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
             val usable = result.formats.filter { it.selector.isNotBlank() && (it.hasVideo || it.hasAudio) }
             val videoFormats = usable.filter { it.hasVideo }
             val audioFormats = usable.filter { it.hasAudio && !it.hasVideo }
-            val standardHeights = listOf(4320, 2160, 1440, 1080, 720, 480, 360)
-            // Keep every extractor stream available in the picker, not just exact standard heights.
-            // Many vertical/social sources expose heights like 640 or 854 rather than 720/1080.
-            val sortedVideo = videoFormats.sortedWith(compareByDescending<FormatOption> { it.height }
-                .thenByDescending { it.sizeBytes ?: 0L })
-            val standardVideo = sortedVideo.distinctBy { listOf(it.height, it.container.lowercase(), it.videoCodec, it.audioCodec, it.formatId).joinToString("|") }
-                .map { option ->
-                    val h = option.height
+            // Normalize portrait and landscape streams to the shorter pixel dimension:
+            // 720x1280 is 720p, not 1280p. Keep one best compatible stream per quality.
+            val qualityHeight: (FormatOption) -> Int = { option ->
+                when {
+                    option.width > 0 && option.height > 0 -> minOf(option.width, option.height)
+                    option.height > 0 -> option.height
+                    else -> 0
+                }
+            }
+            val sortedVideo = videoFormats
+                .filter { qualityHeight(it) > 0 }
+                .sortedWith(
+                    compareByDescending<FormatOption> { qualityHeight(it) }
+                        .thenByDescending { it.hasAudio }
+                        .thenByDescending { it.container.equals("mp4", ignoreCase = true) }
+                        .thenByDescending { it.sizeBytes ?: 0L }
+                )
+            val standardVideo = sortedVideo
+                .groupBy { qualityHeight(it) }
+                .toSortedMap(compareByDescending { it })
+                .mapNotNull { (height, streams) ->
+                    val option = streams.firstOrNull() ?: return@mapNotNull null
                     val resolution = when {
-                        h >= 4320 -> "8K UHD · ${h}p"
-                        h >= 2160 -> "4K UHD · ${h}p"
-                        h >= 1440 -> "2K · ${h}p"
-                        h >= 1080 -> "FHD · ${h}p"
-                        h >= 720 -> "HD · ${h}p"
-                        h > 0 -> "${h}p"
-                        else -> option.resolution.take(40).ifBlank { "Video stream" }
+                        height >= 4320 -> "4320p · 8K UHD"
+                        height >= 2160 -> "2160p · 4K UHD"
+                        height >= 1440 -> "1440p · QHD"
+                        height >= 1080 -> "1080p · Full HD"
+                        height >= 720 -> "720p · HD"
+                        height >= 480 -> "480p · SD"
+                        height >= 360 -> "360p"
+                        else -> "${height}p"
                     }
                     val selector = if (option.hasAudio) option.selector else option.selector + "+bestaudio/best"
                     Triple(resolution, selector, option)
                 }
-            val videoChoices = listOf(Triple("Highest available", "bv*+ba/b", videoFormats.maxByOrNull { it.height } ?: usable.firstOrNull()))
-                .filter { it.third != null } + standardVideo
+            val videoChoices = listOf(
+                Triple("Best available", "bv*+ba/b", videoFormats.maxByOrNull { qualityHeight(it) } ?: usable.firstOrNull())
+            ).filter { it.third != null } + standardVideo
             var rememberQuality by remember(result.title) { mutableStateOf(false) }
             var qualityTab by remember(result.title) { mutableStateOf("Video & Audio") }
             ModalBottomSheet(
@@ -234,7 +250,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                             val fpsLabel = option?.fps?.let { if (it >= 50) "60 FPS" else "${it.toInt()} FPS" }
                                             val hdrLabel = option?.dynamicRange?.takeIf { it.isNotBlank() && !it.equals("SDR", true) }?.let { "HDR" }
                                             Text(if (choice.first == "Highest available") "Best compatible quality for this source"
-                                                else listOfNotNull(option?.container?.uppercase(), option?.videoCodec?.takeIf { it != "none" && it != "unknown" }, fpsLabel, hdrLabel, sizeLabel).joinToString(" • "),
+                                                else listOfNotNull(option?.container?.uppercase(), fpsLabel, hdrLabel, sizeLabel).joinToString(" • "),
                                                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
                                         Icon(Icons.Default.ChevronRight, null)
