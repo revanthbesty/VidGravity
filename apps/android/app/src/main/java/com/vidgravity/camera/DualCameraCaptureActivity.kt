@@ -13,7 +13,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.appcompat.app.AlertDialog
+import android.app.AlertDialog
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ConcurrentCamera
@@ -218,6 +218,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
                 ))
                 imageCapture = stillCapture
                 dualMode = true
+                dualButton.text = "Dual on"
                 frontPreview.visibility = View.VISIBLE
                 status.text = "Dual-camera preview · Photo mode"
                 flashButton.isEnabled = false
@@ -227,11 +228,13 @@ class DualCameraCaptureActivity : ComponentActivity() {
             } catch (error: Exception) {
                 runCatching { cameraProvider.unbindAll() }
                 dualMode = false
+                dualButton.text = "Dual off"
                 frontPreview.visibility = View.GONE
                 Toast.makeText(this, "Dual camera could not start on this device. Using single camera.", Toast.LENGTH_LONG).show()
             }
         }
 
+        dualButton.text = "Dual off"
         frontPreview.visibility = View.GONE
         val stillCapture = ImageCapture.Builder()
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
