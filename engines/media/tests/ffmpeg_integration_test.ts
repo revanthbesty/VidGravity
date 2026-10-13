@@ -28,7 +28,9 @@ Deno.test("real FFmpeg splits long status media at the requested cap and preserv
     await run("ffmpeg", ["-nostdin","-hide_banner","-loglevel","error","-f","lavfi","-i","testsrc2=size=160x120:rate=12","-f","lavfi","-i","sine=frequency=440:sample_rate=44100","-t","4.2","-c:v","libx264","-pix_fmt","yuv420p","-c:a","aac","-y",source]);
     const plan = buildStatusSplitPlan(source, pattern, 4.2, 2);
     await run(plan.executable, plan.args as string[]);
-    const names = (await Array.fromAsync(Deno.readDir(dir))).map(entry => entry.name).filter(name => /^status-\\d{3}\\.mp4$/.test(name)).sort();
+    const names: string[] = [];
+    for await (const entry of Deno.readDir(dir)) if (/^status-\d{3}\.mp4$/.test(entry.name)) names.push(entry.name);
+    names.sort();
     assert(names.length === 3, `expected three status segments at a two-second cap, got ${names.length}`);
     for (const name of names) {
       const info = await metadata(`${dir}/${name}`);
