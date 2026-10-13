@@ -802,7 +802,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                         downloadFilter = "All"
                     }
                 ) {
-                    Icon(Icons.Default.FilterListOff, contentDescription = null)
+                    Icon(Icons.Default.Close, contentDescription = null)
                     Spacer(Modifier.width(4.dp))
                     Text("Clear filters")
                 }
