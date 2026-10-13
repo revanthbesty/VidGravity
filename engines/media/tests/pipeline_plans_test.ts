@@ -46,7 +46,7 @@ Deno.test("privacy blur accepts only in-frame regions and emits audio-preserving
     { x: -20, y: 0, width: 20, height: 20, kind: "license-plate" },
   ], 640, 480);
   assert(plan.args.includes("-map") && plan.args.includes("0:a?"), "audio should be preserved when present");
-  assert(plan.args.join(" ").includes("boxblur=10:5"), "region should be blurred");
+  assert(plan.args.join(" ").includes("boxblur=10:2:5:2"), "region should be blurred");
   assertThrows(() => buildPrivacyBlurPlan("source.mp4", "out.mp4", [
     { x: -10, y: 0, width: 30, height: 30, kind: "face" },
   ], 640, 480), "NO_VALID_PRIVACY_REGIONS");
