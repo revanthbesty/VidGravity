@@ -39,7 +39,7 @@ class ShareAndPlayerUiTests(unittest.TestCase):
                 self.assertIn("A page action failed.", js)
                 self.assertNotIn('vgUXNotify("Something went wrong. Your media is safe.","error")', js)
 
-    def test_cache_busting_matches_p195_assets(self):
+    def test_cache_busting_matches_current_assets(self):
         for prefix in SHELLS:
             with self.subTest(shell=prefix or "root"):
                 html = (ROOT / f"{prefix}index.html").read_text(encoding="utf-8")
