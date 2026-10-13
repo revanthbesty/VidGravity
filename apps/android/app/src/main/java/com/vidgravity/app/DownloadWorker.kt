@@ -17,7 +17,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.net.SocketTimeoutException
+import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -116,15 +116,15 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 DownloadActionReceiver.clear(applicationContext, workId)
             }
             throw cancelled
-        } catch (timeout: SocketTimeoutException) {
+        } catch (networkFailure: IOException) {
             if (runAttemptCount < 3) Result.retry()
             else {
                 partial.delete()
                 remoteJobId?.let { runCatching { DownloadApi.cancelJob(it) } }
                 registry.edit().remove(workId.toString()).commit()
                 DownloadActionReceiver.clear(applicationContext, workId)
-                DownloadNotifications.terminal(applicationContext, title, "Network timeout after retries", false)
-                failureResult("Network timeout after retries", url, selector, title)
+                DownloadNotifications.terminal(applicationContext, title, "Network error after retries: " + (networkFailure.message ?: "connection interrupted"), false)
+                failureResult("Network error after retries: " + (networkFailure.message ?: "connection interrupted"), url, selector, title)
             }
         } catch (failure: Exception) {
             remoteJobId?.let { runCatching { DownloadApi.cancelJob(it) } }
