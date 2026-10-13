@@ -1249,8 +1249,8 @@ function vgUXInstallKeyboard(){
     if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();document.querySelector('[data-q="Summarize this media"]')?.focus();}
   });
 }
-window.addEventListener("error",e=>{if(e?.message)vgUXNotify("Something went wrong. Your media is safe.","error")});
-window.addEventListener("unhandledrejection",()=>vgUXNotify("The action could not be completed. Try again.","error"));
+window.addEventListener("error",e=>{if(e?.message){console.error("[VidGravity UI error]",e.message,e.filename||"",e.lineno||"");vgUXNotify("A page action failed. Your saved media was not deleted; try that action again.","error")}});
+window.addEventListener("unhandledrejection",e=>{console.error("[VidGravity async error]",e?.reason||e);vgUXNotify("An action could not finish. Your saved media was not deleted; try again.","error")});
 vgUXInstallKeyboard();
 
 function renderReleaseWorkspaceRail(){
