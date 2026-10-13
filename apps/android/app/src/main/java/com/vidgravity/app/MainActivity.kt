@@ -720,9 +720,12 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                 if (work.state == WorkInfo.State.FAILED || work.state == WorkInfo.State.CANCELLED) {
                                     TextButton(onClick = {
                                         val sourceUrl = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                            ?: work.progress.getString("media_url")
                                         val selector = work.outputData.getString(DownloadWorker.RETRY_FORMAT)
-                                        val retryTitle = work.outputData.getString(DownloadWorker.RETRY_TITLE) ?: title
-                                        if (sourceUrl != null) {
+                                            ?: work.progress.getString("format_selector")
+                                        val retryTitle = work.outputData.getString(DownloadWorker.RETRY_TITLE)
+                                            ?: work.progress.getString("media_title") ?: title
+                                        if (!sourceUrl.isNullOrBlank()) {
                                             val preferences = SecureDownloadPreferences.load(context)
                                             DownloadWorker.enqueue(context, sourceUrl, selector ?: preferences.preferredFormatSelector, retryTitle, preferences.unmeteredOnly)
                                         } else {
