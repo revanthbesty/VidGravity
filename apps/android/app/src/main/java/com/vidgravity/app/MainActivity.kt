@@ -1302,6 +1302,20 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                 enabled = visibleMedia.any { it.uri.toString() in selectedUris },
                 onClick = {
                     val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    val names = chosen.joinToString("\n") { it.displayName }
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(names))
+                    android.widget.Toast.makeText(context, "Copied ${chosen.size} filename(s).", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
+            ) {
+                Icon(Icons.Default.ContentCopy, null)
+                Spacer(Modifier.width(6.dp))
+                Text("Copy selected filenames")
+            }
+            OutlinedButton(
+                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                onClick = {
+                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
                     val report = buildString {
                         appendLine("VidGravity selected media report")
                         appendLine("Selected visible items: ${chosen.size}")
