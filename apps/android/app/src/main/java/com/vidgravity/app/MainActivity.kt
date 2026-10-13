@@ -793,6 +793,20 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     }
                 }
             )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("${filteredWorks.size} matching download(s)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(
+                    enabled = downloadSearch.isNotBlank() || downloadFilter != "All",
+                    onClick = {
+                        downloadSearch = ""
+                        downloadFilter = "All"
+                    }
+                ) {
+                    Icon(Icons.Default.FilterListOff, contentDescription = null)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Clear filters")
+                }
+            }
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(listOf("All", "Active", "Completed", "Failed")) { filter ->
                     val count = when (filter) {
