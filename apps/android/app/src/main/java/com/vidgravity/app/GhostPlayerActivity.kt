@@ -1,5 +1,6 @@
 package com.vidgravity.app
 
+import android.app.Activity
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
