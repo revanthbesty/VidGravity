@@ -44,6 +44,21 @@ window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change',
 window.addEventListener('storage',event=>{if(event.key===THEME_KEY)applyTheme(event.newValue||'system',false)});
 $('#clearAll').onclick=()=>{jobs=jobs.filter(j=>!['completed','failed'].includes(j.status));saveJobs();renderJobs();toast('Completed jobs cleared')};
 
+// Translate extractor/backend failures into actionable guidance without masking the underlying status.
+function friendlyInspectError(error){
+ const raw=String(error?.message||'').trim();
+ const text=raw.toLowerCase();
+ if(error?.name==='AbortError')return 'The media service took too long to respond. Retry once; if it keeps timing out, the provider may be slow or blocking cloud requests.';
+ if(/failed to fetch|networkerror|load failed|network request failed/.test(text))return 'VidGravity could not reach the cloud media service. Check your connection and retry. If the service is unavailable, try again later.';
+ if(/(429|too many requests|rate.?limit)/.test(text))return 'The provider is rate-limiting requests. Wait a few minutes before trying again.';
+ if(/(bot.?check|bot.?verification|confirm you.?re not a bot|automated requests|captcha)/.test(text))return 'This provider is blocking automated requests from the cloud server. Try a public URL that does not require verification; sign-in-only media may not be available.';
+ if(/(private video|private content|login required|sign in|authentication required|members.?only|age.?restricted)/.test(text))return 'This media appears to require sign-in, membership, or age verification. VidGravity cannot access it from this cloud session.';
+ if(/(unsupported url|unsupported webpage|not a valid url|no suitable extractor)/.test(text))return 'This URL or provider is not currently supported by the cloud extractor. Check that you copied the direct public page URL.';
+ if(/(timed out|timeout|deadline exceeded)/.test(text))return 'The provider did not respond in time. Retry later or test a different public media URL.';
+ if(/http 502|http 503|http 504|bad gateway|service unavailable|gateway timeout/.test(text))return 'The cloud media service is temporarily unavailable or the provider could not be reached. Retry shortly; this does not necessarily mean the URL is invalid.';
+ return raw||'The cloud media service could not inspect this URL.';
+}
+
 $('#inspectBtn').onclick=async()=>{
  const url=$('#urlInput').value.trim();
  if(!/^https?:\/\//i.test(url))return toast('Enter a valid http(s) URL');
@@ -60,7 +75,7 @@ $('#inspectBtn').onclick=async()=>{
   box.innerHTML=`<div class="inspectHeading"><span class="inspectMediaIcon" aria-hidden="true">${String(data.type||'').toLowerCase().includes('audio')?'♫':'🎬'}</span><div><b>${esc(data.title||'Media detected')}</b><div class="mediaMeta">${esc(data.type||'media')} · ${esc(size)} · ${esc(data.source||'server')}${data.duration?' · '+esc(formatDuration(data.duration)):''}</div></div></div><div class="formatChooserHead"><div><b>Choose audio or video</b><small>Switch between simple standard quality options. Duplicate codecs and formats are grouped to reduce confusion.</small></div><span class="formatCount">${Number(data.format_count||((data.formats||[]).length))} option(s)</span></div><div id="formatPanel"></div><div class="downloadActionRow"><div id="selectedFormatSummary" class="mediaMeta" aria-live="polite">Choose a format to continue.</div><button class="primary downloadBest" id="downloadNow" disabled>Download selected quality</button></div>`;
   renderAvailableFormats(box.querySelector('#formatPanel'),data.formats||[],url,data);
  }catch(error){
-  box.innerHTML=`<b>Inspection failed</b><div class="mediaMeta">${esc(error.name==='AbortError'?'Inspection timed out after 45 seconds':error.message||'The cloud media service could not inspect this URL.')}</div><div class="mediaMeta">VidGravity runs online. Some providers block cloud servers or require sign-in; unavailable media cannot be downloaded until the provider allows access.</div><button class="smallBtn" id="retryInspect">Retry Inspect</button>`;
+  box.innerHTML=`<b>Inspection failed</b><div class="mediaMeta">${esc(friendlyInspectError(error))}</div><div class="mediaMeta">Use a public URL you are allowed to download. Provider restrictions and cloud-server blocks cannot be bypassed by retrying repeatedly.</div><button class="smallBtn" id="retryInspect">Retry Inspect</button>`;
   $('#retryInspect').onclick=()=>$('#inspectBtn').click();
  }finally{button.disabled=false;button.textContent='Inspect'}
 };
