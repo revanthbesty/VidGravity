@@ -1,7 +1,5 @@
 package com.vidgravity.app
 
-import android.content.Context
-import android.app.Activity
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -49,10 +47,12 @@ class GhostPlayerActivity : ComponentActivity() {
         val sessionId = intent.getStringExtra(EXTRA_SESSION_ID).orEmpty()
         val mediaPath = intent.getStringExtra(EXTRA_TEMP_MEDIA_PATH).orEmpty()
         val seconds = intent.getIntExtra(EXTRA_SECONDS, 15).coerceIn(5, 30)
-        if (sessionId.isBlank() || mediaPath.isBlank() || !claimSession(this, sessionId)) {
+        if (sessionId.isBlank() || mediaPath.isBlank() ||
+            !ReplayTelemetry.openOrRecordReplayBlocked(this, sessionId)) {
             finish()
             return
         }
+        ReplayTelemetry.record(this, sessionId, ReplayTelemetry.EventType.CAPTURE_PROTECTION_ENABLED)
         // Malformed or inaccessible paths fail closed.
         val file = runCatching { File(mediaPath).canonicalFile }.getOrNull()
         val cacheRoot = runCatching { cacheDir.canonicalFile }.getOrNull()
@@ -69,7 +69,10 @@ class GhostPlayerActivity : ComponentActivity() {
                         activity = this,
                         file = file,
                         seconds = seconds,
-                        onExpired = { finish() }
+                        onExpired = {
+                            ReplayTelemetry.record(this, sessionId, ReplayTelemetry.EventType.EXPIRED)
+                            finish()
+                        }
                     )
                 }
             }
@@ -85,20 +88,6 @@ class GhostPlayerActivity : ComponentActivity() {
         const val EXTRA_SESSION_ID = "ghost_session_id"
         const val EXTRA_TEMP_MEDIA_PATH = "ghost_temp_media_path"
         const val EXTRA_SECONDS = "ghost_seconds"
-
-        // Prevent duplicate claims inside this process; durable preferences block reopening
-        // after activity/process recreation. Multi-process use needs a SQLite unique constraint.
-        private val sessionClaimLock = Any()
-
-        private fun claimSession(activity: Activity, id: String): Boolean {
-            if (id.length !in 1..128 || id.any { it.isISOControl() }) return false
-            return synchronized(sessionClaimLock) {
-                val prefs = activity.getSharedPreferences("ghost_sessions", Context.MODE_PRIVATE)
-                val key = "consumed_" + id
-                if (prefs.getBoolean(key, false)) return@synchronized false
-                prefs.edit().putBoolean(key, true).commit()
-            }
-        }
     }
 }
 
