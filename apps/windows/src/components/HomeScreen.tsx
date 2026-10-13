@@ -28,10 +28,10 @@ export function HomeScreen({
   const [shareOpen, setShareOpen] = useState(false);
   return <div className="min-h-screen bg-canvas text-ink">
     <DesktopHeader currentSection="Home" onOpenDownloads={onOpenDownloads} onOpenSettings={onOpenSettings} />
-    <main className="mx-auto grid w-full max-w-6xl gap-vg-6 px-vg-6 py-vg-8">
+    <main className="mx-auto grid w-full max-w-6xl gap-vg-6 px-4 py-6 sm:px-vg-6 sm:py-vg-8">
       <header className="grid gap-vg-2">
         <p className="text-xs font-semibold uppercase tracking-[.16em] text-violet-600 dark:text-violet-400">{copy["app.name"]}</p>
-        <h1 className="text-3xl font-semibold tracking-tight text-ink">{copy["home.title"]}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{copy["home.title"]}</h1>
         <p className="max-w-2xl text-base text-muted">{copy["home.subtitle"]}</p>
       </header>
       <InputHero
