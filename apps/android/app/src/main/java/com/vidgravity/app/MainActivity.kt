@@ -778,6 +778,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var media by remember { mutableStateOf(emptyList<LibraryMedia>()) }
     var filter by remember { mutableStateOf("All Media") }
+    var sortBy by remember { mutableStateOf("Newest") }
     var searchQuery by remember { mutableStateOf("") }
     var renameTarget by remember { mutableStateOf<LibraryMedia?>(null) }
     var renameText by remember { mutableStateOf("") }
@@ -786,7 +787,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
     val scope = rememberCoroutineScope()
     suspend fun refreshMedia() { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
     LaunchedEffect(Unit) { refreshMedia() }
-    val visibleMedia = media.filter { item ->
+    val filteredMedia = media.filter { item ->
         val matchesCategory = when (filter) {
             "Video" -> item.mimeType.startsWith("video/")
             "Audio" -> item.mimeType.startsWith("audio/")
@@ -794,6 +795,12 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
             else -> true
         }
         matchesCategory && item.displayName.contains(searchQuery.trim(), ignoreCase = true)
+    }
+    val visibleMedia = when (sortBy) {
+        "Oldest" -> filteredMedia.sortedBy { it.createdAtMs }
+        "Name A-Z" -> filteredMedia.sortedBy { it.displayName.lowercase() }
+        "Largest" -> filteredMedia.sortedByDescending { it.sizeBytes }
+        else -> filteredMedia.sortedByDescending { it.createdAtMs }
     }
     if (swipeFeedOpen) {
         SwipeFeedScreen(
@@ -835,6 +842,20 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                     label = { Text(value) },
                     modifier = Modifier.heightIn(min = 48.dp)
                 )
+            }
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Sort by", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(listOf("Newest", "Oldest", "Name A-Z", "Largest")) { value ->
+                    FilterChip(
+                        selected = sortBy == value,
+                        onClick = { sortBy = value },
+                        label = { Text(value) },
+                        modifier = Modifier.heightIn(min = 44.dp)
+                    )
+                }
             }
         }
         if (visibleMedia.isEmpty()) {
