@@ -12,7 +12,7 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   p=ANDROID/"app/src/main/java/com/vidgravity/app";self.assertIn("X-Content-SHA256",(p/"DownloadApi.kt").read_text());self.assertIn("MediaLibraryIndexer.publish",(p/"DownloadWorker.kt").read_text())
  def test_invalid_resume_range_discards_partial_and_restarts(self):
   source=(ANDROID/"app/src/main/java/com/vidgravity/app/DownloadApi.kt").read_text()
-  self.assertIn("HTTP_REQUESTED_RANGE_NOT_SATISFIABLE",source)
+  self.assertRegex(source, r"code\s*==\s*416")
   self.assertIn("destination.delete()",source)
   self.assertIn("return downloadResult(id, destination, onProgress)",source)
  def test_checksum_mismatch_discards_partial_before_retry(self):
