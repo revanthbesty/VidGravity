@@ -534,6 +534,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
 private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var expandedErrors by remember { mutableStateOf(setOf<java.util.UUID>()) }
+    var downloadFilter by remember { mutableStateOf("All") }
     val liveWorks = remember(context) { WorkManager.getInstance(context).getWorkInfosByTagLiveData("vidgravity-download") }
     val works by liveWorks.observeAsState(emptyList())
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -544,6 +545,13 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
         } else {
             val activeWorks = works.filter { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
             val failedWorks = works.filter { it.state == WorkInfo.State.FAILED || it.state == WorkInfo.State.CANCELLED }
+            val completedWorks = works.filter { it.state == WorkInfo.State.SUCCEEDED }
+            val filteredWorks = when (downloadFilter) {
+                "Active" -> activeWorks
+                "Completed" -> completedWorks
+                "Failed" -> failedWorks
+                else -> works
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = {
@@ -592,8 +600,25 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     Text("Retry failed (${failedWorks.size})")
                 }
             }
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(listOf("All", "Active", "Completed", "Failed")) { filter ->
+                    val count = when (filter) {
+                        "Active" -> activeWorks.size
+                        "Completed" -> completedWorks.size
+                        "Failed" -> failedWorks.size
+                        else -> works.size
+                    }
+                    FilterChip(selected = downloadFilter == filter, onClick = { downloadFilter = filter },
+                        label = { Text("$filter ($count)") })
+                }
+            }
+            if (filteredWorks.isEmpty()) {
+                InfoCard("No ${downloadFilter.lowercase()} downloads",
+                    if (downloadFilter == "Active") "Your download queue is idle." else "Items will appear here when they match this filter.",
+                    Icons.Default.FilterList, Modifier.fillMaxWidth())
+            }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(works, key = { it.id.toString() }) { work ->
+                items(filteredWorks, key = { it.id.toString() }) { work ->
                     val progress = work.progress.getInt("progress", 0).coerceIn(0, 100)
                     val paused = DownloadActionReceiver.isPaused(context, work.id)
                     val title = work.outputData.getString("display_name") ?: work.outputData.getString("filename") ?: work.progress.getString("media_title") ?: "Media download"
