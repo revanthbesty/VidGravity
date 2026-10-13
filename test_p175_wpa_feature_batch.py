@@ -53,6 +53,8 @@ class P175WpaFeatureBatchTests(unittest.TestCase):
         self.assertIn("CLOUDFLARE_ACCOUNT_ID", workflow)
         self.assertIn("cloudflare/wrangler-action@v3", workflow)
         self.assertIn("deploy --config wrangler.jsonc", workflow)
+        self.assertIn("Smoke-test deployed WPA assets", workflow)
+        self.assertIn("VidGravity-Deploy-Smoke/1.0", workflow)
 
     def test_web_and_android_runtime_bundles_are_synchronized(self):
         for name in ("index.html", "app.js", "styles.css", "sw.js"):
