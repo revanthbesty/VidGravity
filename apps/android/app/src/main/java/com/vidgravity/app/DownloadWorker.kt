@@ -18,6 +18,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 
@@ -174,7 +175,12 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
                 .addTag("vidgravity-download")
                 .build()
-            WorkManager.getInstance(context).enqueueUniqueWork("vg-download-" + request.id, ExistingWorkPolicy.KEEP, request)
+            // Use a stable identity for the same URL + selector. KEEP suppresses a second
+            // unfinished copy while still allowing the user to download it again after completion.
+            val identity = (url.trim().lowercase() + "\\n" + selector.trim()).toByteArray(Charsets.UTF_8)
+            val digest = MessageDigest.getInstance("SHA-256").digest(identity)
+                .take(12).joinToString("") { byte -> "%02x".format(byte) }
+            WorkManager.getInstance(context).enqueueUniqueWork("vg-download-" + digest, ExistingWorkPolicy.KEEP, request)
             return request.id
         }
     }
