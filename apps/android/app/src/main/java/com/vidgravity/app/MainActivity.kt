@@ -1126,6 +1126,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
     val clipboard = LocalClipboardManager.current
     var media by remember { mutableStateOf(emptyList<LibraryMedia>()) }
     var filter by remember { mutableStateOf("All Media") }
+    var sizeFilter by remember { mutableStateOf("Any size") }
     var sortBy by remember { mutableStateOf("Newest") }
     var searchQuery by remember { mutableStateOf("") }
     var renameTarget by remember { mutableStateOf<LibraryMedia?>(null) }
@@ -1145,7 +1146,14 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
             "Favorites" -> item.isFavorite
             else -> true
         }
-        matchesCategory && item.displayName.contains(searchQuery.trim(), ignoreCase = true)
+        val matchesSize = when (sizeFilter) {
+            "Under 10 MB" -> item.sizeBytes in 1L..9_999_999L
+            "10–100 MB" -> item.sizeBytes in 10_000_000L..100_000_000L
+            "Over 100 MB" -> item.sizeBytes > 100_000_000L
+            "Unknown size" -> item.sizeBytes <= 0L
+            else -> true
+        }
+        matchesCategory && matchesSize && item.displayName.contains(searchQuery.trim(), ignoreCase = true)
     }
     val visibleMedia = when (sortBy) {
         "Oldest" -> filteredMedia.sortedBy { it.createdAtMs }
@@ -1453,6 +1461,19 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                     label = { Text(value) },
                     modifier = Modifier.heightIn(min = 48.dp)
                 )
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Filter by file size", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+                items(listOf("Any size", "Under 10 MB", "10–100 MB", "Over 100 MB", "Unknown size")) { value ->
+                    FilterChip(
+                        selected = sizeFilter == value,
+                        onClick = { sizeFilter = value },
+                        label = { Text(value) },
+                        modifier = Modifier.heightIn(min = 48.dp)
+                    )
+                }
             }
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
