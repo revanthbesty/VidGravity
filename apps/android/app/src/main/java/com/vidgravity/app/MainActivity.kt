@@ -542,6 +542,56 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
         if (works.isEmpty()) {
             InfoCard("Nothing downloading yet", "Inspect a public link from Home to get started.", Icons.Default.Download, Modifier.fillMaxWidth())
         } else {
+            val activeWorks = works.filter { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
+            val failedWorks = works.filter { it.state == WorkInfo.State.FAILED || it.state == WorkInfo.State.CANCELLED }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        activeWorks.forEach { work ->
+                            DownloadActionReceiver.clear(context, work.id)
+                            WorkManager.getInstance(context).cancelWorkById(work.id)
+                        }
+                    },
+                    enabled = activeWorks.isNotEmpty(),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.StopCircle, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Cancel active (${activeWorks.size})")
+                }
+                OutlinedButton(
+                    onClick = {
+                        var queued = 0
+                        val preferences = SecureDownloadPreferences.load(context)
+                        failedWorks.forEach { work ->
+                            val sourceUrl = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                ?: work.progress.getString("media_url")
+                            val selector = work.outputData.getString(DownloadWorker.RETRY_FORMAT)
+                                ?: work.progress.getString("format_selector")
+                                ?: preferences.preferredFormatSelector
+                            val retryTitle = work.outputData.getString(DownloadWorker.RETRY_TITLE)
+                                ?: work.progress.getString("media_title")
+                                ?: "Media download"
+                            if (!sourceUrl.isNullOrBlank()) {
+                                runCatching {
+                                    DownloadWorker.enqueue(context, sourceUrl, selector, retryTitle, preferences.unmeteredOnly)
+                                }.onSuccess { queued++ }
+                            }
+                        }
+                        android.widget.Toast.makeText(
+                            context,
+                            if (queued > 0) "Queued ${queued} retry attempt(s)." else "No failed items had enough saved information to retry.",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    },
+                    enabled = failedWorks.isNotEmpty(),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Refresh, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Retry failed (${failedWorks.size})")
+                }
+            }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(works, key = { it.id.toString() }) { work ->
                     val progress = work.progress.getInt("progress", 0).coerceIn(0, 100)
