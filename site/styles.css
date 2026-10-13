@@ -472,3 +472,27 @@ html[data-theme="light"] .nav:not(.active),html[data-theme="light"] .smallBtn,ht
 html[data-theme="light"] .jobUrl,html[data-theme="light"] .setting small,html[data-theme="light"] .sideFoot,html[data-theme="light"] .stat small,html[data-theme="light"] .stat span,html[data-theme="light"] .downloadItemDate,html[data-theme="light"] .mediaMeta,html[data-theme="light"] .jobStatus,html[data-theme="light"] .shareFootnote{color:var(--text-muted)!important}
 html[data-theme="light"] .modal video,html[data-theme="light"] .vg-player-video-wrap,html[data-theme="light"] .thumb{background:#111318}
 html[data-theme="dark"] .card,html[data-theme="dark"] .job,html[data-theme="dark"] .setting,html[data-theme="dark"] .stat,html[data-theme="dark"] .intake,html[data-theme="dark"] .ask,html[data-theme="dark"] .downloadItem,html[data-theme="dark"] .media{border-color:var(--border-subtle)}
+
+/* Expanded, compact social destination tiles for the WPA share dialog. */
+.shareTargets{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:9px}
+.shareTargets button{min-width:0;min-height:48px;display:flex;align-items:center;justify-content:flex-start;gap:9px;padding:8px 10px;text-align:left;border:1px solid var(--border-subtle);background:var(--surface-raised);color:var(--text-primary);border-radius:11px;font:inherit;font-weight:700;transition:transform .15s ease,border-color .15s ease,background .15s ease}
+.shareTargets button:hover{border-color:var(--accent,#8b5cf6);background:var(--surface-hover,var(--surface-raised));transform:translateY(-1px)}
+.shareTargets button:focus-visible{outline:2px solid var(--accent,#8b5cf6);outline-offset:2px}
+.shareTargets button>span{font-size:12px;overflow-wrap:anywhere}
+@media(max-width:420px){.shareTargets{grid-template-columns:repeat(2,minmax(0,1fr))}.shareTargets button{padding:8px;gap:7px}}
+@media(prefers-reduced-motion:reduce){.shareTargets button{transition:none}}
+
+/* Accessible media-library bulk selection controls. */
+.media .thumb{position:relative}
+.mediaSelectLabel{position:relative;width:100%;height:100%;display:grid;place-items:center;cursor:pointer}
+.mediaSelectLabel input{position:absolute;top:9px;left:9px;width:19px;height:19px;accent-color:var(--accent,#8b5cf6);z-index:1;cursor:pointer}
+.mediaSelectLabel span{display:grid;place-items:center;pointer-events:none}
+.libraryTools{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.selectVisibleLabel{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--text-secondary,var(--text-muted));white-space:nowrap;cursor:pointer}
+.selectVisibleLabel input{width:16px;height:16px;accent-color:var(--accent,#8b5cf6)}
+#bulkDelete:disabled,#copySelectedNames:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:620px){.libraryTools .search{max-width:100%;width:100%}.selectVisibleLabel{min-height:36px}}
+
+.playerKeyboardHelp{margin:8px 0 2px;font-size:11px;line-height:1.7;color:var(--text-muted);text-align:right}
+.playerKeyboardHelp kbd{display:inline-block;min-width:20px;padding:1px 5px;border:1px solid var(--border-subtle);border-radius:5px;background:var(--surface-raised);color:var(--text-primary);font:inherit;text-align:center}
+@media(max-width:620px){.playerKeyboardHelp{text-align:left;font-size:10px}}
