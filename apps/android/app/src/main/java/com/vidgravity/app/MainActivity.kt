@@ -1288,6 +1288,19 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                 enabled = visibleMedia.isNotEmpty(),
                 onClick = {
                     val visibleUris = visibleMedia.map { it.uri.toString() }.toSet()
+                    selectedUris = selectedUris + visibleUris
+                    android.widget.Toast.makeText(context, "Selected " + visibleUris.size + " visible item(s).", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
+            ) {
+                Icon(Icons.Default.SelectAll, null)
+                Spacer(Modifier.width(6.dp))
+                Text("Select all visible (" + visibleMedia.size + ")")
+            }
+            OutlinedButton(
+                enabled = visibleMedia.isNotEmpty(),
+                onClick = {
+                    val visibleUris = visibleMedia.map { it.uri.toString() }.toSet()
                     val currentlySelected = selectedUris.intersect(visibleUris)
                     val invertVisible = visibleUris - currentlySelected
                     selectedUris = (selectedUris - visibleUris) + invertVisible
