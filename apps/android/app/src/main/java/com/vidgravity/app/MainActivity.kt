@@ -577,8 +577,8 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             }
             val filteredWorks = when (downloadSort) {
-                "Newest" -> matchedWorks.sortedByDescending { it.enqueueTimeMillis }
-                "Oldest" -> matchedWorks.sortedBy { it.enqueueTimeMillis }
+                "Newest" -> matchedWorks
+                "Oldest" -> matchedWorks.reversed()
                 "Name A–Z" -> matchedWorks.sortedBy { work ->
                     (work.outputData.getString("display_name")
                         ?: work.outputData.getString("filename")
