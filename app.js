@@ -356,13 +356,32 @@ async function shareMedia(id=shareMediaId){
 }
 function shareTo(target){
  const item=getShareItem(shareMediaId);if(!item)return;
- const url=item.url||'';const title=item.title||'VidGravity media';let targetUrl='';
- if(target==='x')targetUrl='https://twitter.com/intent/tweet?'+new URLSearchParams({text:title,url});
- if(target==='whatsapp')targetUrl='https://wa.me/?text='+encodeURIComponent([title,url].filter(Boolean).join(' '));
- if(target==='telegram')targetUrl='https://t.me/share/url?'+new URLSearchParams({url,text:title});
- if(target==='reddit')targetUrl='https://www.reddit.com/submit?'+new URLSearchParams({url,title});
- if(target==='linkedin')targetUrl='https://www.linkedin.com/sharing/share-offsite/?url='+encodeURIComponent(url);
- if(target!=='whatsapp'&&target!=='x'&&!url)return toast('This social target needs a shareable URL');
+ const url=item.url||'';const title=item.title||'VidGravity media';
+ const text=[title,url].filter(Boolean).join(' ');
+ const query=(values)=>new URLSearchParams(values).toString();
+ let targetUrl='';
+ switch(target){
+  case 'x': targetUrl='https://twitter.com/intent/tweet?'+query({text:title,url});break;
+  case 'whatsapp': targetUrl='https://wa.me/?text='+encodeURIComponent(text);break;
+  case 'telegram': targetUrl='https://t.me/share/url?'+query({url,text:title});break;
+  case 'facebook': targetUrl='https://www.facebook.com/sharer/sharer.php?'+query({u:url});break;
+  case 'reddit': targetUrl='https://www.reddit.com/submit?'+query({url,title});break;
+  case 'linkedin': targetUrl='https://www.linkedin.com/sharing/share-offsite/?'+query({url});break;
+  case 'threads': targetUrl='https://www.threads.net/intent/post?'+query({text});break;
+  case 'bluesky': targetUrl='https://bsky.app/intent/compose?'+query({text});break;
+  case 'pinterest': targetUrl='https://www.pinterest.com/pin/create/button/?'+query({url,description:title});break;
+  case 'tumblr': targetUrl='https://www.tumblr.com/widgets/share/tool?'+query({canonicalUrl:url,title});break;
+  case 'email': targetUrl='mailto:?'+query({subject:title,body:text});break;
+  case 'instagram':
+  case 'snapchat':
+   // These platforms do not provide a universal web URL-share composer.
+   // Use the browser/device share sheet where available instead of a fake share link.
+   shareMedia(shareMediaId);return;
+  default: return toast('This sharing destination is not supported yet');
+ }
+ if(!url&&!['whatsapp','x','threads','bluesky','email'].includes(target))return toast('This social target needs a shareable URL');
+ if(target==='email'){window.location.href=targetUrl;return}
+ if(!targetUrl)return toast('Could not prepare this share');
  window.open(targetUrl,'_blank','noopener,noreferrer');
 }
 $('#shareAppButton')?.addEventListener('click',()=>openShare('__app__'));
