@@ -450,7 +450,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                 val preferences = SecureDownloadPreferences.load(context)
                                 candidates.forEach { link ->
                                     runCatching {
-                                        DownloadWorker.enqueue(context, link, "bv*+ba/b",
+                                        DownloadWorker.enqueue(context, link, preferences.preferredFormatSelector,
                                             ShareReceiverActivity.friendlyTitle(link), preferences.unmeteredOnly)
                                     }.onSuccess { queued++ }
                                 }
@@ -1039,8 +1039,16 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
     LaunchedEffect(Unit) {
         mediaBytes = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context).sumOf { it.sizeBytes } }
     }
-    var unmeteredOnly by remember { mutableStateOf(SecureDownloadPreferences.load(context).unmeteredOnly) }
-    var autoPreset by remember { mutableStateOf(SecureDownloadPreferences.load(context).autoDownloadWithPreferredPreset) }
+    var savedPreferences by remember { mutableStateOf(SecureDownloadPreferences.load(context)) }
+    var unmeteredOnly by remember { mutableStateOf(savedPreferences.unmeteredOnly) }
+    var autoPreset by remember { mutableStateOf(savedPreferences.autoDownloadWithPreferredPreset) }
+    val formatPresets = listOf(
+        "Best" to "bv*+ba/b",
+        "2160p" to "bestvideo[height<=2160]+bestaudio/best[height<=2160]",
+        "1080p" to "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+        "720p" to "bestvideo[height<=720]+bestaudio/best[height<=720]",
+        "Audio" to "bestaudio/best"
+    )
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Settings", fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Make VidGravity work your way.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1057,6 +1065,22 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
             }
         }
         Text("DOWNLOADS", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+        Text("Default download quality", fontWeight = FontWeight.SemiBold)
+        Text("Used by bulk queueing and automatic share downloads. You can still choose a different format when inspecting a link.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(formatPresets) { preset ->
+                FilterChip(
+                    selected = savedPreferences.preferredFormatSelector == preset.second,
+                    onClick = {
+                        val updated = savedPreferences.copy(preferredFormatSelector = preset.second)
+                        savedPreferences = updated
+                        SecureDownloadPreferences.save(context, updated)
+                    },
+                    label = { Text(preset.first) },
+                    modifier = Modifier.heightIn(min = 48.dp)
+                )
+            }
+        }
         SettingRow(Icons.Default.Folder, "Save location", "Managed by Android app storage")
         Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
