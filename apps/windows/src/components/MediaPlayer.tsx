@@ -4,7 +4,7 @@ import { useMediaPlayer } from "../hooks/useMediaPlayer";
 import { ShareModal } from "./ShareModal";
 import { ShareClipModal } from "./ShareClipModal";
 import { FrameStudioModal } from "./FrameStudioModal";
-import type { ClipExportRequest } from "../../../packages/contracts/src/share";
+import type { ClipExportRequest } from "../../../../packages/contracts/src/share";
 
 export interface MediaPlayerProps {
   src: string; title: string; onClose: () => void; mediaId?: string; shareUrl?: string;
