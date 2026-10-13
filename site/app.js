@@ -370,7 +370,7 @@ async function copyShareLink(url){
 }
 $('#shareAppButton')?.addEventListener('click',()=>openShare('__app__'));
 $('#shareDeviceButton')?.addEventListener('click',()=>shareMedia());
-$('if(!item?.url)return toast('No shareable URL is available for this media');try{await navigator.clipboard.writeText(item.url);toast('Link copied')}catch{toast('Clipboard access is unavailable in this context')}});
+$('#shareCopyButton')?.addEventListener('click',async()=>{const item=getShareItem(shareMediaId);if(!item)return toast('Media item was not found');const ok=await copyShareLink(item.url||location.href);toast(ok?'Link copied':'Clipboard access is unavailable. Use Share Using Device instead.')});
 $$('[data-share-target]').forEach(button=>button.addEventListener('click',()=>shareTo(button.dataset.shareTarget)));
 let shareReturnFocus=null;
 $('#closeShare')?.addEventListener('click',()=>{const modal=$('#shareModal');modal?.classList.add('hidden');modal?.setAttribute('aria-hidden','true');shareReturnFocus?.focus?.()});
