@@ -25,15 +25,19 @@ class ShareReceiverActivity : FragmentActivity(), FormatPickerBottomSheet.Listen
             finish()
             return
         }
-        val preferences = SecureDownloadPreferences.load(this)
-        if (preferences.autoDownloadWithPreferredPreset && preferences.preferredFormatSelector.isNotBlank()) {
-            val title = friendlyTitle(url)
-            DownloadNotifications.analyzing(this, title)
-            DownloadWorker.enqueue(this, url, preferences.preferredFormatSelector, title, preferences.unmeteredOnly)
-            finish()
-        } else {
-            FormatPickerBottomSheet.newInstance(url).show(supportFragmentManager, "vg-format-picker")
-        }
+        val title = friendlyTitle(url)
+        runCatching { ShareInboxStore.add(this, url, title) }
+            .onFailure {
+                Toast.makeText(this, "Could not save this link to the Share Inbox.", Toast.LENGTH_LONG).show()
+                finish()
+                return
+            }
+        Toast.makeText(this, "Saved to VidGravity Share Inbox. No download started.", Toast.LENGTH_LONG).show()
+        startActivity(Intent(this, MainActivity::class.java).apply {
+            putExtra(EXTRA_OPEN_INBOX, true)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        })
+        finish()
     }
 
     override fun onFormatChosen(url: String, option: FormatOption, remember: Boolean, title: String) {
@@ -50,6 +54,7 @@ class ShareReceiverActivity : FragmentActivity(), FormatPickerBottomSheet.Listen
     }
 
     companion object {
+        const val EXTRA_OPEN_INBOX = "com.vidgravity.app.EXTRA_OPEN_INBOX"
         private const val MAX_SHARED_TEXT = 8192
         private val URL_PATTERN = Pattern.compile("(?i)(https?://[^\\s<>\\\"']+|(?:www\\.)?[a-z0-9][a-z0-9.-]+\\.[a-z]{2,}(?:/[^\\s<>\\\"']*)?)")
         private val TRAILING = Regex("[),.;!?\\]}]+$")
