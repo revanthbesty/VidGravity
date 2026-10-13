@@ -180,7 +180,8 @@
     $("#vgExportWidth").addEventListener("change",e=>{state.customW=even(e.target.value);e.target.value=state.customW;updatePreview();});
     $("#vgExportHeight").addEventListener("change",e=>{state.customH=even(e.target.value);e.target.value=state.customH;updatePreview();});
     $("#vgExportDirectShare").addEventListener("click",directShare);$("#vgExportSave").addEventListener("click",saveDerivative);$("#vgExportCopy").addEventListener("click",copyRendered);
-    $("#vgExportPreviewPlay").addEventListener("click",()=>{const v=$("#vgExportVideo"),bg=$("#vgExportBackdrop");if(v.paused){v.play().catch(()=>setStatus("Preview playback could not start.","error"));if(bg)bg.play().catch(()=>{});}else{v.pause();if(bg)bg.pause();}});\n    $("#vgExportVideo").addEventListener("timeupdate",()=>{const v=$("#vgExportVideo"),bg=$("#vgExportBackdrop");if(bg&&Math.abs(bg.currentTime-v.currentTime)>.15){try{bg.currentTime=v.currentTime;}catch(_){}}});
+    $("#vgExportPreviewPlay").addEventListener("click",()=>{const v=$("#vgExportVideo"),bg=$("#vgExportBackdrop");if(v.paused){v.play().catch(()=>setStatus("Preview playback could not start.","error"));if(bg)bg.play().catch(()=>{});}else{v.pause();if(bg)bg.pause();}});
+    $("#vgExportVideo").addEventListener("timeupdate",()=>{const v=$("#vgExportVideo"),bg=$("#vgExportBackdrop");if(bg&&Math.abs(bg.currentTime-v.currentTime)>.15){try{bg.currentTime=v.currentTime;}catch(_){}}});
     document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#vgSocialExportModal")?.classList.contains("hidden"))closeModal();});
   }
   const oldOpenShare=window.openShare;
