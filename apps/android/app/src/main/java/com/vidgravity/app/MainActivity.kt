@@ -1465,7 +1465,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
             },
             modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
         ) {
-            Icon(Icons.Default.FilterAltOff, null)
+            Icon(Icons.Default.Refresh, null)
             Spacer(Modifier.width(6.dp))
             Text("Reset library filters and sorting")
         }
