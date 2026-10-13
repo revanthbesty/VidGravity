@@ -19,6 +19,7 @@ data class FormatOption(
     val videoCodec: String,
     val audioCodec: String,
     val sizeBytes: Long?,
+    val width: Int = 0,
     val height: Int = 0,
     val hasVideo: Boolean = videoCodec.isNotBlank() && videoCodec != "none",
     val hasAudio: Boolean = audioCodec.isNotBlank() && audioCodec != "none",
