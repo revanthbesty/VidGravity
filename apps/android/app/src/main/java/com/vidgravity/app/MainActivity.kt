@@ -1455,6 +1455,20 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
             placeholder = { Text("Search your downloads") },
             shape = RoundedCornerShape(16.dp)
         )
+        OutlinedButton(
+            enabled = searchQuery.isNotBlank() || filter != "All Media" || sizeFilter != "Any size" || sortBy != "Newest",
+            onClick = {
+                searchQuery = ""
+                filter = "All Media"
+                sizeFilter = "Any size"
+                sortBy = "Newest"
+            },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+        ) {
+            Icon(Icons.Default.FilterAltOff, null)
+            Spacer(Modifier.width(6.dp))
+            Text("Reset library filters and sorting")
+        }
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
             items(listOf("All Media", "Video", "Audio", "Images", "Other Files", "Favorites")) { value ->
                 FilterChip(
