@@ -577,6 +577,8 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             }
             val filteredWorks = when (downloadSort) {
+                "Newest" -> matchedWorks.sortedByDescending { it.enqueueTimeMillis }
+                "Oldest" -> matchedWorks.sortedBy { it.enqueueTimeMillis }
                 "Name A–Z" -> matchedWorks.sortedBy { work ->
                     (work.outputData.getString("display_name")
                         ?: work.outputData.getString("filename")
@@ -886,7 +888,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             )
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(listOf("Newest", "Name A–Z", "Progress", "Status", "Failed first")) { sort ->
+                items(listOf("Newest", "Oldest", "Name A–Z", "Progress", "Status", "Failed first")) { sort ->
                     FilterChip(
                         selected = downloadSort == sort,
                         onClick = { downloadSort = sort },
