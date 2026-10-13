@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import type { ClipAspectRatio, ClipExportRequest, ClipFit, ClipExportMode } from "../../../packages/contracts/src/share";
-import { validateClipRequest } from "../../../packages/contracts/src/share";
+import type { ClipAspectRatio, ClipExportRequest, ClipFit, ClipExportMode } from "../../../../packages/contracts/src/share";
+import { validateClipRequest } from "../../../../packages/contracts/src/share";
 const presets: {value:ClipAspectRatio;label:string;width:number;height:number}[]=[
  {value:"9:16",label:"Vertical · 9:16",width:1080,height:1920},
  {value:"4:5",label:"Portrait feed · 4:5",width:1080,height:1350},
