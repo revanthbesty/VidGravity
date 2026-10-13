@@ -973,6 +973,20 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             }
             OutlinedButton(
+                enabled = visibleMedia.isNotEmpty(),
+                onClick = {
+                    val visibleUris = visibleMedia.map { it.uri.toString() }.toSet()
+                    val currentlySelected = selectedUris.intersect(visibleUris)
+                    val invertVisible = visibleUris - currentlySelected
+                    selectedUris = (selectedUris - visibleUris) + invertVisible
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
+            ) {
+                Icon(Icons.Default.SwapVert, null)
+                Spacer(Modifier.width(6.dp))
+                Text("Invert visible selection")
+            }
+            OutlinedButton(
                 enabled = visibleMedia.any { it.uri.toString() in selectedUris },
                 onClick = {
                     val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
