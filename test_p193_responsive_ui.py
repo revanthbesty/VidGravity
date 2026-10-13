@@ -26,12 +26,13 @@ class ResponsiveWorkspaceTests(unittest.TestCase):
             with self.subTest(style=rel):
                 css = (ROOT / rel).read_text(encoding="utf-8")
                 self.assertIn("P193 responsive workspace polish", css)
+                self.assertIn("P194 design-system pass", css)
                 self.assertIn("@media(max-width:760px)", css)
                 self.assertIn(":focus-visible", css)
         for rel in ("site/index.html", "android-web/index.html"):
             with self.subTest(page=rel):
                 html = (ROOT / rel).read_text(encoding="utf-8")
-                self.assertIn("styles.css?v=p193", html)
+                self.assertIn("styles.css?v=p194", html)
                 self.assertIn("app.js?v=p193", html)
 
 if __name__ == "__main__":
