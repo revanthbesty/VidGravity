@@ -538,6 +538,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
     var downloadFilter by remember { mutableStateOf("All") }
     var showClearHistoryConfirm by remember { mutableStateOf(false) }
     var downloadSearch by remember { mutableStateOf("") }
+    var downloadSort by remember { mutableStateOf("Newest") }
     val liveWorks = remember(context) { WorkManager.getInstance(context).getWorkInfosByTagLiveData("vidgravity-download") }
     val works by liveWorks.observeAsState(emptyList())
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -560,7 +561,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 else -> works
             }
             val searchTerm = downloadSearch.trim()
-            val filteredWorks = statusFilteredWorks.filter { work ->
+            val matchedWorks = statusFilteredWorks.filter { work ->
                 if (searchTerm.isBlank()) true else {
                     val title = work.outputData.getString("display_name")
                         ?: work.outputData.getString("filename")
@@ -574,6 +575,18 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                         error.contains(searchTerm, ignoreCase = true) ||
                         work.state.name.contains(searchTerm, ignoreCase = true)
                 }
+            }
+            val filteredWorks = when (downloadSort) {
+                "Name A–Z" -> matchedWorks.sortedBy { work ->
+                    (work.outputData.getString("display_name")
+                        ?: work.outputData.getString("filename")
+                        ?: work.progress.getString("media_title")
+                        ?: "Media download").lowercase()
+                }
+                "Progress" -> matchedWorks.sortedByDescending { work ->
+                    work.progress.getInt("progress", 0).coerceIn(0, 100)
+                }
+                else -> matchedWorks
             }
             val retryableFilteredWorks = filteredWorks.filter { work ->
                 (work.state == WorkInfo.State.FAILED || work.state == WorkInfo.State.CANCELLED) &&
@@ -849,6 +862,15 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     }
                 }
             )
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(listOf("Newest", "Name A–Z", "Progress")) { sort ->
+                    FilterChip(
+                        selected = downloadSort == sort,
+                        onClick = { downloadSort = sort },
+                        label = { Text("Sort: $sort") }
+                    )
+                }
+            }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("${filteredWorks.size} matching download(s)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 TextButton(
