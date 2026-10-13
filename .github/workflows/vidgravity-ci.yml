@@ -66,6 +66,8 @@ jobs:
         run: python -m unittest -v test_youtube_extractor_config.py
       - name: Responsive web and PWA UI regression tests
         run: python -m unittest -v test_p193_responsive_ui.py
+      - name: Share destinations and player layout regression tests
+        run: python -m unittest -v test_p195_share_player_ui.py
       - name: JavaScript syntax checks for every shipped frontend
         run: |
           node --check app.js
