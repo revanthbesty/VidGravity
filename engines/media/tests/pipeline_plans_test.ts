@@ -19,6 +19,8 @@ Deno.test("WhatsApp Status splitting defaults to 90 seconds and supports platfor
   const whatsapp = buildStatusSplitPlan("source.mp4", "status-%03d.mp4", 150);
   assert(whatsapp.args.includes("90"), "WhatsApp Status segments should use the current 90-second cap");
   assert(whatsapp.args[whatsapp.args.indexOf("-segment_time") + 1] === "90", "default segment duration must be 90 seconds");
+  assert(whatsapp.args[whatsapp.args.indexOf("-force_key_frames") + 1] === "expr:gte(t,n_forced*90)", "re-encode must force keyframes at each split boundary");
+  assert(whatsapp.args.includes("libx264") && whatsapp.args.includes("aac"), "segments should use broadly compatible H.264/AAC output");
   const legacyPlatform = buildStatusSplitPlan("source.mp4", "clip-%03d.mp4", 75, 30);
   assert(legacyPlatform.args[legacyPlatform.args.indexOf("-segment_time") + 1] === "30", "platform-specific duration overrides must be honored");
   assertThrows(() => buildStatusSplitPlan("source.mp4", "status-%03d.mp4", 80), "INVALID_STATUS_SPLIT");
