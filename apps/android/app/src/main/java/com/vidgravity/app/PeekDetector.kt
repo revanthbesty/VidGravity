@@ -24,29 +24,27 @@ fun Modifier.detectVidGravityPeek(
     if (!enabled) return@pointerInput
     val thresholdPx = threshold.toPx()
     awaitEachGesture {
-        awaitPointerEventScope {
-            val down = awaitFirstDown(requireUnconsumed = false)
-            val startX = down.position.x
-            var maxHorizontal = 0f
-            var maxVertical = 0f
-            var ended = false
-            while (!ended) {
-                val event = awaitPointerEvent(PointerEventPass.Main)
-                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                val dx = change.position.x - startX
-                val dy = change.position.y - down.position.y
-                maxHorizontal = maxOf(maxHorizontal, abs(dx))
-                maxVertical = maxOf(maxVertical, abs(dy))
-                if (!change.pressed) ended = true
-                // Let scroll containers and buttons keep ownership of the gesture.
-                if (maxVertical > thresholdPx || maxHorizontal > thresholdPx * 3f) break
-            }
-            // A restrained horizontal drag released before a full swipe can be treated as
-            // a peek hint. Do not consume pointer events or block normal navigation.
-            if (maxHorizontal >= thresholdPx && maxHorizontal < thresholdPx * 3f &&
-                maxVertical < thresholdPx) {
-                onPeek()
-            }
+        val down = awaitFirstDown(requireUnconsumed = false)
+        val startX = down.position.x
+        var maxHorizontal = 0f
+        var maxVertical = 0f
+        var ended = false
+        while (!ended) {
+            val event = awaitPointerEvent(PointerEventPass.Main)
+            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+            val dx = change.position.x - startX
+            val dy = change.position.y - down.position.y
+            maxHorizontal = maxOf(maxHorizontal, abs(dx))
+            maxVertical = maxOf(maxVertical, abs(dy))
+            if (!change.pressed) ended = true
+            // Let scroll containers and buttons keep ownership of the gesture.
+            if (maxVertical > thresholdPx || maxHorizontal > thresholdPx * 3f) break
+        }
+        // A restrained horizontal drag released before a full swipe can be treated as
+        // a peek hint. Do not consume pointer events or block normal navigation.
+        if (maxHorizontal >= thresholdPx && maxHorizontal < thresholdPx * 3f &&
+            maxVertical < thresholdPx) {
+            onPeek()
         }
     }
 }
