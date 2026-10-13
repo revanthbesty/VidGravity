@@ -393,6 +393,29 @@ let shareReturnFocus=null;
 $('#closeShare')?.addEventListener('click',()=>{const modal=$('#shareModal');modal?.classList.add('hidden');modal?.setAttribute('aria-hidden','true');shareReturnFocus?.focus?.()});
 $('#shareModal')?.addEventListener('click',event=>{if(event.target===$('#shareModal')){$('#shareModal').classList.add('hidden');$('#shareModal').setAttribute('aria-hidden','true');shareReturnFocus?.focus?.()}});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('#shareModal')?.classList.contains('hidden')){$('#shareModal').classList.add('hidden');$('#shareModal').setAttribute('aria-hidden','true');shareReturnFocus?.focus?.()}});
+document.addEventListener('keydown',event=>{
+ const modal=$('#playerModal'),video=$('#player');
+ if(!modal||modal.classList.contains('hidden')||!video)return;
+ if(event.defaultPrevented||event.ctrlKey||event.metaKey||event.altKey)return;
+ const target=event.target;
+ if(target?.closest?.('input,textarea,select,button,[contenteditable="true"]'))return;
+ if(target!==document.body&&target!==video&&!target?.closest?.('#playerModal'))return;
+ const key=event.key;
+ if(key===' '||key==='Spacebar'){
+  event.preventDefault();
+  if(video.paused)video.play().catch(()=>{});else video.pause();
+ }else if(key==='ArrowLeft'||key==='ArrowRight'){
+  if(!Number.isFinite(video.duration))return;
+  event.preventDefault();
+  video.currentTime=Math.max(0,Math.min(video.duration,video.currentTime+(key==='ArrowRight'?5:-5)));
+ }else if(key==='ArrowUp'||key==='ArrowDown'){
+  event.preventDefault();
+  video.volume=Math.max(0,Math.min(1,video.volume+(key==='ArrowUp'?0.05:-0.05)));
+  if(video.volume>0)video.muted=false;
+ }else if(key.toLowerCase()==='m'){
+  video.muted=!video.muted;
+ }
+});
 $('#playerShare')?.addEventListener('click',()=>{if(activeMediaId)openShare(activeMediaId);else toast('Open a saved media item before sharing')});
 
 function bindCards(root){root.querySelectorAll('.play').forEach(b=>b.onclick=()=>play(b.dataset.id));root.querySelectorAll('.save').forEach(b=>b.onclick=()=>saveFile(b.dataset.id));root.querySelectorAll('.info').forEach(b=>b.onclick=()=>showDetails(b.dataset.id));root.querySelectorAll('.shareMedia').forEach(b=>b.onclick=()=>openShare(b.dataset.id));root.querySelectorAll('.del').forEach(b=>b.onclick=()=>removeMedia(b.dataset.id))}
