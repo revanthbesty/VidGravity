@@ -13,6 +13,8 @@ class ShareAndPlayerUiTests(unittest.TestCase):
                 html = (ROOT / f"{prefix}index.html").read_text(encoding="utf-8")
                 for target in expected:
                     self.assertEqual(html.count(f'data-share-target="{target}"'), 1, target)
+                    self.assertEqual(html.count(f'class="socialLogo socialLogo-{target}"'), 1, f"{target} logo")
+                self.assertEqual(html.count('class="shareTargets"'), 1, "share destinations rendered once")
                 self.assertIn('id="shareDeviceButton"', html)
                 self.assertIn('id="shareCopyButton"', html)
 
@@ -42,9 +44,9 @@ class ShareAndPlayerUiTests(unittest.TestCase):
             with self.subTest(shell=prefix or "root"):
                 html = (ROOT / f"{prefix}index.html").read_text(encoding="utf-8")
                 worker = (ROOT / f"{prefix}sw.js").read_text(encoding="utf-8")
-                self.assertIn("styles.css?v=p195", html)
-                self.assertIn("app.js?v=p195", html)
-                self.assertIn('CACHE_NAME = "vidgravity-p195-shell-v1"', worker)
+                self.assertIn("styles.css?v=p196", html)
+                self.assertIn("app.js?v=p196", html)
+                self.assertIn('CACHE_NAME = "vidgravity-p196-shell-v1"', worker)
 
 if __name__ == "__main__":
     unittest.main()
