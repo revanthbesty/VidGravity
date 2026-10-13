@@ -30,6 +30,14 @@ jobs:
           yt-dlp --version
           deno --version
           python -c "import yt_dlp_ejs; print('yt-dlp-ejs available')"
+      - name: Install FFmpeg integration-test runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Creator media pipeline plan regression tests
+        run: deno test --sloppy-imports engines/media/tests/pipeline_plans_test.ts
+      - name: Real FFmpeg derivative render integration tests
+        run: deno test --sloppy-imports --allow-run --allow-read --allow-write engines/media/tests/ffmpeg_integration_test.ts
       - name: Set up Node
         uses: actions/setup-node@v4
         with:

@@ -4,3 +4,4 @@ export * from "./player";
 export * from "./share";
 export * from "./lifecycle";
 export * from "./android-share";
+export * from "./studio";
