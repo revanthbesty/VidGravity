@@ -1,9 +1,9 @@
 export interface SegmentPlan {executable:"ffmpeg";args:readonly string[];outputPattern:string;}
 
 /**
- * Builds a lossless segment plan for a platform's per-clip duration cap.
- * WhatsApp Status now permits videos up to 90 seconds, so 90 seconds is the
- * default. Callers targeting a different platform can pass its own cap.
+ * Builds an FFmpeg plan for platform-limited clips.
+ * Re-encoding forces keyframes at segment boundaries; stream-copy splitting can
+ * exceed the requested cap when the source has sparse keyframes.
  */
 export function buildStatusSplitPlan(
  inputPath:string,
@@ -15,5 +15,17 @@ export function buildStatusSplitPlan(
     !Number.isFinite(durationSeconds)||!Number.isFinite(segmentSeconds)||
     segmentSeconds<=0||durationSeconds<=segmentSeconds)throw new Error("INVALID_STATUS_SPLIT");
  if(!/\%0[2-4]d/.test(outputPattern))throw new Error("OUTPUT_PATTERN_MUST_BE_NUMBERED");
- return {executable:"ffmpeg",outputPattern,args:["-nostdin","-hide_banner","-i",inputPath,"-map","0","-c","copy","-f","segment","-segment_time",String(segmentSeconds),"-reset_timestamps","1","-y",outputPattern]};
+ return {
+  executable:"ffmpeg",
+  outputPattern,
+  args:[
+   "-nostdin","-hide_banner","-i",inputPath,
+   "-map","0:v:0","-map","0:a?",
+   "-c:v","libx264","-preset","veryfast","-crf","20",
+   "-force_key_frames",`expr:gte(t,n_forced*\${segmentSeconds})`,
+   "-c:a","aac","-b:a","192k",
+   "-f","segment","-segment_time",String(segmentSeconds),
+   "-reset_timestamps","1","-y",outputPattern
+  ]
+ };
 }
