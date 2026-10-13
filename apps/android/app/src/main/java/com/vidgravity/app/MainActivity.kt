@@ -841,6 +841,7 @@ private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, o
 @Composable
 private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val clipboard = LocalClipboardManager.current
     var media by remember { mutableStateOf(emptyList<LibraryMedia>()) }
     var filter by remember { mutableStateOf("All Media") }
     var sortBy by remember { mutableStateOf("Newest") }
@@ -902,16 +903,40 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
             }
         }
         Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(16.dp)) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Column {
-                    Text("${visibleMedia.size} shown", fontWeight = FontWeight.SemiBold)
-                    Text(String.format("%.1f MB", visibleBytes / 1_000_000.0),
-                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column {
+                        Text("${visibleMedia.size} shown", fontWeight = FontWeight.SemiBold)
+                        Text(String.format("%.1f MB", visibleBytes / 1_000_000.0),
+                            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("${media.size} total", fontWeight = FontWeight.SemiBold)
+                        Text("${favoriteCount} favorites", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("${media.size} total", fontWeight = FontWeight.SemiBold)
-                    Text("${favoriteCount} favorites", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedButton(
+                    onClick = {
+                        val report = buildString {
+                            appendLine("VidGravity media library")
+                            appendLine("Visible: ${visibleMedia.size} | Total indexed: ${media.size} | Favorites: ${favoriteCount}")
+                            appendLine("Visible size: ${String.format("%.1f MB", visibleBytes / 1_000_000.0)}")
+                            appendLine()
+                            visibleMedia.forEachIndexed { index, item ->
+                                appendLine("${index + 1}. ${item.displayName}")
+                                appendLine("   Type: ${item.mimeType} | Size: ${if (item.sizeBytes > 0) String.format("%.1f MB", item.sizeBytes / 1_000_000.0) else "Unknown"}")
+                            }
+                        }
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
+                        android.widget.Toast.makeText(context, "Library report copied.", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    enabled = visibleMedia.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.ContentCopy, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Copy visible library report")
                 }
             }
         }
