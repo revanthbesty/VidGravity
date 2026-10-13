@@ -137,6 +137,46 @@ The product should help users prepare, understand, organize, edit, and share med
 - **Integration honesty:** maintain a capability matrix per platform and app version. When a platform does not expose an official API or blocks a workflow, explain the limitation and offer a permitted alternative (save a link, open the source app, or process a user-provided file). Never imply that a share-sheet handoff equals a completed upload.
 - **Privacy and safety:** user-selected inputs, local processing where feasible, transparent network/AI indicators, clear cache/history deletion, private drafts by default, no hidden tracking, and no unauthorized access to private social content.
 
+### N. Twenty additional researched features (reviewed 2026-10-13)
+These proposals extend sections A–M and should be delivered in small increments. Platform references below are evidence of current platform direction, not a claim that VidGravity has equivalent APIs or permissions. Confirm regional availability and official docs again before each release.
+
+1. **Prompt-to-Edit Copilot:** users describe “make this a 25-second travel recap with captions”; generate an editable draft plan (cuts, captions, crop, transitions) from available media. Never silently publish, overwrite source, or pretend generated edits are accurate without preview. Inspired by YouTube's September 2026 announcement of conversational editing; implement locally/with bounded optional AI rather than depending on a platform-only capability.
+2. **Hook & Pacing Coach:** analyze a user-selected draft for long pauses, low-audio sections, repeated phrases, and opening length; show evidence/timecodes and let users accept/reject each suggestion. No guaranteed virality claims.
+3. **Thumbnail & Cover Lab:** create several cover candidates from selected frames with editable typography, contrast checks, safe zones, and readable-at-small-size preview. Any A/B comparison is a private export/planning tool unless an official platform experiment API is authorized.
+4. **Creator Experiment Notebook:** manually record variant, hook, duration, caption, posting time and user-entered outcome metrics; compare experiments over time and separate correlation from causation. Do not scrape private analytics or promise reach.
+5. **Series & Episode Planner:** group short videos into series with consistent title cards, numbering, intro/outro and export naming; user can plan a coherent sequence even where a platform's native series feature differs.
+6. **Personalized Watch Queues:** build local queues by mood, topic, time available, or goal using links and user-tagged items. Do not scrape or recreate a platform's private recommendation feed; refresh links only through permitted means.
+7. **Multilingual Dub & Subtitle Workshop:** create editable translated subtitle drafts and, where supported, voice-over/dub drafts with pronunciation review and explicit language choice. Preserve original audio, clearly mark synthetic voice, and do not clone a person's voice without informed consent and rights.
+8. **Voice & Face Misuse Evidence Pack:** help users organize their own original files, timestamps, public links, and screenshots into a report pack when they suspect impersonation. Do not scan private feeds or claim biometric matching without an approved, consented, privacy-reviewed system.
+9. **Originality & Rights Checklist:** before export, remind creators to confirm rights to video, music, images, logos, and AI-generated assets; keep attribution/license notes. This is a checklist, not a legal guarantee or platform originality score.
+10. **Music Rights & Audio Fit Checker:** track user-entered license/source notes, detect whether audio is present and its duration, and warn that music availability differs by platform, account, and territory. Never label a song “cleared” without authoritative license evidence.
+11. **Live/Podcast Chapter Maker:** create timestamped chapter markers and show notes from user-provided recordings/transcripts; export chapters in a format supported by the target workflow. Never invent quotes or chapter events.
+12. **Screen Tutorial & Demo Recorder:** record a user-started screen walkthrough with explicit Android screen-capture consent, optional facecam/voice narration, tap/callout overlays added after recording, and redaction before sharing. Respect Android secure surfaces and protected content.
+13. **Recipe, Workout & How-To Cards:** turn user-selected media/transcripts into structured steps, ingredients or exercise cues with timestamp links and review; label uncertain extraction and never present it as verified safety/medical advice.
+14. **Accessibility Quality Gate:** detect missing captions, too-small text, poor contrast, overly fast flashing, and important content hidden by platform UI safe zones; offer fixes and manual override. Avoid claiming formal compliance automatically.
+15. **Smart Crop & Subject Reframe:** offer face/object tracking only where supported, with a visible crop path and manual correction; keep key subjects inside the target safe area. No face identity recognition required.
+16. **Creator Asset & Brand Kit:** local reusable fonts, colors, logo, lower thirds, caption style and end cards; per-project override and exportable backups. No mandatory account or cloud upload.
+17. **Draft Handoff & Resume:** save non-destructive project files with source references, proxy metadata, edit decisions and export settings so users can resume across app sessions; cross-device sync is optional and clearly disclosed.
+18. **Low-Data Transfer & Share Pack:** package selected exports and caption/thumbnail sidecars, show total size, and offer Wi-Fi-only/local transfer or QR pairing with peer verification. Do not create publicly accessible links by default.
+19. **Community Remix Permission Card:** for collaborations, attach a user-authored permission/credit note, source link, and allowed-use summary to a project. It is not proof of legal permission; require user confirmation before reusing third-party media.
+20. **Creator Health & Workflow Recap:** optional weekly local report showing time spent editing inside VidGravity, export volume, storage reclaimed and goals chosen by the user. Do not measure other-app activity, infer mental health, or use shame/streak-loss mechanics.
+
+#### Current platform signals informing these ideas
+- **YouTube (official, 2026-09-23):** announced conversational editing for Shorts/Create, thumbnail guidance and tests of up to three video cuts; custom feeds and Shorts seasons/episodes were also announced. VidGravity can offer an independent, user-controlled editing planner and series organizer without pretending to access YouTube's internal recommendations or analytics.
+- **Facebook/Meta (official, 2026-06-03/04):** announced Creator Assistant for performance-based ideas and expanded AI Reel translation capabilities. VidGravity should focus on user-provided metrics, transparent translation drafts and cross-platform portability.
+- **TikTok (official developer guidance, last updated 2026-08-04):** Content Posting API has consent, creator-info, privacy selection, interaction-setting, posting status, and audit requirements; unaudited direct-post clients are restricted to private viewing. Avoid promising direct/public posting without approval and compliant implementation.
+- **Snapchat (official support and developer changelog, checked 2026-10-13):** Director Mode documentation describes hands-free multi-clip recording and speed controls; Camera Kit changelog lists 2026 Lens Studio compatibility updates. VidGravity should create original, clearly labeled effects first and evaluate Snap Camera Kit licensing, platform coverage, privacy, and cost before any integration.
+- **Facebook originality guidance (official, 2026-03):** Meta says simple re-uploads or low-value edits to someone else's content can be deprioritized. VidGravity should encourage meaningful original contribution, source/rights checks, and creator-added context rather than watermark removal or repost automation.
+
+Official references (checked 2026-10-13):
+- YouTube announcements: https://blog.youtube/news-and-events/innovation-youtube-era-made-on-viewers-creators/
+- Meta Creator Assistant and translations: https://about.fb.com/news/2026/06/creator-assistant-more-languages-for-ai-translations-on-facebook/
+- TikTok Content Sharing Guidelines: https://developers.tiktok.com/docs/en/content-sharing-guidelines
+- TikTok Direct Post requirements: https://developers.tiktok.com/docs/en/content-posting-api-get-started
+- Snapchat Director Mode: https://help.snapchat.com/hc/en-gb/articles/8132871831828-What-is-Director-Mode
+- Snap Camera Kit changelog: https://developers.snap.com/camera-kit/getting-started/changelog
+- Meta originality guidance: https://about.fb.com/news/2026/03/rewarding-original-creators-on-facebook/
+
 ## Delivery phases / acceptance gates
 1. Build health and contract audit: inspect actual repo state, branches, workflows, duplicate frontend logic, tests and release blockers.
 2. Download reliability: atomic state machine, worker lifecycle, integrity tests, progress metrics, pause/resume semantics and regression tests.
@@ -149,7 +189,8 @@ The product should help users prepare, understand, organize, edit, and share med
 9. Gen Z/student/youth UX: privacy-first profiles, StudyTok review flows, creator templates, localization and healthy-use controls; complete child-safety/legal review before any child-directed marketing.
 10. Dual-camera fun capture: capability detection, Lens Lab, Reaction Remix, sync/performance and device-matrix validation.
 11. Everyday social companion: share inbox, watch-later, captions, clip/export workflows, platform capability matrix and privacy tests.
-12. Release validation: unit/integration/UI tests, Android build, install/device smoke test, APK artifact, web/Worker deployment checks and rollback notes.
+12. Additional researched creator features: deliver Prompt-to-Edit, experiment notebook, multilingual/accessibility tools, rights checklist and project handoff as small tested increments.
+13. Release validation: unit/integration/UI tests, Android build, install/device smoke test, APK artifact, web/Worker deployment checks and rollback notes.
 
 ## Definition of done for every feature
 - User story and capability constraints documented.
