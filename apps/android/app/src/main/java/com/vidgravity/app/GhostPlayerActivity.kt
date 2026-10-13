@@ -48,13 +48,12 @@ class GhostPlayerActivity : ComponentActivity() {
         val sessionId = intent.getStringExtra(EXTRA_SESSION_ID).orEmpty()
         val mediaPath = intent.getStringExtra(EXTRA_TEMP_MEDIA_PATH).orEmpty()
         val seconds = intent.getIntExtra(EXTRA_SECONDS, 15).coerceIn(5, 30)
-        if (sessionId.isBlank() || mediaPath.isBlank() ||
-            !ReplayTelemetry.openOrRecordReplayBlocked(this, sessionId)) {
+        // Validate all untrusted inputs before consuming the one-time session.
+        // A malformed path must not burn a legitimate recipient's open allowance.
+        if (sessionId.isBlank() || mediaPath.isBlank()) {
             finish()
             return
         }
-        ReplayTelemetry.record(this, sessionId, ReplayTelemetry.EventType.CAPTURE_PROTECTION_ENABLED)
-        // Malformed or inaccessible paths fail closed.
         val file = runCatching { File(mediaPath).canonicalFile }.getOrNull()
         val cacheRoot = runCatching { cacheDir.canonicalFile }.getOrNull()
         if (file == null || cacheRoot == null || !runCatching {
@@ -63,6 +62,11 @@ class GhostPlayerActivity : ComponentActivity() {
             finish()
             return
         }
+        if (!ReplayTelemetry.openOrRecordReplayBlocked(this, sessionId)) {
+            finish()
+            return
+        }
+        ReplayTelemetry.record(this, sessionId, ReplayTelemetry.EventType.CAPTURE_PROTECTION_ENABLED)
         setContent {
             MaterialTheme {
                 Surface(color = MaterialTheme.colorScheme.background) {
