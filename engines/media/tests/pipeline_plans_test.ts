@@ -2,6 +2,7 @@ import { buildPhotoDumpPlan } from "../src/photoDump.ts";
 import { buildPrivacyBlurPlan } from "../src/privacyBlur.ts";
 import { buildDiscordTwoPassPlans, assertDiscordSize } from "../src/discordCompressor.ts";
 import { buildWallpaperPlan } from "../src/wallpaperExporter.ts";
+import { buildStatusSplitPlan } from "../src/statusSplitter.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -13,6 +14,15 @@ function assertThrows(run: () => unknown, expected: string): void {
   }
   throw new Error(`Expected ${expected} to be thrown`);
 }
+
+Deno.test("WhatsApp Status splitting defaults to 90 seconds and supports platform overrides", () => {
+  const whatsapp = buildStatusSplitPlan("source.mp4", "status-%03d.mp4", 150);
+  assert(whatsapp.args.includes("90"), "WhatsApp Status segments should use the current 90-second cap");
+  assert(whatsapp.args[whatsapp.args.indexOf("-segment_time") + 1] === "90", "default segment duration must be 90 seconds");
+  const legacyPlatform = buildStatusSplitPlan("source.mp4", "clip-%03d.mp4", 75, 30);
+  assert(legacyPlatform.args[legacyPlatform.args.indexOf("-segment_time") + 1] === "30", "platform-specific duration overrides must be honored");
+  assertThrows(() => buildStatusSplitPlan("source.mp4", "status-%03d.mp4", 80), "INVALID_STATUS_SPLIT");
+});
 
 Deno.test("photo dump builds a vertical derivative with one segment per photo", () => {
   const plan = buildPhotoDumpPlan({
