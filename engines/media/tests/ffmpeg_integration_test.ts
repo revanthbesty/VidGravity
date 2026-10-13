@@ -1,6 +1,7 @@
 import { buildPhotoDumpPlan } from "../src/photoDump.ts";
 import { buildPrivacyBlurPlan } from "../src/privacyBlur.ts";
 import { buildWallpaperPlan } from "../src/wallpaperExporter.ts";
+import { buildStatusSplitPlan } from "../src/statusSplitter.ts";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -18,6 +19,28 @@ async function metadata(path: string): Promise<{streams:{codec_type:string;width
 async function existsNonempty(path: string): Promise<boolean> {
   try { return (await Deno.stat(path)).isFile && (await Deno.stat(path)).size > 0; } catch { return false; }
 }
+
+Deno.test("real FFmpeg splits long status media at the requested cap and preserves audio", async () => {
+  const dir = await Deno.makeTempDir({ prefix: "vidgravity-status-split-" });
+  try {
+    const source = `${dir}/source.mp4`;
+    const pattern = `${dir}/status-%03d.mp4`;
+    await run("ffmpeg", ["-nostdin","-hide_banner","-loglevel","error","-f","lavfi","-i","testsrc2=size=160x120:rate=12","-f","lavfi","-i","sine=frequency=440:sample_rate=44100","-t","4.2","-c:v","libx264","-pix_fmt","yuv420p","-c:a","aac","-y",source]);
+    const plan = buildStatusSplitPlan(source, pattern, 4.2, 2);
+    await run(plan.executable, plan.args as string[]);
+    const names = (await Array.fromAsync(Deno.readDir(dir))).map(entry => entry.name).filter(name => /^status-\\d{3}\\.mp4$/.test(name)).sort();
+    assert(names.length === 3, `expected three status segments at a two-second cap, got ${names.length}`);
+    for (const name of names) {
+      const info = await metadata(`${dir}/${name}`);
+      const duration = Number(info.format.duration);
+      assert(duration > 0 && duration <= 2.3, `segment duration ${duration} must stay close to the requested two-second cap`);
+      assert(info.streams.some(stream => stream.codec_type === "video"), "each segment must contain video");
+      assert(info.streams.some(stream => stream.codec_type === "audio"), "each segment must preserve audio");
+    }
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
 
 Deno.test("real FFmpeg renders privacy blur and wallpaper derivatives without modifying source", async () => {
   const dir = await Deno.makeTempDir({ prefix: "vidgravity-media-" });
