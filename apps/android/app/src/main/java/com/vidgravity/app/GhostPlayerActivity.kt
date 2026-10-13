@@ -1,5 +1,6 @@
 package com.vidgravity.app
 
+import android.content.Context
 import android.app.Activity
 import android.os.Bundle
 import android.view.WindowManager
@@ -52,8 +53,12 @@ class GhostPlayerActivity : ComponentActivity() {
             finish()
             return
         }
-        val file = File(mediaPath)
-        if (!file.isFile || !file.canonicalPath.startsWith(cacheDir.canonicalPath + File.separator)) {
+        // Malformed or inaccessible paths fail closed.
+        val file = runCatching { File(mediaPath).canonicalFile }.getOrNull()
+        val cacheRoot = runCatching { cacheDir.canonicalFile }.getOrNull()
+        if (file == null || cacheRoot == null || !runCatching {
+                file.isFile && file.canonicalPath.startsWith(cacheRoot.path + File.separator)
+            }.getOrDefault(false)) {
             finish()
             return
         }
@@ -81,12 +86,18 @@ class GhostPlayerActivity : ComponentActivity() {
         const val EXTRA_TEMP_MEDIA_PATH = "ghost_temp_media_path"
         const val EXTRA_SECONDS = "ghost_seconds"
 
+        // Prevent duplicate claims inside this process; durable preferences block reopening
+        // after activity/process recreation. Multi-process use needs a SQLite unique constraint.
+        private val sessionClaimLock = Any()
+
         private fun claimSession(activity: Activity, id: String): Boolean {
-            val prefs = activity.getSharedPreferences("ghost_sessions", MODE_PRIVATE)
-            val key = "consumed_" + id
-            if (prefs.getBoolean(key, false)) return false
-            // commit is synchronous to reduce the race window when two intents arrive.
-            return prefs.edit().putBoolean(key, true).commit()
+            if (id.length !in 1..128 || id.any { it.isISOControl() }) return false
+            return synchronized(sessionClaimLock) {
+                val prefs = activity.getSharedPreferences("ghost_sessions", Context.MODE_PRIVATE)
+                val key = "consumed_" + id
+                if (prefs.getBoolean(key, false)) return@synchronized false
+                prefs.edit().putBoolean(key, true).commit()
+            }
         }
     }
 }
