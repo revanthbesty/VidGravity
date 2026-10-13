@@ -784,6 +784,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
     var renameText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<LibraryMedia?>(null) }
     var selectedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var showBulkDeleteConfirm by remember { mutableStateOf(false) }
     var swipeFeedOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     suspend fun refreshMedia() { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
@@ -857,8 +858,16 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                         android.widget.Toast.makeText(context, "Could not share selected media. Try fewer files.", android.widget.Toast.LENGTH_LONG).show()
                     }
                 }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
-                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Share (${selectedUris.size})")
+                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Share (${visibleMedia.count { it.uri.toString() in selectedUris }})")
                 }
+            }
+            OutlinedButton(
+                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                onClick = { showBulkDeleteConfirm = true },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            ) {
+                Icon(Icons.Default.DeleteOutline, null); Spacer(Modifier.width(6.dp))
+                Text("Delete selected (${visibleMedia.count { it.uri.toString() in selectedUris }})")
             }
         }
         OutlinedTextField(
@@ -957,6 +966,30 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             }) { Text("Save") } },
             dismissButton = { TextButton(onClick = { renameTarget = null }) { Text("Cancel") } }
+        )
+    }
+    if (showBulkDeleteConfirm) {
+        val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+        AlertDialog(
+            onDismissRequest = { showBulkDeleteConfirm = false },
+            title = { Text("Delete selected media?") },
+            text = { Text("This permanently deletes ${chosen.size} selected item(s) from this device. This cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showBulkDeleteConfirm = false
+                    scope.launch {
+                        val results = withContext(Dispatchers.IO) {
+                            chosen.map { item -> item.uri.toString() to MediaLibraryIndexer.delete(context, item) }
+                        }
+                        selectedUris = selectedUris - chosen.map { it.uri.toString() }.toSet()
+                        refreshMedia()
+                        val failed = results.count { !it.second }
+                        val message = if (failed == 0) "Deleted ${results.size} item(s)." else "Deleted ${results.size - failed}; ${failed} could not be deleted."
+                        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { showBulkDeleteConfirm = false }) { Text("Cancel") } }
         )
     }
     deleteTarget?.let { target ->
