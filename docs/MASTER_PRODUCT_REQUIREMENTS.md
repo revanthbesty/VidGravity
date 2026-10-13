@@ -53,6 +53,12 @@ Use UI -> domain/application -> services -> repositories/API; no direct HTTP cal
 
 ### E. Create / Snap Studio
 - CameraX photo capture and vertical recording up to platform/device capability; dual front/rear concurrent camera only when hardware supports it. Provide fallback PiP/split layouts.
+- **DualView / DuoCam fun capture mode:** record front and rear cameras in one session when the device supports concurrent camera streams; offer side-by-side, picture-in-picture, and front-camera reaction overlay layouts. Probe CameraX concurrent-camera capabilities first and gracefully fall back to front-only/rear-only capture or a clearly labeled sequential two-take mode; never promise simultaneous capture on unsupported devices.
+- **Lens Lab:** live front/rear preview effects such as color looks, soft glow, retro/VHS, comic, mirror, background blur where supported, face-safe AR stickers/masks, and adjustable intensity. Separate real-time camera effects from post-capture effects; use GPU/device capability checks and provide a no-effects fallback to avoid overheating or dropped frames.
+- **Reaction Remix:** combine the two recorded angles, choose which view is primary, resize/reposition the reaction window, switch layouts at edit points, trim each track, and export a new vertical or landscape derivative. Preserve originals and let users preview before export.
+- **Fun capture controls:** timer, countdown, gesture/voice trigger only when explicitly enabled, flash/torch control where supported, exposure/zoom controls, grid, stabilization where available, and optional short intro/outro templates.
+- **Privacy and safety:** camera/microphone permissions only when the user starts capture; visible recording state and stop control; no hidden/background recording; no face identification or biometric identity inference. Keep effects processed on-device where feasible, disclose any remote processing, and default to local drafts until the user chooses Share.
+- **Acceptance tests:** test concurrent-camera capability detection across supported/unsupported devices, audio sync, rotation and lifecycle interruptions, thermal/performance fallback, permission denial, save/cancel cleanup, original-file preservation, accessibility, and export metadata.
 - Caption canvas: draggable text, styles/outlines, timestamp/battery/velocity badges with opt-in; transcript-based prompts only when transcript exists.
 - Frame grab from player scrubber; 9:16 exports with blurred background fill for landscape source; original immutable.
 - Story Card exports with chosen snippet, artwork, waveforms/subtitles and safe subtitle formats; export presets validated against current platform rules.
@@ -122,7 +128,8 @@ Design this as an age-aware experience within VidGravity, not a separate product
 7. Vault, ephemeral shares and P2P: threat model, security tests, key/session lifecycle and opt-in permissions.
 8. Settings, automation, accessibility and retention.
 9. Gen Z/student/youth UX: privacy-first profiles, StudyTok review flows, creator templates, localization and healthy-use controls; complete child-safety/legal review before any child-directed marketing.
-10. Release validation: unit/integration/UI tests, Android build, install/device smoke test, APK artifact, web/Worker deployment checks and rollback notes.
+10. Dual-camera fun capture: capability detection, Lens Lab, Reaction Remix, sync/performance and device-matrix validation.
+11. Release validation: unit/integration/UI tests, Android build, install/device smoke test, APK artifact, web/Worker deployment checks and rollback notes.
 
 ## Definition of done for every feature
 - User story and capability constraints documented.
