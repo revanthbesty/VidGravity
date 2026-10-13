@@ -118,6 +118,25 @@ Design this as an age-aware experience within VidGravity, not a separate product
 - **Child-safety release gate:** before marketing or enabling child-directed experiences, review applicable child privacy, consent, advertising, age-rating, and app-store requirements for target markets. Until that review is complete, do not claim the app is certified or compliant for children.
 - **Acceptance tests:** test age-aware onboarding without unnecessary personal data, default-private exports, cancel/delete history, no auto-share, offline study basics, accessibility settings, and AI failure/uncertainty states. Mark each capability as implemented only after real behavior and tests exist.
 
+### M. Everyday social-video companion (YouTube, Instagram, Facebook, Snapchat and other platforms)
+The product should help users prepare, understand, organize, edit, and share media across services without pretending every platform supports the same downloads or integrations. Use official APIs, OS share sheets, user-selected files, and documented capabilities. Never bypass DRM, private accounts, paywalls, access controls, or platform restrictions.
+
+- **Universal Share Inbox:** accept a video/link/file shared by the user from another app through Android Sharesheet, browser extension, or paste. Show the source, detected capability, and clear next actions: save link, inspect available media, add to a collection, create a reminder, or open in the source app. Never auto-download or auto-post.
+- **Watch/Learn Later:** local-first queue with user-created tags, folders, notes, reminders, and optional timestamps. Keep a link usable even when the source cannot be downloaded. Make availability and offline status explicit; do not imply a remote link is saved offline.
+- **Smart Watch tools:** playback speed presets, skip-silence for local/authorized media, bookmarks, timestamped notes, transcript search when captions/transcripts are available, and a “what did I learn?” recap grounded in the available transcript. Respect app/platform boundaries; do not claim to control playback inside unrelated apps unless an official integration exists.
+- **Clip & Moment Maker:** let users select a range from local/authorized media, save multiple moments, add a title or reaction window, and export individual clips or a compilation. If automatic highlight detection is offered, show the suggested ranges and require user review; do not invent events or claim semantic accuracy without evidence.
+- **Caption & Translation Studio:** generate/edit subtitles when a supported transcription engine is available; offer translated subtitle drafts and bilingual captions with an uncertainty/edit step. Provide SRT/VTT and burned-in caption exports where supported. Clearly distinguish speech recognition, translation, and user-edited text.
+- **Social-ready export checker:** target presets for vertical, square, and landscape formats; inspect actual duration, dimensions, frame rate, codecs, audio and file size; preview crop/safe zones and subtitle placement. Validate against a dated platform-spec registry, warn when specs are unknown, and avoid guaranteeing acceptance by YouTube, Instagram, Facebook, Snapchat, TikTok, or Discord.
+- **One source, many versions:** make a user-approved master edit, then generate separate crops/caption/layout derivatives for selected destinations. Keep originals untouched, provide side-by-side previews, and let users choose which versions to export/share.
+- **Batch post-prep studio:** build a pack of thumbnails/story cards, captions, subtitle files and resized clips for a user's selected files. Include reusable templates and drafts/calendar reminders; publishing remains a user-confirmed action through the OS share sheet or an authorized official API.
+- **Audio helper:** normalize loudness, reduce noise when feasible, duck music under speech, detach/replace audio, and export user-owned/licensed sound clips. Preview changes and preserve the original audio track.
+- **Storage & data saver:** show media size before export, recommend lower-size alternatives with honest quality trade-offs, detect likely local duplicates by file hash, and offer user-confirmed cleanup. Never delete originals automatically or promise fixed compression ratios.
+- **Collections & family/team sharing:** curated local collections/playlists with optional user-generated descriptions, shareable export bundles, and explicit consent before sharing files or metadata. Do not upload contacts or expose private collections by default.
+- **Accessibility and language support:** adjustable playback speed, readable captions, text scaling, audio description/voiceover tools where feasible, reduced-motion options, and localized UI/content such as Tamil when available. Keep original speech/text accessible alongside translated output.
+- **Healthy viewing:** optional focus sessions, reminders to take a break, bedtime quiet hours, and user-set limits. All reminders are opt-in and local-first where possible; do not surveil activity in other apps or shame users.
+- **Integration honesty:** maintain a capability matrix per platform and app version. When a platform does not expose an official API or blocks a workflow, explain the limitation and offer a permitted alternative (save a link, open the source app, or process a user-provided file). Never imply that a share-sheet handoff equals a completed upload.
+- **Privacy and safety:** user-selected inputs, local processing where feasible, transparent network/AI indicators, clear cache/history deletion, private drafts by default, no hidden tracking, and no unauthorized access to private social content.
+
 ## Delivery phases / acceptance gates
 1. Build health and contract audit: inspect actual repo state, branches, workflows, duplicate frontend logic, tests and release blockers.
 2. Download reliability: atomic state machine, worker lifecycle, integrity tests, progress metrics, pause/resume semantics and regression tests.
@@ -129,7 +148,8 @@ Design this as an age-aware experience within VidGravity, not a separate product
 8. Settings, automation, accessibility and retention.
 9. Gen Z/student/youth UX: privacy-first profiles, StudyTok review flows, creator templates, localization and healthy-use controls; complete child-safety/legal review before any child-directed marketing.
 10. Dual-camera fun capture: capability detection, Lens Lab, Reaction Remix, sync/performance and device-matrix validation.
-11. Release validation: unit/integration/UI tests, Android build, install/device smoke test, APK artifact, web/Worker deployment checks and rollback notes.
+11. Everyday social companion: share inbox, watch-later, captions, clip/export workflows, platform capability matrix and privacy tests.
+12. Release validation: unit/integration/UI tests, Android build, install/device smoke test, APK artifact, web/Worker deployment checks and rollback notes.
 
 ## Definition of done for every feature
 - User story and capability constraints documented.
