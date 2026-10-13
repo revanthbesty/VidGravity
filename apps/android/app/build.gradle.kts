@@ -16,8 +16,8 @@ android {
         applicationId = "com.vidgravity.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 176
-        versionName = "1.0.6-p176"
+        versionCode = 177
+        versionName = "1.0.7-p177"
         buildConfigField("String", "VG_API_BASE_URL", "\"$safeApi\"")
     }
     buildFeatures { compose = true; buildConfig = true }
