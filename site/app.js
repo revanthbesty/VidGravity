@@ -1191,7 +1191,7 @@ async function copySelectedNames(){
  if(!ids.length)return toast('Select media first');
  const names=media.filter(m=>ids.includes(m.id)).map(m=>String(m.filename||m.title||'media').trim()).filter(Boolean);
  if(!names.length)return toast('No filenames are available for the selected items');
- const text=names.join('\\n');
+ const text=names.join('\n');
  try{
   if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);}
   else{
