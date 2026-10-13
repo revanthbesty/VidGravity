@@ -1306,7 +1306,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                 },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
             ) {
-                Icon(Icons.Default.Deselect, null)
+                Icon(Icons.Default.Clear, null)
                 Spacer(Modifier.width(6.dp))
                 Text("Deselect visible items")
             }
