@@ -548,6 +548,10 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
         } else {
             val activeWorks = works.filter { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
             val failedWorks = works.filter { it.state == WorkInfo.State.FAILED || it.state == WorkInfo.State.CANCELLED }
+            val retryableWorks = failedWorks.filter { work ->
+                !(work.outputData.getString(DownloadWorker.RETRY_URL)
+                    ?: work.progress.getString("media_url")).isNullOrBlank()
+            }
             val completedWorks = works.filter { it.state == WorkInfo.State.SUCCEEDED }
             val statusFilteredWorks = when (downloadFilter) {
                 "Active" -> activeWorks
@@ -698,7 +702,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     onClick = {
                         var queued = 0
                         val preferences = SecureDownloadPreferences.load(context)
-                        failedWorks.forEach { work ->
+                        retryableWorks.forEach { work ->
                             val sourceUrl = work.outputData.getString(DownloadWorker.RETRY_URL)
                                 ?: work.progress.getString("media_url")
                             val selector = work.outputData.getString(DownloadWorker.RETRY_FORMAT)
@@ -719,12 +723,12 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                             android.widget.Toast.LENGTH_LONG
                         ).show()
                     },
-                    enabled = failedWorks.isNotEmpty(),
+                    enabled = retryableWorks.isNotEmpty(),
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(Icons.Default.Refresh, null)
                     Spacer(Modifier.width(6.dp))
-                    Text("Retry failed (${failedWorks.size})")
+                    Text("Retry eligible (${retryableWorks.size})")
                 }
             }
             val runningWorks = works.filter { it.state == WorkInfo.State.RUNNING }
