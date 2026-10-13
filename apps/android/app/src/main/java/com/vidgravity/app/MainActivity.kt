@@ -1223,11 +1223,11 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                     val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
                     val markFavorite = chosen.any { !it.isFavorite }
                     scope.launch {
-                        val updated = withContext(Dispatchers.IO) {
-                            chosen.map { item -> MediaLibraryIndexer.setFavorite(context, item.uri, markFavorite) }
+                        withContext(Dispatchers.IO) {
+                            chosen.forEach { item -> MediaLibraryIndexer.setFavorite(context, item.uri, markFavorite) }
                         }
                         refreshMedia()
-                        val count = updated.count { it }
+                        val count = chosen.size
                         val message = if (markFavorite) "Added $count item(s) to Favorites." else "Removed $count item(s) from Favorites."
                         android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
                     }
