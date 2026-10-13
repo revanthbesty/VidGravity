@@ -318,11 +318,12 @@ function renderLibrary(){
  renderCollections();
  const x=$("#libraryGrid"); x.innerHTML=filteredMedia().map(m=>{
    ensureOrg(m);
-   return `<article class="media card"><div class="thumb">▶</div><div class="mediaBody"><div class="mediaTitle" title="${esc(m.title)}">${m.favorite?"★ ":""}${esc(m.title)}</div><div class="mediaMeta">${esc(m.type||"media")} · ${formatBytes(m.size)} · ${esc(m.collection||"All")}</div><div class="tagLine">${(m.tags||[]).slice(0,4).map(t=>`<span>#${esc(t)}</span>`).join("")}</div><div class="actions"><button class="smallBtn play" data-id="${m.id}">Play</button><button class="smallBtn favorite" data-id="${m.id}">${m.favorite?"Unfavorite":"Favorite"}</button><button class="smallBtn details" data-id="${m.id}">Details</button><button class="smallBtn shareMedia" data-id="${m.id}" type="button">Share</button></div></div></article>`
+   return `<article class="media card"><div class="thumb"><label class="mediaSelectLabel" title="Select ${esc(m.title)}"><input class="mediaSelect" type="checkbox" data-id="${esc(m.id)}" aria-label="Select ${esc(m.title)}"><span>▶</span></label></div><div class="mediaBody"><div class="mediaTitle" title="${esc(m.title)}">${m.favorite?"★ ":""}${esc(m.title)}</div><div class="mediaMeta">${esc(m.type||"media")} · ${formatBytes(m.size)} · ${esc(m.collection||"All")}</div><div class="tagLine">${(m.tags||[]).slice(0,4).map(t=>`<span>#${esc(t)}</span>`).join("")}</div><div class="actions"><button class="smallBtn play" data-id="${m.id}">Play</button><button class="smallBtn favorite" data-id="${m.id}">${m.favorite?"Unfavorite":"Favorite"}</button><button class="smallBtn details" data-id="${m.id}">Details</button><button class="smallBtn shareMedia" data-id="${m.id}" type="button">Share</button></div></div></article>`
  }).join("")||empty("No media matches the current filters.");
  bindCards(x);
  x.querySelectorAll(".favorite").forEach(b=>b.onclick=()=>toggleFavorite(b.dataset.id));
  x.querySelectorAll(".details").forEach(b=>b.onclick=()=>showDetails(b.dataset.id));
+ updateSelection();
 }
 
 
@@ -356,13 +357,32 @@ async function shareMedia(id=shareMediaId){
 }
 function shareTo(target){
  const item=getShareItem(shareMediaId);if(!item)return;
- const url=item.url||'';const title=item.title||'VidGravity media';let targetUrl='';
- if(target==='x')targetUrl='https://twitter.com/intent/tweet?'+new URLSearchParams({text:title,url});
- if(target==='whatsapp')targetUrl='https://wa.me/?text='+encodeURIComponent([title,url].filter(Boolean).join(' '));
- if(target==='telegram')targetUrl='https://t.me/share/url?'+new URLSearchParams({url,text:title});
- if(target==='reddit')targetUrl='https://www.reddit.com/submit?'+new URLSearchParams({url,title});
- if(target==='linkedin')targetUrl='https://www.linkedin.com/sharing/share-offsite/?url='+encodeURIComponent(url);
- if(target!=='whatsapp'&&target!=='x'&&!url)return toast('This social target needs a shareable URL');
+ const url=item.url||'';const title=item.title||'VidGravity media';
+ const text=[title,url].filter(Boolean).join(' ');
+ const query=(values)=>new URLSearchParams(values).toString();
+ let targetUrl='';
+ switch(target){
+  case 'x': targetUrl='https://twitter.com/intent/tweet?'+query({text:title,url});break;
+  case 'whatsapp': targetUrl='https://wa.me/?text='+encodeURIComponent(text);break;
+  case 'telegram': targetUrl='https://t.me/share/url?'+query({url,text:title});break;
+  case 'facebook': targetUrl='https://www.facebook.com/sharer/sharer.php?'+query({u:url});break;
+  case 'reddit': targetUrl='https://www.reddit.com/submit?'+query({url,title});break;
+  case 'linkedin': targetUrl='https://www.linkedin.com/sharing/share-offsite/?'+query({url});break;
+  case 'threads': targetUrl='https://www.threads.net/intent/post?'+query({text});break;
+  case 'bluesky': targetUrl='https://bsky.app/intent/compose?'+query({text});break;
+  case 'pinterest': targetUrl='https://www.pinterest.com/pin/create/button/?'+query({url,description:title});break;
+  case 'tumblr': targetUrl='https://www.tumblr.com/widgets/share/tool?'+query({canonicalUrl:url,title});break;
+  case 'email': targetUrl='mailto:?'+query({subject:title,body:text});break;
+  case 'instagram':
+  case 'snapchat':
+   // These platforms do not provide a universal web URL-share composer.
+   // Use the browser/device share sheet where available instead of a fake share link.
+   shareMedia(shareMediaId);return;
+  default: return toast('This sharing destination is not supported yet');
+ }
+ if(!url&&!['whatsapp','x','threads','bluesky','email'].includes(target))return toast('This social target needs a shareable URL');
+ if(target==='email'){window.location.href=targetUrl;return}
+ if(!targetUrl)return toast('Could not prepare this share');
  window.open(targetUrl,'_blank','noopener,noreferrer');
 }
 $('#shareAppButton')?.addEventListener('click',()=>openShare('__app__'));
@@ -373,6 +393,29 @@ let shareReturnFocus=null;
 $('#closeShare')?.addEventListener('click',()=>{const modal=$('#shareModal');modal?.classList.add('hidden');modal?.setAttribute('aria-hidden','true');shareReturnFocus?.focus?.()});
 $('#shareModal')?.addEventListener('click',event=>{if(event.target===$('#shareModal')){$('#shareModal').classList.add('hidden');$('#shareModal').setAttribute('aria-hidden','true');shareReturnFocus?.focus?.()}});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('#shareModal')?.classList.contains('hidden')){$('#shareModal').classList.add('hidden');$('#shareModal').setAttribute('aria-hidden','true');shareReturnFocus?.focus?.()}});
+document.addEventListener('keydown',event=>{
+ const modal=$('#playerModal'),video=$('#player');
+ if(!modal||modal.classList.contains('hidden')||!video)return;
+ if(event.defaultPrevented||event.ctrlKey||event.metaKey||event.altKey)return;
+ const target=event.target;
+ if(target?.closest?.('input,textarea,select,button,[contenteditable="true"]'))return;
+ if(target!==document.body&&target!==video&&!target?.closest?.('#playerModal'))return;
+ const key=event.key;
+ if(key===' '||key==='Spacebar'){
+  event.preventDefault();
+  if(video.paused)video.play().catch(()=>{});else video.pause();
+ }else if(key==='ArrowLeft'||key==='ArrowRight'){
+  if(!Number.isFinite(video.duration))return;
+  event.preventDefault();
+  video.currentTime=Math.max(0,Math.min(video.duration,video.currentTime+(key==='ArrowRight'?5:-5)));
+ }else if(key==='ArrowUp'||key==='ArrowDown'){
+  event.preventDefault();
+  video.volume=Math.max(0,Math.min(1,video.volume+(key==='ArrowUp'?0.05:-0.05)));
+  if(video.volume>0)video.muted=false;
+ }else if(key.toLowerCase()==='m'){
+  video.muted=!video.muted;
+ }
+});
 $('#playerShare')?.addEventListener('click',()=>{if(activeMediaId)openShare(activeMediaId);else toast('Open a saved media item before sharing')});
 
 function bindCards(root){root.querySelectorAll('.play').forEach(b=>b.onclick=()=>play(b.dataset.id));root.querySelectorAll('.save').forEach(b=>b.onclick=()=>saveFile(b.dataset.id));root.querySelectorAll('.info').forEach(b=>b.onclick=()=>showDetails(b.dataset.id));root.querySelectorAll('.shareMedia').forEach(b=>b.onclick=()=>openShare(b.dataset.id));root.querySelectorAll('.del').forEach(b=>b.onclick=()=>removeMedia(b.dataset.id))}
@@ -1149,10 +1192,38 @@ function ask(){
 }
 
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
-load();document.querySelector('#bulkDelete')?.addEventListener('click',deleteSelected);
+load();document.querySelector('#bulkDelete')?.addEventListener('click',deleteSelected);document.querySelector('#copySelectedNames')?.addEventListener('click',copySelectedNames);document.querySelector('#selectVisibleMedia')?.addEventListener('change',e=>selectVisibleMedia(e.target.checked));
 
 document.addEventListener('change',e=>{if(e.target.matches('.mediaSelect'))updateSelection()});
-function updateSelection(){const n=document.querySelectorAll('.mediaSelect:checked').length;const b=document.querySelector('#bulkDelete');if(b)b.textContent=`Delete selected (${n})`;}
+function updateSelection(){
+ const checks=[...document.querySelectorAll('#libraryGrid .mediaSelect')];
+ const selected=checks.filter(x=>x.checked).length;
+ const bulk=document.querySelector('#bulkDelete');
+ const copy=document.querySelector('#copySelectedNames');
+ const all=document.querySelector('#selectVisibleMedia');
+ if(bulk){bulk.textContent=`Delete selected (${selected})`;bulk.disabled=selected===0;}
+ if(copy)copy.disabled=selected===0;
+ if(all){all.checked=checks.length>0&&selected===checks.length;all.indeterminate=selected>0&&selected<checks.length;all.disabled=checks.length===0;}
+}
+function selectVisibleMedia(checked){
+ document.querySelectorAll('#libraryGrid .mediaSelect').forEach(input=>{input.checked=checked;});
+ updateSelection();
+}
+async function copySelectedNames(){
+ const ids=[...document.querySelectorAll('#libraryGrid .mediaSelect:checked')].map(x=>x.dataset.id);
+ if(!ids.length)return toast('Select media first');
+ const names=media.filter(m=>ids.includes(m.id)).map(m=>String(m.filename||m.title||'media').trim()).filter(Boolean);
+ if(!names.length)return toast('No filenames are available for the selected items');
+ const text=names.join('\n');
+ try{
+  if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);}
+  else{
+   const field=document.createElement('textarea');field.value=text;field.setAttribute('readonly','');field.style.position='fixed';field.style.opacity='0';document.body.appendChild(field);field.select();
+   const copied=document.execCommand('copy');field.remove();if(!copied)throw new Error('Clipboard access is unavailable');
+  }
+  toast(`Copied ${names.length} filename(s)`);
+ }catch(error){toast(error?.message||'Could not copy filenames');}
+}
 async function deleteSelected(){const ids=[...document.querySelectorAll('.mediaSelect:checked')].map(x=>x.dataset.id);if(!ids.length)return toast('Select media first');if(!confirm(`Delete ${ids.length} selected item(s)?`))return;for(const id of ids)await dbDelete(id);media=media.filter(m=>!ids.includes(m.id));jobs=jobs.filter(j=>!ids.includes(j.mediaId));saveJobs();renderAll();toast(`${ids.length} media item(s) deleted`)}
 
 $("#libraryFilter")?.addEventListener("change",renderLibrary);
