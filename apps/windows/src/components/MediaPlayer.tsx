@@ -3,13 +3,17 @@ import { useMediaPlayer } from "../hooks/useMediaPlayer";
 import { ShareModal } from "./ShareModal";
 import { ShareClipModal } from "./ShareClipModal";
 import type { ClipExportRequest } from "../../../packages/contracts/src/share";
+import { AudioPresetPanel, type AudioPresetRequest } from "./AudioPresetPanel";
+import { SceneFinderPanel, type SceneHit, type SceneMode } from "./SceneFinderPanel";
 
 export interface MediaPlayerProps {
   src: string; title: string; onClose: () => void; mediaId?: string; shareUrl?: string;
   thumbnailUrl?: string; durationSeconds?: number; outputDirectoryId?: string;
   onExportClip?: (request: ClipExportRequest) => Promise<void>;
+  onExportAudioPreset?: (request: AudioPresetRequest) => Promise<void>;
+  onSearchScenes?: (query: string, mode: SceneMode) => Promise<SceneHit[]>;
 }
-export function MediaPlayer({ src, title, onClose, mediaId, shareUrl, thumbnailUrl, durationSeconds, outputDirectoryId, onExportClip }: MediaPlayerProps) {
+export function MediaPlayer({ src, title, onClose, mediaId, shareUrl, thumbnailUrl, durationSeconds, outputDirectoryId, onExportClip, onExportAudioPreset, onSearchScenes }: MediaPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const p = useMediaPlayer(videoRef);
   const [shareOpen,setShareOpen] = useState(false);
@@ -31,6 +35,10 @@ export function MediaPlayer({ src, title, onClose, mediaId, shareUrl, thumbnailU
       <button type="button" onClick={p.clearLoop} disabled={p.loopA === null && p.loopB === null}>Clear A–B Loop</button>
       <button type="button" onClick={p.togglePip} disabled={!p.capabilities.pictureInPicture}>{p.pip ? "Exit Picture-in-Picture" : "Picture-in-Picture"}</button>
     </div>
+    <AudioPresetPanel onExport={onExportAudioPreset} />
+    <SceneFinderPanel onSearch={onSearchScenes} onJump={seconds => {
+      if (videoRef.current) { videoRef.current.currentTime = seconds; void videoRef.current.play().catch(() => undefined); }
+    }} />
     <details><summary>Video Adjustments</summary><div className="player-toolbar">
       <label>Brightness <input type="range" min="50" max="150" value={brightness} onChange={e=>setBrightness(Number(e.target.value))} /></label>
       <label>Contrast <input type="range" min="50" max="150" value={contrast} onChange={e=>setContrast(Number(e.target.value))} /></label>

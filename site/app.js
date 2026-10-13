@@ -24,7 +24,7 @@ function saveJobs(){localStorage.setItem('vg-jobs',JSON.stringify(jobs))}
 // Persist media metadata and tags to IndexedDB; blobs remain in the same store.
 function save(){return Promise.all(media.map(item=>dbPut(item)))}
 function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function nav(page){$$('.page').forEach(x=>x.classList.toggle('active',x.id===page));$$('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===page));$('#pageTitle').textContent=page==='ask'?'Ask My Media':page[0].toUpperCase()+page.slice(1);if(page==='library')renderLibrary();if(page==='downloads')renderJobs();$('.sidebar')?.classList.remove('open')}
+function nav(page){$('.page').forEach(x=>x.classList.toggle('active',x.id===page));$('.nav').forEach(x=>x.classList.toggle('active',x.dataset.page===page));$('.vg-mobile-nav-item').forEach(x=>{const active=x.dataset.page===page;x.classList.toggle('active',active);if(active)x.setAttribute('aria-current','page');else x.removeAttribute('aria-current')});$('#pageTitle').textContent=page==='ask'?'Ask My Media':page[0].toUpperCase()+page.slice(1);if(page==='library')renderLibrary();if(page==='downloads')renderJobs();$('.sidebar')?.classList.remove('open')}
 $$('.nav').forEach(b=>b.onclick=()=>nav(b.dataset.page));$$('[data-page]').forEach(b=>b.onclick=()=>nav(b.dataset.page));
 $('#menu').onclick=()=>$('.sidebar').classList.toggle('open');
 const THEME_KEY='vg-theme';
@@ -44,6 +44,21 @@ window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change',
 window.addEventListener('storage',event=>{if(event.key===THEME_KEY)applyTheme(event.newValue||'system',false)});
 $('#clearAll').onclick=()=>{jobs=jobs.filter(j=>!['completed','failed'].includes(j.status));saveJobs();renderJobs();toast('Completed jobs cleared')};
 
+// Translate extractor/backend failures into actionable guidance without masking the underlying status.
+function friendlyInspectError(error){
+ const raw=String(error?.message||'').trim();
+ const text=raw.toLowerCase();
+ if(error?.name==='AbortError')return 'The media service took too long to respond. Retry once; if it keeps timing out, the provider may be slow or blocking cloud requests.';
+ if(/failed to fetch|networkerror|load failed|network request failed/.test(text))return 'VidGravity could not reach the cloud media service. Check your connection and retry. If the service is unavailable, try again later.';
+ if(/(429|too many requests|rate.?limit)/.test(text))return 'The provider is rate-limiting requests. Wait a few minutes before trying again.';
+ if(/(bot.?check|bot.?verification|confirm you.?re not a bot|automated requests|captcha)/.test(text))return 'This provider is blocking automated requests from the cloud server. Try a public URL that does not require verification; sign-in-only media may not be available.';
+ if(/(private video|private content|login required|sign in|authentication required|members.?only|age.?restricted)/.test(text))return 'This media appears to require sign-in, membership, or age verification. VidGravity cannot access it from this cloud session.';
+ if(/(unsupported url|unsupported webpage|not a valid url|no suitable extractor)/.test(text))return 'This URL or provider is not currently supported by the cloud extractor. Check that you copied the direct public page URL.';
+ if(/(timed out|timeout|deadline exceeded)/.test(text))return 'The provider did not respond in time. Retry later or test a different public media URL.';
+ if(/http 502|http 503|http 504|bad gateway|service unavailable|gateway timeout/.test(text))return 'The cloud media service is temporarily unavailable or the provider could not be reached. Retry shortly; this does not necessarily mean the URL is invalid.';
+ return raw||'The cloud media service could not inspect this URL.';
+}
+
 $('#inspectBtn').onclick=async()=>{
  const url=$('#urlInput').value.trim();
  if(!/^https?:\/\//i.test(url))return toast('Enter a valid http(s) URL');
@@ -60,7 +75,7 @@ $('#inspectBtn').onclick=async()=>{
   box.innerHTML=`<div class="inspectHeading"><span class="inspectMediaIcon" aria-hidden="true">${String(data.type||'').toLowerCase().includes('audio')?'♫':'🎬'}</span><div><b>${esc(data.title||'Media detected')}</b><div class="mediaMeta">${esc(data.type||'media')} · ${esc(size)} · ${esc(data.source||'server')}${data.duration?' · '+esc(formatDuration(data.duration)):''}</div></div></div><div class="formatChooserHead"><div><b>Choose audio or video</b><small>Switch between simple standard quality options. Duplicate codecs and formats are grouped to reduce confusion.</small></div><span class="formatCount">${Number(data.format_count||((data.formats||[]).length))} option(s)</span></div><div id="formatPanel"></div><div class="downloadActionRow"><div id="selectedFormatSummary" class="mediaMeta" aria-live="polite">Choose a format to continue.</div><button class="primary downloadBest" id="downloadNow" disabled>Download selected quality</button></div>`;
   renderAvailableFormats(box.querySelector('#formatPanel'),data.formats||[],url,data);
  }catch(error){
-  box.innerHTML=`<b>Inspection failed</b><div class="mediaMeta">${esc(error.name==='AbortError'?'Inspection timed out after 45 seconds':error.message||'The cloud media service could not inspect this URL.')}</div><div class="mediaMeta">VidGravity runs online. Some providers block cloud servers or require sign-in; unavailable media cannot be downloaded until the provider allows access.</div><button class="smallBtn" id="retryInspect">Retry Inspect</button>`;
+  box.innerHTML=`<b>Inspection failed</b><div class="mediaMeta">${esc(friendlyInspectError(error))}</div><div class="mediaMeta">Use a public URL you are allowed to download. Provider restrictions and cloud-server blocks cannot be bypassed by retrying repeatedly.</div><button class="smallBtn" id="retryInspect">Retry Inspect</button>`;
   $('#retryInspect').onclick=()=>$('#inspectBtn').click();
  }finally{button.disabled=false;button.textContent='Inspect'}
 };
@@ -262,7 +277,7 @@ async function finishBlob(job,blob,type){
  job.status='completed';job.progress=100;job.message='Verified and saved to device and Library';job.mediaId=item.id;saveJobs();media.unshift(item);renderAll();
 }
 function titleFrom(url){try{return decodeURIComponent(new URL(url).pathname.split('/').pop()||'Untitled media')}catch{return'Untitled media'}}
-function renderAll(){renderStats();renderRecent();renderLibrary();renderJobs();$('#queueBadge').textContent=jobs.filter(j=>['running','queued'].includes(j.status)).length}
+function renderAll(){renderStats();renderRecent();renderLibrary();renderJobs();const queued=jobs.filter(j=>['running','queued'].includes(j.status)).length;$('#queueBadge').textContent=queued;const mobileBadge=$('#mobileQueueBadge');if(mobileBadge)mobileBadge.textContent=queued}
 function renderStats(){$('#statLibrary').textContent=media.length;$('#statDownloads').textContent=jobs.filter(j=>j.status==='completed').length;$('#statStorage').textContent=formatBytes(media.reduce((n,m)=>n+(m.size||0),0))}
 function card(m){const thumb=m.thumbnail?`<img src="${m.thumbnail}" alt="" loading="lazy">`:`<span>${iconFor(m.type)}</span>`;const detail=[m.duration?formatDuration(m.duration):'',m.width&&m.height?`${m.width}×${m.height}`:'',formatBytes(m.size)].filter(Boolean).join(' · ');return `<article class="media card"><div class="selectRow"><input type="checkbox" class="mediaSelect" data-id="${m.id}"></div><div class="thumb">${thumb}</div><div class="mediaBody"><div class="mediaTitle" title="${esc(m.title)}">${esc(m.title)}</div><div class="mediaMeta">${esc(m.type||'media')} · ${detail||'metadata pending'}</div><div class="actions"><button class="smallBtn play" data-id="${m.id}" type="button"><span class="actionIcon" aria-hidden="true">▶</span><span>Play</span></button><button class="smallBtn info" data-id="${m.id}" type="button"><span class="actionIcon" aria-hidden="true">ⓘ</span><span>Details</span></button><button class="smallBtn shareMedia" data-id="${m.id}" type="button"><span class="actionIcon" aria-hidden="true">↗</span><span>Share</span></button><button class="smallBtn del" data-id="${m.id}">Delete</button></div></div></article>`}
 function iconFor(type=''){return /audio/i.test(type)?'♫':/image/i.test(type)?'▧':/video|mp4|webm|quicktime|matroska|avi/i.test(type)?'🎬':'🎞️'}
@@ -356,18 +371,21 @@ async function shareMedia(id=shareMediaId){
 }
 function shareTo(target){
  const item=getShareItem(shareMediaId);if(!item)return;
- const url=item.url||'';const title=item.title||'VidGravity media';let targetUrl='';
- if(target==='x')targetUrl='https://twitter.com/intent/tweet?'+new URLSearchParams({text:title,url});
- if(target==='whatsapp')targetUrl='https://wa.me/?text='+encodeURIComponent([title,url].filter(Boolean).join(' '));
- if(target==='telegram')targetUrl='https://t.me/share/url?'+new URLSearchParams({url,text:title});
- if(target==='reddit')targetUrl='https://www.reddit.com/submit?'+new URLSearchParams({url,title});
- if(target==='linkedin')targetUrl='https://www.linkedin.com/sharing/share-offsite/?url='+encodeURIComponent(url);
- if(target!=='whatsapp'&&target!=='x'&&!url)return toast('This social target needs a shareable URL');
- window.open(targetUrl,'_blank','noopener,noreferrer');
+ const url=item.url||location.href;const title=item.title||'VidGravity media';const text=[title,url].filter(Boolean).join(' ');
+ const encUrl=encodeURIComponent(url),encTitle=encodeURIComponent(title),encText=encodeURIComponent(text);
+ const destinations={x:'https://twitter.com/intent/tweet?text='+encTitle+'&url='+encUrl,whatsapp:'https://wa.me/?text='+encText,telegram:'https://t.me/share/url?url='+encUrl+'&text='+encTitle,reddit:'https://www.reddit.com/submit?url='+encUrl+'&title='+encTitle,linkedin:'https://www.linkedin.com/sharing/share-offsite/?url='+encUrl,facebook:'https://www.facebook.com/sharer/sharer.php?u='+encUrl,threads:'https://www.threads.net/intent/post?text='+encText,bluesky:'https://bsky.app/intent/compose?text='+encText,pinterest:'https://www.pinterest.com/pin/create/button/?url='+encUrl+'&description='+encTitle,tumblr:'https://www.tumblr.com/widgets/share/tool?canonicalUrl='+encUrl+'&title='+encTitle,email:'mailto:?subject='+encTitle+'&body='+encText};
+ if(target==='instagram'||target==='snapchat'){if(navigator.share){shareMedia(shareMediaId);return}copyShareLink(url).then(ok=>toast(ok?'Link copied. Paste it into '+(target==='instagram'?'Instagram':'Snapchat')+'.':'Copy the link first, then open '+(target==='instagram'?'Instagram':'Snapchat')+'.'));return}
+ const targetUrl=destinations[target];if(!targetUrl)return toast('This sharing destination is not supported yet');
+ const opened=window.open(targetUrl,'_blank','noopener,noreferrer');if(!opened){toast('Your browser blocked the share window. Allow pop-ups or use Share Using Device.');return}
+ toast('Opening '+({x:'X',whatsapp:'WhatsApp',telegram:'Telegram',reddit:'Reddit',linkedin:'LinkedIn',facebook:'Facebook',threads:'Threads',bluesky:'Bluesky',pinterest:'Pinterest',tumblr:'Tumblr',email:'email'}[target]||'share destination')+'.');
+}
+async function copyShareLink(url){
+ try{if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(url);return true}}catch{}
+ try{const field=document.createElement('textarea');field.value=url;field.setAttribute('readonly','');field.style.position='fixed';field.style.opacity='0';document.body.appendChild(field);field.select();const ok=document.execCommand('copy');field.remove();return ok}catch{return false}
 }
 $('#shareAppButton')?.addEventListener('click',()=>openShare('__app__'));
 $('#shareDeviceButton')?.addEventListener('click',()=>shareMedia());
-$('#shareCopyButton')?.addEventListener('click',async()=>{const item=getShareItem(shareMediaId);if(!item?.url)return toast('No shareable URL is available for this media');try{await navigator.clipboard.writeText(item.url);toast('Link copied')}catch{toast('Clipboard access is unavailable in this context')}});
+$('#shareCopyButton')?.addEventListener('click',async()=>{const item=getShareItem(shareMediaId);if(!item)return toast('Media item was not found');const ok=await copyShareLink(item.url||location.href);toast(ok?'Link copied':'Clipboard access is unavailable. Use Share Using Device instead.')});
 $$('[data-share-target]').forEach(button=>button.addEventListener('click',()=>shareTo(button.dataset.shareTarget)));
 let shareReturnFocus=null;
 $('#closeShare')?.addEventListener('click',()=>{const modal=$('#shareModal');modal?.classList.add('hidden');modal?.setAttribute('aria-hidden','true');shareReturnFocus?.focus?.()});
@@ -1249,8 +1267,8 @@ function vgUXInstallKeyboard(){
     if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();document.querySelector('[data-q="Summarize this media"]')?.focus();}
   });
 }
-window.addEventListener("error",e=>{if(e?.message)vgUXNotify("Something went wrong. Your media is safe.","error")});
-window.addEventListener("unhandledrejection",()=>vgUXNotify("The action could not be completed. Try again.","error"));
+window.addEventListener("error",e=>{if(e?.message){console.error("[VidGravity UI error]",e.message,e.filename||"",e.lineno||"");vgUXNotify("A page action failed. Your saved media was not deleted; try that action again.","error")}});
+window.addEventListener("unhandledrejection",e=>{console.error("[VidGravity async error]",e?.reason||e);vgUXNotify("An action could not finish. Your saved media was not deleted; try again.","error")});
 vgUXInstallKeyboard();
 
 function renderReleaseWorkspaceRail(){

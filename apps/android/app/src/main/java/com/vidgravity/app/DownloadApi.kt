@@ -18,18 +18,25 @@ data class FormatOption(
     val container: String,
     val videoCodec: String,
     val audioCodec: String,
-    val sizeBytes: Long?
+    val sizeBytes: Long?,
+    val width: Int = 0,
+    val height: Int = 0,
+    val hasVideo: Boolean = videoCodec.isNotBlank() && videoCodec != "none",
+    val hasAudio: Boolean = audioCodec.isNotBlank() && audioCodec != "none",
+    val note: String = "",
+    val fps: Double? = null,
+    val dynamicRange: String = ""
 ) {
     fun displayName(): String {
-        val codecs = listOf(videoCodec, audioCodec).filter { it.isNotBlank() && it != "none" }.joinToString(" · ")
-        val size = sizeBytes?.let { String.format("%.1f MB", it / 1_000_000.0) } ?: "size unknown"
-        return listOf(resolution, container.uppercase(), codecs, size).filter { it.isNotBlank() }.joinToString(" — ")
+        val kind = if (hasVideo && hasAudio) "Video + audio" else if (hasVideo) "Video · audio combined on download" else "Audio only"
+        val size = sizeBytes?.let { String.format("%.1f MB", it / 1_000_000.0) } ?: "Size varies by source"
+        return listOf(container.uppercase(), kind, size).joinToString(" · ")
     }
 }
 
 data class SourceAnalysisResult(val title: String, val durationSeconds: Double?, val formats: List<FormatOption>)
 data class RemoteDownloadJob(val id: String, val state: String, val progress: Int, val message: String, val filename: String)
-data class TransferReceipt(val bytesWritten: Long, val totalBytes: Long?, val sha256: String?)
+data class TransferReceipt(val bytesWritten: Long, val totalBytes: Long?, val sha256: String?, val calculatedSha256: String? = null)
 
 object DownloadApi {
     private fun baseUrl(): String {
@@ -81,7 +88,14 @@ object DownloadApi {
                         container = item.optString("ext", "mp4"),
                         videoCodec = item.optString("vcodec", "unknown"),
                         audioCodec = item.optString("acodec", "unknown"),
-                        sizeBytes = if (item.has("filesize") && !item.isNull("filesize")) item.optLong("filesize").takeIf { it > 0 } else null
+                        sizeBytes = if (item.has("filesize") && !item.isNull("filesize")) item.optLong("filesize").takeIf { it > 0 } else null,
+                        width = item.optInt("width", Regex("(\\d{3,4})x\\d{3,4}").find(item.optString("resolution"))?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0),
+                        height = item.optInt("height", Regex("(?:\\d{3,4}x(\\d{3,4})|(?:^|\\D)(\\d{3,4})p)").find(item.optString("resolution"))?.let { match -> (match.groupValues.getOrNull(1)?.takeIf { it.isNotBlank() } ?: match.groupValues.getOrNull(2))?.toIntOrNull() } ?: 0),
+                        hasVideo = item.optBoolean("has_video", item.optString("vcodec", "none") != "none"),
+                        hasAudio = item.optBoolean("has_audio", item.optString("acodec", "none") != "none"),
+                        note = item.optString("note", ""),
+                        fps = if (item.has("fps") && !item.isNull("fps")) item.optDouble("fps").takeIf { it > 0 } else null,
+                        dynamicRange = item.optString("dynamic_range", "")
                     ))
                 }
             }
@@ -140,6 +154,14 @@ object DownloadApi {
         if (offset > 0L) connection.setRequestProperty("Range", "bytes=" + offset + "-")
         try {
             val code = connection.responseCode
+            if (code == 416 && offset > 0L) {
+                // A stale or corrupt partial can no longer be resumed. Discard it and
+                // retry this request once from byte zero rather than leaving WorkManager
+                // to repeat the same invalid Range request.
+                connection.disconnect()
+                destination.delete()
+                return downloadResult(id, destination, onProgress)
+            }
             if (code !in 200..299) {
                 val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
                 throw IllegalStateException("Result HTTP " + code + ": " + detail.take(300))
@@ -151,9 +173,24 @@ object DownloadApi {
             val total = if (append && contentRange != null) {
                 contentRange.substringAfterLast('/').toLongOrNull()
             } else connection.getHeaderFieldLong("Content-Length", -1L).takeIf { it >= 0 }
-            val expectedHash = connection.getHeaderField("X-Content-SHA256")
-                ?.takeIf { it.matches(Regex("[a-fA-F0-9]{64}")) }
+            val rawExpectedHash = connection.getHeaderField("X-Content-SHA256")?.trim()
+            val expectedHash = rawExpectedHash?.takeIf { it.matches(Regex("[a-fA-F0-9]{64}")) }
+            // A malformed checksum must not be treated as a trusted checksum. We still
+            // calculate SHA-256 locally and can safely publish when no server digest exists.
             destination.parentFile?.mkdirs()
+            val digest = MessageDigest.getInstance("SHA-256")
+            if (append && existingOffset > 0L) {
+                destination.inputStream().buffered(128 * 1024).use { existing ->
+                    val prefix = ByteArray(128 * 1024)
+                    var remaining = existingOffset
+                    while (remaining > 0L) {
+                        val count = existing.read(prefix, 0, minOf(prefix.size.toLong(), remaining).toInt())
+                        if (count < 0) throw IllegalStateException("Partial file changed while resuming the transfer.")
+                        digest.update(prefix, 0, count)
+                        remaining -= count
+                    }
+                }
+            }
             var received = existingOffset
             BufferedInputStream(connection.inputStream).use { input ->
                 FileOutputStream(destination, append).use { output ->
@@ -163,6 +200,7 @@ object DownloadApi {
                         val count = input.read(buffer)
                         if (count < 0) break
                         output.write(buffer, 0, count)
+                        digest.update(buffer, 0, count)
                         received += count
                         if (System.currentTimeMillis() - lastUpdate > 400) {
                             onProgress(received, total)
@@ -173,7 +211,17 @@ object DownloadApi {
                 }
             }
             onProgress(received, total)
-            return TransferReceipt(received, total, expectedHash)
+            if (total != null && total > 0L && received != total) {
+                throw java.io.EOFException("Transfer incomplete: received $received of $total bytes. Retry the download.")
+            }
+            val calculatedHash = digest.digest().joinToString("") { "%02x".format(it) }
+            if (expectedHash != null && !calculatedHash.equals(expectedHash, ignoreCase = true)) {
+                // Never resume a file whose content failed integrity validation. A retry
+                // must begin with a clean destination or the stale bytes will recur.
+                destination.delete()
+                throw java.io.IOException("SHA-256 verification failed: downloaded bytes do not match the companion checksum.")
+            }
+            return TransferReceipt(received, total, expectedHash, calculatedHash)
         } finally { connection.disconnect() }
     }
 

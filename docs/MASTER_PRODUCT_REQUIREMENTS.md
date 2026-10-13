@@ -1,0 +1,331 @@
+# VidGravity Master Product Requirements
+Last reviewed: 2026-10-13
+Status: living implementation specification; requirements are not considered shipped until code, tests, and release validation prove them.
+
+## Product goal
+Build VidGravity as a useful, privacy-respecting, cross-platform media companion for downloads the user is authorized to save, offline organization, accessibility, safe creative editing, learning, and social-ready exports. Prioritize stable daily workflows before novelty features. Android, web/PWA, browser companion, and desktop must share typed contracts and domain behavior where appropriate.
+
+## Engineering non-negotiables
+- Never execute arbitrary shell strings. Use typed argument arrays, allow-listed operations, bounded inputs, and safe temporary paths.
+- Never mutate original media. Every edit/export is a new derivative with source provenance and cleanup policy.
+- Server-authoritative licensing/entitlements; local UI flags never grant premium rights. Current beta/testing experience should not force a purchase flow unless explicitly approved.
+- Atomic task lifecycle: queued, preparing, running, paused, retry-wait, completed, failed, cancelled; cancellation/retry/pause must not corrupt published files.
+- Stream to temporary .part files, calculate SHA-256 locally while streaming, and persist checksum only after successful verification/publish. Do not demand a server checksum from public streaming sources that do not provide a trusted receipt.
+- Honest progress/speed/ETA based on actual bytes and elapsed time; never fabricate progress.
+- Platform permission minimization, secure defaults, WCAG 2.2 AA intent, adaptive dark/light/system themes, readable contrast, 48–56dp minimum touch targets, haptics only when useful and user-controllable.
+- No claims of guaranteed screenshot detection, private cross-app gesture detection, unlimited cloud/AI, or successful deployment without evidence.
+- Respect platform terms, copyright, DRM, authentication and access controls. Do not bypass paywalls, DRM, or private access.
+
+## Architecture and shared contracts
+Use UI -> domain/application -> services -> repositories/API; no direct HTTP calls from UI. Keep Android-native CameraX/Compose/Media3/WorkManager code under apps/android; reusable media processors and typed FFmpeg argument construction under engines/media; download/source analysis under engines/download; platform-independent DTOs, validation and capability contracts under packages/contracts. Avoid duplicated root/site frontend logic where feasible.
+
+## User journeys and features
+### A. Download core
+- Public/authorized URL inspection; source/platform identification and capability-aware format list.
+- Resolutions from 360p through available 8K, exact available streams, codec/container/FPS/dimensions/known size; do not invent unavailable variants.
+- Audio-only extraction where supported (MP3 128/320 kbps and AAC as actual conversion targets, not mislabeled streams).
+- Highest available, user-selected quality, saved default quality; video+audio merge when source provides separate streams.
+- Multi-URL/batch queue, configurable concurrency, duplicate protection, retry, cancel, pause/resume where backend supports true resumable transfer, .part recovery and safe filenames.
+- WorkManager foreground-service handling for Android 14+, permission-aware notifications, non-expedited fallback and lifecycle-safe cleanup.
+- Real task cards: thumbnail when available, source, progress, bytes, speed, ETA, pause/resume/cancel, expandable useful errors and retry.
+- Completed media: play, favorite, rename, delete confirmation, share sheet, open file, remix/export actions.
+- Keep server-reported integrity receipts distinct from locally calculated hashes.
+
+### B. Android shell and daily ergonomics
+- Five bottom tabs: Home, Downloads, Library, Create, Settings; state/back-stack restoration, system bar insets, accessible touch targets, adaptive theme.
+- Collapsible visual header, content-safe status/navigation bar padding, natural-reach primary controls, adjacent-screen swipe only when it does not conflict with child gestures.
+- Clipboard link suggestion on resume, shown transparently and never auto-download; user explicitly taps to inspect/paste.
+- Quick actions: best available video, audio-only, WhatsApp/status splitter, StudyTok. Unavailable actions must be disabled or clearly marked rather than pretending to work.
+- Now Grabbing task carousel with genuine live status and pause/cancel; Recently Stashed carousel from real local library records.
+
+### C. Format picker
+- Reachable Material 3 bottom sheet; video/audio and audio-only grouping; include only streams actually returned by extractor.
+- Show resolution, dimensions, FPS, codec/container, file size only if known; estimate label when estimated.
+- Saved automatic quality selection, safe dismissal and accessible controls.
+
+### D. Library and privacy
+- Search, categories: all media, video, audio, moodboards, GIF/stickers, secure vault; duration/spec overlays, playlists, multi-select, batch favorite/re-categorize/delete.
+- Helpful empty state and route back to Home.
+- Biometric vault using Android BiometricPrompt, encrypted metadata/key handling, lock on background, threat-modelled recovery; no fake FaceID on Android.
+- Three-finger masquerade is optional and must not replace real vault locking; clear safety/false-trigger handling.
+- Local DropZone/P2P with explicit consent, QR/invite, peer verification, local-network permission disclosure, encrypted transfer, checksums, expiry and no accidental public exposure.
+- “Unlimited memories” means user-controlled local/LAN/P2P storage, not unlimited free cloud storage.
+
+### E. Create / Snap Studio
+- CameraX photo capture and vertical recording up to platform/device capability; dual front/rear concurrent camera only when hardware supports it. Provide fallback PiP/split layouts.
+- **DualView / DuoCam fun capture mode:** record front and rear cameras in one session when the device supports concurrent camera streams; offer side-by-side, picture-in-picture, and front-camera reaction overlay layouts. Probe CameraX concurrent-camera capabilities first and gracefully fall back to front-only/rear-only capture or a clearly labeled sequential two-take mode; never promise simultaneous capture on unsupported devices.
+- **Lens Lab:** live front/rear preview effects such as color looks, soft glow, retro/VHS, comic, mirror, background blur where supported, face-safe AR stickers/masks, and adjustable intensity. Separate real-time camera effects from post-capture effects; use GPU/device capability checks and provide a no-effects fallback to avoid overheating or dropped frames.
+- **Reaction Remix:** combine the two recorded angles, choose which view is primary, resize/reposition the reaction window, switch layouts at edit points, trim each track, and export a new vertical or landscape derivative. Preserve originals and let users preview before export.
+- **Fun capture controls:** timer, countdown, gesture/voice trigger only when explicitly enabled, flash/torch control where supported, exposure/zoom controls, grid, stabilization where available, and optional short intro/outro templates.
+- **Privacy and safety:** camera/microphone permissions only when the user starts capture; visible recording state and stop control; no hidden/background recording; no face identification or biometric identity inference. Keep effects processed on-device where feasible, disclose any remote processing, and default to local drafts until the user chooses Share.
+- **Acceptance tests:** test concurrent-camera capability detection across supported/unsupported devices, audio sync, rotation and lifecycle interruptions, thermal/performance fallback, permission denial, save/cancel cleanup, original-file preservation, accessibility, and export metadata.
+- Caption canvas: draggable text, styles/outlines, timestamp/battery/velocity badges with opt-in; transcript-based prompts only when transcript exists.
+- Frame grab from player scrubber; 9:16 exports with blurred background fill for landscape source; original immutable.
+- Story Card exports with chosen snippet, artwork, waveforms/subtitles and safe subtitle formats; export presets validated against current platform rules.
+- Snap & Forget 24-hour derivative-cache expiry is opt-in, visible, and does not delete original/source without confirmation.
+- First Draft silence trim, audio replacement, split clips, sticker/GIF/WebP output, Vibe-Sync beat cuts/crossfades, Cine-Vibe transitions, soundboard/soundbite overlays, hardware-aware compression and voice-dub subtitles are separate processors with previews, progress, cancellation and bounded resource use.
+- Never promise “85% smaller” or “almost no loss” for all inputs; report measured output size and quality settings.
+
+### F. Social export presets and platform compatibility
+- Presets for WhatsApp Status, Instagram Reels/Stories, TikTok, YouTube Shorts, Discord/other share targets; preserve a platform-spec registry with checked date, official source URL, constraints, and distinction between native-app and publishing-API limits.
+- Validate duration, aspect ratio, resolution, codecs, frame rate, file size and audio. Provide warnings/alternate export rather than guaranteeing acceptance.
+- Use Android Sharesheet/deep links where official integrations are unavailable. Do not scrape private feeds or automate uploads without approved APIs and user consent.
+- Copyright warning for licensed music and claimed content; allow users to use their own/licensed audio.
+
+### G. StudyTok and AI assistance
+- Transcription and timestamped structured flashcards {front, back, timestamp}; export CSV/Markdown/Anki-compatible files.
+- Silence skipper with user-adjustable threshold, safe playback-speed ramp and manual override.
+- 60-second recap/lecture highlights only when content/transcript supports it; no fabricated quotes.
+- Capture frame + associated transcript quote; export notes.
+- Vibe Companion modes/templates (Sarcastic, Aesthetic, Focus, Brain-Rot), summaries, bio drafts and captions; on-device/free/local model option where feasible, disclose cost/network/privacy for remote inference, quotas and consent. No claim of unmetered high-end remote AI.
+
+### H. Group stash and collaboration
+- Invite links/QR for shared folders/playlists; explicit consent and authorization before retrieving media.
+- Queue shared public/authorized links for Wi-Fi/off-hours; configurable Wi-Fi-only, charging, time window and data caps; respect source terms and rate limits.
+- Series/seasons/episodes organization, local-first collaboration and conflict-safe sync.
+- “Ghost P2P Map” should be proximity-only and consent-based; never track precise locations without explicit permission. Prefer peer discovery over map when it adds no utility.
+
+### I. Ephemeral sharing / Peek / replay
+- Peek gesture detection only inside VidGravity-owned UI. Never claim to observe Snapchat/WhatsApp private gestures or alert a sender about another app's private interaction.
+- View-once flow: recipient/session authorization, one-time random key, authenticated encryption, expiry, replay attempt journal, bounded telemetry, sender notification only if backed by a server-delivered receipt.
+- Android FLAG_SECURE is a mitigation, not guaranteed capture detection. Do not claim screenshots or external recordings were detected unless platform supplies a reliable event.
+- Validate all paths/inputs before consuming session allowances; session counters need server/transactional authority for multi-device enforcement. Best-effort file deletion is not secure erase on flash storage.
+
+### J. Settings and retention
+- 15 categories: Account, Security, Privacy, Downloads, Playback, Library, AI, Automation, Devices, Storage, Network, Notifications, Appearance, Advanced, About.
+- License key paste with validation and server-authoritative entitlements; copyable device ID; do not expose secrets in logs.
+- Overnight scheduler (e.g. 2–5 AM), Wi-Fi-only, charging constraints, storage caps and explicit notification controls.
+- Compression policies, older-than-14-day review, optional auto-cleanup of generated status derivatives after 24 hours, no silent deletion of originals.
+- System/dark/light themes, text scaling, backup/restore directory routes and accessible contrast.
+
+### K. Additional creative / lifestyle utilities
+- Sound Snatcher to extract a short user-selected clip as ringtone only with Android user-mediated ringtone/contact permissions.
+- Aura/streak/trivia and weekly recap are optional, privacy-first, local-first and opt-in; no manipulative dark patterns or surveillance of “doomscrolling”.
+- Receipts/argument finder, if implemented, must search only user-selected local media/transcripts and present timestamped evidence with uncertainty, never infer facts unsupported by source.
+- Hover PiP only through supported Android PiP or explicit overlay permission; no hidden overlays. Message Scissors works only on user-provided/authorized media and shares via standard intents.
+
+### L. Gen Z, students, and younger users (new priority)
+Design this as an age-aware experience within VidGravity, not a separate product. Make the core downloader reliable first, then add small, independently testable learning and creativity workflows.
+- **Age-appropriate onboarding:** offer simple experience choices such as Creator, Student, or Everyday use; do not require date of birth or collect a child’s identity just to personalize the UI. Any age gate required by law or distribution policy must be handled transparently and minimally.
+- **Study mode:** turn user-selected, authorized lecture recordings or notes into timestamped summaries, flashcards, revision questions, vocabulary lists, and exportable study notes. Always link generated notes back to source timestamps; flag uncertain transcription and never invent facts.
+- **Micro-learning:** optional 5–15 minute sessions, spaced-repetition review, progress indicators, and locally stored goals. No streak-loss punishment, shame messages, or pressure to keep using the app.
+- **Creator starter kit:** beginner-friendly templates for captions, vertical edits, thumbnails/story cards, subtitles, sticker/GIF creation, and audio cleanup. Provide previews, undo, clear export settings, and original-media preservation.
+- **Safe social sharing:** default to private/local drafts; explicit preview and confirmation before sharing; show destination and included media; use the OS share sheet; no public profile, contact upload, location sharing, or auto-posting by default.
+- **Younger-user privacy and safety:** collect the minimum data; keep learning history and recommendations local by default where practical; no targeted ads, behavioral profiling, hidden tracking, or precise-location features aimed at children. Remote AI must be optional, clearly disclosed, consent-based, and governed by age-appropriate policy and applicable law. Provide easy clear-history/delete controls.
+- **Healthy-use tools:** optional focus timer, study breaks, bedtime quiet hours, and user-controlled reminders. No invasive usage monitoring or claims to detect activity in other apps.
+- **Accessibility and inclusion:** plain-language labels, optional Tamil and other localized UI/content when supported, adjustable text size, captions, reduced-motion option, keyboard/screen-reader support, and calm visual mode alongside expressive themes.
+- **Trustworthy AI:** label generated text/media suggestions as AI-assisted; allow edit/reject; never fabricate quotes, answer keys, citations, or a person's identity. Explain when content is processed on-device versus sent to a remote service.
+- **Child-safety release gate:** before marketing or enabling child-directed experiences, review applicable child privacy, consent, advertising, age-rating, and app-store requirements for target markets. Until that review is complete, do not claim the app is certified or compliant for children.
+- **Acceptance tests:** test age-aware onboarding without unnecessary personal data, default-private exports, cancel/delete history, no auto-share, offline study basics, accessibility settings, and AI failure/uncertainty states. Mark each capability as implemented only after real behavior and tests exist.
+
+### M. Everyday social-video companion (YouTube, Instagram, Facebook, Snapchat and other platforms)
+The product should help users prepare, understand, organize, edit, and share media across services without pretending every platform supports the same downloads or integrations. Use official APIs, OS share sheets, user-selected files, and documented capabilities. Never bypass DRM, private accounts, paywalls, access controls, or platform restrictions.
+
+- **Universal Share Inbox:** accept a video/link/file shared by the user from another app through Android Sharesheet, browser extension, or paste. Show the source, detected capability, and clear next actions: save link, inspect available media, add to a collection, create a reminder, or open in the source app. Never auto-download or auto-post.
+- **Watch/Learn Later:** local-first queue with user-created tags, folders, notes, reminders, and optional timestamps. Keep a link usable even when the source cannot be downloaded. Make availability and offline status explicit; do not imply a remote link is saved offline.
+- **Smart Watch tools:** playback speed presets, skip-silence for local/authorized media, bookmarks, timestamped notes, transcript search when captions/transcripts are available, and a “what did I learn?” recap grounded in the available transcript. Respect app/platform boundaries; do not claim to control playback inside unrelated apps unless an official integration exists.
+- **Clip & Moment Maker:** let users select a range from local/authorized media, save multiple moments, add a title or reaction window, and export individual clips or a compilation. If automatic highlight detection is offered, show the suggested ranges and require user review; do not invent events or claim semantic accuracy without evidence.
+- **Caption & Translation Studio:** generate/edit subtitles when a supported transcription engine is available; offer translated subtitle drafts and bilingual captions with an uncertainty/edit step. Provide SRT/VTT and burned-in caption exports where supported. Clearly distinguish speech recognition, translation, and user-edited text.
+- **Social-ready export checker:** target presets for vertical, square, and landscape formats; inspect actual duration, dimensions, frame rate, codecs, audio and file size; preview crop/safe zones and subtitle placement. Validate against a dated platform-spec registry, warn when specs are unknown, and avoid guaranteeing acceptance by YouTube, Instagram, Facebook, Snapchat, TikTok, or Discord.
+- **One source, many versions:** make a user-approved master edit, then generate separate crops/caption/layout derivatives for selected destinations. Keep originals untouched, provide side-by-side previews, and let users choose which versions to export/share.
+- **Batch post-prep studio:** build a pack of thumbnails/story cards, captions, subtitle files and resized clips for a user's selected files. Include reusable templates and drafts/calendar reminders; publishing remains a user-confirmed action through the OS share sheet or an authorized official API.
+- **Audio helper:** normalize loudness, reduce noise when feasible, duck music under speech, detach/replace audio, and export user-owned/licensed sound clips. Preview changes and preserve the original audio track.
+- **Storage & data saver:** show media size before export, recommend lower-size alternatives with honest quality trade-offs, detect likely local duplicates by file hash, and offer user-confirmed cleanup. Never delete originals automatically or promise fixed compression ratios.
+- **Collections & family/team sharing:** curated local collections/playlists with optional user-generated descriptions, shareable export bundles, and explicit consent before sharing files or metadata. Do not upload contacts or expose private collections by default.
+- **Accessibility and language support:** adjustable playback speed, readable captions, text scaling, audio description/voiceover tools where feasible, reduced-motion options, and localized UI/content such as Tamil when available. Keep original speech/text accessible alongside translated output.
+- **Healthy viewing:** optional focus sessions, reminders to take a break, bedtime quiet hours, and user-set limits. All reminders are opt-in and local-first where possible; do not surveil activity in other apps or shame users.
+- **Integration honesty:** maintain a capability matrix per platform and app version. When a platform does not expose an official API or blocks a workflow, explain the limitation and offer a permitted alternative (save a link, open the source app, or process a user-provided file). Never imply that a share-sheet handoff equals a completed upload.
+- **Privacy and safety:** user-selected inputs, local processing where feasible, transparent network/AI indicators, clear cache/history deletion, private drafts by default, no hidden tracking, and no unauthorized access to private social content.
+
+### N. Twenty additional researched features (reviewed 2026-10-13)
+These proposals extend sections A–M and should be delivered in small increments. Platform references below are evidence of current platform direction, not a claim that VidGravity has equivalent APIs or permissions. Confirm regional availability and official docs again before each release.
+
+1. **Prompt-to-Edit Copilot:** users describe “make this a 25-second travel recap with captions”; generate an editable draft plan (cuts, captions, crop, transitions) from available media. Never silently publish, overwrite source, or pretend generated edits are accurate without preview. Inspired by YouTube's September 2026 announcement of conversational editing; implement locally/with bounded optional AI rather than depending on a platform-only capability.
+2. **Hook & Pacing Coach:** analyze a user-selected draft for long pauses, low-audio sections, repeated phrases, and opening length; show evidence/timecodes and let users accept/reject each suggestion. No guaranteed virality claims.
+3. **Thumbnail & Cover Lab:** create several cover candidates from selected frames with editable typography, contrast checks, safe zones, and readable-at-small-size preview. Any A/B comparison is a private export/planning tool unless an official platform experiment API is authorized.
+4. **Creator Experiment Notebook:** manually record variant, hook, duration, caption, posting time and user-entered outcome metrics; compare experiments over time and separate correlation from causation. Do not scrape private analytics or promise reach.
+5. **Series & Episode Planner:** group short videos into series with consistent title cards, numbering, intro/outro and export naming; user can plan a coherent sequence even where a platform's native series feature differs.
+6. **Personalized Watch Queues:** build local queues by mood, topic, time available, or goal using links and user-tagged items. Do not scrape or recreate a platform's private recommendation feed; refresh links only through permitted means.
+7. **Multilingual Dub & Subtitle Workshop:** create editable translated subtitle drafts and, where supported, voice-over/dub drafts with pronunciation review and explicit language choice. Preserve original audio, clearly mark synthetic voice, and do not clone a person's voice without informed consent and rights.
+8. **Voice & Face Misuse Evidence Pack:** help users organize their own original files, timestamps, public links, and screenshots into a report pack when they suspect impersonation. Do not scan private feeds or claim biometric matching without an approved, consented, privacy-reviewed system.
+9. **Originality & Rights Checklist:** before export, remind creators to confirm rights to video, music, images, logos, and AI-generated assets; keep attribution/license notes. This is a checklist, not a legal guarantee or platform originality score.
+10. **Music Rights & Audio Fit Checker:** track user-entered license/source notes, detect whether audio is present and its duration, and warn that music availability differs by platform, account, and territory. Never label a song “cleared” without authoritative license evidence.
+11. **Live/Podcast Chapter Maker:** create timestamped chapter markers and show notes from user-provided recordings/transcripts; export chapters in a format supported by the target workflow. Never invent quotes or chapter events.
+12. **Screen Tutorial & Demo Recorder:** record a user-started screen walkthrough with explicit Android screen-capture consent, optional facecam/voice narration, tap/callout overlays added after recording, and redaction before sharing. Respect Android secure surfaces and protected content.
+13. **Recipe, Workout & How-To Cards:** turn user-selected media/transcripts into structured steps, ingredients or exercise cues with timestamp links and review; label uncertain extraction and never present it as verified safety/medical advice.
+14. **Accessibility Quality Gate:** detect missing captions, too-small text, poor contrast, overly fast flashing, and important content hidden by platform UI safe zones; offer fixes and manual override. Avoid claiming formal compliance automatically.
+15. **Smart Crop & Subject Reframe:** offer face/object tracking only where supported, with a visible crop path and manual correction; keep key subjects inside the target safe area. No face identity recognition required.
+16. **Creator Asset & Brand Kit:** local reusable fonts, colors, logo, lower thirds, caption style and end cards; per-project override and exportable backups. No mandatory account or cloud upload.
+17. **Draft Handoff & Resume:** save non-destructive project files with source references, proxy metadata, edit decisions and export settings so users can resume across app sessions; cross-device sync is optional and clearly disclosed.
+18. **Low-Data Transfer & Share Pack:** package selected exports and caption/thumbnail sidecars, show total size, and offer Wi-Fi-only/local transfer or QR pairing with peer verification. Do not create publicly accessible links by default.
+19. **Community Remix Permission Card:** for collaborations, attach a user-authored permission/credit note, source link, and allowed-use summary to a project. It is not proof of legal permission; require user confirmation before reusing third-party media.
+20. **Creator Health & Workflow Recap:** optional weekly local report showing time spent editing inside VidGravity, export volume, storage reclaimed and goals chosen by the user. Do not measure other-app activity, infer mental health, or use shame/streak-loss mechanics.
+
+#### Current platform signals informing these ideas
+- **YouTube (official, 2026-09-23):** announced conversational editing for Shorts/Create, thumbnail guidance and tests of up to three video cuts; custom feeds and Shorts seasons/episodes were also announced. VidGravity can offer an independent, user-controlled editing planner and series organizer without pretending to access YouTube's internal recommendations or analytics.
+- **Facebook/Meta (official, 2026-06-03/04):** announced Creator Assistant for performance-based ideas and expanded AI Reel translation capabilities. VidGravity should focus on user-provided metrics, transparent translation drafts and cross-platform portability.
+- **TikTok (official developer guidance, last updated 2026-08-04):** Content Posting API has consent, creator-info, privacy selection, interaction-setting, posting status, and audit requirements; unaudited direct-post clients are restricted to private viewing. Avoid promising direct/public posting without approval and compliant implementation.
+- **Snapchat (official support and developer changelog, checked 2026-10-13):** Director Mode documentation describes hands-free multi-clip recording and speed controls; Camera Kit changelog lists 2026 Lens Studio compatibility updates. VidGravity should create original, clearly labeled effects first and evaluate Snap Camera Kit licensing, platform coverage, privacy, and cost before any integration.
+- **Facebook originality guidance (official, 2026-03):** Meta says simple re-uploads or low-value edits to someone else's content can be deprioritized. VidGravity should encourage meaningful original contribution, source/rights checks, and creator-added context rather than watermark removal or repost automation.
+
+Official references (checked 2026-10-13):
+- YouTube announcements: https://blog.youtube/news-and-events/innovation-youtube-era-made-on-viewers-creators/
+- Meta Creator Assistant and translations: https://about.fb.com/news/2026/06/creator-assistant-more-languages-for-ai-translations-on-facebook/
+- TikTok Content Sharing Guidelines: https://developers.tiktok.com/docs/en/content-sharing-guidelines
+- TikTok Direct Post requirements: https://developers.tiktok.com/docs/en/content-posting-api-get-started
+- Snapchat Director Mode: https://help.snapchat.com/hc/en-gb/articles/8132871831828-What-is-Director-Mode
+- Snap Camera Kit changelog: https://developers.snap.com/camera-kit/getting-started/changelog
+- Meta originality guidance: https://about.fb.com/news/2026/03/rewarding-original-creators-on-facebook/
+
+## Delivery phases / acceptance gates
+1. Build health and contract audit: inspect actual repo state, branches, workflows, duplicate frontend logic, tests and release blockers.
+2. Download reliability: atomic state machine, worker lifecycle, integrity tests, progress metrics, pause/resume semantics and regression tests.
+3. Android navigation and Home: insets, clipboard prompt, format picker, live queue and accessibility tests.
+4. Library and completed actions: durable metadata, safe rename/delete, player, share, favorites and search.
+5. Media export engine: typed FFmpeg args, immutable source, presets/spec validator, cancellation and fixtures.
+6. StudyTok and creative tools: small independently tested processors, capability detection, graceful unsupported states.
+7. Vault, ephemeral shares and P2P: threat model, security tests, key/session lifecycle and opt-in permissions.
+8. Settings, automation, accessibility and retention.
+9. Gen Z/student/youth UX: privacy-first profiles, StudyTok review flows, creator templates, localization and healthy-use controls; complete child-safety/legal review before any child-directed marketing.
+10. Dual-camera fun capture: capability detection, Lens Lab, Reaction Remix, sync/performance and device-matrix validation.
+11. Everyday social companion: share inbox, watch-later, captions, clip/export workflows, platform capability matrix and privacy tests.
+12. Additional researched creator features: deliver Prompt-to-Edit, experiment notebook, multilingual/accessibility tools, rights checklist and project handoff as small tested increments.
+13. Release validation: unit/integration/UI tests, Android build, install/device smoke test, APK artifact, web/Worker deployment checks and rollback notes.
+
+## Definition of done for every feature
+- User story and capability constraints documented.
+- UI state is connected to real domain/service behavior; no fake/demo success messages.
+- Inputs validated; errors are actionable; cancellation and cleanup tested.
+- Original media preserved.
+- Unit/integration tests added and CI passes; platform-specific manual/device tests identified.
+- Accessibility and dark/light behavior checked.
+- Security/privacy implications and required permissions disclosed.
+- Current social platform constraints checked against official documentation and date-stamped.
+- Status accurately reported as implemented, partial, blocked, or not started.
+
+
+### O. Affordable alternatives to premium social-app features (reviewed 2026-10-13)
+
+**Goal:** give people useful creation, personalization, organization, accessibility, and privacy tools inside VidGravity without requiring subscriptions to Snapchat+, Instagram Plus, Facebook Plus, WhatsApp Plus, or Meta One. This is an independent companion feature set, not an unlocker or replacement for private features inside other apps. The social platforms' own core apps remain separate.
+
+#### O1. Premium-feature alternative catalogue
+
+- **Themes and self-expression:** app themes, light/dark/system and expressive palettes; custom VidGravity app icon where Android launcher support allows; editable chat/share-card colors and wallpapers inside VidGravity-owned screens; generated profile/story backgrounds; sticker, emoji, avatar, pet/car/home-themed overlays that are original VidGravity assets.
+- **AI creative tools:** bounded optional AI-assisted background generation, captions, bio drafts, image restyling, voice effects, and story/reel ideas. Show preview, disclose whether processing is local or remote, enforce explicit consent and cost quotas, and allow edits/rejection. Do not clone a real person's voice or likeness without informed consent and rights.
+- **Creator studio:** original camera effects and Lens Lab filters, text and typography packs, Story/Status Studio, cover/thumbnail maker, Reels/Shorts templates, reactions and split/PiP layouts, custom sound/caption tools, and export presets. Proprietary Snapchat Lenses and private app-only effects are not included; evaluate licensed official SDKs separately and disclose compatibility/cost.
+- **Messaging and sharing utilities:** wallpaper/sticker packs, share-pack preparation, media compression, status/story splitting, caption and translation drafts, and user-controlled scheduled quiet/focus settings within VidGravity. These tools must not read or modify private WhatsApp/Instagram/Facebook/Snapchat chats.
+- **Ephemeral media:** offer an optional **VidGravity One-Time Share** flow for user-selected media shared through VidGravity-controlled sessions. Use authenticated encryption, recipient/session authorization, expiry, replay protection, explicit recipient identity confirmation, and clear warning that recipients can still capture content with another device. Do not claim guaranteed screenshot detection, secure erasure on flash storage, or control over another app's view-once behavior.
+- **Story and engagement insights:** provide local analytics for content the user owns or metrics they manually enter; timestamps and history for VidGravity-hosted shares; and a creator experiment notebook. Do not promise access to private story views, rewatch indicators, Snapscore, friends' activity, or third-party story notifications.
+- **Storage and organization:** local-first media library, user-controlled backup/transfer, duplicate review, larger local collections, queueing, project handoff/resume, and transparent storage estimates. Never advertise unlimited free cloud storage; cloud sync must be optional, metered, and clearly costed.
+- **Healthy-use and accessibility:** focus schedules, quiet hours, captions, translation drafts, readable text, reduced motion, Tamil localization when supported, and optional learning prompts. No surveillance of unrelated apps, manipulative engagement loops, or shame-based streak loss.
+- **Trust and rights:** original-content checklist, music-license notes, permission/credit cards, AI disclosure, impersonation evidence packs, and explicit source/rights review before export. These are assistance and records, not legal clearance or platform endorsement.
+
+#### O2. Platform boundaries and implementation rules
+
+1. **VidGravity-only controls:** themes, app icon, wallpapers, overlays, one-time share, local story/replay records, notifications, and ephemeral-share policies apply only to VidGravity-owned surfaces and sessions.
+2. **OS handoff first:** accept user-shared links/files through Android Sharesheet, paste, and supported browser integration. Never auto-download, auto-post, scrape private feeds, or automate uploads without a documented authorized API and user confirmation.
+3. **No subscription circumvention:** never unlock Snapchat+, Snapchat Lens+, Instagram Plus, Facebook Plus, WhatsApp Plus, Meta One, or paid third-party assets; never impersonate their app UI or use credentials/cookies to access subscriber-only features.
+4. **Original effects before SDK integrations:** create VidGravity-owned effects first. Any Snap Camera Kit or other third-party SDK evaluation requires a separate licensing, compatibility, privacy, cost, distribution, and attribution review.
+5. **Capability matrix:** keep a dated platform/app-version matrix distinguishing supported OS share workflows, official APIs, licensed SDK features, local processing, and unsupported/private behaviors. Recheck official docs before each release.
+6. **AI and cost safety:** core utilities should remain useful without paid AI. Use local processing where practical, quotas and opt-in remote AI, clear progress/error states, and no false claims of unlimited generation.
+7. **Privacy by default:** private drafts, local-first metadata, minimum permissions, no contact uploads by default, visible expiry, delete controls, and clear export/share confirmation.
+
+#### O3. Acceptance criteria
+
+- User can customize VidGravity's appearance without changing another app.
+- A selected local/authorized video can be prepared for Status/Story/Reels/Shorts with preview, captions and platform-spec warnings; original remains unchanged.
+- One-Time Share cannot be opened without the intended session authorization; expiry/replay checks are tested; capture limitations are shown before sending.
+- AI features show whether remote processing is used, support cancel/reject, and enforce quota/failure behavior without fake success.
+- No feature claims to reveal private third-party story views, detect gestures inside other apps, unlock subscriptions, or guarantee social reach.
+- Tests cover permission denial, offline mode, expiry, invalid recipients, replay attempts, deletion, accessibility, dark/light themes, and unsupported-platform fallbacks.
+- Release notes distinguish **implemented**, **partial**, **planned**, and **blocked** capabilities; this catalogue alone is not evidence that features are shipped.
+
+#### O4. Current subscription landscape and research references
+
+As of 2026-10-13, official Snapchat support lists features such as custom themes/icons, chat wallpapers, generative backgrounds, AI creative tools, Story timestamps/rewatch/view notifications, Snapscore multiplier, and other subscriber features. Meta's official September 2026 Meta One announcement describes Instagram Plus, Facebook Plus, WhatsApp Plus and bundle plans, with availability and benefits varying by region/account. Use these as product research inputs, not as permission to access internal app data.
+
+- Snapchat+ feature list: https://help.snapchat.com/hc/en-us/articles/7121577610900-What-is-Snapchat
+- Snap subscription direction: https://newsroom.snap.com/checking-in-on-snapchat-plus?lang=en-GB
+- Meta One and app subscription plans: https://about.fb.com/news/2026/09/introducing-meta-one-subscription-service-more-features-ai/
+- Instagram creator/local-language tools: https://about.fb.com/news/2025/11/instagram-empowers-creators-to-go-global-with-local-voice-translations-and-fonts/
+- Facebook originality guidance: https://about.fb.com/news/2026/03/rewarding-original-creators-on-facebook/
+
+#### O5. Delivery order
+
+1. Stabilize Android build and prove the share receiver with CI, tests, and an APK artifact.
+2. Implement Universal Share Inbox as the entry point: share/paste URL or file, capability status, Save Link, Watch/Learn Later, Inspect, Add to Collection, and Open Source.
+3. Complete Library/queue persistence and safe player/share actions.
+4. Deliver Status/Story Studio, caption/translation drafts, social export checker, original creative effects, and thumbnail/cover tools.
+5. Add VidGravity One-Time Share only after threat model and security tests pass.
+6. Add optional AI creation and deeper creator analytics only after quotas, privacy disclosures, and failure handling are tested.
+
+
+### P. Master implementation tracker — all discussed features (baseline 2026-10-13)
+
+This is the delivery checklist for the complete VidGravity scope discussed across product, Android, creator, social companion, wellbeing, and deployment conversations. **Every item is in scope**, but must be delivered incrementally, tested, and marked with evidence. Listing a requirement does not mean it is already implemented.
+
+#### P1. Platform and reliability foundation
+- [ ] Green Android debug build and CI on the current PR head; archive APK only from a successful run.
+- [ ] Stable five-tab Android app shell: Home, Downloads, Library, Create, Settings; adaptive light/dark themes and accessible layouts.
+- [ ] Typed API boundaries, validated input/output, safe URL handling, no arbitrary shell-string execution, server-authoritative entitlements, atomic task state, actionable errors and diagnostics.
+- [ ] Download queue with truthful progress, cancel, retry, pause/resume where supported, duplicate-task handling, bounded concurrency, network-aware scheduling, and recovery after process/app restart.
+- [ ] Download to a temporary \`.part\` file; validate response/media metadata and size limits; compute SHA-256 where feasible; publish only after successful completion; preserve the original source.
+- [ ] Playback, seeking, audio/subtitle selection where available, orientation/fullscreen controls, robust player dismissal, and library actions (rename, delete, sort, search, collections).
+- [ ] Android 14+ foreground-service/notification behavior, permission denial, low storage, offline, process death and background restrictions covered by tests.
+- [ ] Regression, unit, API-contract, UI and security tests; release evidence for build, test report, APK hash and known limitations.
+
+#### P2. Universal Share Inbox and Watch/Learn Later
+- [ ] Receive user-selected URLs/files through Android Sharesheet and paste; validate scheme/host and reject local/private-network destinations where relevant.
+- [ ] Local-first inbox with deduplication, collections/tags, notes, save time, search, delete/undo and retention controls.
+- [ ] Watch Later and Learn Later queues; user-defined priority, reminders/quiet hours, read/watched state, progress/resume and quick return to source.
+- [ ] Inspect public media URLs, show supported/unsupported status and clear reasons, and offer authorized open-source fallback without implying every platform is downloadable.
+- [ ] Optional transcript/caption notes, chapter/highlight notes and user-created learning cards only when accessible from a legitimate source; no private-feed scraping.
+- [ ] Import/export of user-owned queue metadata with privacy controls and robust backup/restore.
+
+#### P3. Downloader, player and media library
+- [ ] URL capability detection and clear format/quality choices, including best available quality, audio-only where supported, size/codec/container details and storage estimate.
+- [ ] Batch queueing, per-item controls, retry/backoff, cancel, partial-file cleanup, checksum/integrity verification, network constraints and storage preflight.
+- [ ] Reliable local playback and library preview; fix all known play/close/action regressions and test on supported Android versions/devices.
+- [ ] Safe, user-initiated share/export, duplicate detection, collections, metadata editing, storage usage, cache cleanup and recoverable deletion where practical.
+- [ ] Respect platform terms, content rights, access controls and technical restrictions; do not bypass DRM or claim universal compatibility.
+
+#### P4. Creator Studio and editing
+- [ ] Story/Status Studio, Reels/Shorts editing presets, split/status video exporter, segment splitting with correct ordering and reassembly, aspect-ratio presets, safe margins and platform-aware export checks.
+- [ ] Trim, crop, rotate, speed, resize, smart crop/reframe, subject tracking where feasible, audio extraction, audio cleanup, volume normalization, text overlays, stickers, captions and transitions.
+- [ ] Story Card / status rendering and export; templates, thumbnail/cover lab, carousel maker, brand kit, asset collections and batch export.
+- [ ] DuoCam front/rear concurrent capture only on supported hardware; split-screen/PiP/reaction layouts; camera fallbacks, clear permission requests and thermal/performance checks.
+- [ ] Lens Lab with original effects, overlays and AR where supported; do not clone proprietary effects or imply licensed SDK access without approval.
+- [ ] Draft save/resume, non-destructive edits, undo/redo, autosave, export queue, progress, cancel, output validation and source preservation.
+
+#### P5. AI and creator intelligence
+- [ ] Prompt-to-edit copilot, hook/pacing coach, thumbnail guidance, creator experiment notebook, series planner and workflow recap.
+- [ ] Caption generation, speech-to-text, translation and optional dubbing for supported languages (including Tamil when model/service quality supports it), with editable output and quality disclosure.
+- [ ] Video chaptering, highlight suggestions, tutorial/screen-demo recording, recipe/workout/how-to cards and search within accessible transcripts.
+- [ ] Music fit and rights checklist, originality checklist, permission/credit card, accessibility quality gate, impersonation evidence pack and content reuse tracker.
+- [ ] Local-first processing where practical; remote AI is opt-in, quota-limited, cancellable, cost-visible and never falsely represented as successful. User reviews generated content before export.
+
+#### P6. Affordable social-app companion alternatives
+- [ ] VidGravity-only themes, wallpapers, icons where OS support allows, profile/story backgrounds, original stickers, avatars and original effects.
+- [ ] Status/story split and preparation, custom caption/translation drafts, compression, sticker/GIF creation, share packs, quiet/focus helpers and media organization.
+- [ ] VidGravity One-Time Share only after security threat model, recipient authorization, expiry/replay tests, and clear screen-recording/second-device capture limitations.
+- [ ] Social-ready export profiles for Snapchat, WhatsApp, Instagram, Facebook, YouTube Shorts and other tested targets; export validation is not a promise of reach or platform endorsement.
+- [ ] Manual/user-authorized analytics and experiments; no unsupported promises about private story viewers, rewatchers, streaks, Snapscore, hidden gestures, proprietary lenses, or subscriber-only features.
+- [ ] Platform compatibility monitor driven by official documentation and real tests; label each capability supported, limited, unsupported, or awaiting validation.
+
+#### P7. Wellbeing, learning, safety and accessibility
+- [ ] Focus, learn, habit, relax, challenge and Rescue modes; configurable usage reminders and healthy-use goals without shame-based streak loss.
+- [ ] Interactive learning prompts (GK, maths, puzzles and user interests) with adjustable difficulty, age-appropriate content and Tamil language support where verified.
+- [ ] Accessible captions, readable text, screen-reader labels, reduced motion, sufficient contrast, keyboard/switch-friendly actions where relevant, and 48–56 dp primary touch targets.
+- [ ] Youth-safe defaults, privacy-by-design, explicit permissions, no unnecessary contact upload, clear data controls and a documented child-safety review before youth-facing release.
+
+#### P8. Distribution, operations and release
+- [ ] Cloud/free-tier-first services with budgets and usage limits; no paid dependency is required for core local workflows.
+- [ ] Environment separation, health checks, logs that exclude sensitive media/credentials, deployment preflight, rollback instructions and dependency/security review.
+- [ ] Build artifacts are published only after CI succeeds; include version, commit, checksum, test summary and installation instructions.
+- [ ] Separate statuses for code complete, CI green, APK generated, device tested, service deployed, and production verified. Never collapse these into a single “done” label.
+
+#### P9. Delivery gates and status vocabulary
+
+Deliver in dependency order: **G0 build and CI stability → G1 download/task correctness → G2 player and library → G3 Share Inbox + Watch/Learn Later → G4 Story/Status Studio and core editing → G5 creator/AI toolkit → G6 social companion alternatives and secure One-Time Share → G7 wellbeing/accessibility polish → G8 release hardening and rollout.**
+
+Use only these statuses in tracking: **Planned**, **In progress**, **Implemented—untested**, **CI verified**, **Device verified**, **Deployed**, **Production verified**, or **Blocked**. Every status above “Implemented—untested” must link to its test/build/device/deployment evidence. Regressions in a higher-priority gate pause feature expansion until the gate is green.

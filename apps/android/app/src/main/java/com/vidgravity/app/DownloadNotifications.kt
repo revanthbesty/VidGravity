@@ -67,6 +67,31 @@ object DownloadNotifications {
         } else ForegroundInfo(BASE_ID + (workId.hashCode() and 0x3ff), notification)
     }
 
+
+    /** Non-foreground progress notification used if Android denies foreground promotion. */
+    fun progress(context: Context, workId: UUID, title: String, message: String, percent: Int, paused: Boolean = false) {
+        ensureChannel(context)
+        try {
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.notify(BASE_ID + (workId.hashCode() and 0x3ff),
+                NotificationCompat.Builder(context, CHANNEL)
+                    .setSmallIcon(android.R.drawable.stat_sys_download)
+                    .setContentTitle("VidGravity · " + title)
+                    .setContentText(if (paused) "Paused" else message.take(160))
+                    .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+                    .setPriority(NotificationCompat.PRIORITY_LOW)
+                    .setProgress(100, percent.coerceIn(0, 100), percent <= 0)
+                    .setOngoing(!paused)
+                    .setOnlyAlertOnce(true)
+                    .setContentIntent(PendingIntent.getActivity(context, workId.hashCode(),
+                        Intent(context, MainActivity::class.java),
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+                    .build())
+        } catch (_: SecurityException) {
+            // Notification permission is user-controlled; don't fail the transfer for it.
+        }
+    }
+
     fun terminal(context: Context, title: String, message: String, success: Boolean) {
         ensureChannel(context)
         try {
