@@ -1328,6 +1328,19 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                 Text("Invert visible selection")
             }
             OutlinedButton(
+                enabled = visibleMedia.isNotEmpty(),
+                onClick = {
+                    val names = visibleMedia.joinToString("\n") { it.displayName }
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(names))
+                    android.widget.Toast.makeText(context, "Copied " + visibleMedia.size + " visible filename(s).", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
+            ) {
+                Icon(Icons.Default.ContentCopy, null)
+                Spacer(Modifier.width(6.dp))
+                Text("Copy visible filenames (" + visibleMedia.size + ")")
+            }
+            OutlinedButton(
                 enabled = visibleMedia.any { it.uri.toString() in selectedUris },
                 onClick = {
                     val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
