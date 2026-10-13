@@ -586,6 +586,29 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 "Progress" -> matchedWorks.sortedByDescending { work ->
                     work.progress.getInt("progress", 0).coerceIn(0, 100)
                 }
+                "Status" -> matchedWorks.sortedWith(
+                    compareBy<WorkInfo> { it.state.name }.thenBy { work ->
+                        (work.outputData.getString("display_name")
+                            ?: work.outputData.getString("filename")
+                            ?: work.progress.getString("media_title")
+                            ?: "Media download").lowercase()
+                    }
+                )
+                "Failed first" -> matchedWorks.sortedWith(
+                    compareBy<WorkInfo> {
+                        when (it.state) {
+                            WorkInfo.State.FAILED, WorkInfo.State.CANCELLED -> 0
+                            WorkInfo.State.RUNNING, WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> 1
+                            WorkInfo.State.SUCCEEDED -> 2
+                            else -> 3
+                        }
+                    }.thenBy { work ->
+                        (work.outputData.getString("display_name")
+                            ?: work.outputData.getString("filename")
+                            ?: work.progress.getString("media_title")
+                            ?: "Media download").lowercase()
+                    }
+                )
                 else -> matchedWorks
             }
             val retryableFilteredWorks = filteredWorks.filter { work ->
@@ -863,7 +886,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             )
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(listOf("Newest", "Name A–Z", "Progress")) { sort ->
+                items(listOf("Newest", "Name A–Z", "Progress", "Status", "Failed first")) { sort ->
                     FilterChip(
                         selected = downloadSort == sort,
                         onClick = { downloadSort = sort },
@@ -874,10 +897,11 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("${filteredWorks.size} matching download(s)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 TextButton(
-                    enabled = downloadSearch.isNotBlank() || downloadFilter != "All",
+                    enabled = downloadSearch.isNotBlank() || downloadFilter != "All" || downloadSort != "Newest",
                     onClick = {
                         downloadSearch = ""
                         downloadFilter = "All"
+                        downloadSort = "Newest"
                     }
                 ) {
                     Icon(Icons.Default.Close, contentDescription = null)
