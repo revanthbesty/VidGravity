@@ -553,6 +553,58 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 "Failed" -> failedWorks
                 else -> works
             }
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Download overview", fontWeight = FontWeight.SemiBold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column {
+                            Text("${activeWorks.size}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text("Active", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Column {
+                            Text("${completedWorks.size}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text("Completed", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Column {
+                            Text("${failedWorks.size}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text("Failed", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            OutlinedButton(
+                onClick = {
+                    val report = buildString {
+                        appendLine("VidGravity download report")
+                        appendLine("Filter: $downloadFilter")
+                        appendLine("Listed: ${filteredWorks.size} | Active: ${activeWorks.size} | Completed: ${completedWorks.size} | Failed/cancelled: ${failedWorks.size}")
+                        appendLine()
+                        filteredWorks.forEachIndexed { index, work ->
+                            val title = work.outputData.getString("display_name")
+                                ?: work.progress.getString("media_title")
+                                ?: work.progress.getString("title")
+                                ?: "Media download"
+                            val source = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                ?: work.progress.getString("media_url")
+                                ?: "Not saved"
+                            val percent = work.progress.getInt("progress", -1)
+                            val error = work.outputData.getString("error")
+                            appendLine("${index + 1}. $title")
+                            appendLine("   Status: ${work.state.name}${if (percent >= 0) " | Progress: $percent%" else ""}")
+                            appendLine("   Source: $source")
+                            if (!error.isNullOrBlank()) appendLine("   Error: $error")
+                        }
+                    }
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
+                    android.widget.Toast.makeText(context, "Download report copied (${filteredWorks.size} item(s)).", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                enabled = filteredWorks.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.ContentCopy, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Copy download report (${filteredWorks.size})")
+            }
             if (failedWorks.isNotEmpty()) {
                 OutlinedButton(
                     onClick = {
