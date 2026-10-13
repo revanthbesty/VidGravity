@@ -98,6 +98,20 @@ Use UI -> domain/application -> services -> repositories/API; no direct HTTP cal
 - Receipts/argument finder, if implemented, must search only user-selected local media/transcripts and present timestamped evidence with uncertainty, never infer facts unsupported by source.
 - Hover PiP only through supported Android PiP or explicit overlay permission; no hidden overlays. Message Scissors works only on user-provided/authorized media and shares via standard intents.
 
+### L. Gen Z, students, and younger users (new priority)
+Design this as an age-aware experience within VidGravity, not a separate product. Make the core downloader reliable first, then add small, independently testable learning and creativity workflows.
+- **Age-appropriate onboarding:** offer simple experience choices such as Creator, Student, or Everyday use; do not require date of birth or collect a child’s identity just to personalize the UI. Any age gate required by law or distribution policy must be handled transparently and minimally.
+- **Study mode:** turn user-selected, authorized lecture recordings or notes into timestamped summaries, flashcards, revision questions, vocabulary lists, and exportable study notes. Always link generated notes back to source timestamps; flag uncertain transcription and never invent facts.
+- **Micro-learning:** optional 5–15 minute sessions, spaced-repetition review, progress indicators, and locally stored goals. No streak-loss punishment, shame messages, or pressure to keep using the app.
+- **Creator starter kit:** beginner-friendly templates for captions, vertical edits, thumbnails/story cards, subtitles, sticker/GIF creation, and audio cleanup. Provide previews, undo, clear export settings, and original-media preservation.
+- **Safe social sharing:** default to private/local drafts; explicit preview and confirmation before sharing; show destination and included media; use the OS share sheet; no public profile, contact upload, location sharing, or auto-posting by default.
+- **Younger-user privacy and safety:** collect the minimum data; keep learning history and recommendations local by default where practical; no targeted ads, behavioral profiling, hidden tracking, or precise-location features aimed at children. Remote AI must be optional, clearly disclosed, consent-based, and governed by age-appropriate policy and applicable law. Provide easy clear-history/delete controls.
+- **Healthy-use tools:** optional focus timer, study breaks, bedtime quiet hours, and user-controlled reminders. No invasive usage monitoring or claims to detect activity in other apps.
+- **Accessibility and inclusion:** plain-language labels, optional Tamil and other localized UI/content when supported, adjustable text size, captions, reduced-motion option, keyboard/screen-reader support, and calm visual mode alongside expressive themes.
+- **Trustworthy AI:** label generated text/media suggestions as AI-assisted; allow edit/reject; never fabricate quotes, answer keys, citations, or a person's identity. Explain when content is processed on-device versus sent to a remote service.
+- **Child-safety release gate:** before marketing or enabling child-directed experiences, review applicable child privacy, consent, advertising, age-rating, and app-store requirements for target markets. Until that review is complete, do not claim the app is certified or compliant for children.
+- **Acceptance tests:** test age-aware onboarding without unnecessary personal data, default-private exports, cancel/delete history, no auto-share, offline study basics, accessibility settings, and AI failure/uncertainty states. Mark each capability as implemented only after real behavior and tests exist.
+
 ## Delivery phases / acceptance gates
 1. Build health and contract audit: inspect actual repo state, branches, workflows, duplicate frontend logic, tests and release blockers.
 2. Download reliability: atomic state machine, worker lifecycle, integrity tests, progress metrics, pause/resume semantics and regression tests.
@@ -107,7 +121,8 @@ Use UI -> domain/application -> services -> repositories/API; no direct HTTP cal
 6. StudyTok and creative tools: small independently tested processors, capability detection, graceful unsupported states.
 7. Vault, ephemeral shares and P2P: threat model, security tests, key/session lifecycle and opt-in permissions.
 8. Settings, automation, accessibility and retention.
-9. Release validation: unit/integration/UI tests, Android build, install/device smoke test, APK artifact, web/Worker deployment checks and rollback notes.
+9. Gen Z/student/youth UX: privacy-first profiles, StudyTok review flows, creator templates, localization and healthy-use controls; complete child-safety/legal review before any child-directed marketing.
+10. Release validation: unit/integration/UI tests, Android build, install/device smoke test, APK artifact, web/Worker deployment checks and rollback notes.
 
 ## Definition of done for every feature
 - User story and capability constraints documented.
