@@ -656,6 +656,48 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 Text("Copy download report (${filteredWorks.size})")
             }
             OutlinedButton(
+                onClick = {
+                    val report = buildString {
+                        appendLine("VidGravity download report")
+                        appendLine("Filter: $downloadFilter")
+                        appendLine("Listed: ${filteredWorks.size} | Active: ${activeWorks.size} | Completed: ${completedWorks.size} | Failed/cancelled: ${failedWorks.size}")
+                        appendLine()
+                        filteredWorks.forEachIndexed { index, work ->
+                            val title = work.outputData.getString("display_name")
+                                ?: work.progress.getString("media_title")
+                                ?: work.progress.getString("title")
+                                ?: "Media download"
+                            val source = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                ?: work.progress.getString("media_url")
+                                ?: "Not saved"
+                            val percent = work.progress.getInt("progress", -1)
+                            val error = work.outputData.getString("error")
+                            appendLine("${index + 1}. $title")
+                            appendLine("Status: ${work.state.name}${if (percent >= 0) " | Progress: $percent%" else ""}")
+                            appendLine("Source: $source")
+                            if (!error.isNullOrBlank()) appendLine("Error: $error")
+                            appendLine()
+                        }
+                    }
+                    runCatching {
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_SUBJECT, "VidGravity download report")
+                            putExtra(Intent.EXTRA_TEXT, report)
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share download report"))
+                    }.onFailure {
+                        android.widget.Toast.makeText(context, "Could not open the sharing menu.", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                },
+                enabled = filteredWorks.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.Share, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Share report (${filteredWorks.size})")
+            }
+            OutlinedButton(
                 onClick = { showClearHistoryConfirm = true },
                 enabled = completedWorks.isNotEmpty() || failedWorks.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
