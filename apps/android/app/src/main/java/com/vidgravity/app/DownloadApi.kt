@@ -163,8 +163,10 @@ object DownloadApi {
             val total = if (append && contentRange != null) {
                 contentRange.substringAfterLast('/').toLongOrNull()
             } else connection.getHeaderFieldLong("Content-Length", -1L).takeIf { it >= 0 }
-            val expectedHash = connection.getHeaderField("X-Content-SHA256")
-                ?.takeIf { it.matches(Regex("[a-fA-F0-9]{64}")) }
+            val rawExpectedHash = connection.getHeaderField("X-Content-SHA256")?.trim()
+            val expectedHash = rawExpectedHash?.takeIf { it.matches(Regex("[a-fA-F0-9]{64}")) }
+            // A malformed checksum must not be treated as a trusted checksum. We still
+            // calculate SHA-256 locally and can safely publish when no server digest exists.
             destination.parentFile?.mkdirs()
             val digest = MessageDigest.getInstance("SHA-256")
             if (append && existingOffset > 0L) {
@@ -199,7 +201,13 @@ object DownloadApi {
                 }
             }
             onProgress(received, total)
+            if (total != null && total > 0L && received != total) {
+                throw java.io.EOFException("Transfer incomplete: received $received of $total bytes. Retry the download.")
+            }
             val calculatedHash = digest.digest().joinToString("") { "%02x".format(it) }
+            if (expectedHash != null && !calculatedHash.equals(expectedHash, ignoreCase = true)) {
+                throw java.io.IOException("SHA-256 verification failed: downloaded bytes do not match the companion checksum.")
+            }
             return TransferReceipt(received, total, expectedHash, calculatedHash)
         } finally { connection.disconnect() }
     }
