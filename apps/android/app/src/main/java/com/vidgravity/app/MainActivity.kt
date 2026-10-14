@@ -1304,10 +1304,15 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboard = LocalClipboardManager.current
     var media by remember { mutableStateOf(emptyList<LibraryMedia>()) }
-    var filter by remember { mutableStateOf("All Media") }
-    var sizeFilter by remember { mutableStateOf("Any size") }
-    var sortBy by remember { mutableStateOf("Newest") }
-    var searchQuery by remember { mutableStateOf(initialSearch) }
+    val libraryUiPrefs = remember(context) { context.getSharedPreferences("vg_library_ui", android.content.Context.MODE_PRIVATE) }
+    var filter by remember { mutableStateOf(libraryUiPrefs.getString("filter", "All Media") ?: "All Media") }
+    var sizeFilter by remember { mutableStateOf(libraryUiPrefs.getString("size_filter", "Any size") ?: "Any size") }
+    var sortBy by remember { mutableStateOf(libraryUiPrefs.getString("sort_by", "Newest") ?: "Newest") }
+    var searchQuery by remember { mutableStateOf(initialSearch.ifBlank { libraryUiPrefs.getString("search_query", "") ?: "" }) }
+    LaunchedEffect(filter, sizeFilter, sortBy, searchQuery) {
+        libraryUiPrefs.edit().putString("filter", filter).putString("size_filter", sizeFilter)
+            .putString("sort_by", sortBy).putString("search_query", searchQuery).apply()
+    }
     LaunchedEffect(initialSearch) { if (initialSearch.isNotBlank()) searchQuery = initialSearch }
     var renameTarget by remember { mutableStateOf<LibraryMedia?>(null) }
     var renameText by remember { mutableStateOf("") }
@@ -1529,11 +1534,12 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         if (visibleMedia.isNotEmpty()) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(onClick = {
-                    val allSelected = visibleMedia.all { it.uri.toString() in selectedUris }
-                    selectedUris = if (allSelected) emptySet() else visibleMedia.map { it.uri.toString() }.toSet()
+                    val visibleUris = visibleMedia.map { it.uri.toString() }.toSet()
+                    val allVisibleSelected = visibleUris.isNotEmpty() && visibleUris.all { it in selectedUris }
+                    selectedUris = if (allVisibleSelected) selectedUris - visibleUris else selectedUris + visibleUris
                 }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                     Icon(Icons.Default.Checklist, null); Spacer(Modifier.width(6.dp))
-                    Text(if (visibleMedia.all { it.uri.toString() in selectedUris }) "Clear selection" else "Select all")
+                    Text(if (visibleMedia.isNotEmpty() && visibleMedia.all { it.uri.toString() in selectedUris }) "Deselect visible" else "Select visible")
                 }
                 Button(enabled = visibleMedia.any { it.uri.toString() in selectedUris }, onClick = {
                     val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
@@ -1566,6 +1572,8 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 Spacer(Modifier.width(8.dp))
                 Text(if (showBulkActions) "Hide selection tools" else "Selection tools")
             }
+            Text("${selectedUris.size} item(s) selected across your library", fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (showBulkActions) {
                 val chosenMedia = visibleMedia.filter { it.uri.toString() in selectedUris }
                 val allChosenAreFavorites = chosenMedia.isNotEmpty() && chosenMedia.all { it.isFavorite }
