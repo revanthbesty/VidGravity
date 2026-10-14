@@ -256,4 +256,8 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn("var storageRefreshError by remember { mutableStateOf<String?>(null) }",settings)
   self.assertIn('storageRefreshError = "Could not refresh library size. Check storage access and try again."',settings)
   self.assertIn("storageRefreshError?.let { message ->",settings)
+
+ def test_quality_preset_selection_confirms_saved_choice(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Toast.makeText(context, "Default quality set to ${preset.first}.", android.widget.Toast.LENGTH_SHORT).show()',main)
 if __name__=="__main__":unittest.main(verbosity=2)
