@@ -187,4 +187,8 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   screen=main[start:end]
   self.assertIn("verticalScroll(rememberScrollState())",screen)
   self.assertIn("rows.forEach { row ->",screen)
+ def test_remembered_quality_guard_matches_best_available_label(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('choice.first != "Best available"',main)
+  self.assertNotIn('choice.first != "Highest available"',main)
 if __name__=="__main__":unittest.main(verbosity=2)
