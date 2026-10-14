@@ -53,6 +53,28 @@ class SocialExportPresetTests(unittest.TestCase):
                 validate_export_request("animated-sticker","fit-letterbox",trim_seconds=duration,output_format="webp")
         with self.assertRaises(ExportError):
             validate_export_request("square","fit-letterbox",trim_seconds="5",output_format="webp")
+    def test_audio_story_uses_waveform_visualizer_and_preserves_source(self):
+        from media_export import export_media_file
+        with tempfile.TemporaryDirectory() as directory:
+            source=Path(directory)/"original.mp3"
+            destination=Path(directory)/"story.mp4"
+            original=b"immutable-original-audio"
+            source.write_bytes(original)
+            def fake_ffmpeg(args, **kwargs):
+                Path(args[-1]).write_bytes(b"fake-mp4")
+                return subprocess.CompletedProcess(args, 0, b"", b"")
+            request={"preset":"whatsapp-status","mode":"audio-story","trim_seconds":"12","start_seconds":"3","output_format":"mp4"}
+            with patch("media_export.shutil.which", return_value="/usr/bin/ffmpeg"), patch("media_export.subprocess.run", side_effect=fake_ffmpeg) as run:
+                result=export_media_file(source,destination,request)
+            args=run.call_args.args[0]
+            self.assertIn("showwaves=s=900x420",args)
+            self.assertIn("lavfi",args)
+            self.assertIn("-ss",args)
+            self.assertIn("1:a:0",args)
+            self.assertEqual(result["mime_type"],"video/mp4")
+            self.assertEqual(source.read_bytes(),original)
+            self.assertEqual(destination.read_bytes(),b"fake-mp4")
+
     def test_webp_export_uses_animated_encoder_and_preserves_source(self):
         from media_export import export_media_file
         with tempfile.TemporaryDirectory() as directory:
