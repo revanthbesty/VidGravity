@@ -23,7 +23,8 @@ class CreatorDeskBatchTests(unittest.TestCase):
  def test_shell_assets_and_cache_are_synchronized(self):
   for p in ("index.html","styles.css","sw.js"):
    with self.subTest(p=p): self.assertEqual((ROOT/p).read_bytes(),(ROOT/"android-web"/p).read_bytes())
-  self.assertEqual((ROOT/"index.html").read_bytes(),(ROOT/"site"/"index.html").read_bytes())
+  for p in ("index.html","site/index.html","android-web/index.html"):
+   with self.subTest(shell=p): self.assertIn("creator-desk.css?v=cd1",(ROOT/p).read_text(encoding="utf-8"))
   self.assertEqual((ROOT/"styles.css").read_bytes(),(ROOT/"site"/"styles.css").read_bytes())
   self.assertEqual((ROOT/"sw.js").read_bytes(),(ROOT/"site"/"sw.js").read_bytes())
 if __name__=="__main__": unittest.main(verbosity=2)
