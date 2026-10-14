@@ -109,7 +109,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                 }
             }
         ) { padding ->
-            Column(Modifier.fillMaxSize().padding(padding)) {
+            Box(Modifier.fillMaxSize().padding(padding)) {
                 if (playingMedia != null) {
                     PlayerScreen(media = playingMedia!!, onBack = { playingMedia = null })
                 } else if (showStudyTok) {
@@ -532,8 +532,14 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                     shape = RoundedCornerShape(18.dp),
                                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                                     modifier = Modifier.width(220.dp).heightIn(min = 112.dp).clickable {
-                                        if (url.isBlank()) notify("Paste a media URL first, then choose " + action + ".")
-                                        else if (action.contains("Sound")) {
+                                        if (action.contains("StudyTok")) {
+                                            openStudyTok()
+                                        } else if (action.contains("Status Clip")) {
+                                            openCreate()
+                                            notify("Choose a local video in Create Studio, then use WhatsApp Status tools.")
+                                        } else if (url.isBlank()) {
+                                            notify("Paste a media URL first, then choose " + action + ".")
+                                        } else if (action.contains("Sound")) {
                                             scope.launch {
                                                 try {
                                                     val result = withContext(Dispatchers.IO) { DownloadApi.analyzeSource(url.trim()) }
@@ -548,11 +554,6 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                                     notify("Could not prepare audio: " + (failure.message ?: "Please try again."))
                                                 }
                                             }
-                                        } else if (action.contains("Status Clip")) {
-                                            openCreate()
-                                            notify("In Create Studio, choose a local video and select a 30, 60, 90, or 120-second clip target.")
-                                        } else if (action.contains("StudyTok")) {
-                                            openStudyTok()
                                         } else inspect()
                                     }
                                 ) {
@@ -2745,8 +2746,27 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             Text("Open POV camera")
         }
         Text("More creator tools", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        InfoCard("Animated stickers", "Next pipeline batch: render short source clips as animated WebP with size and duration limits.", Icons.Default.AutoAwesome, Modifier.fillMaxWidth())
-        InfoCard("WhatsApp Status segments", "Next pipeline batch: create multiple bounded segments and verify every output before sharing.", Icons.Default.ContentCut, Modifier.fillMaxWidth())
+        OutlinedButton(
+            onClick = { picker.launch(arrayOf("video/*")) },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+        ) {
+            Icon(Icons.Default.VideoLibrary, null)
+            Spacer(Modifier.width(8.dp))
+            Text("Choose video for animated sticker")
+        }
+        OutlinedButton(
+            onClick = { picker.launch(arrayOf("video/*")) },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+        ) {
+            Icon(Icons.Default.ContentCut, null)
+            Spacer(Modifier.width(8.dp))
+            Text("Choose video for WhatsApp Status")
+        }
+        Text(
+            "After selecting a video, use the export and split controls above. These actions open the system media picker; they do not require a download URL.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp
+        )
     }
 }
 
