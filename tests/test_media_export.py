@@ -1,5 +1,6 @@
 import unittest
 import tempfile
+import shutil
 from unittest.mock import patch
 import subprocess
 from pathlib import Path
@@ -137,5 +138,32 @@ class SocialExportPresetTests(unittest.TestCase):
             self.assertEqual(_clean_overlay_text("My Story"+chr(10)),"My Story")
             self.assertEqual(source.read_bytes(),b"immutable-original")
             self.assertEqual(list(Path(directory).glob("vg-*.txt")),[])
+
+    @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg integration runtime not installed")
+    def test_story_overlays_render_with_real_ffmpeg(self):
+        from media_export import export_media_file
+        with tempfile.TemporaryDirectory() as directory:
+            source=Path(directory)/"source.mp4"
+            destination=Path(directory)/"story.mp4"
+            subprocess.run([
+                "ffmpeg","-hide_banner","-loglevel","error","-y",
+                "-f","lavfi","-i","color=c=navy:s=320x240:r=24:d=2",
+                "-f","lavfi","-i","anullsrc=channel_layout=stereo:sample_rate=44100",
+                "-t","2","-c:v","libx264","-pix_fmt","yuv420p","-c:a","aac","-shortest",str(source)
+            ],check=True,capture_output=True)
+            original=source.read_bytes()
+            result=export_media_file(source,destination,{
+                "preset":"square","mode":"fit-letterbox","trim_seconds":"1.5",
+                "output_format":"mp4","title":"VidGravity Story","artist":"Caption Test"
+            })
+            self.assertGreater(destination.stat().st_size,0)
+            self.assertTrue(result["title_overlay"])
+            self.assertTrue(result["artist_overlay"])
+            self.assertEqual(source.read_bytes(),original)
+            probe=subprocess.run([
+                "ffprobe","-v","error","-show_entries","stream=codec_type",
+                "-of","csv=p=0",str(destination)
+            ],check=True,capture_output=True,text=True)
+            self.assertIn("video",probe.stdout)
 
 if __name__=="__main__": unittest.main()
