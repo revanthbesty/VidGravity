@@ -12,4 +12,26 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   p=ANDROID/"app/src/main/java/com/vidgravity/app";self.assertIn("X-Content-SHA256",(p/"DownloadApi.kt").read_text());self.assertIn("MediaLibraryIndexer.publish",(p/"DownloadWorker.kt").read_text())
  def test_contract_is_exported(self):
   self.assertIn("AndroidShareIntakeRequest",(ROOT/"packages/contracts/src/android-share.ts").read_text());self.assertIn('export * from "./android-share";',(ROOT/"packages/contracts/src/index.ts").read_text())
+ def test_all_screen_quality_regressions(self):
+  app=ANDROID/"app/src/main/java/com/vidgravity/app"
+  main=(app/"MainActivity.kt").read_text()
+  player=(app/"PlayerScreen.kt").read_text()
+  swipe=(app/"SwipeFeedScreen.kt").read_text()
+  study=(app/"StudyTokScreen.kt").read_text()
+  picker=(app/"FormatPickerBottomSheet.kt").read_text()
+  manifest=ET.parse(ANDROID/"app/src/main/AndroidManifest.xml").getroot()
+  ns="{http://schemas.android.com/apk/res/android}"
+  activity=next(x for x in manifest.find("application").findall("activity") if x.attrib.get(ns+"name")==".MainActivity")
+  self.assertIn("fun DownloadsContent",main);self.assertIn("fun LibraryContent",main)
+  self.assertGreaterEqual(main.count("verticalScroll(rememberScrollState())"),4)
+  self.assertIn("onCreateWithMedia",main)
+  self.assertNotIn("Sticker renderer integration is not available yet",main)
+  self.assertNotIn("30-second status splitting is not available yet",main)
+  self.assertIn("vg_player_progress",player)
+  self.assertIn("STATE_ENDED",player)
+  self.assertIn("clips.filter { it.isFavorite }",swipe)
+  self.assertIn("CreateDocument(\"text/csv\")",study)
+  self.assertIn("verticalScroll(rememberScrollState())",study)
+  self.assertIn("return ScrollView(context)",picker)
+  self.assertIn("orientation|screenSize|keyboardHidden",activity.attrib.get(ns+"configChanges",""))
 if __name__=="__main__":unittest.main(verbosity=2)

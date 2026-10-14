@@ -42,7 +42,7 @@ fun SwipeFeedScreen(
     val pager = rememberPagerState(pageCount = { maxOf(1, clips.size) })
     var muted by remember { mutableStateOf(false) }
     var speedIndex by remember { mutableIntStateOf(0) }
-    var liked by remember { mutableStateOf(setOf<String>()) }
+    var liked by remember(clips) { mutableStateOf(clips.filter { it.isFavorite }.map { it.uri.toString() }.toSet()) }
     val speeds = listOf(1f, 1.5f, 2f)
     val players = remember {
         List(2) { slot ->
@@ -119,7 +119,7 @@ fun SwipeFeedScreen(
                             onFavorite(mediaItem, next)
                         }) { Icon(Icons.Default.Favorite, "Favorite", tint = if (mediaItem.uri.toString() in liked || mediaItem.isFavorite) Color(0xFFFF6688) else Color.White) }
                         FilledTonalIconButton(onClick = { onMakeSticker(mediaItem) }) { Icon(Icons.Default.AutoAwesome, "Make sticker") }
-                        FilledTonalIconButton(onClick = { onStatusSplit(mediaItem) }) { Text("30s", style = MaterialTheme.typography.labelSmall) }
+                        FilledTonalIconButton(onClick = { onStatusSplit(mediaItem) }) { Text("Split", style = MaterialTheme.typography.labelSmall) }
                         FilledTonalIconButton(onClick = {
                             runCatching {
                                 val send = Intent(Intent.ACTION_SEND).apply {

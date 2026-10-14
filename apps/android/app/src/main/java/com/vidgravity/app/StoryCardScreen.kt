@@ -110,7 +110,8 @@ fun StoryCardScreen(
         )
         Text("Start point: ${start.roundToInt()}s", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Slider(value = start, onValueChange = { start = it.coerceIn(0f, (duration - length).coerceAtLeast(0f)) },
-            valueRange = 0f..(duration - length).coerceAtLeast(0f), modifier = Modifier.heightIn(min = 48.dp))
+            valueRange = 0f..(duration - length).coerceAtLeast(0f), enabled = !isRendering,
+            modifier = Modifier.heightIn(min = 48.dp))
         Text(
             if (length > 90f) "This clip is longer than WhatsApp's documented 90-second Status limit."
             else if (durationKnown) "Source duration: ${duration.roundToInt()}s"
@@ -120,6 +121,11 @@ fun StoryCardScreen(
         )
         OutlinedTextField(value = title, onValueChange = { title = it.take(100) }, label = { Text("Track / story title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(value = artist, onValueChange = { artist = it.take(100) }, label = { Text("Artist / caption") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        Text(
+            "Title and caption are preview labels; the current export renders the media and framing, not text overlays.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall
+        )
         if (media.mimeType.startsWith("audio/")) {
             FilterChip(
                 selected = layout == "Audio Visualizer",

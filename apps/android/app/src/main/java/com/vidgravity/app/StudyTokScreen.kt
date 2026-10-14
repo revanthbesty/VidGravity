@@ -1,6 +1,8 @@
 package com.vidgravity.app
 
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -25,6 +27,25 @@ fun StudyTokScreen(onBack: () -> Unit, notify: (String) -> Unit) {
     var transcript by remember { mutableStateOf("") }
     var cards by remember { mutableStateOf(emptyList<StudyCard>()) }
     var title by remember { mutableStateOf("My Study Pack") }
+    var practiceMode by remember { mutableStateOf(false) }
+    var practiceIndex by remember { mutableIntStateOf(0) }
+    var practiceQueue by remember { mutableStateOf(emptyList<Int>()) }
+    var showAnswer by remember { mutableStateOf(false) }
+    var knownCards by remember { mutableStateOf(setOf<Int>()) }
+    var pendingCsv by remember { mutableStateOf<String?>(null) }
+    val saveCsvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        val csv = pendingCsv
+        pendingCsv = null
+        if (uri == null || csv == null) {
+            notify("CSV export cancelled.")
+        } else {
+            runCatching {
+                context.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter(Charsets.UTF_8)?.use { it.write(csv) }
+                    ?: throw IllegalStateException("Could not open the selected destination.")
+            }.onSuccess { notify("StudyTok CSV saved successfully.") }
+                .onFailure { notify("Could not save CSV: ${it.message ?: "try another destination"}") }
+        }
+    }
 
     fun buildCards() {
         val sentences = transcript
@@ -62,14 +83,10 @@ fun StudyTokScreen(onBack: () -> Unit, notify: (String) -> Unit) {
                 append(fields.joinToString(",")).append("\r\n")
             }
         }
-        runCatching {
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/csv"
-                putExtra(Intent.EXTRA_SUBJECT, title)
-                putExtra(Intent.EXTRA_TEXT, csv)
-            }
-            context.startActivity(Intent.createChooser(intent, "Export StudyTok flashcards"))
-        }.onFailure { notify("Could not open sharing: ${it.message ?: "try again"}") }
+        val safeName = title.trim().replace(Regex("[^A-Za-z0-9._ -]"), "_")
+            .take(70).trim().ifBlank { "VidGravity StudyTok" }
+        pendingCsv = csv
+        saveCsvLauncher.launch("${safeName}.csv")
     }
 
     Column(
@@ -111,20 +128,82 @@ fun StudyTokScreen(onBack: () -> Unit, notify: (String) -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${cards.size} flashcards", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 OutlinedButton(onClick = { shareCards() }) {
-                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Export CSV")
+                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Save CSV")
                 }
             }
-            cards.forEachIndexed { index, card ->
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("CARD ${index + 1}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
-                        Text(card.question, fontWeight = FontWeight.SemiBold)
-                        HorizontalDivider()
-                        Text(card.answer, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (!practiceMode) {
+                Button(onClick = {
+                    practiceMode = true
+                    practiceIndex = 0
+                    practiceQueue = cards.indices.toList()
+                    showAnswer = false
+                    knownCards = emptySet()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) {
+                    Text("Start flashcard practice")
+                }
+                cards.forEachIndexed { index, card ->
+                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("CARD ${index + 1}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                            Text(card.question, fontWeight = FontWeight.SemiBold)
+                            HorizontalDivider()
+                            Text(card.answer, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
+            } else {
+                val finished = practiceIndex >= practiceQueue.size
+                if (finished) {
+                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Practice complete", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text("You marked ${knownCards.size} of ${cards.size} original cards as known.")
+                            Button(onClick = {
+                                practiceIndex = 0
+                                practiceQueue = cards.indices.toList()
+                                showAnswer = false
+                                knownCards = emptySet()
+                            }, modifier = Modifier.fillMaxWidth()) { Text("Practice again") }
+                            OutlinedButton(onClick = { practiceMode = false }, modifier = Modifier.fillMaxWidth()) { Text("Back to all cards") }
+                        }
+                    }
+                } else {
+                    val currentCardIndex = practiceQueue[practiceIndex]
+                    val card = cards[currentCardIndex]
+                    Text("CARD ${practiceIndex + 1} OF ${practiceQueue.size} · ${knownCards.size} KNOWN",
+                        color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
+                    LinearProgressIndicator(progress = { (practiceIndex.toFloat() / practiceQueue.size.coerceAtLeast(1)).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                    Card(Modifier.fillMaxWidth().heightIn(min = 220.dp), shape = RoundedCornerShape(20.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Text("QUESTION", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                            Text(card.question, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                            if (showAnswer) {
+                                HorizontalDivider()
+                                Text("ANSWER", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                                Text(card.answer, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else {
+                                OutlinedButton(onClick = { showAnswer = true }, modifier = Modifier.fillMaxWidth()) { Text("Reveal answer") }
+                            }
+                        }
+                    }
+                    if (showAnswer) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedButton(onClick = {
+                                practiceQueue = practiceQueue + currentCardIndex
+                                practiceIndex++
+                                showAnswer = false
+                            }, modifier = Modifier.weight(1f).heightIn(min = 50.dp)) { Text("Review again") }
+                            Button(onClick = {
+                                knownCards = knownCards + currentCardIndex
+                                practiceIndex++
+                                showAnswer = false
+                            }, modifier = Modifier.weight(1f).heightIn(min = 50.dp)) { Text("I knew it") }
+                        }
+                    }
+                    TextButton(onClick = { practiceMode = false; showAnswer = false }, modifier = Modifier.fillMaxWidth()) { Text("Exit practice") }
+                }
             }
-            OutlinedButton(onClick = { cards = emptyList() }, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = { cards = emptyList(); practiceMode = false; knownCards = emptySet() }, modifier = Modifier.fillMaxWidth()) {
                 Text("Clear study pack")
             }
         }

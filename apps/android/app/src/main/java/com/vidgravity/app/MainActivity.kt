@@ -60,6 +60,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     var selected by remember { mutableStateOf(VgTab.Home) }
     var showInbox by remember { mutableStateOf(openInboxInitially) }
     var showStudyTok by remember { mutableStateOf(false) }
+    var creatorInitialMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var playingMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var url by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf<String?>(null) }
@@ -131,8 +132,14 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                         }
                     }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create }, { showStudyTok = true })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
-                    VgTab.Library -> LibraryContent(onPlay = { playingMedia = it })
-                    VgTab.Create -> CreateStudioContent(onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true })
+                    VgTab.Library -> LibraryContent(
+                        onPlay = { playingMedia = it },
+                        onCreateWithMedia = { media -> creatorInitialMedia = media; selected = VgTab.Create }
+                    )
+                    VgTab.Create -> CreateStudioContent(
+                        onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true },
+                        initialMedia = creatorInitialMedia
+                    )
                     VgTab.Settings -> SettingsContent(dark, { dark = it; prefs.edit().putBoolean("dark", it).apply() })
                 }
             }
@@ -1115,6 +1122,18 @@ private fun InfoCard(title: String, detail: String, icon: androidx.compose.ui.gr
 private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, onOpen: (String) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var items by remember { mutableStateOf(ShareInboxStore.list(context)) }
+    var searchQuery by remember { mutableStateOf("") }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) items = ShareInboxStore.list(context)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val visibleItems = items.filter {
+        it.title.contains(searchQuery.trim(), ignoreCase = true) || it.url.contains(searchQuery.trim(), ignoreCase = true)
+    }
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
@@ -1123,6 +1142,15 @@ private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, o
                 Text("Links you choose to save. Nothing downloads automatically.", fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        }
+        if (items.isNotEmpty()) {
+            OutlinedTextField(
+                value = searchQuery, onValueChange = { searchQuery = it.take(160) },
+                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                label = { Text("Search saved links") },
+                leadingIcon = { Icon(Icons.Default.Search, null) },
+                trailingIcon = { if (searchQuery.isNotBlank()) IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Close, "Clear search") } }
+            )
         }
         if (items.isEmpty()) {
             Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp)) {
@@ -1134,9 +1162,11 @@ private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, o
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+        } else if (visibleItems.isEmpty()) {
+            Text("No saved links match “${searchQuery.trim()}”.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(items, key = { it.id }) { item ->
+                items(visibleItems, key = { it.id }) { item ->
                     Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -1158,7 +1188,7 @@ private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, o
 }
 
 @Composable
-private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
+private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (LibraryMedia) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboard = LocalClipboardManager.current
     var media by remember { mutableStateOf(emptyList<LibraryMedia>()) }
@@ -1229,8 +1259,8 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                     refreshMedia()
                 }
             },
-            onMakeSticker = { android.widget.Toast.makeText(context, "Sticker renderer integration is not available yet.", android.widget.Toast.LENGTH_LONG).show() },
-            onStatusSplit = { android.widget.Toast.makeText(context, "30-second status splitting is not available yet.", android.widget.Toast.LENGTH_LONG).show() }
+            onMakeSticker = { onCreateWithMedia(it) },
+            onStatusSplit = { onCreateWithMedia(it) }
         )
         return
     }
@@ -1663,10 +1693,10 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
 }
 
 @Composable
-private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit, openInbox: () -> Unit) {
+private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, initialMedia: LibraryMedia? = null) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
-    var selectedMedia by remember { mutableStateOf<LibraryMedia?>(null) }
+    var selectedMedia by remember(initialMedia) { mutableStateOf(initialMedia) }
     var storyEditorOpen by remember { mutableStateOf(false) }
     var isRendering by remember { mutableStateOf(false) }
     var segmentProgress by remember { mutableStateOf<String?>(null) }
