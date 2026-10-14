@@ -51,7 +51,7 @@ jobs:
           checks = {
               "/": [b'id="playerKeyboardHelp"', b'data-share-target="bluesky"', b'id="copySelectedNames"', b"app.js?v=p176"],
               "/app.js?v=p176": [b"function copySelectedNames", b"video.currentTime+(key==='ArrowRight'?5:-5)", b"function shareTo"],
-              "/styles.css?v=p178": [b".playerKeyboardHelp", b".shareTargets{display:grid", b".vg-queue-tools"],
+              "/styles.css?v=p178": [b".playerKeyboardHelp", b".shareTargets{display:grid", b".vg-queue-tools", b".vgp-dock"],
               "/quickflow.js?v=qf1": [b"vgPasteUrl", b"vgQueueSearch", b"Duplicate active download avoided."],
               "/workspace-plus.js?v=wp1": [b"vgpDock", b"vgpLibrarySort", b"vgpExportIndex"],
           }
