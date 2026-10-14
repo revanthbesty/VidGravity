@@ -30,6 +30,20 @@ class HelpCenterDocumentationTests(unittest.TestCase):
                      "FEATURE_DOCUMENTATION_STANDARD.md", "RELEASE_NOTES.md"):
             self.assertIn(path, html)
 
+    def test_android_has_in_app_help_center_and_docs(self):
+        source = (ROOT / "apps" / "android" / "app" / "src" / "main" / "java" /
+                  "com" / "vidgravity" / "app" / "MainActivity.kt").read_text(encoding="utf-8")
+        for phrase in ("Help & troubleshooting", "Open Help Center", "VidGravity Help Center",
+                       "DOWNLOAD STUCK OR AT 0%", "FILE MISSING FROM LIBRARY",
+                       "CHECKSUM OR SERVICE ERROR"):
+            self.assertIn(phrase, source)
+        guide = (ROOT / "docs" / "USER_GUIDE.md").read_text(encoding="utf-8")
+        faq = (ROOT / "docs" / "FAQ_TROUBLESHOOTING.md").read_text(encoding="utf-8")
+        release = (ROOT / "docs" / "RELEASE_NOTES.md").read_text(encoding="utf-8")
+        self.assertIn("Android in-app Help Center", guide)
+        self.assertIn("Android in-app Help Center", faq)
+        self.assertIn("in-app Help & troubleshooting", release)
+
     def test_feature_definition_of_done_includes_help_and_release_notes(self):
         standard = (ROOT / "docs" / "FEATURE_DOCUMENTATION_STANDARD.md").read_text(encoding="utf-8")
         for requirement in ("Feature guide", "FAQ", "Troubleshooting", "Release notes",
