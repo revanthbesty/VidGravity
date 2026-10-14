@@ -589,6 +589,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
     val downloadUiPrefs = remember(context) { context.getSharedPreferences("vg_downloads_ui", android.content.Context.MODE_PRIVATE) }
     var downloadFilter by remember { mutableStateOf(downloadUiPrefs.getString("download_filter", "All") ?: "All") }
     var showClearHistoryConfirm by remember { mutableStateOf(false) }
+    var showCancelActiveConfirm by remember { mutableStateOf(false) }
     var showDownloadTools by remember { mutableStateOf(downloadUiPrefs.getBoolean("show_download_tools", false)) }
     var downloadSearch by remember { mutableStateOf(downloadUiPrefs.getString("download_search", "") ?: "") }
     var downloadSort by remember { mutableStateOf(downloadUiPrefs.getString("download_sort", "Newest") ?: "Newest") }
@@ -623,10 +624,16 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
                     ?: work.progress.getString("media_url")).isNullOrBlank()
             }
             val completedWorks = works.filter { it.state == WorkInfo.State.SUCCEEDED }
+            val queuedWorks = works.filter { it.state == WorkInfo.State.ENQUEUED }
+            val runningWorks = works.filter { it.state == WorkInfo.State.RUNNING }
+            val cancelledWorks = works.filter { it.state == WorkInfo.State.CANCELLED }
             val statusFilteredWorks = when (downloadFilter) {
                 "Active" -> activeWorks
+                "Queued" -> queuedWorks
+                "Running" -> runningWorks
                 "Completed" -> completedWorks
                 "Failed" -> failedWorks
+                "Cancelled" -> cancelledWorks
                 else -> works
             }
             val searchTerm = downloadSearch.trim()
@@ -705,6 +712,80 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
                         }
                     }
                 }
+            }
+            val finishedCount = completedWorks.size + failedWorks.size
+            val successRate = if (finishedCount == 0) 0 else (completedWorks.size * 100 / finishedCount)
+            val averageProgress = if (activeWorks.isEmpty()) 0 else activeWorks.map { it.progress.getInt("progress", 0).coerceIn(0, 100) }.average().toInt()
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Queue health", fontWeight = FontWeight.SemiBold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column { Text("$averageProgress%", fontSize = 19.sp, fontWeight = FontWeight.Bold); Text("Avg. active progress", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        Column { Text("$successRate%", fontSize = 19.sp, fontWeight = FontWeight.Bold); Text("Success rate*", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        Column { Text("${queuedWorks.size}", fontSize = 19.sp, fontWeight = FontWeight.Bold); Text("Queued", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    }
+                    Text("*Based on visible retained completed and failed/cancelled jobs; cancelled jobs are counted as failures.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        when {
+                            activeWorks.isEmpty() && failedWorks.isNotEmpty() -> "Next step: review the error details or retry supported failed links."
+                            activeWorks.isEmpty() -> "Queue is idle. Add a link from Home to start a download."
+                            queuedWorks.isNotEmpty() -> "${queuedWorks.size} item(s) are waiting for a worker slot or network constraints."
+                            else -> "Your active downloads are running. Keep VidGravity updated if a provider stops responding."
+                        }, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            OutlinedButton(
+                enabled = activeWorks.isNotEmpty(),
+                onClick = { showCancelActiveConfirm = true },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.Cancel, null); Spacer(Modifier.width(8.dp))
+                Text("Cancel all active downloads (${activeWorks.size})")
+            }
+            OutlinedButton(
+                enabled = queuedWorks.isNotEmpty(),
+                onClick = {
+                    queuedWorks.forEach { WorkManager.getInstance(context).cancelWorkById(it.id) }
+                    android.widget.Toast.makeText(context, "Cancelled ${queuedWorks.size} queued download(s).", android.widget.Toast.LENGTH_LONG).show()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.PauseCircleOutline, null); Spacer(Modifier.width(8.dp))
+                Text("Cancel queued downloads (${queuedWorks.size})")
+            }
+            OutlinedButton(
+                enabled = runningWorks.isNotEmpty(),
+                onClick = {
+                    val links = runningWorks.mapNotNull { it.outputData.getString(DownloadWorker.RETRY_URL) ?: it.progress.getString("media_url") }.distinct()
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(links.joinToString("\\n")))
+                    android.widget.Toast.makeText(context, "Copied ${links.size} active source link(s).", android.widget.Toast.LENGTH_SHORT).show()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.Link, null); Spacer(Modifier.width(8.dp)); Text("Copy active source links")
+            }
+            OutlinedButton(
+                enabled = completedWorks.isNotEmpty(),
+                onClick = {
+                    val titles = completedWorks.map { it.outputData.getString("display_name") ?: it.outputData.getString("filename") ?: it.progress.getString("media_title") ?: "Media download" }
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(titles.joinToString("\\n")))
+                    android.widget.Toast.makeText(context, "Copied ${titles.size} completed title(s).", android.widget.Toast.LENGTH_SHORT).show()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(8.dp)); Text("Copy completed titles")
+            }
+            OutlinedButton(
+                enabled = failedWorks.isNotEmpty(),
+                onClick = {
+                    val report = failedWorks.joinToString("\\n\\n") { work ->
+                        val title = work.outputData.getString("display_name") ?: work.progress.getString("media_title") ?: "Media download"
+                        val error = work.outputData.getString("error") ?: "No error details recorded"
+                        "$title\\nStatus: ${work.state.name}\\n$error"
+                    }
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
+                    android.widget.Toast.makeText(context, "Copied failure summary for ${failedWorks.size} item(s).", android.widget.Toast.LENGTH_SHORT).show()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.ErrorOutline, null); Spacer(Modifier.width(8.dp)); Text("Copy failure summary")
             }
             if (retryableFilteredWorks.isNotEmpty()) {
                 OutlinedButton(
@@ -1052,11 +1133,14 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
                 }
             }
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(listOf("All", "Active", "Completed", "Failed")) { filter ->
+                items(listOf("All", "Active", "Queued", "Running", "Completed", "Failed", "Cancelled")) { filter ->
                     val count = when (filter) {
                         "Active" -> activeWorks.size
+                        "Queued" -> queuedWorks.size
+                        "Running" -> runningWorks.size
                         "Completed" -> completedWorks.size
                         "Failed" -> failedWorks.size
+                        "Cancelled" -> cancelledWorks.size
                         else -> works.size
                     }
                     FilterChip(selected = downloadFilter == filter, onClick = { downloadFilter = filter },
@@ -1237,6 +1321,22 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
                 }
             }
         }
+    }
+    if (showCancelActiveConfirm) {
+        AlertDialog(
+            onDismissRequest = { showCancelActiveConfirm = false },
+            title = { Text("Cancel active downloads?") },
+            text = { Text("This will cancel ${works.count { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }} active or queued job(s). Completed files will not be deleted.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val toCancel = works.filter { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
+                    toCancel.forEach { WorkManager.getInstance(context).cancelWorkById(it.id) }
+                    showCancelActiveConfirm = false
+                    android.widget.Toast.makeText(context, "Cancelled ${toCancel.size} active/queued download(s). Existing files were kept.", android.widget.Toast.LENGTH_LONG).show()
+                }) { Text("Cancel downloads") }
+            },
+            dismissButton = { TextButton(onClick = { showCancelActiveConfirm = false }) { Text("Keep running") } }
+        )
     }
     if (showClearHistoryConfirm) {
         AlertDialog(
