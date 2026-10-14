@@ -361,4 +361,32 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('Library size refreshed.',main)
   self.assertIn('if (storageRefreshError == null)',main)
 
+ def test_download_tools_expanded_state_persists(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('getBoolean("show_download_tools", false)',main)
+  self.assertIn('.putBoolean("show_download_tools", showDownloadTools)',main)
+
+ def test_download_history_search_is_bounded(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('onValueChange = { downloadSearch = it.take(200) }',main)
+  self.assertIn('${downloadSearch.length}/200 characters',main)
+  self.assertIn('contentDescription = "Search download history"',main)
+
+ def test_library_search_is_bounded_and_can_be_cleared(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('onValueChange = { searchQuery = it.take(200) }',main)
+  self.assertIn('contentDescription = "Clear library search"',main)
+  self.assertIn('${searchQuery.length}/200 characters',main)
+
+ def test_library_bulk_favorites_include_selected_items_outside_current_filter(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  start=main.index('if (showBulkActions) {',main.index('@Composable\nprivate fun LibraryContent('))
+  end=main.index('OutlinedTextField(\n            value = searchQuery',start)
+  bulk=main[start:end]
+  self.assertIn('val chosenMedia = media.filter { it.uri.toString() in selectedUris }',bulk)
+
+ def test_selected_media_share_confirms_prepared_item_count(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Prepared ${streams.size} item(s) to share.',main)
+
 if __name__=="__main__":unittest.main(verbosity=2)
