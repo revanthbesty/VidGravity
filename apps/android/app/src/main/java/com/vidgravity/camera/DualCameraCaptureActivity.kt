@@ -4,6 +4,10 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Environment
+import android.content.ContentValues
+import android.net.Uri
+import android.provider.MediaStore
+import android.os.Build
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -300,9 +304,19 @@ class DualCameraCaptureActivity : ComponentActivity() {
             val target = File(directory, "vidgravity-${System.currentTimeMillis()}.jpg")
             val options = ImageCapture.OutputFileOptions.Builder(target).build()
             capture.takePicture(options, executor, object : ImageCapture.OnImageSavedCallback {
-                override fun onImageSaved(result: ImageCapture.OutputFileResults) = runOnUiThread {
-                    status.text = "Photo saved · ${target.name}"
-                    Toast.makeText(this@DualCameraCaptureActivity, "Photo saved to VidGravity: ${target.name}", Toast.LENGTH_LONG).show()
+                override fun onImageSaved(result: ImageCapture.OutputFileResults) {
+                    executor.execute {
+                        val publishResult = runCatching { publishCapture(target, "image/jpeg") }
+                        runOnUiThread {
+                            if (publishResult.isSuccess) {
+                                status.text = "Photo saved to Pictures/VidGravity"
+                                Toast.makeText(this@DualCameraCaptureActivity, "Photo saved to your gallery.", Toast.LENGTH_LONG).show()
+                            } else {
+                                status.text = "Photo captured · app storage"
+                                Toast.makeText(this@DualCameraCaptureActivity, "Photo captured but gallery save failed: ${publishResult.exceptionOrNull()?.message ?: "check storage"}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
                 }
                 override fun onError(exception: ImageCaptureException) = runOnUiThread {
                     Toast.makeText(this@DualCameraCaptureActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
@@ -357,8 +371,18 @@ class DualCameraCaptureActivity : ComponentActivity() {
                         status.text = "Recording failed"
                         Toast.makeText(this, "Recording failed. Please retry.", Toast.LENGTH_LONG).show()
                     } else {
-                        status.text = "Video saved · ${target.name}"
-                        Toast.makeText(this, "Video saved to VidGravity: ${target.name}", Toast.LENGTH_LONG).show()
+                        executor.execute {
+                            val publishResult = runCatching { publishCapture(target, "video/mp4") }
+                            runOnUiThread {
+                                if (publishResult.isSuccess) {
+                                    status.text = "Video saved to Movies/VidGravity"
+                                    Toast.makeText(this@DualCameraCaptureActivity, "Video saved to your gallery.", Toast.LENGTH_LONG).show()
+                                } else {
+                                    status.text = "Video recorded · app storage"
+                                    Toast.makeText(this@DualCameraCaptureActivity, "Video recorded but gallery save failed: ${publishResult.exceptionOrNull()?.message ?: "check storage"}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -480,6 +504,33 @@ class DualCameraCaptureActivity : ComponentActivity() {
         Quality.HD -> "720p"
         Quality.FHD -> "1080p"
         else -> "Highest available"
+    }
+
+    private fun publishCapture(source: File, mimeType: String): Uri? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
+        val isVideo = mimeType.startsWith("video/")
+        val collection = if (isVideo) MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, source.name)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, if (isVideo) "Movies/VidGravity" else "Pictures/VidGravity")
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val uri = contentResolver.insert(collection, values)
+            ?: throw IllegalStateException("Android could not create a gallery item")
+        try {
+            val output = contentResolver.openOutputStream(uri, "w")
+                ?: throw IllegalStateException("Android could not write the captured media")
+            output.use { stream -> source.inputStream().use { input -> input.copyTo(stream) } }
+            contentResolver.update(uri, ContentValues().apply {
+                put(MediaStore.MediaColumns.IS_PENDING, 0)
+            }, null, null)
+            return uri
+        } catch (error: Exception) {
+            contentResolver.delete(uri, null, null)
+            throw error
+        }
     }
 
     private fun finishWithMessage(message: String) {
