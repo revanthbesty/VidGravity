@@ -260,4 +260,35 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
  def test_quality_preset_selection_confirms_saved_choice(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('Toast.makeText(context, "Default quality set to ${preset.first}.", android.widget.Toast.LENGTH_SHORT).show()',main)
+ def test_home_url_input_has_clear_action_and_character_limit(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('onValueChange = { onUrl(it.take(10000)) }',main)
+  self.assertIn('contentDescription = "Clear URL input"',main)
+  self.assertIn('${url.length}/10000 characters · Up to 10 links per batch',main)
+
+ def test_home_clipboard_paste_reports_empty_clipboard(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Clipboard does not contain text to paste.',main)
+  self.assertIn('contentDescription = "Paste URL"',main)
+
+ def test_clipboard_suggestion_can_be_dismissed(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('clipboardSuggestion = null })',main)
+  self.assertIn('contentDescription = "Dismiss clipboard suggestion"',main)
+
+ def test_device_id_copy_confirms_success(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Device ID copied.',main)
+
+ def test_license_key_copy_prevents_copying_blank_value(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Enter a license key first.',main)
+  self.assertIn('License key copied.',main)
+
+ def test_library_refresh_surfaces_indexing_errors(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('var mediaRefreshError by remember { mutableStateOf<String?>(null) }',main)
+  self.assertIn('Could not refresh the library. Check media access and try again.',main)
+  self.assertIn('mediaRefreshError?.let { message ->',main)
+
 if __name__=="__main__":unittest.main(verbosity=2)
