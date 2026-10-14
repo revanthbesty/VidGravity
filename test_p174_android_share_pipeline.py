@@ -389,4 +389,19 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('Prepared ${streams.size} item(s) to share.',main)
 
+ def test_selected_bottom_navigation_tab_persists_between_launches(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('prefs.getString("last_tab", VgTab.Home.name)',main)
+  self.assertIn('prefs.edit().putString("last_tab", selected.name).apply()',main)
+
+ def test_diagnostics_report_includes_device_and_android_version(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('lines.add("Device: " + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL)',main)
+  self.assertIn('lines.add("Android: " + android.os.Build.VERSION.RELEASE + " (SDK " + android.os.Build.VERSION.SDK_INT + ")")',main)
+
+ def test_license_key_field_displays_input_limit(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('activationKey = it.take(160)',main)
+  self.assertIn('${activationKey.length}/160 characters',main)
+
 if __name__=="__main__":unittest.main(verbosity=2)
