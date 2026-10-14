@@ -15,6 +15,7 @@ class HelpCenterDocumentationTests(unittest.TestCase):
         for category in ("getting-started", "downloads", "library", "creator", "troubleshooting"):
             self.assertIn(f'data-filter="{category}"', html)
         self.assertIn("Frequently asked questions", html)
+        self.assertIn("Where are Android bulk queue controls?", html)
         self.assertIn("How-to guides", html)
 
     def test_documentation_references_exist(self):
