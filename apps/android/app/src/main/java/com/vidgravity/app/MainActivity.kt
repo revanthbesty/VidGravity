@@ -1812,10 +1812,26 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         }
         if (visibleMedia.isEmpty()) {
             InfoCard(
-                if (searchQuery.isNotBlank()) "No matching media" else if (filter == "Favorites") "No favorites yet" else "Your library is empty",
-                if (searchQuery.isNotBlank()) "Try another title or clear the search." else "Completed downloads saved by VidGravity will appear here. Use Downloads to check failed transfers.",
+                if (searchQuery.isNotBlank() || filter != "All Media" || sizeFilter != "Any size") "No matching media" else if (filter == "Favorites") "No favorites yet" else "Your library is empty",
+                if (searchQuery.isNotBlank() || filter != "All Media" || sizeFilter != "Any size") "Try another title or reset the active filters." else "Completed downloads saved by VidGravity will appear here. Use Downloads to check failed transfers.",
                 Icons.Default.VideoLibrary, Modifier.fillMaxWidth()
             )
+            if (searchQuery.isNotBlank() || filter != "All Media" || sizeFilter != "Any size" || sortBy != "Newest") {
+                OutlinedButton(
+                    onClick = {
+                        searchQuery = ""
+                        filter = "All Media"
+                        sizeFilter = "Any size"
+                        sortBy = "Newest"
+                        selectedUris = emptySet()
+                    },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Reset library search and filters")
+                }
+            }
         } else {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -2469,7 +2485,8 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                         diagnosticsRunning = true
                         diagnosticsReport = null
                         scope.launch {
-                            val report = withContext(Dispatchers.IO) {
+                            try {
+                                val report = withContext(Dispatchers.IO) {
                                 val lines = mutableListOf<String>()
                                 val connectivity = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
                                 val network = connectivity.activeNetwork
@@ -2495,9 +2512,13 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                                     context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
                                 }.getOrDefault("unknown"))
                                 lines.joinToString("\n")
+                                }
+                                diagnosticsReport = report
+                            } catch (failure: Exception) {
+                                diagnosticsReport = "Diagnostics could not finish: " + (failure.message ?: "Unexpected error. Try again.").take(180)
+                            } finally {
+                                diagnosticsRunning = false
                             }
-                            diagnosticsReport = report
-                            diagnosticsRunning = false
                         }
                     },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
