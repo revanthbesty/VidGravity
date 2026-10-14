@@ -541,9 +541,11 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
     var showClearHistoryConfirm by remember { mutableStateOf(false) }
     var downloadSearch by remember { mutableStateOf("") }
     var downloadSort by remember { mutableStateOf("Newest") }
+    var showDownloadReports by remember { mutableStateOf(false) }
+    var showDownloadFilters by remember { mutableStateOf(false) }
     val liveWorks = remember(context) { WorkManager.getInstance(context).getWorkInfosByTagLiveData("vidgravity-download") }
     val works by liveWorks.observeAsState(emptyList())
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Downloads", fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Track active and completed transfers on this device.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (works.isEmpty()) {
@@ -639,6 +641,12 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     }
                 }
             }
+            OutlinedButton(onClick = { showDownloadReports = !showDownloadReports }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
+                Icon(if (showDownloadReports) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (showDownloadReports) "Hide reports and sharing" else "Reports and sharing")
+            }
+            if (showDownloadReports) {
             OutlinedButton(
                 onClick = {
                     fun csvCell(value: String): String = "\"" + value.replace("\"", "\"\"").replace("\r", " ").replace("\n", " ") + "\""
@@ -762,6 +770,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 Spacer(Modifier.width(8.dp))
                 Text("Share report (${filteredWorks.size})")
             }
+            }
             OutlinedButton(
                 onClick = { showClearHistoryConfirm = true },
                 enabled = completedWorks.isNotEmpty() || failedWorks.isNotEmpty(),
@@ -873,6 +882,12 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     Text("Resume paused (${resumableWorks.size})")
                 }
             }
+            OutlinedButton(onClick = { showDownloadFilters = !showDownloadFilters }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
+                Icon(if (showDownloadFilters) Icons.Default.ExpandLess else Icons.Default.Tune, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (showDownloadFilters) "Hide search and filters" else "Search, sort and filter")
+            }
+            if (showDownloadFilters) {
             OutlinedTextField(
                 value = downloadSearch,
                 onValueChange = { downloadSearch = it },
@@ -925,12 +940,13 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                         label = { Text("$filter ($count)") })
                 }
             }
+            }
             if (filteredWorks.isEmpty()) {
                 InfoCard("No ${downloadFilter.lowercase()} downloads",
                     if (downloadFilter == "Active") "Your download queue is idle." else "Items will appear here when they match this filter.",
                     Icons.Default.FilterList, Modifier.fillMaxWidth())
             }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 440.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(filteredWorks, key = { it.id.toString() }) { work ->
                     val progress = work.progress.getInt("progress", 0).coerceIn(0, 100)
                     val paused = DownloadActionReceiver.isPaused(context, work.id)
@@ -1162,6 +1178,8 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
     var deleteTarget by remember { mutableStateOf<LibraryMedia?>(null) }
     var selectedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showBulkDeleteConfirm by remember { mutableStateOf(false) }
+    var showLibraryTools by remember { mutableStateOf(false) }
+    var showLibraryFilters by remember { mutableStateOf(false) }
     var swipeFeedOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     suspend fun refreshMedia() { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
@@ -1225,7 +1243,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
         )
         return
     }
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Your library", fontSize = 27.sp, fontWeight = FontWeight.Bold)
@@ -1273,6 +1291,12 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             }
         }
+        OutlinedButton(onClick = { showLibraryTools = !showLibraryTools }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
+            Icon(if (showLibraryTools) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
+            Spacer(Modifier.width(8.dp))
+            Text(if (showLibraryTools) "Hide library actions" else "Library actions and selection")
+        }
+        if (showLibraryTools) {
         OutlinedButton(
             onClick = {
                 val report = buildString {
@@ -1486,6 +1510,13 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                 Text("Delete selected (${visibleMedia.count { it.uri.toString() in selectedUris }})")
             }
         }
+        }
+        OutlinedButton(onClick = { showLibraryFilters = !showLibraryFilters }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
+            Icon(if (showLibraryFilters) Icons.Default.ExpandLess else Icons.Default.Tune, null)
+            Spacer(Modifier.width(8.dp))
+            Text(if (showLibraryFilters) "Hide filters" else "Search and filters")
+        }
+        if (showLibraryFilters) {
         OutlinedTextField(
             value = searchQuery, onValueChange = { searchQuery = it },
             modifier = Modifier.fillMaxWidth(), singleLine = true,
@@ -1544,6 +1575,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             }
         }
+        }
         if (visibleMedia.isEmpty()) {
             InfoCard(
                 if (searchQuery.isNotBlank()) "No matching media" else if (filter == "Favorites") "No favorites yet" else "Your library is empty",
@@ -1551,7 +1583,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                 Icons.Default.VideoLibrary, Modifier.fillMaxWidth()
             )
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 440.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(visibleMedia, key = { it.uri.toString() }) { item ->
                     Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp),
                         modifier = Modifier.fillMaxWidth().clickable { onPlay(item) }) {
