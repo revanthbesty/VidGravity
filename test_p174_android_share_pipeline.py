@@ -90,6 +90,19 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn("visibleMedia.forEach { item ->",library)
   self.assertIn("Column(\n                modifier = Modifier.fillMaxWidth(),",library)
   self.assertNotIn("LazyColumn(",library)
+ def test_downloads_and_library_secondary_tools_are_collapsible(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  start=main.index("private fun DownloadsContent(")
+  end=main.index("private fun InfoCard",start)
+  downloads=main[start:end]
+  self.assertIn("var showDownloadTools by remember { mutableStateOf(false) }",downloads)
+  self.assertIn('Text(if (showDownloadTools) "Hide download tools" else "More tools · reports & history")',downloads)
+  self.assertIn('Text("Copy CSV report (',downloads)
+  library_start=main.index("@Composable\\nprivate fun LibraryContent(")
+  library_end=main.index("@Composable\\nprivate fun CreateStudioContent",library_start)
+  library=main[library_start:library_end]
+  self.assertIn("var showLibraryTools by remember { mutableStateOf(false) }",library)
+  self.assertIn('Text(if (showLibraryTools) "Hide library sharing tools" else "Library tools · share report")',library)
  def test_simple_collection_screen_supports_vertical_scrolling(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   start=main.index("fun SimpleCollectionScreen(")
