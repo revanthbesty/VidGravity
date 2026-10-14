@@ -25,3 +25,5 @@
 .vg-player-settings-popover select{max-width:150px;min-height:30px;border:1px solid var(--border-subtle);border-radius:7px;padding:4px;background:var(--surface-base);color:var(--text-primary)}
 @media(max-width:620px){.vg-player-chrome{align-items:flex-start;flex-direction:column;margin-right:38px}.vg-player-header-actions{width:100%;justify-content:flex-start}.vg-player-quick-utilities{justify-content:flex-start}.vg-player-quick-utilities label{flex:1}.vg-player-quick-utilities select{max-width:none;width:100%}.vg-player-quick-utilities label{display:grid;gap:4px}.vg-player-title small{max-width:80vw}}
 @media(prefers-reduced-motion:reduce){.vg-player-chrome,.vg-player-quick-utilities,.vg-export-canvas{transition:none}}
+
+.vg-export-clip-targets{margin-top:8px}.vg-export-clip-targets button{min-height:38px;flex:1 1 68px}.vg-export-clip-targets button[aria-pressed="true"]{border-color:var(--accent,#8b5cf6);background:color-mix(in srgb,var(--accent,#8b5cf6) 12%,transparent)}.vg-export-clip-targets button:disabled{opacity:.45;cursor:not-allowed}

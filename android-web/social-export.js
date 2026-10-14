@@ -41,7 +41,8 @@
       '<button type="button" class="vg-export-mode" data-vg-output="optimized" aria-pressed="true"><span>✦</span><span><b>Optimized for Platform</b><small>Reframe the canvas for the selected social platform.</small></span></button></div></div>'+
       '<div class="vg-export-section"><h3>Platform preset</h3><div class="vg-export-presets" id="vgExportPresets"></div></div>'+
       '<div class="vg-export-section"><h3>Framing</h3><div class="vg-export-row"><label class="vg-export-field">Adaptation<select id="vgExportMode"><option value="smart-reframe">Smart Reframe / Center Crop</option><option value="blurred-backdrop">Blurred Backdrop</option><option value="fit-letterbox">Fit / Letterbox</option></select></label>'+
-      '<label class="vg-export-field">Trim duration (seconds)<input id="vgExportTrim" type="number" min="1" max="3600" step="1" placeholder="Full duration"></label></div>'+
+      '<label class="vg-export-field">Start time (seconds)<input id="vgExportStart" type="number" min="0" max="3599" step="1" value="0"></label><label class="vg-export-field">Trim duration (seconds)<input id="vgExportTrim" type="number" min="1" max="3600" step="1" placeholder="Full duration"></label></div>'+
+      '<div class="vg-export-row vg-export-clip-targets" id="vgExportClipTargets" aria-label="Quick clip duration"><button type="button" class="smallBtn" data-vg-clip-seconds="30">30 sec</button><button type="button" class="smallBtn" data-vg-clip-seconds="60">60 sec</button><button type="button" class="smallBtn" data-vg-clip-seconds="90">90 sec</button><button type="button" class="smallBtn" data-vg-clip-seconds="120">120 sec</button></div>'+
       '<div class="vg-export-row" id="vgExportCustomFields" hidden><label class="vg-export-field">Canvas width<input id="vgExportWidth" type="number" min="144" max="2160" step="2" value="1080"></label><label class="vg-export-field">Canvas height<input id="vgExportHeight" type="number" min="144" max="2160" step="2" value="1920"></label></div></div>'+
       '<div class="vg-export-estimate"><span>Estimated output</span><strong id="vgExportEstimate">Calculating…</strong></div>'+
       '<div class="vg-export-actions"><button id="vgExportDirectShare" class="primary" type="button">↗ Direct Share</button><button id="vgExportSave" class="smallBtn" type="button">↓ Save Derivative</button><button id="vgExportCopy" class="smallBtn" type="button">▣ Copy to Clipboard</button></div>'+
@@ -69,6 +70,12 @@
     $("#vgExportDuration").textContent="Duration: "+(duration?formatTime(duration):"—");
     $("#vgExportOriginalSize").textContent="Original: "+(state.item&&state.item.width&&state.item.height?state.item.width+" × "+state.item.height:"metadata unavailable");
     $("#vgExportEstimate").textContent=state.blob?(Math.max(.1,state.blob.size/1048576*(state.outputMode==="original"?1:.72)).toFixed(1)+" MB approx."):"Size unavailable";
+    const knownDuration=Number(state.item&&state.item.duration)||0;
+    document.querySelectorAll("[data-vg-clip-seconds]").forEach(button=>{
+      const seconds=Number(button.dataset.vgClipSeconds)||0;
+      button.disabled=state.busy||(knownDuration>0&&seconds>knownDuration);
+      button.setAttribute("aria-pressed",String(Number($("#vgExportTrim").value)===seconds));
+    });
     $("#vgExportPreviewHint").textContent=state.preset.safe==="whatsapp"?"WhatsApp Status: keep faces and text away from top/bottom overlays; long clips may need trimming or splitting.":state.preset.shape==="story"?"The guide marks a central 1080 × 1350 safe area inside the vertical canvas.":"Preview guides show the output canvas; the source file remains unchanged.";
   }
   async function loadMedia(id){
@@ -79,7 +86,9 @@
   function openModal(id, caller){
     ensureModal();state.id=id;state.item=null;state.blob=null;state.returnFocus=caller||document.activeElement;
     const modal=$("#vgSocialExportModal");modal.classList.remove("hidden");modal.setAttribute("aria-hidden","false");
-    state.preset=PRESETS[0];state.outputMode=id==="__app__"?"original":"optimized";state.framing="smart-reframe";renderPresets();updatePreview();setStatus("Loading saved media…");
+    state.preset=PRESETS[0];state.outputMode=id==="__app__"?"original":"optimized";state.framing="smart-reframe";
+    $("#vgExportStart").value="0";$("#vgExportTrim").value="";
+    renderPresets();updatePreview();setStatus("Loading saved media…");
     loadMedia(id).then(item=>{
       if(!item){setStatus("This item is not available in the local Library.","error");return;}
       state.item=item;state.blob=item.blob instanceof Blob?item.blob:null;
@@ -129,10 +138,13 @@
   function apiUrl(path){let base=(localStorage.getItem("vg-api-base-url")||"").trim().replace(/\/+$/,"");try{if(base&&new URL(base).protocol!=="https:")base="";}catch(_){base="";}return (base||"https://vidgravity.onrender.com")+"/"+path.replace(/^\/+/,"");}
   async function renderOptimized(){
     if(!state.item||!state.blob)throw Error("A locally saved media file is required for export.");
-    const d=dims(),trimValue=$("#vgExportTrim").value,trim=trimValue===""?0:Number(trimValue);
+    const d=dims(),trimValue=$("#vgExportTrim").value,trim=trimValue===""?0:Number(trimValue),startValue=$("#vgExportStart").value,start=startValue===""?0:Number(startValue);
     if(trimValue!==""&&(!Number.isFinite(trim)||trim<1||trim>3600))throw Error("Trim must be between 1 and 3600 seconds.");
+    if(!Number.isFinite(start)||start<0||start>=3600)throw Error("Start time must be between 0 and 3599 seconds.");
+    if(trim&&start+trim>3600)throw Error("Start time plus clip duration must not exceed 3600 seconds.");
     const graph=graphFor(d.w,d.h,state.framing);
     const headers={"Content-Type":state.blob.type||"application/octet-stream","X-VG-Preset":state.preset.id,"X-VG-Mode":state.framing,"X-VG-Width":String(d.w),"X-VG-Height":String(d.h)};
+    if(start)headers["X-VG-Start-Seconds"]=String(start);
     if(trim)headers["X-VG-Trim-Seconds"]=String(trim);
     const response=await fetch(apiUrl("/api/media/export"),{method:"POST",headers,body:state.blob});
     if(!response.ok){let msg="Export failed ("+response.status+").";try{msg=(await response.json()).error||msg;}catch(_){}throw Error(msg);}
@@ -179,8 +191,15 @@
     document.querySelectorAll("[data-vg-output]").forEach(b=>b.addEventListener("click",()=>{state.outputMode=b.dataset.vgOutput;updatePreview();}));
     $("#vgExportWidth").addEventListener("change",e=>{state.customW=even(e.target.value);e.target.value=state.customW;updatePreview();});
     $("#vgExportHeight").addEventListener("change",e=>{state.customH=even(e.target.value);e.target.value=state.customH;updatePreview();});
+    $("#vgExportStart").addEventListener("input",updatePreview);
+    $("#vgExportTrim").addEventListener("input",updatePreview);
+    document.querySelectorAll("[data-vg-clip-seconds]").forEach(button=>button.addEventListener("click",()=>{
+      $("#vgExportTrim").value=button.dataset.vgClipSeconds;
+      updatePreview();
+    }));
     $("#vgExportDirectShare").addEventListener("click",directShare);$("#vgExportSave").addEventListener("click",saveDerivative);$("#vgExportCopy").addEventListener("click",copyRendered);
-    $("#vgExportPreviewPlay").addEventListener("click",()=>{const v=$("#vgExportVideo"),bg=$("#vgExportBackdrop");if(v.paused){v.play().catch(()=>setStatus("Preview playback could not start.","error"));if(bg)bg.play().catch(()=>{});}else{v.pause();if(bg)bg.pause();}});\n    $("#vgExportVideo").addEventListener("timeupdate",()=>{const v=$("#vgExportVideo"),bg=$("#vgExportBackdrop");if(bg&&Math.abs(bg.currentTime-v.currentTime)>.15){try{bg.currentTime=v.currentTime;}catch(_){}}});
+    $("#vgExportPreviewPlay").addEventListener("click",()=>{const v=$("#vgExportVideo"),bg=$("#vgExportBackdrop");if(v.paused){v.play().catch(()=>setStatus("Preview playback could not start.","error"));if(bg)bg.play().catch(()=>{});}else{v.pause();if(bg)bg.pause();}});
+    $("#vgExportVideo").addEventListener("timeupdate",()=>{const v=$("#vgExportVideo"),bg=$("#vgExportBackdrop");if(bg&&Math.abs(bg.currentTime-v.currentTime)>.15){try{bg.currentTime=v.currentTime;}catch(_){}}});
     document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!$("#vgSocialExportModal")?.classList.contains("hidden"))closeModal();});
   }
   const oldOpenShare=window.openShare;
