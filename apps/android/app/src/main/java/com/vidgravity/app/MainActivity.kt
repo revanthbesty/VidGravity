@@ -131,7 +131,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                             }
                         }
                     }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create }, { showStudyTok = true })
-                    VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
+                    VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it }, onOpenLibrary = { selected = VgTab.Library })
                     VgTab.Library -> LibraryContent(
                         onPlay = { playingMedia = it },
                         onCreateWithMedia = { media -> creatorInitialMedia = media; selected = VgTab.Create }
@@ -549,7 +549,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
 }
 
 @Composable
-private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
+private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboard = LocalClipboardManager.current
     var expandedErrors by remember { mutableStateOf(setOf<java.util.UUID>()) }
@@ -1054,6 +1054,14 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                             Spacer(Modifier.width(4.dp))
                                             Text("Share")
                                         }
+                                    }
+                                    OutlinedButton(
+                                        onClick = onOpenLibrary,
+                                        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                                    ) {
+                                        Icon(Icons.Default.VideoLibrary, null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Find this download in Library")
                                     }
                                 }
                             }
