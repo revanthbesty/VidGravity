@@ -201,3 +201,12 @@ This section records the user's requirements in their own terms. These are persi
 6. Keep **Grab Best Video** removed because **Inspect Link** already exists.
 7. Keep this table in the master ledger. For every item, record the implementation commit, exact build/CI result, APK artifact and checksum when available, and device acceptance separately. Never mark an item fixed merely because code was changed or a test passed.
 8. The supplied UI screenshots are part of the user's reported evidence. Use them as the visual baseline when revising Downloads, Library and Create; do not treat the current cluttered layout as an acceptable design.
+
+## Deployment root-cause investigation — 2026-10-15
+
+- Rechecked the exact client request in DownloadApi.kt: Android posts to POST /api/media/export.
+- Rechecked server.py on both the candidate branch and main: the route handler is present and matches the same path, and Dockerfile starts python server.py --host 0.0.0.0 --port 5173.
+- The live deployment probe for commit 8f7aff019f36c0b7b8fbbb1ef07e07f560682ecd failed specifically at “Verify live Story export route is deployed”. Because the source route exists and the app screenshot showed HTTP 404, the leading diagnosis is that the deployed service is not running the expected current server implementation, or its public routing is targeting a different/stale service. This is a diagnosis, not yet a confirmed Render-side cause.
+- Correct path forward: inspect the live probe's actual HTTP status/body and the Render service's deployed commit/start command, then redeploy the correct service/revision and rerun the probe. Do not add client-side fallbacks that hide a 404 or report a successful render.
+- Tooling limitation: repository access can update code and run GitHub workflows, but no Render service control/credential is available in this session. A live redeploy cannot honestly be claimed from a repository commit alone. If the public service remains stale after source verification, a manual redeploy of the existing Render service (or a connected Render deployment action) is required.
+- Current status remains P0 BLOCKER until the public route returns the expected application-level validation response for an empty probe and a real test video successfully exports with a valid SHA-256 header and playable output.
