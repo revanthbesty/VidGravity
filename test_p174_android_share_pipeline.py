@@ -128,6 +128,21 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('"Recent 7 days" -> item.createdAtMs >= System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000',library)
   self.assertIn('"Large files" -> item.sizeBytes > 100_000_000L',library)
   self.assertIn('"Favorites", "Recent 7 days", "Large files"',library)
+ def test_settings_diagnostics_probe_network_backend_storage_and_library(self):
+  app=ANDROID/"app/src/main/java/com/vidgravity/app"
+  main=(app/"MainActivity.kt").read_text()
+  api=(app/"DownloadApi.kt").read_text()
+  manifest=ET.parse(ANDROID/"app/src/main/AndroidManifest.xml").getroot()
+  ns="{http://schemas.android.com/apk/res/android}"
+  permissions={node.attrib.get(ns+"name") for node in manifest.findall("uses-permission")}
+  self.assertIn("Diagnostics & self-test",main)
+  self.assertIn("DownloadApi.healthCheck()",main)
+  self.assertIn("MediaLibraryIndexer.list(context)",main)
+  self.assertIn("StatFs(context.filesDir.absolutePath)",main)
+  self.assertIn("fun healthCheck(): String",api)
+  self.assertIn('open("/api/health", "GET")',api)
+  self.assertIn("android.permission.ACCESS_NETWORK_STATE",permissions)
+  self.assertIn("Copy diagnostics report",main)
  def test_simple_collection_screen_supports_vertical_scrolling(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   start=main.index("fun SimpleCollectionScreen(")
