@@ -318,6 +318,8 @@ object DownloadApi {
                 if (android.os.Build.VERSION.SDK_INT >= 29) {
                     val directory = if (outputFormat == "webp") android.os.Environment.DIRECTORY_PICTURES + "/VidGravity/Stickers" else android.os.Environment.DIRECTORY_MOVIES + "/VidGravity"
                     put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, directory)
+                    // Do not expose a partially written export to other apps or Library.
+                    put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1)
                 }
             }
             val collection = if (outputFormat == "webp") android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI else android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
@@ -325,7 +327,17 @@ object DownloadApi {
                 ?: throw IllegalStateException("Android could not create a library entry for the exported video.")
             context.contentResolver.openOutputStream(publishedUri, "w")?.use { output ->
                 outputFile.inputStream().buffered(128 * 1024).use { it.copyTo(output, 128 * 1024) }
-            } ?: throw IllegalStateException("Android could not write the exported video.")
+            } ?: throw IllegalStateException("Android could not write the exported media.")
+            if (android.os.Build.VERSION.SDK_INT >= 29) {
+                val published = context.contentResolver.update(
+                    publishedUri,
+                    android.content.ContentValues().apply { put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0) },
+                    null,
+                    null
+                )
+                if (published <= 0) throw IllegalStateException("Android could not publish the completed export.")
+            }
+            context.contentResolver.notifyChange(publishedUri, null)
             return publishedUri
         } catch (failure: Exception) {
             publishedUri?.let { runCatching { context.contentResolver.delete(it, null, null) } }
