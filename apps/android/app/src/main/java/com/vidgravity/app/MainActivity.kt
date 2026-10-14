@@ -1123,7 +1123,6 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
                     Text("Retry visible (${retryableFilteredWorks.size})")
                 }
             }
-            val runningWorks = works.filter { it.state == WorkInfo.State.RUNNING }
             val pausableWorks = runningWorks.filterNot { DownloadActionReceiver.isPaused(context, it.id) }
             val resumableWorks = runningWorks.filter { DownloadActionReceiver.isPaused(context, it.id) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
