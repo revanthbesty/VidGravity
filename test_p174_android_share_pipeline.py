@@ -143,12 +143,13 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('open("/api/health", "GET")',api)
   self.assertIn("android.permission.ACCESS_NETWORK_STATE",permissions)
   self.assertIn("Copy diagnostics report",main)
- def test_completed_download_has_direct_library_navigation(self):
+ def test_completed_download_opens_library_filtered_to_its_title(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
-  self.assertIn('onOpenLibrary = { selected = VgTab.Library }',main)
-  self.assertIn('private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: () -> Unit)',main)
+  self.assertIn('onOpenLibrary = { title -> librarySearchTarget = title; selected = VgTab.Library }',main)
+  self.assertIn('onClick = { onOpenLibrary(title) }',main)
+  self.assertIn('initialSearch = librarySearchTarget',main)
+  self.assertIn('LaunchedEffect(initialSearch) { if (initialSearch.isNotBlank()) searchQuery = initialSearch }',main)
   self.assertIn('Text("Find this download in Library")',main)
-  self.assertIn('OutlinedButton(\n                                        onClick = onOpenLibrary',main)
  def test_creator_studio_persists_and_restores_local_draft(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('getSharedPreferences("vg-creator-draft", 0)',main)
