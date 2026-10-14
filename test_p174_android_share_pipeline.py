@@ -425,4 +425,22 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('!activeSources.add(source.lowercase())',main)
   self.assertIn('skipped $skippedRetries duplicate or invalid item(s).',main)
 
+ def test_manual_library_refresh_confirms_item_count_after_success(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Library refreshed: ${media.size} item(s).',main)
+  self.assertIn('if (mediaRefreshError == null)',main)
+
+ def test_reset_library_filters_also_clears_selection(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Library filters and selection reset.',main)
+  self.assertIn('selectedUris = emptySet()\n                android.widget.Toast.makeText(context, "Library filters and selection reset."',main)
+
+ def test_diagnostics_report_has_generation_timestamp(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('lines.add("Generated: " + java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z"',main)
+
+ def test_download_search_clear_action_has_specific_accessibility_label(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('contentDescription = "Clear download history search"',main)
+
 if __name__=="__main__":unittest.main(verbosity=2)
