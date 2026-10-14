@@ -9,7 +9,7 @@ PRESETS = {
  "instagram-feed-portrait": (1080,1350), "linkedin-portrait": (1080,1350),
  "square": (1080,1080), "youtube-landscape": (1920,1080), "x-landscape": (1920,1080), "animated-sticker": (512,512)
 }
-MODES = {"smart-reframe","blurred-backdrop","fit-letterbox"}
+MODES = {"smart-reframe","blurred-backdrop","fit-letterbox","privacy-blur"}
 MAX_DIMENSION=2160
 MAX_TRIM_SECONDS=3600
 
@@ -50,6 +50,7 @@ def build_filter_graph(width,height,mode):
     if mode not in MODES: raise ExportError("Unsupported framing mode.")
     if mode=="smart-reframe": return f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1,format=yuv420p"
     if mode=="fit-letterbox": return f"scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,format=yuv420p"
+    if mode=="privacy-blur": return f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},boxblur=10:5,setsar=1,format=yuv420p"
     return f"split=2[bg][fg];[bg]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},boxblur=20:10[blurred];[fg]scale={w}:{h}:force_original_aspect_ratio=decrease,setsar=1[foreground];[blurred][foreground]overlay=(W-w)/2:(H-h)/2,setsar=1,format=yuv420p"
 
 def export_media_file(source,destination,request):
