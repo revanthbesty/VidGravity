@@ -1012,7 +1012,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
                 trailingIcon = {
                     if (downloadSearch.isNotBlank()) {
                         IconButton(onClick = { downloadSearch = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear search")
+                            Icon(Icons.Default.Close, contentDescription = "Clear download history search")
                         }
                     }
                 }
@@ -1518,7 +1518,14 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
             }
         }
         OutlinedButton(
-            onClick = { scope.launch { refreshMedia() } },
+            onClick = {
+                scope.launch {
+                    refreshMedia()
+                    if (mediaRefreshError == null) {
+                        android.widget.Toast.makeText(context, "Library refreshed: ${media.size} item(s).", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
             enabled = !refreshingMedia,
             modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
         ) {
@@ -1823,6 +1830,8 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 filter = "All Media"
                 sizeFilter = "Any size"
                 sortBy = "Newest"
+                selectedUris = emptySet()
+                android.widget.Toast.makeText(context, "Library filters and selection reset.", android.widget.Toast.LENGTH_SHORT).show()
             },
             modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
         ) {
@@ -2554,6 +2563,7 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                             try {
                                 val report = withContext(Dispatchers.IO) {
                                 val lines = mutableListOf<String>()
+                                lines.add("Generated: " + java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z", java.util.Locale.getDefault()).format(java.util.Date()))
                                 val connectivity = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
                                 val network = connectivity.activeNetwork
                                 val capabilities = network?.let { connectivity.getNetworkCapabilities(it) }
