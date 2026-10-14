@@ -233,14 +233,20 @@ object DownloadApi {
         preset: String,
         mode: String,
         startSeconds: Float,
-        trimSeconds: Float
+        trimSeconds: Float,
+        outputFormat: String = "mp4"
     ): Uri {
-        require(preset in setOf("whatsapp-status", "instagram-story", "instagram-reels", "youtube-shorts", "tiktok")) { "Unsupported story preset." }
+        require(outputFormat in setOf("mp4", "webp")) { "Unsupported export format." }
+        require(if (outputFormat == "webp") preset == "animated-sticker" else preset in setOf("whatsapp-status", "instagram-story", "instagram-reels", "youtube-shorts", "tiktok")) { "Unsupported export preset." }
         require(mode in setOf("smart-reframe", "blurred-backdrop", "fit-letterbox")) { "Unsupported framing mode." }
+        if (outputFormat == "webp") {
+            require(mode == "fit-letterbox" && trimSeconds <= 10f) { "Animated stickers must use fit-letterbox framing and be 10 seconds or shorter." }
+            require(context.contentResolver.getType(sourceUri)?.startsWith("video/") == true) { "Animated stickers require a video source." }
+        }
         require(startSeconds.isFinite() && startSeconds >= 0f && startSeconds < 3600f) { "Invalid clip start time." }
         require(trimSeconds.isFinite() && trimSeconds > 0f && trimSeconds <= 3600f && startSeconds + trimSeconds <= 3600f) { "Invalid clip duration." }
         val sourceFile = File.createTempFile("vg-story-source-", ".bin", context.cacheDir)
-        val outputFile = File.createTempFile("vg-story-export-", ".mp4", context.cacheDir)
+        val outputFile = File.createTempFile("vg-story-export-", if (outputFormat == "webp") ".webp" else ".mp4", context.cacheDir)
         var publishedUri: Uri? = null
         try {
             context.contentResolver.openInputStream(sourceUri)?.use { input ->
@@ -265,6 +271,7 @@ object DownloadApi {
             connection.readTimeout = 1_800_000
             connection.setFixedLengthStreamingMode(sourceFile.length())
             connection.setRequestProperty("X-VG-Preset", preset)
+            connection.setRequestProperty("X-VG-Format", outputFormat)
             connection.setRequestProperty("X-VG-Mode", mode)
             connection.setRequestProperty("X-VG-Start-Seconds", "%.3f".format(java.util.Locale.US, startSeconds))
             connection.setRequestProperty("X-VG-Trim-Seconds", "%.3f".format(java.util.Locale.US, trimSeconds))
@@ -298,11 +305,17 @@ object DownloadApi {
                 }
             } finally { connection.disconnect() }
             val values = android.content.ContentValues().apply {
-                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "VidGravity_Story_${System.currentTimeMillis()}.mp4")
-                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
-                if (android.os.Build.VERSION.SDK_INT >= 29) put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, android.os.Environment.DIRECTORY_MOVIES + "/VidGravity")
+                val suffix = if (outputFormat == "webp") "Sticker" else "Story"
+                val extension = if (outputFormat == "webp") "webp" else "mp4"
+                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "VidGravity_${suffix}_${System.currentTimeMillis()}.$extension")
+                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, if (outputFormat == "webp") "image/webp" else "video/mp4")
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    val directory = if (outputFormat == "webp") android.os.Environment.DIRECTORY_PICTURES + "/VidGravity/Stickers" else android.os.Environment.DIRECTORY_MOVIES + "/VidGravity"
+                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, directory)
+                }
             }
-            publishedUri = context.contentResolver.insert(android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
+            val collection = if (outputFormat == "webp") android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI else android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            publishedUri = context.contentResolver.insert(collection, values)
                 ?: throw IllegalStateException("Android could not create a library entry for the exported video.")
             context.contentResolver.openOutputStream(publishedUri, "w")?.use { output ->
                 outputFile.inputStream().buffered(128 * 1024).use { it.copyTo(output, 128 * 1024) }
