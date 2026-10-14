@@ -569,11 +569,19 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboard = LocalClipboardManager.current
     var expandedErrors by remember { mutableStateOf(setOf<java.util.UUID>()) }
-    var downloadFilter by remember { mutableStateOf("All") }
+    val downloadUiPrefs = remember(context) { context.getSharedPreferences("vg_downloads_ui", android.content.Context.MODE_PRIVATE) }
+    var downloadFilter by remember { mutableStateOf(downloadUiPrefs.getString("download_filter", "All") ?: "All") }
     var showClearHistoryConfirm by remember { mutableStateOf(false) }
     var showDownloadTools by remember { mutableStateOf(false) }
-    var downloadSearch by remember { mutableStateOf("") }
-    var downloadSort by remember { mutableStateOf("Newest") }
+    var downloadSearch by remember { mutableStateOf(downloadUiPrefs.getString("download_search", "") ?: "") }
+    var downloadSort by remember { mutableStateOf(downloadUiPrefs.getString("download_sort", "Newest") ?: "Newest") }
+    LaunchedEffect(downloadFilter, downloadSearch, downloadSort) {
+        downloadUiPrefs.edit()
+            .putString("download_filter", downloadFilter)
+            .putString("download_search", downloadSearch)
+            .putString("download_sort", downloadSort)
+            .apply()
+    }
     val liveWorks = remember(context) { WorkManager.getInstance(context).getWorkInfosByTagLiveData("vidgravity-download") }
     val allWorks by liveWorks.observeAsState(emptyList())
     val historyPrefs = remember(context) { context.getSharedPreferences("vg_downloads_ui", android.content.Context.MODE_PRIVATE) }
@@ -678,6 +686,39 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
                             Text("Failed", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
+                }
+            }
+            if (retryableFilteredWorks.isNotEmpty()) {
+                OutlinedButton(
+                    onClick = {
+                        var queuedRetries = 0
+                        val preferences = SecureDownloadPreferences.load(context)
+                        retryableFilteredWorks.forEach { work ->
+                            val source = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                ?: work.progress.getString("media_url")
+                            if (!source.isNullOrBlank()) {
+                                runCatching {
+                                    DownloadWorker.enqueue(
+                                        context, source, preferences.preferredFormatSelector,
+                                        work.outputData.getString("display_name")
+                                            ?: work.progress.getString("media_title")
+                                            ?: ShareReceiverActivity.friendlyTitle(source),
+                                        preferences.unmeteredOnly
+                                    )
+                                }.onSuccess { queuedRetries++ }
+                            }
+                        }
+                        android.widget.Toast.makeText(
+                            context,
+                            "Queued $queuedRetries of ${retryableFilteredWorks.size} retryable download(s).",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Retry all available failures (${retryableFilteredWorks.size})")
                 }
             }
             OutlinedButton(
