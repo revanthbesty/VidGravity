@@ -627,10 +627,12 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
             val queuedWorks = works.filter { it.state == WorkInfo.State.ENQUEUED }
             val runningWorks = works.filter { it.state == WorkInfo.State.RUNNING }
             val cancelledWorks = works.filter { it.state == WorkInfo.State.CANCELLED }
+            val blockedWorks = works.filter { it.state == WorkInfo.State.BLOCKED }
             val statusFilteredWorks = when (downloadFilter) {
                 "Active" -> activeWorks
                 "Queued" -> queuedWorks
                 "Running" -> runningWorks
+                "Blocked" -> blockedWorks
                 "Completed" -> completedWorks
                 "Failed" -> failedWorks
                 "Cancelled" -> cancelledWorks
@@ -786,6 +788,71 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
                 }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
             ) {
                 Icon(Icons.Default.ErrorOutline, null); Spacer(Modifier.width(8.dp)); Text("Copy failure summary")
+            }
+            OutlinedButton(
+                enabled = blockedWorks.isNotEmpty(),
+                onClick = {
+                    blockedWorks.forEach { WorkManager.getInstance(context).cancelWorkById(it.id) }
+                    android.widget.Toast.makeText(context, "Cancelled ${blockedWorks.size} blocked job(s).", android.widget.Toast.LENGTH_LONG).show()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.Block, null); Spacer(Modifier.width(8.dp)); Text("Cancel blocked downloads (${blockedWorks.size})")
+            }
+            OutlinedButton(
+                enabled = queuedWorks.isNotEmpty(),
+                onClick = {
+                    val titles = queuedWorks.map { it.outputData.getString("display_name") ?: it.progress.getString("media_title") ?: "Media download" }
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(titles.joinToString("\\n")))
+                    android.widget.Toast.makeText(context, "Copied ${titles.size} queued title(s).", android.widget.Toast.LENGTH_SHORT).show()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(8.dp)); Text("Copy queued titles")
+            }
+            OutlinedButton(
+                enabled = retryableWorks.isNotEmpty(),
+                onClick = {
+                    val links = retryableWorks.mapNotNull { it.outputData.getString(DownloadWorker.RETRY_URL) ?: it.progress.getString("media_url") }.distinct()
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(links.joinToString("\\n")))
+                    android.widget.Toast.makeText(context, "Copied ${links.size} retryable source link(s).", android.widget.Toast.LENGTH_SHORT).show()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.Refresh, null); Spacer(Modifier.width(8.dp)); Text("Copy retryable links")
+            }
+            OutlinedButton(
+                enabled = failedWorks.isNotEmpty(),
+                onClick = {
+                    val report = buildString {
+                        appendLine("VidGravity failure report")
+                        appendLine("Failed/cancelled: ${failedWorks.size}")
+                        failedWorks.forEach { work ->
+                            appendLine()
+                            appendLine(work.outputData.getString("display_name") ?: work.progress.getString("media_title") ?: "Media download")
+                            appendLine("Status: ${work.state.name}")
+                            appendLine("Error: ${work.outputData.getString("error") ?: "No error details recorded"}")
+                            appendLine("Source: ${work.outputData.getString(DownloadWorker.RETRY_URL) ?: work.progress.getString("media_url") ?: "Not saved"}")
+                        }
+                    }
+                    runCatching {
+                        context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"; putExtra(Intent.EXTRA_SUBJECT, "VidGravity failure report"); putExtra(Intent.EXTRA_TEXT, report)
+                        }, "Share failure report"))
+                    }.onFailure {
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
+                        android.widget.Toast.makeText(context, "Share unavailable; failure report copied instead.", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Share failure report")
+            }
+            OutlinedButton(
+                enabled = works.isNotEmpty(),
+                onClick = {
+                    val summary = "VidGravity queue summary\\nActive: ${activeWorks.size}\\nQueued: ${queuedWorks.size}\\nRunning: ${runningWorks.size}\\nBlocked: ${blockedWorks.size}\\nCompleted: ${completedWorks.size}\\nFailed: ${failedWorks.size}\\nCancelled: ${cancelledWorks.size}\\nAverage active progress: $averageProgress%\\nSuccess rate*: $successRate%"
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(summary))
+                    android.widget.Toast.makeText(context, "Queue summary copied.", android.widget.Toast.LENGTH_SHORT).show()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.Assessment, null); Spacer(Modifier.width(8.dp)); Text("Copy queue summary")
             }
             if (retryableFilteredWorks.isNotEmpty()) {
                 OutlinedButton(
@@ -1133,11 +1200,12 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
                 }
             }
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(listOf("All", "Active", "Queued", "Running", "Completed", "Failed", "Cancelled")) { filter ->
+                items(listOf("All", "Active", "Queued", "Running", "Blocked", "Completed", "Failed", "Cancelled")) { filter ->
                     val count = when (filter) {
                         "Active" -> activeWorks.size
                         "Queued" -> queuedWorks.size
                         "Running" -> runningWorks.size
+                        "Blocked" -> blockedWorks.size
                         "Completed" -> completedWorks.size
                         "Failed" -> failedWorks.size
                         "Cancelled" -> cancelledWorks.size
