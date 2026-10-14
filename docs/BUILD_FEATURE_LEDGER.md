@@ -210,3 +210,14 @@ This section records the user's requirements in their own terms. These are persi
 - Correct path forward: inspect the live probe's actual HTTP status/body and the Render service's deployed commit/start command, then redeploy the correct service/revision and rerun the probe. Do not add client-side fallbacks that hide a 404 or report a successful render.
 - Tooling limitation: repository access can update code and run GitHub workflows, but no Render service control/credential is available in this session. A live redeploy cannot honestly be claimed from a repository commit alone. If the public service remains stale after source verification, a manual redeploy of the existing Render service (or a connected Render deployment action) is required.
 - Current status remains P0 BLOCKER until the public route returns the expected application-level validation response for an empty probe and a real test video successfully exports with a valid SHA-256 header and playable output.
+
+
+### Render connection and failed deployment findings — 2026-10-15
+
+- Render is now connected and the existing service was identified as `srv-db5m08nlot8c73fe3f30`, repository `revanthbesty/VidGravity`, branch `main`.
+- Render reports deployed commit `b54b8a3ddd8ac2b70d79d99e96db0a86c3b7b40f` as live. The deployment for `296843e3c5aca7fda4e6cbf18945488370ab4600` failed.
+- Render application logs confirm the failed revision exited at `/app/server.py`, line 677, with `SyntaxError: unterminated string literal`. The line is a single-quoted error string containing the apostrophe in `VidGravity's`. The later main revision `135ce35de817bdf20b1c83f8eef550db53937cd4` uses double quotes for this string, fixing that specific syntax error in source.
+- Current main's `server.py` contains `POST /api/media/export` at the route handler, but the public endpoint has continued to return 404 in the live deployment probe. A source route existing does not prove it is deployed/live.
+- A Render manual deploy was attempted through the connected integration, but Render's deploy API returned HTTP 503 (`deploys is currently unavailable`). No new deployment was triggered and no successful redeploy is claimed.
+- Next action: retry Render deployment when the deployment API is available, preferably using the latest verified `main` commit `135ce35de817bdf20b1c83f8eef550db53937cd4`; then inspect startup logs, run the empty-body export route probe (expect application-level validation, not 404), and run a real export with output/playability and SHA-256 verification. YouTube bot-verification restrictions remain a separate provider limitation.
+- Release status: **NOT READY FOR FINAL TESTING** until the live route and actual export are verified. Do not treat CI success or corrected source alone as runtime proof.
