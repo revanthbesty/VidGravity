@@ -9,7 +9,7 @@ PRESETS = {
  "instagram-feed-portrait": (1080,1350), "linkedin-portrait": (1080,1350),
  "square": (1080,1080), "youtube-landscape": (1920,1080), "x-landscape": (1920,1080), "animated-sticker": (512,512)
 }
-MODES = {"smart-reframe","blurred-backdrop","fit-letterbox","privacy-blur"}
+MODES = {"smart-reframe","blurred-backdrop","fit-letterbox","privacy-blur","audio-story"}
 MAX_DIMENSION=2160
 MAX_TRIM_SECONDS=3600
 
@@ -41,6 +41,8 @@ def validate_export_request(preset, mode, width=None, height=None, trim_seconds=
         if not (0<=start<MAX_TRIM_SECONDS): raise ExportError("Start time must be between 0 and 3599.999 seconds.")
         if trim is not None and start+trim>MAX_TRIM_SECONDS: raise ExportError("Start time plus clip length must not exceed 3600 seconds.")
     if output_format == "webp" and (trim is None or trim > 10): raise ExportError("Animated stickers must be trimmed to 10 seconds or less.")
+    if mode == "audio-story" and (output_format != "mp4" or preset not in ("whatsapp-status","instagram-story","instagram-reels","youtube-shorts","tiktok")):
+        raise ExportError("Audio visualizer stories require a vertical MP4 social preset.")
     return {"preset":preset,"mode":mode,"width":w,"height":h,"trim_seconds":trim,"start_seconds":start,"output_format":output_format}
 
 def build_filter_graph(width,height,mode):
@@ -60,15 +62,23 @@ def export_media_file(source,destination,request):
     if source.resolve()==destination.resolve(): raise ExportError("Source and output paths must be different.")
     if shutil.which("ffmpeg") is None: raise ExportError("FFmpeg is not installed on this server.")
     checked=validate_export_request(request.get("preset",""),request.get("mode",""),request.get("width"),request.get("height"),request.get("trim_seconds"),request.get("start_seconds"),request.get("output_format","mp4"))
-    graph=build_filter_graph(checked["width"],checked["height"],checked["mode"])
-    args=["ffmpeg","-hide_banner","-loglevel","error","-nostdin","-y","-i",str(source)]
-    if checked["start_seconds"] is not None and checked["start_seconds"] > 0: args += ["-ss",f'{checked["start_seconds"]:.3f}']
+    graph=None if checked["mode"]=="audio-story" else build_filter_graph(checked["width"],checked["height"],checked["mode"])
+    if checked["mode"]=="audio-story":
+        args=["ffmpeg","-hide_banner","-loglevel","error","-nostdin","-y","-f","lavfi","-i",f'color=c=0x15151b:s={checked["width"]}x{checked["height"]}:r=30']
+        if checked["start_seconds"] is not None and checked["start_seconds"] > 0: args += ["-ss",f'{checked["start_seconds"]:.3f}']
+        args += ["-i",str(source)]
+    else:
+        args=["ffmpeg","-hide_banner","-loglevel","error","-nostdin","-y","-i",str(source)]
+        if checked["start_seconds"] is not None and checked["start_seconds"] > 0: args += ["-ss",f'{checked["start_seconds"]:.3f}']
     if checked["trim_seconds"] is not None: args += ["-t",f'{checked["trim_seconds"]:.3f}']
     if checked["output_format"]=="webp":
         sticker_graph="fps=12,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=yuva420p"
         args += ["-vf",sticker_graph,"-an","-c:v","libwebp_anim","-loop","0","-lossless","0","-q:v","70","-f","webp",str(destination)]
     else:
-        if checked["mode"]=="blurred-backdrop": args += ["-filter_complex",f"[0:v]{graph}[vout]","-map","[vout]","-map","0:a?"]
+        if checked["mode"]=="audio-story":
+            visualizer="[1:a]showwaves=s=900x420:mode=line:rate=30:colors=0xB8A5FF[wave];[0:v][wave]overlay=(W-w)/2:(H-h)/2,format=yuv420p[vout]"
+            args += ["-filter_complex",visualizer,"-map","[vout]","-map","1:a:0","-shortest"]
+        elif checked["mode"]=="blurred-backdrop": args += ["-filter_complex",f"[0:v]{graph}[vout]","-map","[vout]","-map","0:a?"]
         else: args += ["-vf",graph,"-map","0:v:0","-map","0:a?"]
         args += ["-c:v","libx264","-preset","veryfast","-crf","20","-pix_fmt","yuv420p","-c:a","aac","-b:a","160k","-movflags","+faststart","-f","mp4",str(destination)]
     try: result=subprocess.run(args,capture_output=True,timeout=1800,check=False)
