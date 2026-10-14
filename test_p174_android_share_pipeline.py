@@ -111,6 +111,15 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn("var showBulkActions by remember { mutableStateOf(false) }",library)
   self.assertIn("MediaLibraryIndexer.setFavorite(context, item.uri, !allChosenAreFavorites)",library)
   self.assertIn('Text(if (showBulkActions) "Hide selection tools" else "Selection tools")',library)
+ def test_library_storage_insights_include_type_counts_and_largest_file(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  start=main.index("@Composable\\nprivate fun LibraryContent(")
+  end=main.index("@Composable\\nprivate fun CreateStudioContent",start)
+  library=main[start:end]
+  self.assertIn("var showStorageInsights by remember { mutableStateOf(false) }",library)
+  self.assertIn('Text(if (showStorageInsights) "Hide storage insights" else "Storage insights")',library)
+  self.assertIn("val largest = media.maxByOrNull { it.sizeBytes }",library)
+  self.assertIn('Text("Videos  $videoCount  ·  Audio  $audioCount"',library)
  def test_simple_collection_screen_supports_vertical_scrolling(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   start=main.index("fun SimpleCollectionScreen(")
