@@ -1,5 +1,7 @@
 import unittest
 import tempfile
+from unittest.mock import patch
+import subprocess
 from pathlib import Path
 from media_export import ExportError, PRESETS, build_filter_graph, validate_export_request
 
@@ -46,6 +48,25 @@ class SocialExportPresetTests(unittest.TestCase):
                 validate_export_request("animated-sticker","fit-letterbox",trim_seconds=duration,output_format="webp")
         with self.assertRaises(ExportError):
             validate_export_request("square","fit-letterbox",trim_seconds="5",output_format="webp")
+    def test_webp_export_uses_animated_encoder_and_preserves_source(self):
+        from media_export import export_media_file
+        with tempfile.TemporaryDirectory() as directory:
+            source=Path(directory)/"original.mp4"
+            destination=Path(directory)/"sticker.webp"
+            original=b"immutable-original-video"
+            source.write_bytes(original)
+            def fake_ffmpeg(args, **kwargs):
+                Path(args[-1]).write_bytes(b"fake-webp")
+                return subprocess.CompletedProcess(args, 0, b"", b"")
+            with patch("media_export.shutil.which", return_value="/usr/bin/ffmpeg"), patch("media_export.subprocess.run", side_effect=fake_ffmpeg) as run:
+                result=export_media_file(source,destination,{"preset":"animated-sticker","mode":"fit-letterbox","trim_seconds":"5","start_seconds":"2","output_format":"webp"})
+            args=run.call_args.args[0]
+            self.assertIn("libwebp_anim",args)
+            self.assertIn("webp",args)
+            self.assertIn("-ss",args)
+            self.assertEqual(result["mime_type"],"image/webp")
+            self.assertEqual(source.read_bytes(),original)
+            self.assertEqual(destination.read_bytes(),b"fake-webp")
     def test_custom_dimensions_are_even(self):
         result=validate_export_request("custom","smart-reframe",1081,1351)
         self.assertEqual((result["width"],result["height"]),(1080,1350))
