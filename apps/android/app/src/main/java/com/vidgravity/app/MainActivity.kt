@@ -1663,6 +1663,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     var segmentProgress by remember { mutableStateOf<String?>(null) }
     var segmentJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var exportedUri by remember { mutableStateOf<Uri?>(null) }
+    var stickerUri by remember { mutableStateOf<Uri?>(null) }
     val picker = rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -1684,7 +1685,8 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             val mime = context.contentResolver.getType(uri) ?: "video/*"
             selectedMedia = LibraryMedia(uri, metadata.first, metadata.second, mime, System.currentTimeMillis())
             exportedUri = null
-            notify("Media selected. Preview, share, or create a 9:16 story.")
+            stickerUri = null
+            notify("Media selected. Preview, share, or create a 9:16 story or animated sticker.")
         }
     }
     if (storyEditorOpen && selectedMedia != null) {
@@ -1834,6 +1836,66 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                             Icon(Icons.Default.ContentCut, null)
                             Spacer(Modifier.width(8.dp))
                             Text("Split into 30-second WhatsApp Status clips")
+                        }
+                    }
+                    OutlinedButton(
+                        enabled = !isRendering && segmentJob == null,
+                        onClick = {
+                            if (!media.mimeType.startsWith("video/")) {
+                                notify("Animated WebP stickers require a video source.")
+                            } else {
+                                scope.launch {
+                                    isRendering = true
+                                    try {
+                                        val durationSeconds = withContext(Dispatchers.IO) {
+                                            val retriever = android.media.MediaMetadataRetriever()
+                                            try {
+                                                retriever.setDataSource(context, media.uri)
+                                                retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                                                    ?.toLongOrNull()?.toFloat()?.div(1000f)
+                                            } finally { retriever.release() }
+                                        } ?: throw IllegalStateException("Could not read the video duration.")
+                                        require(durationSeconds > 0f) { "The video duration is unavailable." }
+                                        val clipSeconds = durationSeconds.coerceAtMost(10f)
+                                        stickerUri = withContext(Dispatchers.IO) {
+                                            DownloadApi.exportMedia(
+                                                context, media.uri, "animated-sticker", "fit-letterbox",
+                                                0f, clipSeconds, "webp"
+                                            )
+                                        }
+                                        notify("Animated WebP sticker rendered, checksum verified, and saved to Pictures/VidGravity/Stickers.")
+                                    } catch (failure: Exception) {
+                                        notify("Sticker export failed: ${failure.message ?: "Please try again."}".take(240))
+                                    } finally {
+                                        isRendering = false
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                    ) {
+                        if (isRendering) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Rendering creator export…")
+                        } else {
+                            Icon(Icons.Default.AutoAwesome, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Make animated WebP sticker (up to 10s)")
+                        }
+                    }
+                    stickerUri?.let { uri ->
+                        OutlinedButton(onClick = {
+                            runCatching {
+                                val share = Intent(Intent.ACTION_SEND).apply {
+                                    type = "image/webp"
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(share, "Share animated sticker"))
+                            }.onFailure { notify("Could not share sticker: ${it.message ?: "try again"}") }
+                        }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                            Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Share animated sticker")
                         }
                     }
                     exportedUri?.let {
