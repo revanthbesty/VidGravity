@@ -456,17 +456,18 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                     Text("Common sources: YouTube, Instagram, TikTok, Facebook, X, Vimeo and SoundCloud. Availability depends on the source and its access rules.",
                         fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedTextField(value = url, onValueChange = { onUrl(it.take(10000)) }, modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Media URL or links") },
                         placeholder = { Text("Paste one link or multiple links (one per line)") }, leadingIcon = { Icon(Icons.Default.Link, null) },
                         trailingIcon = {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (url.isNotBlank()) IconButton(onClick = { onUrl("") }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear URL input")
+                                    Icon(Icons.Default.Close, contentDescription = "Clear all pasted URLs")
                                 }
                                 IconButton(onClick = {
                                     val pasted = clipboard.getText()?.text.orEmpty().take(10000)
                                     if (pasted.isNotBlank()) onUrl(pasted)
                                     else notify("Clipboard does not contain text to paste.")
-                                }) { Icon(Icons.Default.ContentPaste, contentDescription = "Paste URL") }
+                                }) { Icon(Icons.Default.ContentPaste, contentDescription = "Paste URLs from clipboard") }
                             }
                         },
                         supportingText = { Text("${url.length}/10000 characters · Up to 10 links per batch") },
@@ -505,7 +506,14 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                         Spacer(Modifier.width(8.dp))
                         Text("Queue multiple links · best quality")
                     }
-                    Button(onClick = { if (url.startsWith("http://") || url.startsWith("https://")) inspect() else notify("Enter a complete public URL starting with https://") },
+                    Button(onClick = {
+                        val candidate = url.trim().lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()
+                        val parsed = runCatching { android.net.Uri.parse(candidate) }.getOrNull()
+                        if (parsed?.scheme in setOf("http", "https") && !parsed.host.isNullOrBlank()) {
+                            onUrl(candidate)
+                            inspect()
+                        } else notify("Enter a complete URL with https:// and a valid host name.")
+                    },
                         modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
                         Icon(Icons.Default.Search, null); Spacer(Modifier.width(8.dp)); Text("Inspect link")
                     }
