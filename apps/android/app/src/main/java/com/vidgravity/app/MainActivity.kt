@@ -10,6 +10,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -57,6 +59,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     var dark by remember { mutableStateOf(prefs.getBoolean("dark", true)) }
     var selected by remember { mutableStateOf(VgTab.Home) }
     var showInbox by remember { mutableStateOf(openInboxInitially) }
+    var showStudyTok by remember { mutableStateOf(false) }
     var playingMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var url by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf<String?>(null) }
@@ -101,6 +104,11 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
             Column(Modifier.fillMaxSize().padding(padding)) {
                 if (playingMedia != null) {
                     PlayerScreen(media = playingMedia!!, onBack = { playingMedia = null })
+                } else if (showStudyTok) {
+                    StudyTokScreen(
+                        onBack = { showStudyTok = false },
+                        notify = { notice = it }
+                    )
                 } else if (showInbox) {
                     ShareInboxContent(
                         onBack = { showInbox = false },
@@ -121,7 +129,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it }, { showInbox = true })
+                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create }, { showStudyTok = true })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     VgTab.Library -> LibraryContent(onPlay = { playingMedia = it })
                     VgTab.Create -> CreateStudioContent(onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true })
@@ -137,15 +145,57 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
             val audioFormats = usable.filter { it.hasAudio && !it.hasVideo }
             // Normalize portrait and landscape streams to the shorter pixel dimension:
             // 720x1280 is 720p, not 1280p. Keep one best compatible stream per quality.
-            val qualityHeight: (FormatOption) -> Int = { option ->
+            // Normalize every stream into a user-facing quality tier. Providers can return
+            // portrait dimensions, partial dimensions, or several codec variants for the same tier.
+            val rawQualityHeight: (FormatOption) -> Int = { option ->
+                val w = option.width
+                val h = option.height
                 when {
-                    option.width > 0 && option.height > 0 -> minOf(option.width, option.height)
-                    option.height > 0 -> option.height
+                    w > 0 && h > 0 -> minOf(w, h)
+                    h > 0 -> h
+                    w > 0 -> w
+                    else -> Regex("(\\d{3,4})\\s*x\\s*(\\d{3,4})")
+                        .find(option.resolution)?.let { match ->
+                            minOf(match.groupValues[1].toInt(), match.groupValues[2].toInt())
+                        } ?: 0
+                }
+            }
+            val qualityTier: (Int) -> Int = { height ->
+                when {
+                    height >= 7000 -> 4320
+                    height >= 3800 -> 2160
+                    height >= 2500 -> 1440
+                    height >= 1800 -> 1080
+                    height >= 1200 -> 720
+                    height >= 800 -> 480
+                    height >= 600 -> 360
+                    height >= 360 -> height
                     else -> 0
                 }
             }
+            val qualityHeight: (FormatOption) -> Int = { option ->
+                val w = option.width
+                val h = option.height
+                if (w > 0 && h > 0) {
+                    val shortSide = minOf(w, h)
+                    when {
+                        shortSide >= 4320 -> 4320
+                        shortSide >= 2160 -> 2160
+                        shortSide >= 1440 -> 1440
+                        shortSide >= 1080 -> 1080
+                        shortSide >= 720 -> 720
+                        shortSide >= 480 -> 480
+                        shortSide >= 360 -> 360
+                        else -> shortSide
+                    }
+                } else {
+                    // A lone 1920/1280 dimension is commonly the long side of portrait media.
+                    val raw = rawQualityHeight(option)
+                    qualityTier(raw).takeIf { it > 0 } ?: raw
+                }
+            }
             val sortedVideo = videoFormats
-                .filter { qualityHeight(it) > 0 }
+                .filter { qualityHeight(it) > 0 && (it.selector.isNotBlank() || it.formatId.isNotBlank()) }
                 .sortedWith(
                     compareByDescending<FormatOption> { qualityHeight(it) }
                         .thenByDescending { it.hasAudio }
@@ -249,8 +299,10 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                             val sizeLabel = option?.sizeBytes?.let { "~" + String.format("%.1f MB", it / 1_000_000.0) } ?: "Size varies"
                                             val fpsLabel = option?.fps?.let { if (it >= 50) "60 FPS" else "${it.toInt()} FPS" }
                                             val hdrLabel = option?.dynamicRange?.takeIf { it.isNotBlank() && !it.equals("SDR", true) }?.let { "HDR" }
+                                            val safeContainer = option?.container?.uppercase()
+                                                ?.takeIf { it.matches(Regex("[A-Z0-9]{2,5}")) } ?: "MEDIA"
                                             Text(if (choice.first == "Highest available") "Best compatible quality for this source"
-                                                else listOfNotNull(option?.container?.uppercase(), fpsLabel, hdrLabel, sizeLabel).joinToString(" • "),
+                                                else listOfNotNull(safeContainer, fpsLabel, hdrLabel, sizeLabel).joinToString(" • "),
                                                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
                                         Icon(Icons.Default.ChevronRight, null)
@@ -314,7 +366,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
 }
 
 @Composable
-private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit) {
+private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, openStudyTok: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -386,9 +438,43 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                     Text("Paste a public video or audio link. Inspect available quality, then choose exactly what to save.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedTextField(value = url, onValueChange = onUrl, modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Paste video or audio URL") }, leadingIcon = { Icon(Icons.Default.Link, null) },
+                        placeholder = { Text("Paste one link or multiple links (one per line)") }, leadingIcon = { Icon(Icons.Default.Link, null) },
                         trailingIcon = { IconButton(onClick = { clipboard.getText()?.text?.let(onUrl) }) { Icon(Icons.Default.ContentPaste, "Paste") } },
-                        shape = RoundedCornerShape(16.dp), singleLine = true)
+                        shape = RoundedCornerShape(16.dp), minLines = 1, maxLines = 4)
+                    OutlinedButton(
+                        onClick = {
+                            val candidates = Regex("https?://[^\\s<>\\\"']+", RegexOption.IGNORE_CASE)
+                                .findAll(url)
+                                .mapNotNull { ShareReceiverActivity.normalizeSharedUrl(it.value.trimEnd(',', ';', ')', ']', '.')) }
+                                .distinctBy { it.lowercase() }
+                                .take(11)
+                                .toList()
+                            if (candidates.isEmpty()) {
+                                notify("Paste at least one complete public URL. Put each link on a new line.")
+                            } else if (candidates.size > 10) {
+                                notify("Please queue up to 10 links at a time.")
+                            } else {
+                                var queued = 0
+                                val preferences = SecureDownloadPreferences.load(context)
+                                candidates.forEach { link ->
+                                    runCatching {
+                                        DownloadWorker.enqueue(context, link, preferences.preferredFormatSelector,
+                                            ShareReceiverActivity.friendlyTitle(link), preferences.unmeteredOnly)
+                                    }.onSuccess { queued++ }
+                                }
+                                if (queued > 0) {
+                                    onBatchQueued()
+                                    notify("${queued} of ${candidates.size} links added to Downloads using best available quality.")
+                                } else notify("No links could be queued. Please check the URLs and try again.")
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Icon(Icons.Default.PlaylistAdd, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Queue multiple links · best quality")
+                    }
                     Button(onClick = { if (url.startsWith("http://") || url.startsWith("https://")) inspect() else notify("Enter a complete public URL starting with https://") },
                         modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
                         Icon(Icons.Default.Search, null); Spacer(Modifier.width(8.dp)); Text("Inspect link")
@@ -400,7 +486,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(end = 4.dp)
                         ) {
-                            items(listOf("⚡ Grab Best Video", "♫ Sound Only", "✂ WhatsApp 30s", "✦ StudyTok AI")) { action ->
+                            items(listOf("⚡ Grab Best Video", "♫ Sound Only", "✂ Status Clip Splitter", "✦ StudyTok AI")) { action ->
                                 Surface(
                                     color = MaterialTheme.colorScheme.surfaceVariant,
                                     shape = RoundedCornerShape(18.dp),
@@ -422,8 +508,11 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                                     notify("Could not prepare audio: " + (failure.message ?: "Please try again."))
                                                 }
                                             }
-                                        } else if (action.contains("WhatsApp") || action.contains("StudyTok")) {
-                                            notify(if (action.contains("WhatsApp")) "Status splitting is not available in this build yet." else "StudyTok processing is not available in this build yet.")
+                                        } else if (action.contains("Status Clip")) {
+                                            openCreate()
+                                            notify("In Create Studio, choose a local video and select a 30, 60, 90, or 120-second clip target.")
+                                        } else if (action.contains("StudyTok")) {
+                                            openStudyTok()
                                         } else inspect()
                                     }
                                 ) {
@@ -455,17 +544,403 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
 @Composable
 private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val clipboard = LocalClipboardManager.current
     var expandedErrors by remember { mutableStateOf(setOf<java.util.UUID>()) }
+    var downloadFilter by remember { mutableStateOf("All") }
+    var showClearHistoryConfirm by remember { mutableStateOf(false) }
+    var downloadSearch by remember { mutableStateOf("") }
+    var downloadSort by remember { mutableStateOf("Newest") }
     val liveWorks = remember(context) { WorkManager.getInstance(context).getWorkInfosByTagLiveData("vidgravity-download") }
     val works by liveWorks.observeAsState(emptyList())
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Downloads", fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Track active and completed transfers on this device.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (works.isEmpty()) {
             InfoCard("Nothing downloading yet", "Inspect a public link from Home to get started.", Icons.Default.Download, Modifier.fillMaxWidth())
         } else {
+            val activeWorks = works.filter { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
+            val failedWorks = works.filter { it.state == WorkInfo.State.FAILED || it.state == WorkInfo.State.CANCELLED }
+            val retryableWorks = failedWorks.filter { work ->
+                !(work.outputData.getString(DownloadWorker.RETRY_URL)
+                    ?: work.progress.getString("media_url")).isNullOrBlank()
+            }
+            val completedWorks = works.filter { it.state == WorkInfo.State.SUCCEEDED }
+            val statusFilteredWorks = when (downloadFilter) {
+                "Active" -> activeWorks
+                "Completed" -> completedWorks
+                "Failed" -> failedWorks
+                else -> works
+            }
+            val searchTerm = downloadSearch.trim()
+            val matchedWorks = statusFilteredWorks.filter { work ->
+                if (searchTerm.isBlank()) true else {
+                    val title = work.outputData.getString("display_name")
+                        ?: work.outputData.getString("filename")
+                        ?: work.progress.getString("media_title")
+                        ?: "Media download"
+                    val source = work.outputData.getString(DownloadWorker.RETRY_URL)
+                        ?: work.progress.getString("media_url").orEmpty()
+                    val error = work.outputData.getString("error").orEmpty()
+                    title.contains(searchTerm, ignoreCase = true) ||
+                        source.contains(searchTerm, ignoreCase = true) ||
+                        error.contains(searchTerm, ignoreCase = true) ||
+                        work.state.name.contains(searchTerm, ignoreCase = true)
+                }
+            }
+            val filteredWorks = when (downloadSort) {
+                "Newest" -> matchedWorks
+                "Oldest" -> matchedWorks.reversed()
+                "Name A–Z" -> matchedWorks.sortedBy { work ->
+                    (work.outputData.getString("display_name")
+                        ?: work.outputData.getString("filename")
+                        ?: work.progress.getString("media_title")
+                        ?: "Media download").lowercase()
+                }
+                "Progress" -> matchedWorks.sortedByDescending { work ->
+                    work.progress.getInt("progress", 0).coerceIn(0, 100)
+                }
+                "Status" -> matchedWorks.sortedWith(
+                    compareBy<WorkInfo> { it.state.name }.thenBy { work ->
+                        (work.outputData.getString("display_name")
+                            ?: work.outputData.getString("filename")
+                            ?: work.progress.getString("media_title")
+                            ?: "Media download").lowercase()
+                    }
+                )
+                "Failed first" -> matchedWorks.sortedWith(
+                    compareBy<WorkInfo> {
+                        when (it.state) {
+                            WorkInfo.State.FAILED, WorkInfo.State.CANCELLED -> 0
+                            WorkInfo.State.RUNNING, WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> 1
+                            WorkInfo.State.SUCCEEDED -> 2
+                            else -> 3
+                        }
+                    }.thenBy { work ->
+                        (work.outputData.getString("display_name")
+                            ?: work.outputData.getString("filename")
+                            ?: work.progress.getString("media_title")
+                            ?: "Media download").lowercase()
+                    }
+                )
+                else -> matchedWorks
+            }
+            val retryableFilteredWorks = filteredWorks.filter { work ->
+                (work.state == WorkInfo.State.FAILED || work.state == WorkInfo.State.CANCELLED) &&
+                    !(work.outputData.getString(DownloadWorker.RETRY_URL)
+                        ?: work.progress.getString("media_url")).isNullOrBlank()
+            }
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Download overview", fontWeight = FontWeight.SemiBold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column {
+                            Text("${activeWorks.size}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text("Active", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Column {
+                            Text("${completedWorks.size}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text("Completed", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Column {
+                            Text("${failedWorks.size}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                            Text("Failed", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            OutlinedButton(
+                onClick = {
+                    fun csvCell(value: String): String = "\"" + value.replace("\"", "\"\"").replace("\r", " ").replace("\n", " ") + "\""
+                    val csv = buildString {
+                        appendLine("Title,Status,Progress,Source URL,Error")
+                        filteredWorks.forEach { work ->
+                            val title = work.outputData.getString("display_name")
+                                ?: work.progress.getString("media_title")
+                                ?: work.progress.getString("title")
+                                ?: "Media download"
+                            val source = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                ?: work.progress.getString("media_url")
+                                ?: ""
+                            val percent = work.progress.getInt("progress", -1)
+                            val error = work.outputData.getString("error") ?: ""
+                            appendLine(listOf(title, work.state.name, if (percent >= 0) "$percent%" else "", source, error).joinToString(",") { csvCell(it) })
+                        }
+                    }
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(csv))
+                    android.widget.Toast.makeText(context, "CSV download report copied.", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                enabled = filteredWorks.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.TableChart, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Copy CSV report (${filteredWorks.size})")
+            }
+            OutlinedButton(
+                onClick = {
+                    val links = filteredWorks.mapNotNull { work ->
+                        (work.outputData.getString(DownloadWorker.RETRY_URL)
+                            ?: work.progress.getString("media_url"))
+                            ?.takeIf { it.isNotBlank() }
+                    }.distinct()
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(links.joinToString("\n")))
+                    android.widget.Toast.makeText(context, "Copied ${links.size} source link(s).", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                enabled = filteredWorks.any { work ->
+                    !(work.outputData.getString(DownloadWorker.RETRY_URL)
+                        ?: work.progress.getString("media_url")).isNullOrBlank()
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.Link, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Copy visible source links")
+            }
+            OutlinedButton(
+                onClick = {
+                    val report = buildString {
+                        appendLine("VidGravity download report")
+                        appendLine("Filter: $downloadFilter")
+                        appendLine("Listed: ${filteredWorks.size} | Active: ${activeWorks.size} | Completed: ${completedWorks.size} | Failed/cancelled: ${failedWorks.size}")
+                        appendLine()
+                        filteredWorks.forEachIndexed { index, work ->
+                            val title = work.outputData.getString("display_name")
+                                ?: work.progress.getString("media_title")
+                                ?: work.progress.getString("title")
+                                ?: "Media download"
+                            val source = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                ?: work.progress.getString("media_url")
+                                ?: "Not saved"
+                            val percent = work.progress.getInt("progress", -1)
+                            val error = work.outputData.getString("error")
+                            appendLine("${index + 1}. $title")
+                            appendLine("   Status: ${work.state.name}${if (percent >= 0) " | Progress: $percent%" else ""}")
+                            appendLine("   Source: $source")
+                            if (!error.isNullOrBlank()) appendLine("   Error: $error")
+                        }
+                    }
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
+                    android.widget.Toast.makeText(context, "Download report copied (${filteredWorks.size} item(s)).", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                enabled = filteredWorks.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.ContentCopy, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Copy download report (${filteredWorks.size})")
+            }
+            OutlinedButton(
+                onClick = {
+                    val report = buildString {
+                        appendLine("VidGravity download report")
+                        appendLine("Filter: $downloadFilter")
+                        appendLine("Listed: ${filteredWorks.size} | Active: ${activeWorks.size} | Completed: ${completedWorks.size} | Failed/cancelled: ${failedWorks.size}")
+                        appendLine()
+                        filteredWorks.forEachIndexed { index, work ->
+                            val title = work.outputData.getString("display_name")
+                                ?: work.progress.getString("media_title")
+                                ?: work.progress.getString("title")
+                                ?: "Media download"
+                            val source = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                ?: work.progress.getString("media_url")
+                                ?: "Not saved"
+                            val percent = work.progress.getInt("progress", -1)
+                            val error = work.outputData.getString("error")
+                            appendLine("${index + 1}. $title")
+                            appendLine("Status: ${work.state.name}${if (percent >= 0) " | Progress: $percent%" else ""}")
+                            appendLine("Source: $source")
+                            if (!error.isNullOrBlank()) appendLine("Error: $error")
+                            appendLine()
+                        }
+                    }
+                    runCatching {
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_SUBJECT, "VidGravity download report")
+                            putExtra(Intent.EXTRA_TEXT, report)
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share download report"))
+                    }.onFailure {
+                        android.widget.Toast.makeText(context, "Could not open the sharing menu.", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                },
+                enabled = filteredWorks.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.Share, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Share report (${filteredWorks.size})")
+            }
+            OutlinedButton(
+                onClick = { showClearHistoryConfirm = true },
+                enabled = completedWorks.isNotEmpty() || failedWorks.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.DeleteSweep, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Clear finished history")
+            }
+            if (failedWorks.isNotEmpty()) {
+                OutlinedButton(
+                    onClick = {
+                        val report = failedWorks.joinToString("\n\n") { work ->
+                            val title = work.outputData.getString("display_name")
+                                ?: work.progress.getString("media_title") ?: "Media download"
+                            val error = work.outputData.getString("error") ?: "No technical error was saved."
+                            "${title}\nStatus: ${work.state.name}\nError: ${error}"
+                        }
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
+                        android.widget.Toast.makeText(context, "Failure report copied (${failedWorks.size} item(s)).", android.widget.Toast.LENGTH_LONG).show()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.ContentCopy, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Copy failure report (${failedWorks.size})")
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        activeWorks.forEach { work ->
+                            DownloadActionReceiver.clear(context, work.id)
+                            WorkManager.getInstance(context).cancelWorkById(work.id)
+                        }
+                    },
+                    enabled = activeWorks.isNotEmpty(),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.StopCircle, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Cancel active (${activeWorks.size})")
+                }
+                OutlinedButton(
+                    onClick = {
+                        var queued = 0
+                        val preferences = SecureDownloadPreferences.load(context)
+                        retryableFilteredWorks.forEach { work ->
+                            val sourceUrl = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                ?: work.progress.getString("media_url")
+                            val selector = work.outputData.getString(DownloadWorker.RETRY_FORMAT)
+                                ?: work.progress.getString("format_selector")
+                                ?: preferences.preferredFormatSelector
+                            val retryTitle = work.outputData.getString(DownloadWorker.RETRY_TITLE)
+                                ?: work.progress.getString("media_title")
+                                ?: "Media download"
+                            if (!sourceUrl.isNullOrBlank()) {
+                                runCatching {
+                                    DownloadWorker.enqueue(context, sourceUrl, selector, retryTitle, preferences.unmeteredOnly)
+                                }.onSuccess { queued++ }
+                            }
+                        }
+                        android.widget.Toast.makeText(
+                            context,
+                            if (queued > 0) "Queued ${queued} retry attempt(s)." else "No failed items had enough saved information to retry.",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    },
+                    enabled = retryableFilteredWorks.isNotEmpty(),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Refresh, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Retry visible (${retryableFilteredWorks.size})")
+                }
+            }
+            val runningWorks = works.filter { it.state == WorkInfo.State.RUNNING }
+            val pausableWorks = runningWorks.filterNot { DownloadActionReceiver.isPaused(context, it.id) }
+            val resumableWorks = runningWorks.filter { DownloadActionReceiver.isPaused(context, it.id) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(
+                    onClick = {
+                        pausableWorks.forEach { work ->
+                            context.sendBroadcast(Intent(context, DownloadActionReceiver::class.java)
+                                .setAction(DownloadActionReceiver.ACTION_PAUSE)
+                                .putExtra(DownloadActionReceiver.EXTRA_WORK_ID, work.id.toString()))
+                        }
+                    },
+                    enabled = pausableWorks.isNotEmpty(),
+                    modifier = Modifier.weight(1f).heightIn(min = 46.dp)
+                ) {
+                    Icon(Icons.Default.Pause, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Pause running (${pausableWorks.size})")
+                }
+                OutlinedButton(
+                    onClick = {
+                        resumableWorks.forEach { work ->
+                            context.sendBroadcast(Intent(context, DownloadActionReceiver::class.java)
+                                .setAction(DownloadActionReceiver.ACTION_RESUME)
+                                .putExtra(DownloadActionReceiver.EXTRA_WORK_ID, work.id.toString()))
+                        }
+                    },
+                    enabled = resumableWorks.isNotEmpty(),
+                    modifier = Modifier.weight(1f).heightIn(min = 46.dp)
+                ) {
+                    Icon(Icons.Default.PlayArrow, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Resume paused (${resumableWorks.size})")
+                }
+            }
+            OutlinedTextField(
+                value = downloadSearch,
+                onValueChange = { downloadSearch = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Search download history") },
+                placeholder = { Text("Filename, source URL, error, or status") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (downloadSearch.isNotBlank()) {
+                        IconButton(onClick = { downloadSearch = "" }) {
+                            Icon(Icons.Default.Close, contentDescription = "Clear search")
+                        }
+                    }
+                }
+            )
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(listOf("Newest", "Oldest", "Name A–Z", "Progress", "Status", "Failed first")) { sort ->
+                    FilterChip(
+                        selected = downloadSort == sort,
+                        onClick = { downloadSort = sort },
+                        label = { Text("Sort: $sort") }
+                    )
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("${filteredWorks.size} matching download(s)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(
+                    enabled = downloadSearch.isNotBlank() || downloadFilter != "All" || downloadSort != "Newest",
+                    onClick = {
+                        downloadSearch = ""
+                        downloadFilter = "All"
+                        downloadSort = "Newest"
+                    }
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = null)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Clear filters")
+                }
+            }
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(listOf("All", "Active", "Completed", "Failed")) { filter ->
+                    val count = when (filter) {
+                        "Active" -> activeWorks.size
+                        "Completed" -> completedWorks.size
+                        "Failed" -> failedWorks.size
+                        else -> works.size
+                    }
+                    FilterChip(selected = downloadFilter == filter, onClick = { downloadFilter = filter },
+                        label = { Text("$filter ($count)") })
+                }
+            }
+            if (filteredWorks.isEmpty()) {
+                InfoCard("No ${downloadFilter.lowercase()} downloads",
+                    if (downloadFilter == "Active") "Your download queue is idle." else "Items will appear here when they match this filter.",
+                    Icons.Default.FilterList, Modifier.fillMaxWidth())
+            }
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(works, key = { it.id.toString() }) { work ->
+                items(filteredWorks, key = { it.id.toString() }) { work ->
                     val progress = work.progress.getInt("progress", 0).coerceIn(0, 100)
                     val paused = DownloadActionReceiver.isPaused(context, work.id)
                     val title = work.outputData.getString("display_name") ?: work.outputData.getString("filename") ?: work.progress.getString("media_title") ?: "Media download"
@@ -485,8 +960,16 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                     Text(title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                     Text(platform + "  •  " + quality, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
                                 }
-                                Text(work.state.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(work.state.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (sourceUrl.isNotBlank()) {
+                                        IconButton(onClick = {
+                                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(sourceUrl))
+                                            android.widget.Toast.makeText(context, "Source link copied.", android.widget.Toast.LENGTH_SHORT).show()
+                                        }) { Icon(Icons.Default.ContentCopy, contentDescription = "Copy source link") }
+                                    }
+                                }
                             }
                             if (work.state == WorkInfo.State.FAILED) {
                                 val rawError = work.outputData.getString("error") ?: "Download failed. Try inspecting the link again."
@@ -502,8 +985,17 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                 }) { Text(if (work.id in expandedErrors) "Hide technical details" else "Troubleshooting details") }
                                 if (work.id in expandedErrors) {
                                     Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(10.dp)) {
-                                        Text(rawError, Modifier.fillMaxWidth().padding(12.dp), fontSize = 11.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text(rawError, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            TextButton(onClick = {
+                                                clipboard.setText(androidx.compose.ui.text.AnnotatedString(rawError))
+                                                android.widget.Toast.makeText(context, "Error details copied.", android.widget.Toast.LENGTH_SHORT).show()
+                                            }) {
+                                                Icon(Icons.Default.ContentCopy, null)
+                                                Spacer(Modifier.width(6.dp))
+                                                Text("Copy error details")
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -567,9 +1059,12 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                 if (work.state == WorkInfo.State.FAILED || work.state == WorkInfo.State.CANCELLED) {
                                     TextButton(onClick = {
                                         val sourceUrl = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                            ?: work.progress.getString("media_url")
                                         val selector = work.outputData.getString(DownloadWorker.RETRY_FORMAT)
-                                        val retryTitle = work.outputData.getString(DownloadWorker.RETRY_TITLE) ?: title
-                                        if (sourceUrl != null) {
+                                            ?: work.progress.getString("format_selector")
+                                        val retryTitle = work.outputData.getString(DownloadWorker.RETRY_TITLE)
+                                            ?: work.progress.getString("media_title") ?: title
+                                        if (!sourceUrl.isNullOrBlank()) {
                                             val preferences = SecureDownloadPreferences.load(context)
                                             DownloadWorker.enqueue(context, sourceUrl, selector ?: preferences.preferredFormatSelector, retryTitle, preferences.unmeteredOnly)
                                         } else {
@@ -585,6 +1080,23 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             }
         }
+    }
+    if (showClearHistoryConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearHistoryConfirm = false },
+            title = { Text("Clear finished download history?") },
+            text = { Text("This removes completed, failed, and cancelled download records from the download history. Active downloads are not cancelled. Downloaded media files are kept.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    WorkManager.getInstance(context).pruneWork()
+                    showClearHistoryConfirm = false
+                    android.widget.Toast.makeText(context, "Finished download history cleared.", android.widget.Toast.LENGTH_LONG).show()
+                }) { Text("Clear history") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearHistoryConfirm = false }) { Text("Keep history") }
+            }
+        )
     }
 }
 
@@ -648,25 +1160,65 @@ private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, o
 @Composable
 private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val clipboard = LocalClipboardManager.current
     var media by remember { mutableStateOf(emptyList<LibraryMedia>()) }
     var filter by remember { mutableStateOf("All Media") }
+    var sizeFilter by remember { mutableStateOf("Any size") }
+    var sortBy by remember { mutableStateOf("Newest") }
     var searchQuery by remember { mutableStateOf("") }
     var renameTarget by remember { mutableStateOf<LibraryMedia?>(null) }
     var renameText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<LibraryMedia?>(null) }
+    var selectedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var showBulkDeleteConfirm by remember { mutableStateOf(false) }
     var swipeFeedOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     suspend fun refreshMedia() { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
     LaunchedEffect(Unit) { refreshMedia() }
-    val visibleMedia = media.filter { item ->
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                scope.launch { refreshMedia() }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val filteredMedia = media.filter { item ->
         val matchesCategory = when (filter) {
             "Video" -> item.mimeType.startsWith("video/")
             "Audio" -> item.mimeType.startsWith("audio/")
+            "Images" -> item.mimeType.startsWith("image/")
+            "Other Files" -> !item.mimeType.startsWith("video/") && !item.mimeType.startsWith("audio/") && !item.mimeType.startsWith("image/")
             "Favorites" -> item.isFavorite
             else -> true
         }
-        matchesCategory && item.displayName.contains(searchQuery.trim(), ignoreCase = true)
+        val matchesSize = when (sizeFilter) {
+            "Under 10 MB" -> item.sizeBytes in 1L..9_999_999L
+            "10–100 MB" -> item.sizeBytes in 10_000_000L..100_000_000L
+            "Over 100 MB" -> item.sizeBytes > 100_000_000L
+            "Unknown size" -> item.sizeBytes <= 0L
+            else -> true
+        }
+        matchesCategory && matchesSize && item.displayName.contains(searchQuery.trim(), ignoreCase = true)
     }
+    val visibleMedia = when (sortBy) {
+        "Oldest" -> filteredMedia.sortedBy { it.createdAtMs }
+        "Name A-Z" -> filteredMedia.sortedBy { it.displayName.lowercase() }
+        "Largest" -> filteredMedia.sortedByDescending { it.sizeBytes }
+        "Smallest" -> filteredMedia.sortedBy { it.sizeBytes }
+        "Type" -> filteredMedia.sortedWith(compareBy<LibraryMedia> { it.mimeType.substringBefore("/") }.thenBy { it.displayName.lowercase() })
+        "Extension" -> filteredMedia.sortedWith(compareBy<LibraryMedia> { it.displayName.substringAfterLast('.', "").lowercase() }.thenBy { it.displayName.lowercase() })
+        else -> filteredMedia.sortedByDescending { it.createdAtMs }
+    }
+    // Drop selections for items that have been deleted or are no longer indexed.
+    LaunchedEffect(media) {
+        val existingUris = media.map { it.uri.toString() }.toSet()
+        selectedUris = selectedUris.intersect(existingUris)
+    }
+    val visibleBytes = visibleMedia.sumOf { it.sizeBytes.coerceAtLeast(0L) }
+    val favoriteCount = media.count { it.isFavorite }
     if (swipeFeedOpen) {
         SwipeFeedScreen(
             media = visibleMedia,
@@ -682,7 +1234,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
         )
         return
     }
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Your library", fontSize = 27.sp, fontWeight = FontWeight.Bold)
@@ -692,6 +1244,257 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                 Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Swipe Feed")
             }
         }
+        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(16.dp)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column {
+                        Text("${visibleMedia.size} shown", fontWeight = FontWeight.SemiBold)
+                        Text(String.format("%.1f MB", visibleBytes / 1_000_000.0),
+                            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("${media.size} total", fontWeight = FontWeight.SemiBold)
+                        Text("${favoriteCount} favorites", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                OutlinedButton(
+                    onClick = {
+                        val report = buildString {
+                            appendLine("VidGravity media library")
+                            appendLine("Visible: ${visibleMedia.size} | Total indexed: ${media.size} | Favorites: ${favoriteCount}")
+                            appendLine("Visible size: ${String.format("%.1f MB", visibleBytes / 1_000_000.0)}")
+                            appendLine()
+                            visibleMedia.forEachIndexed { index, item ->
+                                appendLine("${index + 1}. ${item.displayName}")
+                                appendLine("   Type: ${item.mimeType} | Size: ${if (item.sizeBytes > 0) String.format("%.1f MB", item.sizeBytes / 1_000_000.0) else "Unknown"}")
+                            }
+                        }
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
+                        android.widget.Toast.makeText(context, "Library report copied.", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    enabled = visibleMedia.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.ContentCopy, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Copy visible library report")
+                }
+            }
+        }
+        OutlinedButton(
+            onClick = {
+                val report = buildString {
+                    appendLine("VidGravity media library")
+                    appendLine("Visible: ${visibleMedia.size} | Total indexed: ${media.size} | Favorites: ${favoriteCount}")
+                    appendLine("Visible size: ${String.format("%.1f MB", visibleBytes / 1_000_000.0)}")
+                    appendLine()
+                    visibleMedia.forEachIndexed { index, item ->
+                        appendLine("${index + 1}. ${item.displayName}")
+                        appendLine("   Type: ${item.mimeType} | Size: ${if (item.sizeBytes > 0) String.format("%.1f MB", item.sizeBytes / 1_000_000.0) else "Unknown"}")
+                    }
+                }
+                runCatching {
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_SUBJECT, "VidGravity media library report")
+                        putExtra(Intent.EXTRA_TEXT, report)
+                    }
+                    context.startActivity(Intent.createChooser(shareIntent, "Share library report"))
+                }.onFailure {
+                    android.widget.Toast.makeText(context, "Could not open the sharing menu.", android.widget.Toast.LENGTH_LONG).show()
+                }
+            },
+            enabled = visibleMedia.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+        ) {
+            Icon(Icons.Default.Share, null)
+            Spacer(Modifier.width(8.dp))
+            Text("Share visible library report")
+        }
+        if (visibleMedia.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = {
+                    val allSelected = visibleMedia.all { it.uri.toString() in selectedUris }
+                    selectedUris = if (allSelected) emptySet() else visibleMedia.map { it.uri.toString() }.toSet()
+                }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                    Icon(Icons.Default.Checklist, null); Spacer(Modifier.width(6.dp))
+                    Text(if (visibleMedia.all { it.uri.toString() in selectedUris }) "Clear selection" else "Select all")
+                }
+                Button(enabled = visibleMedia.any { it.uri.toString() in selectedUris }, onClick = {
+                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    runCatching {
+                        val streams = ArrayList<Uri>()
+                        chosen.forEach { streams.add(it.uri) }
+                        val majorTypes = chosen.map { it.mimeType.substringBefore('/') }.distinct()
+                        val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+                            type = if (majorTypes.size == 1) majorTypes.first() + "/*" else "*/*"
+                            putParcelableArrayListExtra(Intent.EXTRA_STREAM, streams)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            if (streams.isNotEmpty()) {
+                                clipData = android.content.ClipData.newUri(context.contentResolver, "VidGravity media", streams.first())
+                                streams.drop(1).forEach { clipData?.addItem(android.content.ClipData.Item(it)) }
+                            }
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share selected media"))
+                    }.onFailure {
+                        android.widget.Toast.makeText(context, "Could not share selected media. Try fewer files.", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Share (${visibleMedia.count { it.uri.toString() in selectedUris }})")
+                }
+            }
+            OutlinedButton(
+                enabled = visibleMedia.isNotEmpty(),
+                onClick = {
+                    val visibleUris = visibleMedia.map { it.uri.toString() }.toSet()
+                    selectedUris = selectedUris + visibleUris
+                    android.widget.Toast.makeText(context, "Selected " + visibleUris.size + " visible item(s).", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
+            ) {
+                Icon(Icons.Default.SelectAll, null)
+                Spacer(Modifier.width(6.dp))
+                Text("Select all visible (" + visibleMedia.size + ")")
+            }
+            OutlinedButton(
+                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                onClick = {
+                    val visibleUris = visibleMedia.map { it.uri.toString() }.toSet()
+                    selectedUris = selectedUris - visibleUris
+                    android.widget.Toast.makeText(context, "Cleared selection for " + visibleUris.size + " visible item(s).", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
+            ) {
+                Icon(Icons.Default.Clear, null)
+                Spacer(Modifier.width(6.dp))
+                Text("Deselect visible items")
+            }
+            OutlinedButton(
+                enabled = visibleMedia.isNotEmpty(),
+                onClick = {
+                    val visibleUris = visibleMedia.map { it.uri.toString() }.toSet()
+                    val currentlySelected = selectedUris.intersect(visibleUris)
+                    val invertVisible = visibleUris - currentlySelected
+                    selectedUris = (selectedUris - visibleUris) + invertVisible
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
+            ) {
+                Icon(Icons.Default.SwapVert, null)
+                Spacer(Modifier.width(6.dp))
+                Text("Invert visible selection")
+            }
+            OutlinedButton(
+                enabled = visibleMedia.isNotEmpty(),
+                onClick = {
+                    val names = visibleMedia.joinToString("\n") { it.displayName }
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(names))
+                    android.widget.Toast.makeText(context, "Copied " + visibleMedia.size + " visible filename(s).", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
+            ) {
+                Icon(Icons.Default.ContentCopy, null)
+                Spacer(Modifier.width(6.dp))
+                Text("Copy visible filenames (" + visibleMedia.size + ")")
+            }
+            OutlinedButton(
+                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                onClick = {
+                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    val names = chosen.joinToString("\n") { it.displayName }
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(names))
+                    android.widget.Toast.makeText(context, "Copied ${chosen.size} filename(s).", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
+            ) {
+                Icon(Icons.Default.ContentCopy, null)
+                Spacer(Modifier.width(6.dp))
+                Text("Copy selected filenames")
+            }
+            OutlinedButton(
+                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                onClick = {
+                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    val report = buildString {
+                        appendLine("VidGravity selected media report")
+                        appendLine("Selected visible items: ${chosen.size}")
+                        appendLine("Total size: ${String.format("%.1f MB", chosen.sumOf { it.sizeBytes.coerceAtLeast(0L) } / 1_000_000.0)}")
+                        appendLine()
+                        chosen.forEachIndexed { index, item ->
+                            appendLine("${index + 1}. ${item.displayName}")
+                            appendLine("   Type: ${item.mimeType} | Size: ${if (item.sizeBytes > 0) String.format("%.1f MB", item.sizeBytes / 1_000_000.0) else "Unknown"} | Favorite: ${if (item.isFavorite) "Yes" else "No"}")
+                        }
+                    }
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
+                    android.widget.Toast.makeText(context, "Selected media report copied.", android.widget.Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
+            ) {
+                Icon(Icons.Default.ContentCopy, null)
+                Spacer(Modifier.width(6.dp))
+                Text("Copy selected media report")
+            }
+            OutlinedButton(
+                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                onClick = {
+                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    val report = buildString {
+                        appendLine("VidGravity selected media report")
+                        appendLine("Selected visible items: ${chosen.size}")
+                        appendLine("Total size: ${String.format("%.1f MB", chosen.sumOf { it.sizeBytes.coerceAtLeast(0L) } / 1_000_000.0)}")
+                        appendLine()
+                        chosen.forEachIndexed { index, item ->
+                            appendLine("${index + 1}. ${item.displayName}")
+                            appendLine("Type: ${item.mimeType} | Size: ${if (item.sizeBytes > 0) String.format("%.1f MB", item.sizeBytes / 1_000_000.0) else "Unknown"} | Favorite: ${if (item.isFavorite) "Yes" else "No"}")
+                        }
+                    }
+                    runCatching {
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_SUBJECT, "VidGravity selected media report")
+                            putExtra(Intent.EXTRA_TEXT, report)
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share selected media report"))
+                    }.onFailure {
+                        android.widget.Toast.makeText(context, "Could not open the sharing menu.", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
+            ) {
+                Icon(Icons.Default.Share, null)
+                Spacer(Modifier.width(6.dp))
+                Text("Share selected media report")
+            }
+            OutlinedButton(
+                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                onClick = {
+                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    val markFavorite = chosen.any { !it.isFavorite }
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            chosen.forEach { item -> MediaLibraryIndexer.setFavorite(context, item.uri, markFavorite) }
+                        }
+                        refreshMedia()
+                        val count = chosen.size
+                        val message = if (markFavorite) "Added $count item(s) to Favorites." else "Removed $count item(s) from Favorites."
+                        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            ) {
+                Icon(Icons.Default.Star, null); Spacer(Modifier.width(6.dp))
+                val chosenItems = visibleMedia.filter { it.uri.toString() in selectedUris }
+                Text(if (chosenItems.isNotEmpty() && chosenItems.all { it.isFavorite }) "Remove selected from Favorites" else "Add selected to Favorites")
+            }
+            OutlinedButton(
+                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                onClick = { showBulkDeleteConfirm = true },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+            ) {
+                Icon(Icons.Default.DeleteOutline, null); Spacer(Modifier.width(6.dp))
+                Text("Delete selected (${visibleMedia.count { it.uri.toString() in selectedUris }})")
+            }
+        }
         OutlinedTextField(
             value = searchQuery, onValueChange = { searchQuery = it },
             modifier = Modifier.fillMaxWidth(), singleLine = true,
@@ -699,14 +1502,55 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
             placeholder = { Text("Search your downloads") },
             shape = RoundedCornerShape(16.dp)
         )
+        OutlinedButton(
+            enabled = searchQuery.isNotBlank() || filter != "All Media" || sizeFilter != "Any size" || sortBy != "Newest",
+            onClick = {
+                searchQuery = ""
+                filter = "All Media"
+                sizeFilter = "Any size"
+                sortBy = "Newest"
+            },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+        ) {
+            Icon(Icons.Default.Refresh, null)
+            Spacer(Modifier.width(6.dp))
+            Text("Reset library filters and sorting")
+        }
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-            items(listOf("All Media", "Video", "Audio", "Favorites")) { value ->
+            items(listOf("All Media", "Video", "Audio", "Images", "Other Files", "Favorites")) { value ->
                 FilterChip(
                     selected = filter == value,
                     onClick = { filter = value },
                     label = { Text(value) },
                     modifier = Modifier.heightIn(min = 48.dp)
                 )
+            }
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Filter by file size", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
+                items(listOf("Any size", "Under 10 MB", "10–100 MB", "Over 100 MB", "Unknown size")) { value ->
+                    FilterChip(
+                        selected = sizeFilter == value,
+                        onClick = { sizeFilter = value },
+                        label = { Text(value) },
+                        modifier = Modifier.heightIn(min = 48.dp)
+                    )
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Sort by", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(listOf("Newest", "Oldest", "Name A-Z", "Largest", "Smallest", "Type", "Extension")) { value ->
+                    FilterChip(
+                        selected = sortBy == value,
+                        onClick = { sortBy = value },
+                        label = { Text(value) },
+                        modifier = Modifier.heightIn(min = 44.dp)
+                    )
+                }
             }
         }
         if (visibleMedia.isEmpty()) {
@@ -721,6 +1565,12 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                     Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp),
                         modifier = Modifier.fillMaxWidth().clickable { onPlay(item) }) {
                         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = item.uri.toString() in selectedUris,
+                                onCheckedChange = { checked ->
+                                    selectedUris = if (checked) selectedUris + item.uri.toString() else selectedUris - item.uri.toString()
+                                }
+                            )
                             Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp)) {
                                 Icon(if (item.mimeType.startsWith("audio/")) Icons.Default.MusicNote else Icons.Default.PlayArrow,
                                     null, modifier = Modifier.padding(14.dp), tint = MaterialTheme.colorScheme.primary)
@@ -770,6 +1620,30 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
             dismissButton = { TextButton(onClick = { renameTarget = null }) { Text("Cancel") } }
         )
     }
+    if (showBulkDeleteConfirm) {
+        val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+        AlertDialog(
+            onDismissRequest = { showBulkDeleteConfirm = false },
+            title = { Text("Delete selected media?") },
+            text = { Text("This permanently deletes ${chosen.size} selected item(s) from this device. This cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showBulkDeleteConfirm = false
+                    scope.launch {
+                        val results = withContext(Dispatchers.IO) {
+                            chosen.map { item -> item.uri.toString() to MediaLibraryIndexer.delete(context, item) }
+                        }
+                        selectedUris = selectedUris - chosen.map { it.uri.toString() }.toSet()
+                        refreshMedia()
+                        val failed = results.count { !it.second }
+                        val message = if (failed == 0) "Deleted ${results.size} item(s)." else "Deleted ${results.size - failed}; ${failed} could not be deleted."
+                        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { showBulkDeleteConfirm = false }) { Text("Cancel") } }
+        )
+    }
     deleteTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
@@ -791,7 +1665,15 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
 @Composable
 private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit, openInbox: () -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = rememberCoroutineScope()
     var selectedMedia by remember { mutableStateOf<LibraryMedia?>(null) }
+    var storyEditorOpen by remember { mutableStateOf(false) }
+    var isRendering by remember { mutableStateOf(false) }
+    var segmentProgress by remember { mutableStateOf<String?>(null) }
+    var segmentJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var statusClipSeconds by remember { mutableStateOf(90) }
+    var exportedUri by remember { mutableStateOf<Uri?>(null) }
+    var stickerUri by remember { mutableStateOf<Uri?>(null) }
     val picker = rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -812,24 +1694,77 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             }.getOrDefault("Selected media" to 0L)
             val mime = context.contentResolver.getType(uri) ?: "video/*"
             selectedMedia = LibraryMedia(uri, metadata.first, metadata.second, mime, System.currentTimeMillis())
-            notify("Media selected. Choose Preview or Share to continue.")
+            exportedUri = null
+            stickerUri = null
+            notify("Media selected. Preview, share, or create a 9:16 story or animated sticker.")
         }
     }
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    if (storyEditorOpen && selectedMedia != null) {
+        StoryCardScreen(
+            media = selectedMedia!!,
+            onClose = { storyEditorOpen = false },
+            isRendering = isRendering,
+            onRenderStory = { source, startSeconds, endSeconds, title, artist, layout ->
+                if (!isRendering) {
+                    scope.launch {
+                        isRendering = true
+                        try {
+                            val mode = when (layout) {
+                                "Audio Visualizer" -> "audio-story"
+                                "Video Backdrop" -> "blurred-backdrop"
+                                "Privacy Blur" -> "privacy-blur"
+                                else -> "fit-letterbox"
+                            }
+                            val uri = withContext(Dispatchers.IO) {
+                                DownloadApi.exportMedia(
+                                    context, source.uri, "whatsapp-status", mode,
+                                    startSeconds, (endSeconds - startSeconds).coerceIn(1f, 3600f)
+                                )
+                            }
+                            exportedUri = uri
+                            notify("Story exported, checksum verified, and saved to Movies/VidGravity. You can now share it.")
+                        } catch (failure: Exception) {
+                            notify("Story export failed: ${failure.message ?: "Please try again."}".take(240))
+                        } finally {
+                            isRendering = false
+                        }
+                    }
+                }
+            },
+            onShareDerivative = { platform ->
+                val uri = exportedUri
+                if (uri == null) {
+                    notify("Render the story first; the original file will not be replaced.")
+                } else {
+                    runCatching {
+                        val share = Intent(Intent.ACTION_SEND).apply {
+                            type = "video/mp4"
+                            putExtra(Intent.EXTRA_STREAM, uri)
+                            putExtra(Intent.EXTRA_TITLE, "VidGravity story")
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                        context.startActivity(Intent.createChooser(share, "Share story to ${platform.replaceFirstChar { it.uppercase() }}"))
+                    }.onFailure { notify("Could not open sharing: ${it.message ?: "try again"}") }
+                }
+            }
+        )
+        return
+    }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         OutlinedButton(onClick = openInbox, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
             Icon(Icons.Default.Inbox, null)
             Spacer(Modifier.width(8.dp))
             Text("Share Inbox · Watch / Learn Later")
         }
         Text("Create studio", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Choose a local video or audio file to preview and share. Your original stays unchanged.",
+        Text("Choose local video, preview it, or create a share-ready 9:16 derivative. Originals remain unchanged.",
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
                 Text("Start with your own media", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text("Select a file from this device. VidGravity will keep the selected source intact while you preview or share it.",
+                Text("Select a video from this device. Rendering uses the configured VidGravity companion and never overwrites the selected source.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 Button(onClick = { picker.launch(arrayOf("video/*", "audio/*")) }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("Choose media")
@@ -852,11 +1787,165 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                                     type = media.mimeType; putExtra(Intent.EXTRA_STREAM, media.uri)
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
-                                context.startActivity(Intent.createChooser(intent, "Share media"))
+                                context.startActivity(Intent.createChooser(intent, "Share original media"))
                             }.onFailure { notify("Could not open Android sharing: ${it.message ?: "try again"}") }
                         }, modifier = Modifier.weight(1f)) {
-                            Icon(Icons.Default.Share, null); Spacer(Modifier.width(5.dp)); Text("Share")
+                            Icon(Icons.Default.Share, null); Spacer(Modifier.width(5.dp)); Text("Share original")
                         }
+                    }
+                    Button(onClick = { storyEditorOpen = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+                        Icon(Icons.Default.AutoAwesome, null); Spacer(Modifier.width(8.dp)); Text("Create 9:16 Story / Status")
+                    }
+                    Text("STATUS CLIP LENGTH", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(30, 60, 90, 120).forEach { seconds ->
+                            FilterChip(
+                                selected = statusClipSeconds == seconds,
+                                onClick = { statusClipSeconds = seconds },
+                                enabled = segmentJob == null && !isRendering,
+                                label = { Text("${seconds}s") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                    Text(
+                        if (statusClipSeconds > 90)
+                            "120s is a custom split target; WhatsApp documents a 90-second maximum per Status video, so it may trim this clip. Use 90s or less for safer Status uploads."
+                        else "Each exported clip targets ${statusClipSeconds} seconds. WhatsApp's current documented maximum is 90 seconds per Status video.",
+                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedButton(
+                        enabled = !isRendering && segmentJob == null,
+                        onClick = {
+                            if (!media.mimeType.startsWith("video/")) {
+                                notify("Status segmentation requires a video file.")
+                            } else {
+                                segmentJob = scope.launch {
+                                    var completed = 0
+                                    try {
+                                        val durationSeconds = withContext(Dispatchers.IO) {
+                                            val retriever = android.media.MediaMetadataRetriever()
+                                            try {
+                                                retriever.setDataSource(context, media.uri)
+                                                retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                                                    ?.toLongOrNull()?.toFloat()?.div(1000f)
+                                            } finally { retriever.release() }
+                                        } ?: throw IllegalStateException("Could not read the video duration.")
+                                        require(durationSeconds > 0f) { "The video duration is unavailable." }
+                                        require(durationSeconds <= 600f) { "For safety and predictable processing, split videos up to 10 minutes per batch." }
+                                        val clipTargetSeconds = statusClipSeconds.toFloat()
+                                        val count = kotlin.math.ceil(durationSeconds / clipTargetSeconds).toInt()
+                                        for (index in 0 until count) {
+                                            val startSeconds = index * clipTargetSeconds
+                                            val clipSeconds = (durationSeconds - startSeconds).coerceAtMost(clipTargetSeconds)
+                                            segmentProgress = "Rendering ${statusClipSeconds}s clip ${index + 1} of $count…"
+                                            withContext(Dispatchers.IO) {
+                                                DownloadApi.exportMedia(
+                                                    context, media.uri, "whatsapp-status", "fit-letterbox",
+                                                    startSeconds, clipSeconds
+                                                )
+                                            }
+                                            completed++
+                                            if (index < count - 1) kotlinx.coroutines.delay(21_000L)
+                                        }
+                                        notify("Created $completed WhatsApp Status clips. Verified clips are saved in Movies/VidGravity.")
+                                    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                        notify("Status split cancelled after $completed clip(s).")
+                                    } catch (failure: Exception) {
+                                        notify("Status splitting stopped after $completed clip(s): ${failure.message ?: "Please retry."}".take(240))
+                                    } finally {
+                                        segmentJob = null
+                                        segmentProgress = null
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                    ) {
+                        if (segmentJob != null) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text(segmentProgress ?: "Preparing status clips…")
+                        } else {
+                            Icon(Icons.Default.ContentCut, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Split into ${statusClipSeconds}-second clips")
+                        }
+                    }
+                    if (segmentJob != null) {
+                        TextButton(
+                            onClick = { segmentJob?.cancel() },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        ) {
+                            Icon(Icons.Default.Close, null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Cancel split")
+                        }
+                    }
+                    OutlinedButton(
+                        enabled = !isRendering && segmentJob == null,
+                        onClick = {
+                            if (!media.mimeType.startsWith("video/")) {
+                                notify("Animated WebP stickers require a video source.")
+                            } else {
+                                scope.launch {
+                                    isRendering = true
+                                    try {
+                                        val durationSeconds = withContext(Dispatchers.IO) {
+                                            val retriever = android.media.MediaMetadataRetriever()
+                                            try {
+                                                retriever.setDataSource(context, media.uri)
+                                                retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                                                    ?.toLongOrNull()?.toFloat()?.div(1000f)
+                                            } finally { retriever.release() }
+                                        } ?: throw IllegalStateException("Could not read the video duration.")
+                                        require(durationSeconds > 0f) { "The video duration is unavailable." }
+                                        val clipSeconds = durationSeconds.coerceAtMost(10f)
+                                        stickerUri = withContext(Dispatchers.IO) {
+                                            DownloadApi.exportMedia(
+                                                context, media.uri, "animated-sticker", "fit-letterbox",
+                                                0f, clipSeconds, "webp"
+                                            )
+                                        }
+                                        notify("Animated WebP sticker rendered, checksum verified, and saved to Pictures/VidGravity/Stickers.")
+                                    } catch (failure: Exception) {
+                                        notify("Sticker export failed: ${failure.message ?: "Please try again."}".take(240))
+                                    } finally {
+                                        isRendering = false
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                    ) {
+                        if (isRendering) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Rendering creator export…")
+                        } else {
+                            Icon(Icons.Default.AutoAwesome, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Make animated WebP sticker (up to 10s)")
+                        }
+                    }
+                    stickerUri?.let { uri ->
+                        OutlinedButton(onClick = {
+                            runCatching {
+                                val share = Intent(Intent.ACTION_SEND).apply {
+                                    type = "image/webp"
+                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                context.startActivity(Intent.createChooser(share, "Share animated sticker"))
+                            }.onFailure { notify("Could not share sticker: ${it.message ?: "try again"}") }
+                        }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                            Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Share animated sticker")
+                        }
+                    }
+                    exportedUri?.let {
+                        Text("Latest story saved in Movies/VidGravity. Use the story share buttons to send the verified derivative.",
+                            color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
                     }
                 }
             }
@@ -874,9 +1963,9 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             Spacer(Modifier.width(8.dp))
             Text("Open POV camera")
         }
-        Text("Creator tools", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        InfoCard("WhatsApp Status", "Story segmentation/export is not connected to the native render pipeline yet.", Icons.Default.ContentCut, Modifier.fillMaxWidth())
-        InfoCard("Sticker maker", "Animated WebP rendering requires the media renderer integration.", Icons.Default.AutoAwesome, Modifier.fillMaxWidth())
+        Text("More creator tools", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        InfoCard("Animated stickers", "Next pipeline batch: render short source clips as animated WebP with size and duration limits.", Icons.Default.AutoAwesome, Modifier.fillMaxWidth())
+        InfoCard("WhatsApp Status segments", "Next pipeline batch: create multiple bounded segments and verify every output before sharing.", Icons.Default.ContentCut, Modifier.fillMaxWidth())
     }
 }
 
@@ -911,9 +2000,17 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
     LaunchedEffect(Unit) {
         mediaBytes = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context).sumOf { it.sizeBytes } }
     }
-    var unmeteredOnly by remember { mutableStateOf(SecureDownloadPreferences.load(context).unmeteredOnly) }
-    var autoPreset by remember { mutableStateOf(SecureDownloadPreferences.load(context).autoDownloadWithPreferredPreset) }
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    var savedPreferences by remember { mutableStateOf(SecureDownloadPreferences.load(context)) }
+    var unmeteredOnly by remember { mutableStateOf(savedPreferences.unmeteredOnly) }
+    var autoPreset by remember { mutableStateOf(savedPreferences.autoDownloadWithPreferredPreset) }
+    val formatPresets = listOf(
+        "Best" to "bv*+ba/b",
+        "2160p" to "bestvideo[height<=2160]+bestaudio/best[height<=2160]",
+        "1080p" to "bestvideo[height<=1080]+bestaudio/best[height<=1080]",
+        "720p" to "bestvideo[height<=720]+bestaudio/best[height<=720]",
+        "Audio" to "bestaudio/best"
+    )
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Settings", fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Make VidGravity work your way.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text("APPEARANCE", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
@@ -929,6 +2026,22 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
             }
         }
         Text("DOWNLOADS", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+        Text("Default download quality", fontWeight = FontWeight.SemiBold)
+        Text("Used by bulk queueing and automatic share downloads. You can still choose a different format when inspecting a link.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(formatPresets) { preset ->
+                FilterChip(
+                    selected = savedPreferences.preferredFormatSelector == preset.second,
+                    onClick = {
+                        val updated = savedPreferences.copy(preferredFormatSelector = preset.second)
+                        savedPreferences = updated
+                        SecureDownloadPreferences.save(context, updated)
+                    },
+                    label = { Text(preset.first) },
+                    modifier = Modifier.heightIn(min = 48.dp)
+                )
+            }
+        }
         SettingRow(Icons.Default.Folder, "Save location", "Managed by Android app storage")
         Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {

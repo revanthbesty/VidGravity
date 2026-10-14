@@ -225,6 +225,117 @@ object DownloadApi {
         } finally { connection.disconnect() }
     }
 
+
+    /** Upload a bounded local video to the companion renderer, verify its digest, and publish a separate derivative. */
+    fun exportMedia(
+        context: android.content.Context,
+        sourceUri: Uri,
+        preset: String,
+        mode: String,
+        startSeconds: Float,
+        trimSeconds: Float,
+        outputFormat: String = "mp4"
+    ): Uri {
+        require(outputFormat in setOf("mp4", "webp")) { "Unsupported export format." }
+        require(if (outputFormat == "webp") preset == "animated-sticker" else preset in setOf("whatsapp-status", "instagram-story", "instagram-reels", "youtube-shorts", "tiktok")) { "Unsupported export preset." }
+        require(mode in setOf("smart-reframe", "blurred-backdrop", "fit-letterbox", "privacy-blur", "audio-story")) { "Unsupported framing mode." }
+        if (outputFormat == "webp") {
+            require(mode == "fit-letterbox" && trimSeconds <= 10f) { "Animated stickers must use fit-letterbox framing and be 10 seconds or shorter." }
+            require(context.contentResolver.getType(sourceUri)?.startsWith("video/") == true) { "Animated stickers require a video source." }
+        }
+        if (mode == "audio-story") {
+            require(outputFormat == "mp4" && preset in setOf("whatsapp-status", "instagram-story", "instagram-reels", "youtube-shorts", "tiktok")) {
+                "Audio visualizer stories require a vertical MP4 social preset."
+            }
+            require(context.contentResolver.getType(sourceUri)?.startsWith("audio/") == true) { "Audio visualizer stories require an audio source." }
+        }
+        require(startSeconds.isFinite() && startSeconds >= 0f && startSeconds < 3600f) { "Invalid clip start time." }
+        require(trimSeconds.isFinite() && trimSeconds > 0f && trimSeconds <= 3600f && startSeconds + trimSeconds <= 3600f) { "Invalid clip duration." }
+        val sourceFile = File.createTempFile("vg-story-source-", ".bin", context.cacheDir)
+        val outputFile = File.createTempFile("vg-story-export-", if (outputFormat == "webp") ".webp" else ".mp4", context.cacheDir)
+        var publishedUri: Uri? = null
+        try {
+            context.contentResolver.openInputStream(sourceUri)?.use { input ->
+                FileOutputStream(sourceFile).use { output ->
+                    val buffer = ByteArray(128 * 1024)
+                    var total = 0L
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        total += count
+                        require(total <= 256L * 1024L * 1024L) { "Source media exceeds the 256 MiB export limit." }
+                        output.write(buffer, 0, count)
+                    }
+                    output.fd.sync()
+                }
+            } ?: throw IllegalStateException("Cannot open the selected source media.")
+            require(sourceFile.length() > 0L) { "The selected source media is empty." }
+            val mime = context.contentResolver.getType(sourceUri)?.takeIf { it.startsWith("video/") || (mode == "audio-story" && it.startsWith("audio/")) } ?: "application/octet-stream"
+            val connection = open("/api/media/export", "POST", mime)
+            connection.doOutput = true
+            connection.connectTimeout = 15_000
+            connection.readTimeout = 1_800_000
+            connection.setFixedLengthStreamingMode(sourceFile.length())
+            connection.setRequestProperty("X-VG-Preset", preset)
+            connection.setRequestProperty("X-VG-Format", outputFormat)
+            connection.setRequestProperty("X-VG-Mode", mode)
+            connection.setRequestProperty("X-VG-Start-Seconds", "%.3f".format(java.util.Locale.US, startSeconds))
+            connection.setRequestProperty("X-VG-Trim-Seconds", "%.3f".format(java.util.Locale.US, trimSeconds))
+            try {
+                sourceFile.inputStream().buffered(128 * 1024).use { input ->
+                    connection.outputStream.buffered(128 * 1024).use { output -> input.copyTo(output, 128 * 1024) }
+                }
+                val code = connection.responseCode
+                if (code !in 200..299) {
+                    val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    throw IllegalStateException("Export HTTP $code: ${detail.take(300)}")
+                }
+                val expected = connection.getHeaderField("X-Content-SHA256")?.trim()?.takeIf { it.matches(Regex("[a-fA-F0-9]{64}")) }
+                    ?: throw java.io.IOException("The renderer did not provide a valid SHA-256 checksum.")
+                connection.inputStream.buffered(128 * 1024).use { input ->
+                    FileOutputStream(outputFile).use { output ->
+                        val buffer = ByteArray(128 * 1024)
+                        var total = 0L
+                        while (true) {
+                            val count = input.read(buffer)
+                            if (count < 0) break
+                            total += count
+                            require(total <= 256L * 1024L * 1024L) { "Export exceeds the 256 MiB response limit." }
+                            output.write(buffer, 0, count)
+                        }
+                        output.fd.sync()
+                    }
+                }
+                if (!sha256(outputFile).equals(expected, ignoreCase = true)) {
+                    throw java.io.IOException("Export SHA-256 verification failed; the file was not published.")
+                }
+            } finally { connection.disconnect() }
+            val values = android.content.ContentValues().apply {
+                val suffix = if (outputFormat == "webp") "Sticker" else "Story"
+                val extension = if (outputFormat == "webp") "webp" else "mp4"
+                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "VidGravity_${suffix}_${System.currentTimeMillis()}.$extension")
+                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, if (outputFormat == "webp") "image/webp" else "video/mp4")
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    val directory = if (outputFormat == "webp") android.os.Environment.DIRECTORY_PICTURES + "/VidGravity/Stickers" else android.os.Environment.DIRECTORY_MOVIES + "/VidGravity"
+                    put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH, directory)
+                }
+            }
+            val collection = if (outputFormat == "webp") android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI else android.provider.MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            publishedUri = context.contentResolver.insert(collection, values)
+                ?: throw IllegalStateException("Android could not create a library entry for the exported video.")
+            context.contentResolver.openOutputStream(publishedUri, "w")?.use { output ->
+                outputFile.inputStream().buffered(128 * 1024).use { it.copyTo(output, 128 * 1024) }
+            } ?: throw IllegalStateException("Android could not write the exported video.")
+            return publishedUri
+        } catch (failure: Exception) {
+            publishedUri?.let { runCatching { context.contentResolver.delete(it, null, null) } }
+            throw failure
+        } finally {
+            sourceFile.delete()
+            outputFile.delete()
+        }
+    }
+
     fun sha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().buffered(128 * 1024).use { input ->

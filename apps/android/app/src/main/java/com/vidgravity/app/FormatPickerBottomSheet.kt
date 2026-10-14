@@ -8,6 +8,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import android.widget.ScrollView
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.google.android.material.switchmaterial.SwitchMaterial
@@ -49,7 +50,14 @@ class FormatPickerBottomSheet : BottomSheetDialogFragment() {
         remember = SwitchMaterial(context).apply { text = "Always use this quality for automatic downloads" }
         root.addView(remember)
         root.post { analyze() }
-        return root
+        return ScrollView(context).apply {
+            isFillViewport = true
+            clipToPadding = false
+            addView(root, ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ))
+        }
     }
 
     private fun analyze() {
