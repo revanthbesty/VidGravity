@@ -1478,6 +1478,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                     Spacer(Modifier.width(8.dp))
                     Text(if (allChosenAreFavorites) "Remove selected from favorites (${chosenMedia.size})" else "Favorite selected (${chosenMedia.size})")
                 }
+            }
             OutlinedButton(
                 enabled = visibleMedia.isNotEmpty(),
                 onClick = {
