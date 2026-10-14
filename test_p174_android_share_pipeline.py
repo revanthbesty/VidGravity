@@ -150,6 +150,12 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('initialSearch = librarySearchTarget',main)
   self.assertIn('LaunchedEffect(initialSearch) { if (initialSearch.isNotBlank()) searchQuery = initialSearch }',main)
   self.assertIn('Text("Find this download in Library")',main)
+ def test_creator_status_clip_length_persists_without_clearing_draft_preference(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('draftPrefs.getInt("statusClipSeconds", 90)',main)
+  self.assertIn('draftPrefs.edit().putInt("statusClipSeconds", statusClipSeconds).apply()',main)
+  self.assertIn('remove("uri").remove("name").remove("size").remove("mime").remove("savedAt")',main)
+  self.assertIn('listOf(30, 60, 90, 120)',main)
  def test_creator_studio_persists_and_restores_local_draft(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('getSharedPreferences("vg-creator-draft", 0)',main)
