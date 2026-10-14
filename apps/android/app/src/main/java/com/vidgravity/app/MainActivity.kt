@@ -2055,6 +2055,8 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     var captionPlatform by remember { mutableStateOf(draftPrefs.getString("captionPlatform", "Instagram") ?: "Instagram") }
     var captionText by remember { mutableStateOf(draftPrefs.getString("captionText", "").orEmpty().take(2200)) }
     var hashtagText by remember { mutableStateOf(draftPrefs.getString("hashtagText", "#VidGravity #Creator").orEmpty().take(500)) }
+    var captionTone by remember { mutableStateOf(draftPrefs.getString("captionTone", "Casual") ?: "Casual") }
+    LaunchedEffect(captionTone) { draftPrefs.edit().putString("captionTone", captionTone).apply() }
     LaunchedEffect(captionPlatform) { draftPrefs.edit().putString("captionPlatform", captionPlatform).apply() }
     LaunchedEffect(captionText) { draftPrefs.edit().putString("captionText", captionText.take(2200)).apply() }
     LaunchedEffect(hashtagText) { draftPrefs.edit().putString("hashtagText", hashtagText.take(500)).apply() }
@@ -2379,6 +2381,34 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                         FilterChip(selected = captionPlatform == platform, onClick = { captionPlatform = platform }, label = { Text(platform) })
                     }
                 }
+                Text("WRITING STYLE", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Casual", "Educational", "Playful", "Professional").forEach { tone ->
+                        FilterChip(selected = captionTone == tone, onClick = { captionTone = tone }, label = { Text(tone) })
+                    }
+                }
+                Text(
+                    when (captionTone) {
+                        "Educational" -> "Style guide: explain one useful idea clearly, then invite a question."
+                        "Playful" -> "Style guide: keep the wording light and energetic without overpromising."
+                        "Professional" -> "Style guide: use concise wording, clear value, and a respectful call to action."
+                        else -> "Style guide: sound natural, friendly, and conversational."
+                    }, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text("HOOK STARTERS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        "Here's what I learned…" to "Here's what I learned…",
+                        "A quick tip for you:" to "A quick tip for you:",
+                        "I wish I knew this earlier…" to "I wish I knew this earlier…",
+                        "Behind this creation:" to "Behind this creation:",
+                        "Let's break it down:" to "Let's break it down:"
+                    ).forEach { (label, value) ->
+                        AssistChip(onClick = { captionText = (value + if (captionText.isBlank()) "" else "\\n\\n" + captionText).take(2200) }, label = { Text(label) })
+                    }
+                }
                 Text("CAPTION TEMPLATES", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2416,6 +2446,38 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                         }, label = { Text(tag) })
                     }
                 }
+                val captionWordCount = captionText.trim().split(Regex("\\s+")).count { it.isNotBlank() }
+                val captionLineCount = if (captionText.isBlank()) 0 else captionText.lines().size
+                val estimatedReadSeconds = kotlin.math.ceil(captionWordCount / 3.5).toInt().coerceAtLeast(if (captionWordCount > 0) 1 else 0)
+                val platformCaptionLimit = when (captionPlatform) {
+                    "Instagram" -> 2200
+                    "TikTok" -> 2200
+                    "YouTube Shorts" -> 5000
+                    else -> 1000
+                }
+                Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("CAPTION CHECK", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Words: $captionWordCount", fontSize = 12.sp)
+                            Text("Lines: $captionLineCount", fontSize = 12.sp)
+                            Text("Read: ~${estimatedReadSeconds}s", fontSize = 12.sp)
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Hashtags: ${hashtagText.split(Regex("\\s+")).count { it.startsWith("#") }}", fontSize = 12.sp)
+                            Text("Caption: ${captionText.length}/$platformCaptionLimit", fontSize = 12.sp,
+                                color = if (captionText.length > platformCaptionLimit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text(
+                            when {
+                                captionText.length > platformCaptionLimit -> "Caption exceeds this platform's suggested limit. Shorten it before posting."
+                                captionText.isBlank() -> "Add a clear opening line to start your caption."
+                                !captionText.contains("?") && !captionText.contains("comment", ignoreCase = true) && !captionText.contains("save", ignoreCase = true) -> "Tip: consider adding a question or a clear call to action."
+                                else -> "Caption has content and an engagement prompt. Review spelling and platform formatting before posting."
+                            }, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
                 Text(
                     when (captionPlatform) {
                         "Instagram" -> "Instagram draft · Preview line breaks and hashtags before posting."
@@ -2424,6 +2486,27 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                         else -> "WhatsApp draft · Keep the message concise for direct sharing."
                     }, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Text("CALL-TO-ACTION IDEAS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        "What would you try?" to "What would you try?",
+                        "Save this for later" to "Save this for later",
+                        "Tell me your thoughts" to "Tell me your thoughts",
+                        "Follow for more" to "Follow for more",
+                        "Share with a friend" to "Share with a friend"
+                    ).forEach { (label, value) ->
+                        AssistChip(onClick = { captionText = (captionText.trimEnd() + if (captionText.isBlank()) "" else "\\n\\n" + value).take(2200) }, label = { Text(label) })
+                    }
+                }
+                OutlinedButton(
+                    enabled = captionText.isNotBlank(),
+                    onClick = {
+                        captionText = captionText.trim().replace(Regex("[ \\t]+"), " ")
+                            .replace(Regex("\\n{3,}"), "\\n\\n").take(2200)
+                        notify("Caption spacing cleaned up.")
+                    }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) { Icon(Icons.Default.FormatAlignLeft, null); Spacer(Modifier.width(8.dp)); Text("Clean caption spacing") }
                 OutlinedButton(
                     onClick = {
                         val tags = hashtagText.split(Regex("\\s+")).filter { it.isNotBlank() }
