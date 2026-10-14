@@ -790,11 +790,15 @@ class Handler(SimpleHTTPRequestHandler):
             if length > max_input:
                 return self._json(413, {'error': 'Source media exceeds the 256 MiB export limit'})
             media_type = (self.headers.get('Content-Type', '') or '').split(';', 1)[0].lower()
-            if not (media_type.startswith('video/') or media_type == 'application/octet-stream'):
-                return self._json(415, {'error': 'Upload a supported video file'})
+            requested_mode = self.headers.get('X-VG-Mode', '')
+            allowed_media = media_type.startswith('video/') or media_type == 'application/octet-stream'
+            if requested_mode == 'audio-story':
+                allowed_media = allowed_media or media_type.startswith('audio/')
+            if not allowed_media:
+                return self._json(415, {'error': 'Upload supported video media, or audio media for an audio-story export'})
             request = {
                 'preset': self.headers.get('X-VG-Preset', ''),
-                'mode': self.headers.get('X-VG-Mode', ''),
+                'mode': requested_mode,
                 'width': self.headers.get('X-VG-Width'),
                 'height': self.headers.get('X-VG-Height'),
                 'trim_seconds': self.headers.get('X-VG-Trim-Seconds'),
