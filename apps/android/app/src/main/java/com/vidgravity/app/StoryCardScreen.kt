@@ -13,6 +13,8 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -31,13 +33,35 @@ fun StoryCardScreen(
     isRendering: Boolean = false
 ) {
     val context = LocalContext.current
-    var start by remember { mutableFloatStateOf(0f) }
-    var length by remember { mutableFloatStateOf(15f) }
-    var title by remember { mutableStateOf(media.displayName.substringBeforeLast(".")) }
-    var artist by remember { mutableStateOf("") }
-    var layout by remember { mutableStateOf("Cover Art") }
+    var start by remember(media.uri) { mutableFloatStateOf(0f) }
+    var length by remember(media.uri) { mutableFloatStateOf(15f) }
+    var title by remember(media.uri) { mutableStateOf(media.displayName.substringBeforeLast(".")) }
+    var artist by remember(media.uri) { mutableStateOf("") }
+    var layout by remember(media.uri) { mutableStateOf("Cover Art") }
     var status by remember { mutableStateOf("") }
-    val duration = 60f
+    var duration by remember(media.uri) { mutableFloatStateOf(60f) }
+    var durationKnown by remember(media.uri) { mutableStateOf(false) }
+    LaunchedEffect(media.uri) {
+        val measured = withContext(Dispatchers.IO) {
+            runCatching {
+                val retriever = android.media.MediaMetadataRetriever()
+                try {
+                    retriever.setDataSource(context, media.uri)
+                    retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                        ?.toLongOrNull()?.toFloat()?.div(1000f)
+                } finally { retriever.release() }
+            }.getOrNull()
+        }
+        if (measured != null && measured > 0f) {
+            duration = measured
+            length = minOf(length, measured, 30f).coerceAtLeast(1f)
+            start = start.coerceIn(0f, (measured - length).coerceAtLeast(0f))
+            durationKnown = true
+        } else {
+            status = "Could not read exact duration; trim range uses a 60-second fallback."
+        }
+    }
+    val maxLength = minOf(duration, 120f).coerceAtLeast(1f)
     val end = (start + length).coerceAtMost(duration)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -60,10 +84,40 @@ fun StoryCardScreen(
             }
         }
         Text("Clip length: ${length.roundToInt()} seconds", style = MaterialTheme.typography.titleMedium)
-        Slider(value = length, onValueChange = { length = it.coerceIn(15f, 30f) }, valueRange = 15f..30f, modifier = Modifier.heightIn(min = 48.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(15, 30, 60, 90, 120).forEach { seconds ->
+                FilterChip(
+                    selected = length.roundToInt() == seconds,
+                    enabled = seconds <= duration && seconds <= 120f && !isRendering,
+                    onClick = {
+                        length = seconds.toFloat().coerceAtMost(duration).coerceAtLeast(1f)
+                        start = start.coerceIn(0f, (duration - length).coerceAtLeast(0f))
+                    },
+                    label = { Text("${seconds}s") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+        Slider(
+            value = length.coerceIn(1f, maxLength),
+            onValueChange = {
+                length = it.coerceIn(1f, maxLength)
+                start = start.coerceIn(0f, (duration - length).coerceAtLeast(0f))
+            },
+            valueRange = 1f..maxLength,
+            enabled = !isRendering && maxLength > 1f,
+            modifier = Modifier.heightIn(min = 48.dp)
+        )
         Text("Start point: ${start.roundToInt()}s", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Slider(value = start, onValueChange = { start = it.coerceIn(0f, (duration - length).coerceAtLeast(0f)) },
             valueRange = 0f..(duration - length).coerceAtLeast(0f), modifier = Modifier.heightIn(min = 48.dp))
+        Text(
+            if (length > 90f) "This clip is longer than WhatsApp's documented 90-second Status limit."
+            else if (durationKnown) "Source duration: ${duration.roundToInt()}s"
+            else "Source duration is estimated until media metadata is available.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall
+        )
         OutlinedTextField(value = title, onValueChange = { title = it.take(100) }, label = { Text("Track / story title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(value = artist, onValueChange = { artist = it.take(100) }, label = { Text("Artist / caption") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
