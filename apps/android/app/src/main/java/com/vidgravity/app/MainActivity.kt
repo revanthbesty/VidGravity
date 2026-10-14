@@ -510,7 +510,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                     Button(onClick = {
                         val candidate = url.trim().lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()
                         val parsed = runCatching { android.net.Uri.parse(candidate) }.getOrNull()
-                        if (parsed?.scheme in setOf("http", "https") && !parsed.host.isNullOrBlank()) {
+                        if (parsed != null && parsed.scheme in setOf("http", "https") && !parsed.host.isNullOrBlank()) {
                             onUrl(candidate)
                             inspect()
                         } else notify("Enter a complete URL with https:// and a valid host name.")
