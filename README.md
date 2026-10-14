@@ -13,6 +13,16 @@ This repository is being initialized from the P172 Production Deployment Bundle.
 - Docker and Docker Compose v2 for container validation
 - ffmpeg and yt-dlp for media-provider testing
 
+## Help Center and documentation
+
+- [Open the searchable web/PWA Help Center](site/help.html).
+- [Cross-platform User Guide](docs/USER_GUIDE.md).
+- [FAQ and Troubleshooting](docs/FAQ_TROUBLESHOOTING.md).
+- [Feature Documentation Standard](docs/FEATURE_DOCUMENTATION_STANDARD.md): documentation is required for every new feature or material behavior change.
+- [Release Notes](docs/RELEASE_NOTES.md).
+
+Every feature batch must update its guide, FAQs, troubleshooting steps, and release notes in the same pull request. Do not document planned or unavailable behavior as already working.
+
 ## Android feature pipeline
 
 The prioritized native Android roadmap and acceptance gates are maintained in [`docs/ANDROID_FEATURE_PIPELINE.md`](docs/ANDROID_FEATURE_PIPELINE.md). Release-blocking download/player/camera reliability and the fresh APK validation gate take precedence over new AI or creator expansion.
