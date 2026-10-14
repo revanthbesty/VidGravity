@@ -797,7 +797,8 @@ class Handler(SimpleHTTPRequestHandler):
                 'mode': self.headers.get('X-VG-Mode', ''),
                 'width': self.headers.get('X-VG-Width'),
                 'height': self.headers.get('X-VG-Height'),
-                'trim_seconds': self.headers.get('X-VG-Trim-Seconds')
+                'trim_seconds': self.headers.get('X-VG-Trim-Seconds'),
+                'start_seconds': self.headers.get('X-VG-Start-Seconds')
             }
             try:
                 with tempfile.TemporaryDirectory(prefix='vidgravity-export-') as temp_dir:
