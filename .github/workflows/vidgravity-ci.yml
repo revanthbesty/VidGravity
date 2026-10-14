@@ -155,6 +155,7 @@ jobs:
         run: |
           python -m unittest discover -s tests -p "test_media_export.py" -v
           python -m unittest -v test_p174_android_share_pipeline.py
+          python -m unittest -v test_android_build_feature_ledger.py
 
       - name: Upload Android debug APK for device testing
         if: success()
