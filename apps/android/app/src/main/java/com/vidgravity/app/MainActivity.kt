@@ -1831,7 +1831,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     LaunchedEffect(selectedMedia) {
         val media = selectedMedia
         if (media == null) {
-            draftPrefs.edit().clear().apply()
+            draftPrefs.edit().remove("uri").remove("name").remove("size").remove("mime").remove("savedAt").apply()
         } else {
             draftPrefs.edit()
                 .putString("uri", media.uri.toString())
@@ -1846,7 +1846,8 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     var isRendering by remember { mutableStateOf(false) }
     var segmentProgress by remember { mutableStateOf<String?>(null) }
     var segmentJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    var statusClipSeconds by remember { mutableStateOf(90) }
+    var statusClipSeconds by remember { mutableIntStateOf(draftPrefs.getInt("statusClipSeconds", 90).let { if (it in listOf(30, 60, 90, 120)) it else 90 }) }
+    LaunchedEffect(statusClipSeconds) { draftPrefs.edit().putInt("statusClipSeconds", statusClipSeconds).apply() }
     var exportedUri by remember { mutableStateOf<Uri?>(null) }
     var stickerUri by remember { mutableStateOf<Uri?>(null) }
     val picker = rememberLauncherForActivityResult(
