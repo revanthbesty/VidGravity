@@ -526,15 +526,13 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(end = 4.dp)
                         ) {
-                            items(listOf("⚡ Grab Best Video", "♫ Sound Only", "✂ Status Clip Splitter", "✦ StudyTok AI")) { action ->
+                            items(listOf("♫ Sound Only", "✂ Status Clip Splitter")) { action ->
                                 Surface(
                                     color = MaterialTheme.colorScheme.surfaceVariant,
                                     shape = RoundedCornerShape(18.dp),
                                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                                     modifier = Modifier.width(220.dp).heightIn(min = 112.dp).clickable {
-                                        if (action.contains("StudyTok")) {
-                                            openStudyTok()
-                                        } else if (action.contains("Status Clip")) {
+                                        if (action.contains("Status Clip")) {
                                             openCreate()
                                             notify("Choose a local video in Create Studio, then use WhatsApp Status tools.")
                                         } else if (url.isBlank()) {
