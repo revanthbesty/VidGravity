@@ -27,6 +27,10 @@ fun StudyTokScreen(onBack: () -> Unit, notify: (String) -> Unit) {
     var transcript by remember { mutableStateOf("") }
     var cards by remember { mutableStateOf(emptyList<StudyCard>()) }
     var title by remember { mutableStateOf("My Study Pack") }
+    var practiceMode by remember { mutableStateOf(false) }
+    var practiceIndex by remember { mutableIntStateOf(0) }
+    var showAnswer by remember { mutableStateOf(false) }
+    var knownCards by remember { mutableStateOf(setOf<Int>()) }
     var pendingCsv by remember { mutableStateOf<String?>(null) }
     val saveCsvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         val csv = pendingCsv
@@ -123,20 +127,78 @@ fun StudyTokScreen(onBack: () -> Unit, notify: (String) -> Unit) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${cards.size} flashcards", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 OutlinedButton(onClick = { shareCards() }) {
-                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Export CSV")
+                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Save CSV")
                 }
             }
-            cards.forEachIndexed { index, card ->
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("CARD ${index + 1}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
-                        Text(card.question, fontWeight = FontWeight.SemiBold)
-                        HorizontalDivider()
-                        Text(card.answer, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (!practiceMode) {
+                Button(onClick = {
+                    practiceMode = true
+                    practiceIndex = 0
+                    showAnswer = false
+                    knownCards = emptySet()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) {
+                    Text("Start flashcard practice")
+                }
+                cards.forEachIndexed { index, card ->
+                    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("CARD ${index + 1}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                            Text(card.question, fontWeight = FontWeight.SemiBold)
+                            HorizontalDivider()
+                            Text(card.answer, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
+            } else {
+                val finished = practiceIndex >= cards.size
+                if (finished) {
+                    Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Practice complete", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text("You marked ${knownCards.size} of ${cards.size} cards as known.")
+                            Button(onClick = {
+                                practiceIndex = 0
+                                showAnswer = false
+                                knownCards = emptySet()
+                            }, modifier = Modifier.fillMaxWidth()) { Text("Practice again") }
+                            OutlinedButton(onClick = { practiceMode = false }, modifier = Modifier.fillMaxWidth()) { Text("Back to all cards") }
+                        }
+                    }
+                } else {
+                    val card = cards[practiceIndex]
+                    Text("CARD ${practiceIndex + 1} OF ${cards.size} · ${knownCards.size} KNOWN",
+                        color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
+                    LinearProgressIndicator(progress = { (practiceIndex.toFloat() / cards.size).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                    Card(Modifier.fillMaxWidth().heightIn(min = 220.dp), shape = RoundedCornerShape(20.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Text("QUESTION", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                            Text(card.question, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                            if (showAnswer) {
+                                HorizontalDivider()
+                                Text("ANSWER", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                                Text(card.answer, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else {
+                                OutlinedButton(onClick = { showAnswer = true }, modifier = Modifier.fillMaxWidth()) { Text("Reveal answer") }
+                            }
+                        }
+                    }
+                    if (showAnswer) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedButton(onClick = {
+                                practiceIndex++
+                                showAnswer = false
+                            }, modifier = Modifier.weight(1f).heightIn(min = 50.dp)) { Text("Review again") }
+                            Button(onClick = {
+                                knownCards = knownCards + practiceIndex
+                                practiceIndex++
+                                showAnswer = false
+                            }, modifier = Modifier.weight(1f).heightIn(min = 50.dp)) { Text("I knew it") }
+                        }
+                    }
+                    TextButton(onClick = { practiceMode = false; showAnswer = false }, modifier = Modifier.fillMaxWidth()) { Text("Exit practice") }
+                }
             }
-            OutlinedButton(onClick = { cards = emptyList() }, modifier = Modifier.fillMaxWidth()) {
+            OutlinedButton(onClick = { cards = emptyList(); practiceMode = false; knownCards = emptySet() }, modifier = Modifier.fillMaxWidth()) {
                 Text("Clear study pack")
             }
         }
