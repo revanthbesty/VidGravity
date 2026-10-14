@@ -420,7 +420,9 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                         Text("Shared URL found in clipboard", fontWeight = FontWeight.SemiBold)
                         Text("Tap to paste and inspect", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Icon(Icons.Default.ChevronRight, null)
+                    IconButton(onClick = { clipboardSuggestion = null }) {
+                        Icon(Icons.Default.Close, contentDescription = "Dismiss clipboard suggestion")
+                    }
                 }
             }
         }
@@ -446,9 +448,21 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                         fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp)
                     Text("Paste a public video or audio link. Inspect available quality, then choose exactly what to save.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedTextField(value = url, onValueChange = onUrl, modifier = Modifier.fillMaxWidth(),
+                    OutlinedTextField(value = url, onValueChange = { onUrl(it.take(10000)) }, modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("Paste one link or multiple links (one per line)") }, leadingIcon = { Icon(Icons.Default.Link, null) },
-                        trailingIcon = { IconButton(onClick = { clipboard.getText()?.text?.let(onUrl) }) { Icon(Icons.Default.ContentPaste, "Paste") } },
+                        trailingIcon = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (url.isNotBlank()) IconButton(onClick = { onUrl("") }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear URL input")
+                                }
+                                IconButton(onClick = {
+                                    val pasted = clipboard.getText()?.text.orEmpty().take(10000)
+                                    if (pasted.isNotBlank()) onUrl(pasted)
+                                    else notify("Clipboard does not contain text to paste.")
+                                }) { Icon(Icons.Default.ContentPaste, contentDescription = "Paste URL") }
+                            }
+                        },
+                        supportingText = { Text("${url.length}/10000 characters · Up to 10 links per batch") },
                         shape = RoundedCornerShape(16.dp), minLines = 1, maxLines = 4)
                     OutlinedButton(
                         onClick = {
@@ -1265,10 +1279,14 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
     var showStorageInsights by remember { mutableStateOf(false) }
     var refreshingMedia by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    var mediaRefreshError by remember { mutableStateOf<String?>(null) }
     suspend fun refreshMedia() {
         refreshingMedia = true
+        mediaRefreshError = null
         try {
             media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) }
+        } catch (failure: Exception) {
+            mediaRefreshError = "Could not refresh the library. Check media access and try again."
         } finally {
             refreshingMedia = false
         }
@@ -1358,6 +1376,9 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                         Text("${media.size} total", fontWeight = FontWeight.SemiBold)
                         Text("${favoriteCount} favorites", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                }
+                mediaRefreshError?.let { message ->
+                    Text(message, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                 }
                 OutlinedButton(
                     onClick = {
@@ -2338,7 +2359,10 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                         Text("Device ID", fontWeight = FontWeight.SemiBold)
                         Text(deviceId, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    TextButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(deviceId)) }) { Text("Copy") }
+                    TextButton(onClick = {
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(deviceId))
+                        android.widget.Toast.makeText(context, "Device ID copied.", android.widget.Toast.LENGTH_SHORT).show()
+                    }) { Text("Copy") }
                 }
                 OutlinedButton(onClick = { showActivation = true }, modifier = Modifier.fillMaxWidth()) {
                     Text("Enter license key")
@@ -2479,7 +2503,13 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                 }
             },
             confirmButton = { TextButton(onClick = { showActivation = false; activationKey = "" }) { Text("Close") } },
-            dismissButton = { TextButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(activationKey)) }) { Text("Copy key") } }
+            dismissButton = { TextButton(onClick = {
+                if (activationKey.isBlank()) android.widget.Toast.makeText(context, "Enter a license key first.", android.widget.Toast.LENGTH_SHORT).show()
+                else {
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(activationKey))
+                    android.widget.Toast.makeText(context, "License key copied.", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }) { Text("Copy key") } }
         )
     }
 }
