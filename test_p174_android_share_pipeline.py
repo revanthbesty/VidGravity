@@ -70,4 +70,13 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   for seconds in [30,60,90,120]:
    self.assertIn(str(seconds),story)
   self.assertIn("length = it.coerceIn(1f, maxLength)",story)
+ def test_studytok_draft_and_practice_progress_are_persisted(self):
+  study=(ANDROID/"app/src/main/java/com/vidgravity/app/StudyTokScreen.kt").read_text()
+  self.assertIn('getSharedPreferences("vidgravity_studytok_draft"',study)
+  self.assertIn("readStudyTokDraft(context)",study)
+  self.assertIn('.putString("transcript", transcript.take(60000))',study)
+  self.assertIn('.putString("cards", serializedCards.toString())',study)
+  self.assertIn('.putStringSet("known_cards"',study)
+  self.assertIn('.putInt("practice_index"',study)
+  self.assertIn("Clear study pack and draft",study)
 if __name__=="__main__":unittest.main(verbosity=2)
