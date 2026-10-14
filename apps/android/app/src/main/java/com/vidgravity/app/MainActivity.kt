@@ -57,7 +57,12 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("vg-ui", 0) }
     var dark by remember { mutableStateOf(prefs.getBoolean("dark", true)) }
-    var selected by remember { mutableStateOf(VgTab.Home) }
+    var selected by remember {
+        mutableStateOf(runCatching {
+            VgTab.valueOf(prefs.getString("last_tab", VgTab.Home.name) ?: VgTab.Home.name)
+        }.getOrDefault(VgTab.Home))
+    }
+    LaunchedEffect(selected) { prefs.edit().putString("last_tab", selected.name).apply() }
     var showInbox by remember { mutableStateOf(openInboxInitially) }
     var showStudyTok by remember { mutableStateOf(false) }
     var creatorInitialMedia by remember { mutableStateOf<LibraryMedia?>(null) }
@@ -2555,6 +2560,8 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                                 } catch (failure: Exception) {
                                     lines.add("Library: indexing check failed — " + (failure.message ?: "unknown error").take(140))
                                 }
+                                lines.add("Device: " + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL)
+                                lines.add("Android: " + android.os.Build.VERSION.RELEASE + " (SDK " + android.os.Build.VERSION.SDK_INT + ")")
                                 lines.add("App version: " + runCatching {
                                     context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
                                 }.getOrDefault("unknown"))
@@ -2614,7 +2621,8 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Enter the license key issued for your account.")
                     OutlinedTextField(value = activationKey, onValueChange = { activationKey = it.take(160) },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("License key") })
+                        modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("License key") },
+                        supportingText = { Text("${activationKey.length}/160 characters") })
                     Text("Activation requires the licensing API integration, which is not yet connected in this build.",
                         fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
