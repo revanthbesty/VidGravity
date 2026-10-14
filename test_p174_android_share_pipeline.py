@@ -443,4 +443,20 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('contentDescription = "Clear download history search"',main)
 
+ def test_bulk_favorite_and_delete_actions_use_all_selected_library_items(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  start=main.index('if (showBulkActions) {',main.index('@Composable\nprivate fun LibraryContent('))
+  end=main.index('OutlinedTextField(\n            value = searchQuery',start)
+  bulk=main[start:end]
+  self.assertIn('val chosen = media.filter { it.uri.toString() in selectedUris }',bulk)
+  self.assertIn('val chosenItems = media.filter { it.uri.toString() in selectedUris }',bulk)
+  self.assertIn('Text("Delete selected (${media.count { it.uri.toString() in selectedUris }})")',bulk)
+  delete_dialog=main[main.index('if (showBulkDeleteConfirm)',end):main.index('if (showBulkDeleteConfirm)',end)+250]
+  self.assertIn('val chosen = media.filter { it.uri.toString() in selectedUris }',delete_dialog)
+
+ def test_library_refresh_and_tool_panels_have_user_feedback_and_persistence(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Library refreshed: ${media.size} item(s).',main)
+  self.assertIn('.putBoolean("show_storage_insights", showStorageInsights)',main)
+
 if __name__=="__main__":unittest.main(verbosity=2)
