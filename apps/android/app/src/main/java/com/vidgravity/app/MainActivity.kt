@@ -980,7 +980,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
                         },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
                     ) {
-                        Icon(Icons.Default.FilterListOff, null)
+                        Icon(Icons.Default.Refresh, null)
                         Spacer(Modifier.width(8.dp))
                         Text("Reset download search and filters")
                     }
