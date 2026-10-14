@@ -48,7 +48,10 @@ class P175WpaFeatureBatchTests(unittest.TestCase):
         workflow = (ROOT / ".github" / "workflows" / "cloudflare-wpa-deploy.yml").read_text(encoding="utf-8")
         self.assertIn("styles.css?v=p178", html)
         self.assertIn("app.js?v=p176", html)
-        self.assertIn('const CACHE_NAME = "vidgravity-p179-shell-v1";', sw)
+        # Focus Studio adds assets to the app shell, so its cache generation is p180.
+        self.assertIn('const CACHE_NAME = "vidgravity-p180-shell-v1";', sw)
+        self.assertIn("focus-studio.js", sw)
+        self.assertIn("focus-studio.css", sw)
         self.assertIn("CLOUDFLARE_API_TOKEN", workflow)
         self.assertIn("CLOUDFLARE_ACCOUNT_ID", workflow)
         self.assertIn("cloudflare/wrangler-action@v3", workflow)

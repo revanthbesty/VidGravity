@@ -73,12 +73,13 @@ jobs:
       - name: YouTube extractor configuration regression tests
         run: python -m unittest -v test_youtube_extractor_config.py
       - name: QuickFlow usability regression checks
-        run: python -m unittest -v test_quickflow_features.py test_workspace_plus_features.py test_creator_desk_batch.py
+        run: python -m unittest -v test_quickflow_features.py test_workspace_plus_features.py test_creator_desk_batch.py test_focus_studio_batch.py
       - name: JavaScript syntax checks for every shipped frontend
         run: |
           node --check site/quickflow.js
           node --check site/workspace-plus.js
           node --check site/creator-desk.js
+          node --check site/focus-studio.js
           node --check app.js
           node --check site/app.js
           node --check android-web/app.js
