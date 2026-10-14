@@ -26,6 +26,7 @@ Work in this order: release-blocking stability and user-reported defects first, 
 - [x] Add bulk favorite/unfavorite for selected Library items.
 - [x] Add expandable Library storage insights (media counts and largest file).
 - [ ] Verify all P1 UI changes compile and pass regression tests in the next APK.
+- [x] Add one-tap Library quick filters for recent media (last 7 days) and large files (>100 MB), with regression coverage.
 - [ ] Improve empty/loading/error states and make horizontal filter/sort controls easier to discover and operate one-handed.
 - [ ] Ensure completed downloads appear in Library after returning to the screen and after app restart.
 
