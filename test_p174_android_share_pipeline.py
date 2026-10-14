@@ -87,7 +87,9 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn("Modifier.weight(1f).fillMaxWidth()",inbox)
   library_end=main.index("\n@Composable",library_start+20)
   library=main[library_start:library_end]
-  self.assertIn("heightIn(max = 420.dp)",library)
+  self.assertIn("visibleMedia.forEach { item ->",library)
+  self.assertIn("Column(\n                modifier = Modifier.fillMaxWidth(),",library)
+  self.assertNotIn("LazyColumn(",library)
  def test_simple_collection_screen_supports_vertical_scrolling(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   start=main.index("fun SimpleCollectionScreen(")
