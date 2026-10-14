@@ -226,4 +226,16 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('Text("Refresh library size")',main)
   self.assertIn("refreshStorageUsage()",main)
+ def test_library_has_manual_refresh_with_loading_state(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Text("Refresh library")',main)
+  self.assertIn('Text("Refreshing library…")',main)
+  self.assertIn("enabled = !refreshingMedia",main)
+ def test_diagnostics_report_can_be_shared(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Text("Share diagnostics report")',main)
+  self.assertIn('putExtra(Intent.EXTRA_SUBJECT, "VidGravity diagnostics report")',main)
+ def test_library_refresh_reindexes_off_main_thread(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn("media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) }",main)
 if __name__=="__main__":unittest.main(verbosity=2)
