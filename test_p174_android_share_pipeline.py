@@ -569,7 +569,7 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('val queuedWorks = works.filter { it.state == WorkInfo.State.ENQUEUED }',main)
   self.assertIn('val runningWorks = works.filter { it.state == WorkInfo.State.RUNNING }',main)
   self.assertIn('val cancelledWorks = works.filter { it.state == WorkInfo.State.CANCELLED }',main)
-  self.assertIn('items(listOf("All", "Active", "Queued", "Running", "Completed", "Failed", "Cancelled"))',main)
+  self.assertIn('items(listOf("All", "Active", "Queued", "Running", "Blocked", "Completed", "Failed", "Cancelled"))',main)
 
  def test_download_queue_health_explains_progress_success_and_next_steps(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
