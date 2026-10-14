@@ -2050,6 +2050,12 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     var segmentJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var statusClipSeconds by remember { mutableIntStateOf(draftPrefs.getInt("statusClipSeconds", 90).let { if (it in listOf(30, 60, 90, 120)) it else 90 }) }
     LaunchedEffect(statusClipSeconds) { draftPrefs.edit().putInt("statusClipSeconds", statusClipSeconds).apply() }
+    var captionPlatform by remember { mutableStateOf(draftPrefs.getString("captionPlatform", "Instagram") ?: "Instagram") }
+    var captionText by remember { mutableStateOf(draftPrefs.getString("captionText", "").orEmpty().take(2200)) }
+    var hashtagText by remember { mutableStateOf(draftPrefs.getString("hashtagText", "#VidGravity #Creator").orEmpty().take(500)) }
+    LaunchedEffect(captionPlatform) { draftPrefs.edit().putString("captionPlatform", captionPlatform).apply() }
+    LaunchedEffect(captionText) { draftPrefs.edit().putString("captionText", captionText.take(2200)).apply() }
+    LaunchedEffect(hashtagText) { draftPrefs.edit().putString("hashtagText", hashtagText.take(500)).apply() }
     var exportedUri by remember { mutableStateOf<Uri?>(null) }
     var stickerUri by remember { mutableStateOf<Uri?>(null) }
     val picker = rememberLauncherForActivityResult(
@@ -2190,6 +2196,8 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                             runCatching {
                                 val intent = Intent(Intent.ACTION_SEND).apply {
                                     type = media.mimeType; putExtra(Intent.EXTRA_STREAM, media.uri)
+                                    val socialCaption = listOf(captionText.trim(), hashtagText.trim()).filter { it.isNotBlank() }.joinToString("\n\n")
+                                    if (socialCaption.isNotBlank()) putExtra(Intent.EXTRA_TEXT, socialCaption)
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
                                 context.startActivity(Intent.createChooser(intent, "Share original media"))
@@ -2353,6 +2361,109 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                             color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
                     }
                 }
+            }
+        }
+        Surface(
+            color = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(20.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Social caption studio", fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                Text("Draft captions and hashtags locally, then copy or share them with your media. Drafts stay on this device.",
+                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Instagram", "TikTok", "YouTube Shorts", "WhatsApp").forEach { platform ->
+                        FilterChip(selected = captionPlatform == platform, onClick = { captionPlatform = platform }, label = { Text(platform) })
+                    }
+                }
+                Text("CAPTION TEMPLATES", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        "Behind the scenes" to "A little behind the scenes 🎬\nWhat should I make next?",
+                        "Quick tutorial" to "Quick tip ✨\nSave this for later and tell me what you want to learn next.",
+                        "New creation" to "Made with creativity 💫\nThe original stays safe. What do you think?",
+                        "Study notes" to "One idea at a time 📚\nSave this and revisit it when you need a refresher."
+                    ).forEach { (label, template) -> AssistChip(onClick = { captionText = template.take(2200) }, label = { Text(label) }) }
+                }
+                OutlinedTextField(
+                    value = captionText, onValueChange = { captionText = it.take(2200) }, modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Caption") }, placeholder = { Text("Write a caption for your media…") },
+                    supportingText = { Text("${captionText.length}/2200 characters") },
+                    trailingIcon = { if (captionText.isNotBlank()) IconButton(onClick = { captionText = "" }) { Icon(Icons.Default.Close, contentDescription = "Clear caption") } },
+                    minLines = 3, maxLines = 6
+                )
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("✨", "🎬", "🔥", "📚", "💡", "❤️").forEach { emoji ->
+                        AssistChip(onClick = { captionText = (captionText + " " + emoji).trim().take(2200) }, label = { Text(emoji) })
+                    }
+                }
+                OutlinedTextField(
+                    value = hashtagText, onValueChange = { hashtagText = it.take(500) }, modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Hashtags") }, placeholder = { Text("#VidGravity #Creator") },
+                    supportingText = { Text("${hashtagText.length}/500 characters · Separate tags with spaces") },
+                    trailingIcon = { if (hashtagText.isNotBlank()) IconButton(onClick = { hashtagText = "" }) { Icon(Icons.Default.Close, contentDescription = "Clear hashtags") } },
+                    minLines = 1, maxLines = 3
+                )
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("#VidGravity", "#BehindTheScenes", "#LearnWithMe", "#Shorts", "#Creator").forEach { tag ->
+                        AssistChip(onClick = {
+                            val current = hashtagText.split(Regex("\\s+")).filter { it.isNotBlank() }
+                            if (current.none { it.equals(tag, true) }) hashtagText = (current + tag).joinToString(" ").take(500)
+                        }, label = { Text(tag) })
+                    }
+                }
+                Text(
+                    when (captionPlatform) {
+                        "Instagram" -> "Instagram draft · Preview line breaks and hashtags before posting."
+                        "TikTok" -> "TikTok draft · Keep the opening line clear and easy to read."
+                        "YouTube Shorts" -> "YouTube Shorts draft · Lead with the idea viewers should remember."
+                        else -> "WhatsApp draft · Keep the message concise for direct sharing."
+                    }, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedButton(
+                    onClick = {
+                        val tags = hashtagText.split(Regex("\\s+")).filter { it.isNotBlank() }
+                            .map { raw -> if (raw.startsWith("#")) raw else "#$raw" }
+                            .distinctBy { it.lowercase() }.joinToString(" ")
+                        hashtagText = tags.take(500)
+                        notify(if (tags.isBlank()) "Add at least one hashtag first." else "Hashtags normalized and duplicate tags removed.")
+                    }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) { Icon(Icons.Default.Tag, null); Spacer(Modifier.width(8.dp)); Text("Normalize hashtags") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(enabled = captionText.isNotBlank(), onClick = {
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(captionText.trim()))
+                        notify("Caption copied.")
+                    }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(5.dp)); Text("Copy caption")
+                    }
+                    OutlinedButton(enabled = hashtagText.isNotBlank(), onClick = {
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(hashtagText.trim()))
+                        notify("Hashtags copied.")
+                    }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.Tag, null); Spacer(Modifier.width(5.dp)); Text("Copy tags")
+                    }
+                }
+                OutlinedButton(enabled = captionText.isNotBlank() || hashtagText.isNotBlank(), onClick = {
+                    val combined = listOf(captionText.trim(), hashtagText.trim()).filter { it.isNotBlank() }.joinToString("\n\n")
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(combined))
+                    notify("Caption and hashtags copied together.")
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)) {
+                    Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(8.dp)); Text("Copy caption + hashtags")
+                }
+                OutlinedButton(enabled = captionText.isNotBlank() || hashtagText.isNotBlank(), onClick = {
+                    val combined = listOf(captionText.trim(), hashtagText.trim()).filter { it.isNotBlank() }.joinToString("\n\n")
+                    runCatching {
+                        context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"; putExtra(Intent.EXTRA_SUBJECT, "$captionPlatform caption"); putExtra(Intent.EXTRA_TEXT, combined)
+                        }, "Share caption"))
+                    }.onFailure { notify("Could not open caption sharing: ${it.message ?: "try again"}") }
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)) {
+                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Share caption")
+                }
+                Text("Caption draft is saved automatically on this device.", fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         Text("Capture", fontWeight = FontWeight.Bold, fontSize = 18.sp)
