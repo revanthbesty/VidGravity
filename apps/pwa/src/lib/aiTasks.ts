@@ -11,7 +11,7 @@ export interface AITaskHandle {
   task: AITaskSnapshot;
   events: EventSource;
 }
-const API_BASE = (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_VIDGRAVITY_AI_API ?? "";
+const API_BASE = process.env.NEXT_PUBLIC_VIDGRAVITY_AI_API ?? "";
 
 export async function submitAITask(path: string, payload: FormData): Promise<AITaskHandle> {
   const response = await fetch(`${API_BASE}${path}`, { method: "POST", body: payload, credentials: "include" });
