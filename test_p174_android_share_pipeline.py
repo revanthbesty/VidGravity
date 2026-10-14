@@ -291,4 +291,17 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('Could not refresh the library. Check media access and try again.',main)
   self.assertIn('mediaRefreshError?.let { message ->',main)
 
+ def test_download_filter_search_and_sort_persist_between_visits(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('getSharedPreferences("vg_downloads_ui"',main)
+  self.assertIn('.putString("download_filter", downloadFilter)',main)
+  self.assertIn('.putString("download_search", downloadSearch)',main)
+  self.assertIn('.putString("download_sort", downloadSort)',main)
+
+ def test_downloads_can_retry_all_retryable_filtered_failures(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Text("Retry all available failures (${retryableFilteredWorks.size})")',main)
+  self.assertIn('retryableFilteredWorks.forEach { work ->',main)
+  self.assertIn('"Queued $queuedRetries of ${retryableFilteredWorks.size} retryable download(s)."',main)
+
 if __name__=="__main__":unittest.main(verbosity=2)
