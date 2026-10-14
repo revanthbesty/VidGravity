@@ -555,6 +555,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
     var expandedErrors by remember { mutableStateOf(setOf<java.util.UUID>()) }
     var downloadFilter by remember { mutableStateOf("All") }
     var showClearHistoryConfirm by remember { mutableStateOf(false) }
+    var showDownloadTools by remember { mutableStateOf(false) }
     var downloadSearch by remember { mutableStateOf("") }
     var downloadSort by remember { mutableStateOf("Newest") }
     val liveWorks = remember(context) { WorkManager.getInstance(context).getWorkInfosByTagLiveData("vidgravity-download") }
@@ -664,155 +665,166 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             }
             OutlinedButton(
-                onClick = {
-                    fun csvCell(value: String): String = "\"" + value.replace("\"", "\"\"").replace("\r", " ").replace("\n", " ") + "\""
-                    val csv = buildString {
-                        appendLine("Title,Status,Progress,Source URL,Error")
-                        filteredWorks.forEach { work ->
-                            val title = work.outputData.getString("display_name")
-                                ?: work.progress.getString("media_title")
-                                ?: work.progress.getString("title")
-                                ?: "Media download"
-                            val source = work.outputData.getString(DownloadWorker.RETRY_URL)
-                                ?: work.progress.getString("media_url")
-                                ?: ""
-                            val percent = work.progress.getInt("progress", -1)
-                            val error = work.outputData.getString("error") ?: ""
-                            appendLine(listOf(title, work.state.name, if (percent >= 0) "$percent%" else "", source, error).joinToString(",") { csvCell(it) })
-                        }
-                    }
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(csv))
-                    android.widget.Toast.makeText(context, "CSV download report copied.", android.widget.Toast.LENGTH_SHORT).show()
-                },
-                enabled = filteredWorks.isNotEmpty(),
+                onClick = { showDownloadTools = !showDownloadTools },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
             ) {
-                Icon(Icons.Default.TableChart, null)
+                Icon(if (showDownloadTools) Icons.Default.ExpandLess else Icons.Default.Build, null)
                 Spacer(Modifier.width(8.dp))
-                Text("Copy CSV report (${filteredWorks.size})")
+                Text(if (showDownloadTools) "Hide download tools" else "More tools · reports & history")
             }
-            OutlinedButton(
-                onClick = {
-                    val links = filteredWorks.mapNotNull { work ->
-                        (work.outputData.getString(DownloadWorker.RETRY_URL)
-                            ?: work.progress.getString("media_url"))
-                            ?.takeIf { it.isNotBlank() }
-                    }.distinct()
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(links.joinToString("\n")))
-                    android.widget.Toast.makeText(context, "Copied ${links.size} source link(s).", android.widget.Toast.LENGTH_SHORT).show()
-                },
-                enabled = filteredWorks.any { work ->
-                    !(work.outputData.getString(DownloadWorker.RETRY_URL)
-                        ?: work.progress.getString("media_url")).isNullOrBlank()
-                },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.Link, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Copy visible source links")
-            }
-            OutlinedButton(
-                onClick = {
-                    val report = buildString {
-                        appendLine("VidGravity download report")
-                        appendLine("Filter: $downloadFilter")
-                        appendLine("Listed: ${filteredWorks.size} | Active: ${activeWorks.size} | Completed: ${completedWorks.size} | Failed/cancelled: ${failedWorks.size}")
-                        appendLine()
-                        filteredWorks.forEachIndexed { index, work ->
-                            val title = work.outputData.getString("display_name")
-                                ?: work.progress.getString("media_title")
-                                ?: work.progress.getString("title")
-                                ?: "Media download"
-                            val source = work.outputData.getString(DownloadWorker.RETRY_URL)
-                                ?: work.progress.getString("media_url")
-                                ?: "Not saved"
-                            val percent = work.progress.getInt("progress", -1)
-                            val error = work.outputData.getString("error")
-                            appendLine("${index + 1}. $title")
-                            appendLine("   Status: ${work.state.name}${if (percent >= 0) " | Progress: $percent%" else ""}")
-                            appendLine("   Source: $source")
-                            if (!error.isNullOrBlank()) appendLine("   Error: $error")
-                        }
-                    }
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
-                    android.widget.Toast.makeText(context, "Download report copied (${filteredWorks.size} item(s)).", android.widget.Toast.LENGTH_SHORT).show()
-                },
-                enabled = filteredWorks.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.ContentCopy, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Copy download report (${filteredWorks.size})")
-            }
-            OutlinedButton(
-                onClick = {
-                    val report = buildString {
-                        appendLine("VidGravity download report")
-                        appendLine("Filter: $downloadFilter")
-                        appendLine("Listed: ${filteredWorks.size} | Active: ${activeWorks.size} | Completed: ${completedWorks.size} | Failed/cancelled: ${failedWorks.size}")
-                        appendLine()
-                        filteredWorks.forEachIndexed { index, work ->
-                            val title = work.outputData.getString("display_name")
-                                ?: work.progress.getString("media_title")
-                                ?: work.progress.getString("title")
-                                ?: "Media download"
-                            val source = work.outputData.getString(DownloadWorker.RETRY_URL)
-                                ?: work.progress.getString("media_url")
-                                ?: "Not saved"
-                            val percent = work.progress.getInt("progress", -1)
-                            val error = work.outputData.getString("error")
-                            appendLine("${index + 1}. $title")
-                            appendLine("Status: ${work.state.name}${if (percent >= 0) " | Progress: $percent%" else ""}")
-                            appendLine("Source: $source")
-                            if (!error.isNullOrBlank()) appendLine("Error: $error")
-                            appendLine()
-                        }
-                    }
-                    runCatching {
-                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_SUBJECT, "VidGravity download report")
-                            putExtra(Intent.EXTRA_TEXT, report)
-                        }
-                        context.startActivity(Intent.createChooser(shareIntent, "Share download report"))
-                    }.onFailure {
-                        android.widget.Toast.makeText(context, "Could not open the sharing menu.", android.widget.Toast.LENGTH_LONG).show()
-                    }
-                },
-                enabled = filteredWorks.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.Share, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Share report (${filteredWorks.size})")
-            }
-            OutlinedButton(
-                onClick = { showClearHistoryConfirm = true },
-                enabled = completedWorks.isNotEmpty() || failedWorks.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.DeleteSweep, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Clear finished history")
-            }
-            if (failedWorks.isNotEmpty()) {
+            if (showDownloadTools) {
                 OutlinedButton(
                     onClick = {
-                        val report = failedWorks.joinToString("\n\n") { work ->
-                            val title = work.outputData.getString("display_name")
-                                ?: work.progress.getString("media_title") ?: "Media download"
-                            val error = work.outputData.getString("error") ?: "No technical error was saved."
-                            "${title}\nStatus: ${work.state.name}\nError: ${error}"
+                        fun csvCell(value: String): String = "\"" + value.replace("\"", "\"\"").replace("\r", " ").replace("\n", " ") + "\""
+                        val csv = buildString {
+                            appendLine("Title,Status,Progress,Source URL,Error")
+                            filteredWorks.forEach { work ->
+                                val title = work.outputData.getString("display_name")
+                                    ?: work.progress.getString("media_title")
+                                    ?: work.progress.getString("title")
+                                    ?: "Media download"
+                                val source = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                    ?: work.progress.getString("media_url")
+                                    ?: ""
+                                val percent = work.progress.getInt("progress", -1)
+                                val error = work.outputData.getString("error") ?: ""
+                                appendLine(listOf(title, work.state.name, if (percent >= 0) "$percent%" else "", source, error).joinToString(",") { csvCell(it) })
+                            }
+                        }
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(csv))
+                        android.widget.Toast.makeText(context, "CSV download report copied.", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    enabled = filteredWorks.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.TableChart, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Copy CSV report (${filteredWorks.size})")
+                }
+                OutlinedButton(
+                    onClick = {
+                        val links = filteredWorks.mapNotNull { work ->
+                            (work.outputData.getString(DownloadWorker.RETRY_URL)
+                                ?: work.progress.getString("media_url"))
+                                ?.takeIf { it.isNotBlank() }
+                        }.distinct()
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(links.joinToString("\n")))
+                        android.widget.Toast.makeText(context, "Copied ${links.size} source link(s).", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    enabled = filteredWorks.any { work ->
+                        !(work.outputData.getString(DownloadWorker.RETRY_URL)
+                            ?: work.progress.getString("media_url")).isNullOrBlank()
+                    },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.Link, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Copy visible source links")
+                }
+                OutlinedButton(
+                    onClick = {
+                        val report = buildString {
+                            appendLine("VidGravity download report")
+                            appendLine("Filter: $downloadFilter")
+                            appendLine("Listed: ${filteredWorks.size} | Active: ${activeWorks.size} | Completed: ${completedWorks.size} | Failed/cancelled: ${failedWorks.size}")
+                            appendLine()
+                            filteredWorks.forEachIndexed { index, work ->
+                                val title = work.outputData.getString("display_name")
+                                    ?: work.progress.getString("media_title")
+                                    ?: work.progress.getString("title")
+                                    ?: "Media download"
+                                val source = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                    ?: work.progress.getString("media_url")
+                                    ?: "Not saved"
+                                val percent = work.progress.getInt("progress", -1)
+                                val error = work.outputData.getString("error")
+                                appendLine("${index + 1}. $title")
+                                appendLine("   Status: ${work.state.name}${if (percent >= 0) " | Progress: $percent%" else ""}")
+                                appendLine("   Source: $source")
+                                if (!error.isNullOrBlank()) appendLine("   Error: $error")
+                            }
                         }
                         clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
-                        android.widget.Toast.makeText(context, "Failure report copied (${failedWorks.size} item(s)).", android.widget.Toast.LENGTH_LONG).show()
+                        android.widget.Toast.makeText(context, "Download report copied (${filteredWorks.size} item(s)).", android.widget.Toast.LENGTH_SHORT).show()
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    enabled = filteredWorks.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
                 ) {
                     Icon(Icons.Default.ContentCopy, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Copy failure report (${failedWorks.size})")
+                    Text("Copy download report (${filteredWorks.size})")
                 }
+                OutlinedButton(
+                    onClick = {
+                        val report = buildString {
+                            appendLine("VidGravity download report")
+                            appendLine("Filter: $downloadFilter")
+                            appendLine("Listed: ${filteredWorks.size} | Active: ${activeWorks.size} | Completed: ${completedWorks.size} | Failed/cancelled: ${failedWorks.size}")
+                            appendLine()
+                            filteredWorks.forEachIndexed { index, work ->
+                                val title = work.outputData.getString("display_name")
+                                    ?: work.progress.getString("media_title")
+                                    ?: work.progress.getString("title")
+                                    ?: "Media download"
+                                val source = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                    ?: work.progress.getString("media_url")
+                                    ?: "Not saved"
+                                val percent = work.progress.getInt("progress", -1)
+                                val error = work.outputData.getString("error")
+                                appendLine("${index + 1}. $title")
+                                appendLine("Status: ${work.state.name}${if (percent >= 0) " | Progress: $percent%" else ""}")
+                                appendLine("Source: $source")
+                                if (!error.isNullOrBlank()) appendLine("Error: $error")
+                                appendLine()
+                            }
+                        }
+                        runCatching {
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, "VidGravity download report")
+                                putExtra(Intent.EXTRA_TEXT, report)
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "Share download report"))
+                        }.onFailure {
+                            android.widget.Toast.makeText(context, "Could not open the sharing menu.", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    enabled = filteredWorks.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.Share, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Share report (${filteredWorks.size})")
+                }
+                OutlinedButton(
+                    onClick = { showClearHistoryConfirm = true },
+                    enabled = completedWorks.isNotEmpty() || failedWorks.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.DeleteSweep, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Clear finished history")
+                }
+                if (failedWorks.isNotEmpty()) {
+                    OutlinedButton(
+                        onClick = {
+                            val report = failedWorks.joinToString("\n\n") { work ->
+                                val title = work.outputData.getString("display_name")
+                                    ?: work.progress.getString("media_title") ?: "Media download"
+                                val error = work.outputData.getString("error") ?: "No technical error was saved."
+                                "${title}\nStatus: ${work.state.name}\nError: ${error}"
+                            }
+                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
+                            android.widget.Toast.makeText(context, "Failure report copied (${failedWorks.size} item(s)).", android.widget.Toast.LENGTH_LONG).show()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.ContentCopy, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Copy failure report (${failedWorks.size})")
+                    }
+                }
+    
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
