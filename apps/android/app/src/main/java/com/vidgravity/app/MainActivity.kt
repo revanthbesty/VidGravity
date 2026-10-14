@@ -964,9 +964,27 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
                 }
             }
             if (filteredWorks.isEmpty()) {
-                InfoCard("No ${downloadFilter.lowercase()} downloads",
-                    if (downloadFilter == "Active") "Your download queue is idle." else "Items will appear here when they match this filter.",
-                    Icons.Default.FilterList, Modifier.fillMaxWidth())
+                InfoCard(
+                    if (searchTerm.isNotBlank()) "No matching downloads" else "No ${downloadFilter.lowercase()} downloads",
+                    if (searchTerm.isNotBlank()) "Try a shorter title or source URL, or clear the search and filter."
+                    else if (downloadFilter == "Active") "Your download queue is idle."
+                    else "Items will appear here when they match this filter.",
+                    Icons.Default.FilterList, Modifier.fillMaxWidth()
+                )
+                if (searchTerm.isNotBlank() || downloadFilter != "All" || downloadSort != "Newest") {
+                    OutlinedButton(
+                        onClick = {
+                            downloadSearch = ""
+                            downloadFilter = "All"
+                            downloadSort = "Newest"
+                        },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    ) {
+                        Icon(Icons.Default.FilterListOff, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Reset download search and filters")
+                    }
+                }
             }
             // Use the screen's parent scroll container; nesting a LazyColumn here can
             // measure it with infinite height and crash on some Compose versions.
