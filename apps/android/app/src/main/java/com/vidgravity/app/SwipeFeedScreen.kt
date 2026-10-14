@@ -119,7 +119,7 @@ fun SwipeFeedScreen(
                             onFavorite(mediaItem, next)
                         }) { Icon(Icons.Default.Favorite, "Favorite", tint = if (mediaItem.uri.toString() in liked || mediaItem.isFavorite) Color(0xFFFF6688) else Color.White) }
                         FilledTonalIconButton(onClick = { onMakeSticker(mediaItem) }) { Icon(Icons.Default.AutoAwesome, "Make sticker") }
-                        FilledTonalIconButton(onClick = { onStatusSplit(mediaItem) }) { Text("30s", style = MaterialTheme.typography.labelSmall) }
+                        FilledTonalIconButton(onClick = { onStatusSplit(mediaItem) }) { Text("Split", style = MaterialTheme.typography.labelSmall) }
                         FilledTonalIconButton(onClick = {
                             runCatching {
                                 val send = Intent(Intent.ACTION_SEND).apply {
