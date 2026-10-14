@@ -76,7 +76,10 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             var lastProgressBytes = 0L
             var lastProgressAt = System.currentTimeMillis()
             var currentSpeed = 0L
-            val receipt = DownloadApi.downloadResult(remoteJobId!!, partial) { bytes, total ->
+            val receipt = DownloadApi.downloadResult(
+                remoteJobId!!,
+                partial,
+                onProgress = { bytes, total ->
                 val now = System.currentTimeMillis()
                 val elapsed = (now - lastProgressAt).coerceAtLeast(1L)
                 if (elapsed >= 400L) {
@@ -92,7 +95,18 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 DownloadNotifications.progress(applicationContext, workId, title,
                     if (total != null) (bytes / 1_000_000).toString() + " / " + (total / 1_000_000) + " MB" else (bytes / 1_000_000).toString() + " MB transferred",
                     percent, false)
-            }
+                },
+                shouldPause = { DownloadActionReceiver.isPaused(applicationContext, workId) },
+                isStopped = { isStopped },
+                onPauseState = { paused ->
+                    setProgressAsync(workDataOf("state" to if (paused) "paused" else "downloading",
+                        "progress" to if (paused) lastKnownProgress else 0,
+                        "media_url" to url, "format_selector" to selector, "media_title" to title))
+                    DownloadNotifications.progress(applicationContext, workId, title,
+                        if (paused) "Paused — download will resume from saved bytes" else "Download resumed",
+                        lastKnownProgress, paused)
+                }
+            )
             // The provider may omit a precomputed checksum. Hash received bytes locally;
             // compare against the companion only when it supplied a valid SHA-256.
             val actual = receipt.calculatedSha256 ?: DownloadApi.sha256(partial)
