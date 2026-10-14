@@ -552,7 +552,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
     var downloadSort by remember { mutableStateOf("Newest") }
     val liveWorks = remember(context) { WorkManager.getInstance(context).getWorkInfosByTagLiveData("vidgravity-download") }
     val works by liveWorks.observeAsState(emptyList())
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Downloads", fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Track active and completed transfers on this device.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (works.isEmpty()) {
@@ -1234,7 +1234,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
         )
         return
     }
-    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Your library", fontSize = 27.sp, fontWeight = FontWeight.Bold)
