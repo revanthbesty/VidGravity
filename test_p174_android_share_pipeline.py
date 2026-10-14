@@ -53,4 +53,21 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn("shouldPause = { DownloadActionReceiver.isPaused(applicationContext, workId) }",worker)
   self.assertIn("onPauseState = { paused ->",worker)
   self.assertIn('"progress" to lastTransferPercent',worker)
+ def test_downloads_scroll_and_clear_history_are_real(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  start=main.index("private fun DownloadsContent(")
+  end=main.index("\\nprivate fun InfoCard",start)
+  downloads=main[start:end]
+  self.assertIn("Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())",downloads)
+  self.assertIn("filteredWorks.forEach { work ->",downloads)
+  self.assertNotIn("LazyColumn(",downloads)
+  self.assertIn('getStringSet("hidden_finished_ids"',downloads)
+  self.assertIn('putStringSet("hidden_finished_ids"',downloads)
+  self.assertIn("This hides completed, failed, and cancelled items",downloads)
+  self.assertNotIn("WorkManager.getInstance(context).pruneWork()",downloads)
+ def test_creator_custom_status_clip_targets_remain_available(self):
+  story=(ANDROID/"app/src/main/java/com/vidgravity/app/StoryCardScreen.kt").read_text()
+  for seconds in [30,60,90,120]:
+   self.assertIn(str(seconds),story)
+  self.assertIn("length = it.coerceIn(1f, maxLength)",story)
 if __name__=="__main__":unittest.main(verbosity=2)
