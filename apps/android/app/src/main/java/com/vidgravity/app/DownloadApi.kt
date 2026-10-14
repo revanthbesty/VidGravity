@@ -261,7 +261,9 @@ object DownloadApi {
         mode: String,
         startSeconds: Float,
         trimSeconds: Float,
-        outputFormat: String = "mp4"
+        outputFormat: String = "mp4",
+        title: String = "",
+        artist: String = ""
     ): Uri {
         require(outputFormat in setOf("mp4", "webp")) { "Unsupported export format." }
         require(if (outputFormat == "webp") preset == "animated-sticker" else preset in setOf("whatsapp-status", "instagram-story", "instagram-reels", "youtube-shorts", "tiktok")) { "Unsupported export preset." }
@@ -308,6 +310,8 @@ object DownloadApi {
             connection.setRequestProperty("X-VG-Mode", mode)
             connection.setRequestProperty("X-VG-Start-Seconds", "%.3f".format(java.util.Locale.US, startSeconds))
             connection.setRequestProperty("X-VG-Trim-Seconds", "%.3f".format(java.util.Locale.US, trimSeconds))
+            connection.setRequestProperty("X-VG-Title-Encoded", URLEncoder.encode(title.take(100), "UTF-8"))
+            connection.setRequestProperty("X-VG-Artist-Encoded", URLEncoder.encode(artist.take(100), "UTF-8"))
             try {
                 sourceFile.inputStream().buffered(128 * 1024).use { input ->
                     connection.outputStream.buffered(128 * 1024).use { output -> input.copyTo(output, 128 * 1024) }

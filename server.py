@@ -803,7 +803,9 @@ class Handler(SimpleHTTPRequestHandler):
                 'height': self.headers.get('X-VG-Height'),
                 'trim_seconds': self.headers.get('X-VG-Trim-Seconds'),
                 'start_seconds': self.headers.get('X-VG-Start-Seconds'),
-                'output_format': self.headers.get('X-VG-Format', 'mp4').lower()
+                'output_format': self.headers.get('X-VG-Format', 'mp4').lower(),
+                'title': urllib.parse.unquote_plus(self.headers.get('X-VG-Title-Encoded', '')),
+                'artist': urllib.parse.unquote_plus(self.headers.get('X-VG-Artist-Encoded', ''))
             }
             try:
                 with tempfile.TemporaryDirectory(prefix='vidgravity-export-') as temp_dir:

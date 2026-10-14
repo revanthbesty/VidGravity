@@ -1,6 +1,6 @@
 """Validated FFmpeg graph construction for VidGravity social exports."""
 from __future__ import annotations
-import shutil, subprocess
+import shutil, subprocess, tempfile
 from pathlib import Path
 
 PRESETS = {
@@ -55,6 +55,21 @@ def build_filter_graph(width,height,mode):
     if mode=="privacy-blur": return f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},boxblur=10:5,setsar=1,format=yuv420p"
     return f"split=2[bg][fg];[bg]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},boxblur=20:10[blurred];[fg]scale={w}:{h}:force_original_aspect_ratio=decrease,setsar=1[foreground];[blurred][foreground]overlay=(W-w)/2:(H-h)/2,setsar=1,format=yuv420p"
 
+def _clean_overlay_text(value):
+    """Bound user-controlled overlay text before passing it to FFmpeg."""
+    if not isinstance(value, str):
+        return ""
+    return "".join(ch for ch in value if ch.isprintable()).strip()[:100]
+
+
+def _overlay_filter(text_file, width, y_ratio, font_size):
+    # The content is read from a UTF-8 text file, not interpolated into the FFmpeg graph.
+    path = str(text_file).replace("\\", "\\\\").replace(":", "\\:")
+    return (f"drawtext=textfile={path}:expansion=none:fontcolor=white:"
+            f"fontsize={font_size}:box=1:boxcolor=black@0.58:boxborderw=16:"
+            f"x=(w-text_w)/2:y=h*{y_ratio}:fix_bounds=1")
+
+
 def export_media_file(source,destination,request):
     """Write a derivative to a distinct path; never overwrite the source."""
     source,destination=Path(source),Path(destination)
@@ -62,29 +77,50 @@ def export_media_file(source,destination,request):
     if source.resolve()==destination.resolve(): raise ExportError("Source and output paths must be different.")
     if shutil.which("ffmpeg") is None: raise ExportError("FFmpeg is not installed on this server.")
     checked=validate_export_request(request.get("preset",""),request.get("mode",""),request.get("width"),request.get("height"),request.get("trim_seconds"),request.get("start_seconds"),request.get("output_format","mp4"))
-    graph=None if checked["mode"]=="audio-story" else build_filter_graph(checked["width"],checked["height"],checked["mode"])
-    if checked["mode"]=="audio-story":
-        args=["ffmpeg","-hide_banner","-loglevel","error","-nostdin","-y","-f","lavfi","-i",f'color=c=0x15151b:s={checked["width"]}x{checked["height"]}:r=30']
-        if checked["start_seconds"] is not None and checked["start_seconds"] > 0: args += ["-ss",f'{checked["start_seconds"]:.3f}']
-        args += ["-i",str(source)]
-    else:
-        args=["ffmpeg","-hide_banner","-loglevel","error","-nostdin","-y","-i",str(source)]
-        if checked["start_seconds"] is not None and checked["start_seconds"] > 0: args += ["-ss",f'{checked["start_seconds"]:.3f}']
-    if checked["trim_seconds"] is not None: args += ["-t",f'{checked["trim_seconds"]:.3f}']
-    if checked["output_format"]=="webp":
-        sticker_graph="fps=12,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=yuva420p"
-        args += ["-vf",sticker_graph,"-an","-c:v","libwebp_anim","-loop","0","-lossless","0","-q:v","70","-f","webp",str(destination)]
-    else:
+    title=_clean_overlay_text(request.get("title",""))
+    artist=_clean_overlay_text(request.get("artist",""))
+    overlay_files=[]
+    overlay_filters=[]
+    try:
+        for label,value,y_ratio,font_size in (("title",title,"0.72",42),("artist",artist,"0.81",30)):
+            if value:
+                handle=tempfile.NamedTemporaryFile(mode="w",encoding="utf-8",prefix=f"vg-{label}-",suffix=".txt",dir=str(destination.parent),delete=False)
+                try:
+                    handle.write(value)
+                    handle.flush()
+                    overlay_files.append(Path(handle.name))
+                finally:
+                    handle.close()
+                overlay_filters.append(_overlay_filter(overlay_files[-1],checked["width"],y_ratio,font_size))
+        graph=None if checked["mode"]=="audio-story" else build_filter_graph(checked["width"],checked["height"],checked["mode"])
         if checked["mode"]=="audio-story":
-            visualizer="[1:a]showwaves=s=900x420:mode=line:rate=30:colors=0xB8A5FF[wave];[0:v][wave]overlay=(W-w)/2:(H-h)/2,format=yuv420p[vout]"
-            args += ["-filter_complex",visualizer,"-map","[vout]","-map","1:a:0","-shortest"]
-        elif checked["mode"]=="blurred-backdrop": args += ["-filter_complex",f"[0:v]{graph}[vout]","-map","[vout]","-map","0:a?"]
-        else: args += ["-vf",graph,"-map","0:v:0","-map","0:a?"]
-        args += ["-c:v","libx264","-preset","veryfast","-crf","20","-pix_fmt","yuv420p","-c:a","aac","-b:a","160k","-movflags","+faststart","-f","mp4",str(destination)]
-    try: result=subprocess.run(args,capture_output=True,timeout=1800,check=False)
-    except subprocess.TimeoutExpired as exc: raise ExportError("Media export timed out. Try a shorter clip.") from exc
-    if result.returncode!=0 or not destination.is_file() or destination.stat().st_size<=0:
-        destination.unlink(missing_ok=True)
-        detail=result.stderr.decode("utf-8","replace")[-600:] if result.stderr else ""
-        raise ExportError("FFmpeg could not export this media. "+detail)
-    return {"width":checked["width"],"height":checked["height"],"preset":checked["preset"],"mode":checked["mode"],"size":destination.stat().st_size,"mime_type":"image/webp" if checked["output_format"]=="webp" else "video/mp4"}
+            args=["ffmpeg","-hide_banner","-loglevel","error","-nostdin","-y","-f","lavfi","-i",f'color=c=0x15151b:s={checked["width"]}x{checked["height"]}:r=30']
+            if checked["start_seconds"] is not None and checked["start_seconds"] > 0: args += ["-ss",f'{checked["start_seconds"]:.3f}']
+            args += ["-i",str(source)]
+        else:
+            args=["ffmpeg","-hide_banner","-loglevel","error","-nostdin","-y","-i",str(source)]
+            if checked["start_seconds"] is not None and checked["start_seconds"] > 0: args += ["-ss",f'{checked["start_seconds"]:.3f}']
+        if checked["trim_seconds"] is not None: args += ["-t",f'{checked["trim_seconds"]:.3f}']
+        if checked["output_format"]=="webp":
+            sticker_graph="fps=12,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=yuva420p"
+            args += ["-vf",sticker_graph,"-an","-c:v","libwebp_anim","-loop","0","-lossless","0","-q:v","70","-f","webp",str(destination)]
+        else:
+            overlay_suffix=(","+",".join(overlay_filters)) if overlay_filters else ""
+            if checked["mode"]=="audio-story":
+                visualizer="[1:a]showwaves=s=900x420:mode=line:rate=30:colors=0xB8A5FF[wave];[0:v][wave]overlay=(W-w)/2:(H-h)/2"+overlay_suffix+",format=yuv420p[vout]"
+                args += ["-filter_complex",visualizer,"-map","[vout]","-map","1:a:0","-shortest"]
+            elif checked["mode"]=="blurred-backdrop":
+                args += ["-filter_complex",f"[0:v]{graph}{overlay_suffix}[vout]","-map","[vout]","-map","0:a?"]
+            else:
+                args += ["-vf",graph+overlay_suffix,"-map","0:v:0","-map","0:a?"]
+            args += ["-c:v","libx264","-preset","veryfast","-crf","20","-pix_fmt","yuv420p","-c:a","aac","-b:a","160k","-movflags","+faststart","-f","mp4",str(destination)]
+        try: result=subprocess.run(args,capture_output=True,timeout=1800,check=False)
+        except subprocess.TimeoutExpired as exc: raise ExportError("Media export timed out. Try a shorter clip.") from exc
+        if result.returncode!=0 or not destination.is_file() or destination.stat().st_size<=0:
+            destination.unlink(missing_ok=True)
+            detail=result.stderr.decode("utf-8","replace")[-600:] if result.stderr else ""
+            raise ExportError("FFmpeg could not export this media. "+detail)
+        return {"width":checked["width"],"height":checked["height"],"preset":checked["preset"],"mode":checked["mode"],"size":destination.stat().st_size,"mime_type":"image/webp" if checked["output_format"]=="webp" else "video/mp4","title_overlay":bool(title),"artist_overlay":bool(artist)}
+    finally:
+        for overlay_file in overlay_files:
+            overlay_file.unlink(missing_ok=True)
