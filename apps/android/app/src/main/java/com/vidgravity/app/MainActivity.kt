@@ -2292,6 +2292,7 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                         val updated = savedPreferences.copy(preferredFormatSelector = preset.second)
                         savedPreferences = updated
                         SecureDownloadPreferences.save(context, updated)
+                        android.widget.Toast.makeText(context, "Default quality set to ${preset.first}.", android.widget.Toast.LENGTH_SHORT).show()
                     },
                     label = { Text(preset.first) },
                     modifier = Modifier.heightIn(min = 48.dp)
