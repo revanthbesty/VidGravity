@@ -357,7 +357,8 @@ class DualCameraCaptureActivity : ComponentActivity() {
             when (event) {
                 is VideoRecordEvent.Start -> {
                     shutter.text = "■  Stop"
-                    status.text = "Recording video…"
+                    qualityButton.isEnabled = false
+                    status.text = "Recording video · ${videoQualityLabel(videoQuality)}"
                 }
                 is VideoRecordEvent.Status -> {
                     val seconds = event.recordingStats.recordedDurationNanos / 1_000_000_000L
@@ -366,6 +367,8 @@ class DualCameraCaptureActivity : ComponentActivity() {
                 is VideoRecordEvent.Finalize -> {
                     recording = null
                     shutter.isEnabled = true
+                    qualityButton.isEnabled = true
+                    qualityButton.text = "Quality: ${videoQualityLabel(videoQuality)}"
                     shutter.text = "●  Record"
                     if (event.hasError()) {
                         status.text = "Recording failed"
@@ -429,11 +432,19 @@ class DualCameraCaptureActivity : ComponentActivity() {
         }
         val activeCamera = camera ?: return
         val requestedState = !flashEnabled
-        activeCamera.cameraControl.enableTorch(requestedState).addListener({
+        val torchFuture = activeCamera.cameraControl.enableTorch(requestedState)
+        torchFuture.addListener({
+            val failure = runCatching { torchFuture.get() }.exceptionOrNull()
             runOnUiThread {
-                flashEnabled = requestedState
-                updateFlashLabel()
-                status.text = if (flashEnabled) "Flash is on" else "Flash is off"
+                if (failure == null) {
+                    flashEnabled = requestedState
+                    updateFlashLabel()
+                    status.text = if (flashEnabled) "Flash is on" else "Flash is off"
+                } else {
+                    flashEnabled = false
+                    updateFlashLabel()
+                    Toast.makeText(this, "Could not change flash state. Try again.", Toast.LENGTH_LONG).show()
+                }
             }
         }, ContextCompat.getMainExecutor(this))
     }
