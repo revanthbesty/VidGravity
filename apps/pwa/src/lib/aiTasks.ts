@@ -26,7 +26,7 @@ export async function submitAITask(path: string, payload: FormData): Promise<AIT
 }
 
 export async function saveResultToOPFS(blob: Blob, fileName: string): Promise<FileSystemFileHandle | null> {
-  if (!("storage" in navigator) || !("getDirectory" in (navigator.storage as StorageManager & { getDirectory?: unknown }))) return null;
+  if (!navigator.storage || typeof (navigator.storage as StorageManager & { getDirectory?: unknown }).getDirectory !== "function") return null;
   const root = await (navigator.storage as StorageManager & { getDirectory: () => Promise<FileSystemDirectoryHandle> }).getDirectory();
   const safeName = fileName.replace(/[^a-z0-9._-]/gi, "_").slice(0, 120) || "vidgravity-ai-export.mp4";
   const handle = await root.getFileHandle(safeName, { create: true });
