@@ -103,3 +103,8 @@ Include platform/build version, device/OS where relevant, numbered reproduction 
 In the Android app, open **Settings → Help & troubleshooting → Open Help Center**. It includes quick guidance for inspecting links, choosing source-provided quality options, stalled downloads, missing Library items, playback, checksum/service errors, and safely reporting a problem. This built-in guide is available offline once the app screen is loaded.
 
 The Help Center explains troubleshooting steps; it does not guarantee that a source, cloud service, codec, or device will support every workflow. For device-specific issues, use **Settings → Diagnostics & self-test → Run diagnostics**, then copy or share the report after removing any private information.
+
+
+## Android Downloads screen: reduce clutter
+
+Open **Downloads → Queue controls · cancel, retry & reports** to reveal bulk queue actions such as cancelling queued/active work, copying summaries, and retrying eligible failures. Keep this section collapsed when you only need to monitor individual downloads. The preference is remembered on the device. Individual download actions and progress remain in the download list.
