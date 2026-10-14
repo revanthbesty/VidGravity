@@ -1,6 +1,8 @@
 package com.vidgravity.app
 
-import android.content.Intent
+import android.content.Context
+import org.json.JSONArray
+import org.json.JSONObject
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -20,19 +22,80 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 private data class StudyCard(val question: String, val answer: String, val timestamp: String = "")
+private data class StudyTokDraft(
+    val transcript: String,
+    val title: String,
+    val cards: List<StudyCard>,
+    val knownCards: Set<Int>,
+    val practiceMode: Boolean,
+    val practiceIndex: Int,
+    val practiceQueue: List<Int>,
+    val showAnswer: Boolean
+)
+
+private fun readStudyTokDraft(context: Context): StudyTokDraft {
+    val prefs = context.getSharedPreferences("vidgravity_studytok_draft", Context.MODE_PRIVATE)
+    val restoredCards = runCatching {
+        val json = JSONArray(prefs.getString("cards", "[]") ?: "[]")
+        (0 until json.length()).mapNotNull { index ->
+            json.optJSONObject(index)?.let { item ->
+                val question = item.optString("question")
+                val answer = item.optString("answer")
+                if (question.isNotBlank() && answer.isNotBlank())
+                    StudyCard(question.take(500), answer.take(2000), item.optString("timestamp"))
+                else null
+            }
+        }.take(20)
+    }.getOrDefault(emptyList())
+    val known = prefs.getStringSet("known_cards", emptySet()).orEmpty()
+        .mapNotNull { it.toIntOrNull() }.filter { it in restoredCards.indices }.toSet()
+    val queue = prefs.getString("practice_queue", "").orEmpty().split(",")
+        .mapNotNull { it.toIntOrNull() }.filter { it in restoredCards.indices }
+    return StudyTokDraft(
+        transcript = prefs.getString("transcript", "").orEmpty().take(60000),
+        title = prefs.getString("title", "My Study Pack").orEmpty().take(100).ifBlank { "My Study Pack" },
+        cards = restoredCards,
+        knownCards = known,
+        practiceMode = prefs.getBoolean("practice_mode", false) && restoredCards.isNotEmpty(),
+        practiceIndex = prefs.getInt("practice_index", 0).coerceAtLeast(0),
+        practiceQueue = queue,
+        showAnswer = prefs.getBoolean("show_answer", false)
+    )
+}
 
 @Composable
 fun StudyTokScreen(onBack: () -> Unit, notify: (String) -> Unit) {
     val context = LocalContext.current
-    var transcript by remember { mutableStateOf("") }
-    var cards by remember { mutableStateOf(emptyList<StudyCard>()) }
-    var title by remember { mutableStateOf("My Study Pack") }
-    var practiceMode by remember { mutableStateOf(false) }
-    var practiceIndex by remember { mutableIntStateOf(0) }
-    var practiceQueue by remember { mutableStateOf(emptyList<Int>()) }
-    var showAnswer by remember { mutableStateOf(false) }
-    var knownCards by remember { mutableStateOf(setOf<Int>()) }
+    val draft = remember(context) { readStudyTokDraft(context) }
+    var transcript by remember { mutableStateOf(draft.transcript) }
+    var cards by remember { mutableStateOf(draft.cards) }
+    var title by remember { mutableStateOf(draft.title) }
+    var practiceMode by remember { mutableStateOf(draft.practiceMode) }
+    var practiceIndex by remember { mutableIntStateOf(draft.practiceIndex) }
+    var practiceQueue by remember { mutableStateOf(draft.practiceQueue.ifEmpty { draft.cards.indices.toList() }) }
+    var showAnswer by remember { mutableStateOf(draft.showAnswer) }
+    var knownCards by remember { mutableStateOf(draft.knownCards) }
     var pendingCsv by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(transcript, title, cards, knownCards, practiceMode, practiceIndex, practiceQueue, showAnswer) {
+        val prefs = context.getSharedPreferences("vidgravity_studytok_draft", Context.MODE_PRIVATE)
+        val serializedCards = JSONArray().apply {
+            cards.take(20).forEach { card ->
+                put(JSONObject().put("question", card.question.take(500))
+                    .put("answer", card.answer.take(2000)).put("timestamp", card.timestamp))
+            }
+        }
+        prefs.edit()
+            .putString("transcript", transcript.take(60000))
+            .putString("title", title.take(100))
+            .putString("cards", serializedCards.toString())
+            .putStringSet("known_cards", knownCards.filter { it in cards.indices }.map { it.toString() }.toSet())
+            .putBoolean("practice_mode", practiceMode)
+            .putInt("practice_index", practiceIndex.coerceIn(0, cards.size))
+            .putString("practice_queue", practiceQueue.filter { it in cards.indices }.joinToString(","))
+            .putBoolean("show_answer", showAnswer)
+            .apply()
+    }
     val saveCsvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         val csv = pendingCsv
         pendingCsv = null
@@ -98,6 +161,8 @@ fun StudyTokScreen(onBack: () -> Unit, notify: (String) -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text("StudyTok", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text("Turn notes into a revision pack", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Draft and practice progress autosave on this device", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary)
             }
         }
         Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(18.dp)) {
@@ -203,8 +268,19 @@ fun StudyTokScreen(onBack: () -> Unit, notify: (String) -> Unit) {
                     TextButton(onClick = { practiceMode = false; showAnswer = false }, modifier = Modifier.fillMaxWidth()) { Text("Exit practice") }
                 }
             }
-            OutlinedButton(onClick = { cards = emptyList(); practiceMode = false; knownCards = emptySet() }, modifier = Modifier.fillMaxWidth()) {
-                Text("Clear study pack")
+            OutlinedButton(onClick = {
+                transcript = ""
+                title = "My Study Pack"
+                cards = emptyList()
+                practiceMode = false
+                practiceIndex = 0
+                practiceQueue = emptyList()
+                showAnswer = false
+                knownCards = emptySet()
+                context.getSharedPreferences("vidgravity_studytok_draft", Context.MODE_PRIVATE).edit().clear().apply()
+                notify("Study pack and saved draft cleared from this device.")
+            }, modifier = Modifier.fillMaxWidth()) {
+                Text("Clear study pack and draft")
             }
         }
     }
