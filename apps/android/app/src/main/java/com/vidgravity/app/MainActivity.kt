@@ -1827,7 +1827,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                 .putString("name", media.displayName)
                 .putLong("size", media.sizeBytes)
                 .putString("mime", media.mimeType)
-                .putLong("savedAt", media.lastModified)
+                .putLong("savedAt", System.currentTimeMillis())
                 .apply()
         }
     }
