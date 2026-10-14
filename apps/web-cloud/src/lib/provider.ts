@@ -17,7 +17,9 @@ function providerConfig(): { base: URL; token: string } {
   return { base, token };
 }
 async function providerRequest<T>(url: URL, token: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { Authorization: `Bearer ${token}`, ...(init?.headers ?? {}) }, signal: AbortSignal.timeout(60_000) });
+  const headers = new Headers(init?.headers);
+  headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch(url, { ...init, headers, signal: AbortSignal.timeout(60_000) });
   if (!response.ok) throw new Error(`AI provider returned HTTP ${response.status}: ${(await response.text()).slice(0, 240)}`);
   return response.json() as Promise<T>;
 }
@@ -33,7 +35,7 @@ async function runProviderTask(task: AITask, input: TaskInput, base: URL, token:
     const form = new FormData();
     form.set("kind", input.kind); form.set("metadata", JSON.stringify(input.metadata));
     for (const [field, file] of Object.entries(input.files)) {
-      form.set(field, new Blob([new Uint8Array(file.buffer)], { type: file.mimetype }), file.originalname.replace(/[^a-z0-9._-]/gi, "_").slice(0, 100));
+      form.set(field, new Blob([file.buffer.buffer.slice(file.buffer.byteOffset, file.buffer.byteOffset + file.buffer.byteLength) as ArrayBuffer], { type: file.mimetype }), file.originalname.replace(/[^a-z0-9._-]/gi, "_").slice(0, 100));
     }
     const created = await providerRequest<ProviderCreated>(new URL("/v1/tasks", base), token, { method: "POST", body: form });
     const providerId = created.id ?? created.taskId;
