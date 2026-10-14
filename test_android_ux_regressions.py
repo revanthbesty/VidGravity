@@ -16,6 +16,12 @@ def test_studytok_and_status_quick_actions_do_not_require_a_url():
     assert 'else if (action.contains("Status Clip"))' in source
 
 
+def test_sound_only_falls_back_when_extractor_omits_audio_only_formats():
+    source = MAIN.read_text(encoding="utf-8")
+    assert 'val selector = audio?.selector ?: "bestaudio"' in source
+    assert 'No separate audio stream was listed; queued best-audio extraction.' in source
+
+
 def test_creator_placeholders_open_a_real_media_picker():
     source = MAIN.read_text(encoding="utf-8")
     assert 'Text("Choose video for animated sticker")' in source
