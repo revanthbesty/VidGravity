@@ -222,4 +222,8 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
  def test_creator_draft_preserves_persistable_uri_permission(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)',main)
+ def test_settings_can_refresh_library_storage_usage(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Text("Refresh library size")',main)
+  self.assertIn("refreshStorageUsage()",main)
 if __name__=="__main__":unittest.main(verbosity=2)
