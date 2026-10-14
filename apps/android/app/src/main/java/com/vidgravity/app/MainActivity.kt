@@ -1841,6 +1841,8 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                                             if (index < count - 1) kotlinx.coroutines.delay(21_000L)
                                         }
                                         notify("Created $completed WhatsApp Status clips. Verified clips are saved in Movies/VidGravity.")
+                                    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                                        notify("Status split cancelled after $completed clip(s).")
                                     } catch (failure: Exception) {
                                         notify("Status splitting stopped after $completed clip(s): ${failure.message ?: "Please retry."}".take(240))
                                     } finally {
@@ -1860,6 +1862,16 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                             Icon(Icons.Default.ContentCut, null)
                             Spacer(Modifier.width(8.dp))
                             Text("Split into ${statusClipSeconds}-second clips")
+                        }
+                    }
+                    if (segmentJob != null) {
+                        TextButton(
+                            onClick = { segmentJob?.cancel() },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        ) {
+                            Icon(Icons.Default.Close, null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Cancel split")
                         }
                     }
                     OutlinedButton(
