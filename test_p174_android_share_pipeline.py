@@ -102,7 +102,8 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   library_start=main.index("@Composable\nprivate fun LibraryContent(")
   library_end=main.index("@Composable\nprivate fun CreateStudioContent",library_start)
   library=main[library_start:library_end]
-  self.assertIn("var showLibraryTools by remember { mutableStateOf(false) }",library)
+  self.assertIn('getBoolean("show_library_tools", false)',library)
+  self.assertIn('putBoolean("show_library_tools", showLibraryTools)',library)
   self.assertIn('Text(if (showLibraryTools) "Hide library sharing tools" else "Library tools · share report")',library)
  def test_library_bulk_favorites_are_available_for_selected_media(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
