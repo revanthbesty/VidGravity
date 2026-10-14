@@ -19,6 +19,11 @@ class SocialExportPresetTests(unittest.TestCase):
     def test_blur_graph(self):
         graph=build_filter_graph(1080,1920,"blurred-backdrop")
         self.assertIn("split=2",graph); self.assertIn("boxblur=20:10",graph); self.assertIn("overlay=",graph)
+    def test_privacy_blur_graph_blurs_full_frame(self):
+        graph=build_filter_graph(1080,1920,"privacy-blur")
+        self.assertIn("boxblur=10:5",graph)
+        self.assertIn("crop=1080:1920",graph)
+        self.assertNotIn("overlay=",graph)
     def test_fit_graph(self):
         graph=build_filter_graph(1080,1350,"fit-letterbox")
         self.assertIn("force_original_aspect_ratio=decrease",graph); self.assertIn("pad=1080:1350",graph)
