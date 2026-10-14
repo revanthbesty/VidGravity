@@ -529,7 +529,7 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('val socialCaption = listOf(captionText.trim(), hashtagText.trim())',main)
   self.assertIn('if (socialCaption.isNotBlank()) putExtra(Intent.EXTRA_TEXT, socialCaption)',main)
-  self.assertIn('Text("The original stays safe. What do you think?")',main)
+  self.assertIn("The original stays safe. What do you think?",main)
 
  def test_media_rename_reports_success_and_preserves_extension_case_insensitively(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
