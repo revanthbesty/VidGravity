@@ -1245,8 +1245,16 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
     var showLibraryTools by remember { mutableStateOf(false) }
     var showBulkActions by remember { mutableStateOf(false) }
     var showStorageInsights by remember { mutableStateOf(false) }
+    var refreshingMedia by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    suspend fun refreshMedia() { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
+    suspend fun refreshMedia() {
+        refreshingMedia = true
+        try {
+            media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) }
+        } finally {
+            refreshingMedia = false
+        }
+    }
     LaunchedEffect(Unit) { refreshMedia() }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -1380,6 +1388,21 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                         }
                     }
                 }
+            }
+        }
+        OutlinedButton(
+            onClick = { scope.launch { refreshMedia() } },
+            enabled = !refreshingMedia,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+        ) {
+            if (refreshingMedia) {
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text("Refreshing library…")
+            } else {
+                Icon(Icons.Default.Refresh, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Refresh library")
             }
         }
         OutlinedButton(
