@@ -404,4 +404,19 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('activationKey = it.take(160)',main)
   self.assertIn('${activationKey.length}/160 characters',main)
 
+ def test_library_tool_panel_expansion_states_persist(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('getBoolean("show_library_tools", false)',main)
+  self.assertIn('getBoolean("show_bulk_actions", false)',main)
+  self.assertIn('getBoolean("show_storage_insights", false)',main)
+  self.assertIn('.putBoolean("show_library_tools", showLibraryTools)',main)
+  self.assertIn('.putBoolean("show_bulk_actions", showBulkActions)',main)
+  self.assertIn('.putBoolean("show_storage_insights", showStorageInsights)',main)
+
+ def test_diagnostics_distinguishes_validated_internet_from_network_capability(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('NET_CAPABILITY_VALIDATED',main)
+  self.assertIn('internet connection validated',main)
+  self.assertIn('Android could not validate internet access',main)
+
 if __name__=="__main__":unittest.main(verbosity=2)
