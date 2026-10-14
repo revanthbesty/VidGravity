@@ -24,6 +24,18 @@ class SocialExportPresetTests(unittest.TestCase):
         with self.assertRaises(ExportError): build_filter_graph(1080,1920,"unknown")
         with self.assertRaises(ExportError): build_filter_graph(1081,1920,"smart-reframe")
         with self.assertRaises(ExportError): validate_export_request("custom","smart-reframe",99999,1920)
+    def test_trim_window_supports_start_and_duration(self):
+        from media_export import validate_export_request
+        result=validate_export_request("whatsapp-status","smart-reframe",trim_seconds="15",start_seconds="30")
+        self.assertEqual(result["start_seconds"],30.0)
+        self.assertEqual(result["trim_seconds"],15.0)
+    def test_trim_window_rejects_invalid_or_excessive_ranges(self):
+        from media_export import validate_export_request
+        for start in ("-1","3600","not-a-number"):
+            with self.subTest(start=start), self.assertRaises(ExportError):
+                validate_export_request("square","smart-reframe",start_seconds=start)
+        with self.assertRaises(ExportError):
+            validate_export_request("square","smart-reframe",trim_seconds="20",start_seconds="3590")
     def test_custom_dimensions_are_even(self):
         result=validate_export_request("custom","smart-reframe",1081,1351)
         self.assertEqual((result["width"],result["height"]),(1080,1350))
