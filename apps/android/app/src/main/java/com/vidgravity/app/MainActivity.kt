@@ -1956,14 +1956,14 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         AlertDialog(
             onDismissRequest = { renameTarget = null },
             title = { Text("Rename media") },
-            text = { OutlinedTextField(value = renameText, onValueChange = { renameText = it }, singleLine = true, label = { Text("File name") }) },
-            confirmButton = { TextButton(onClick = {
+            text = { OutlinedTextField(value = renameText, onValueChange = { renameText = it.take(180).replace("/", "").replace("\\", "") }, singleLine = true, label = { Text("File name") }, supportingText = { Text("${renameText.length}/180 characters · File paths are not allowed") }) },
+            confirmButton = { TextButton(enabled = renameText.isNotBlank(), onClick = {
                 val suffix = target.displayName.substringAfterLast(".", "")
-                val finalName = renameText.trim() + if (suffix.isNotBlank() && !renameText.trim().endsWith(".$suffix")) ".$suffix" else ""
+                val finalName = renameText.trim() + if (suffix.isNotBlank() && !renameText.trim().endsWith(".$suffix", ignoreCase = true)) ".$suffix" else ""
                 scope.launch {
                     val ok = withContext(Dispatchers.IO) { MediaLibraryIndexer.rename(context, target, finalName) }
                     refreshMedia()
-                    if (!ok) android.widget.Toast.makeText(context, "Could not rename this media item.", android.widget.Toast.LENGTH_LONG).show()
+                    android.widget.Toast.makeText(context, if (ok) "Media renamed." else "Could not rename this media item.", android.widget.Toast.LENGTH_LONG).show()
                     renameTarget = null
                 }
             }) { Text("Save") } },
