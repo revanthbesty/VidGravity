@@ -11,7 +11,7 @@ class WorkspacePlusFeatureTests(unittest.TestCase):
   for path in ("index.html","site/index.html","android-web/index.html"):
    with self.subTest(path=path):self.assertIn('src="workspace-plus.js?v=wp1"',(ROOT/path).read_text(encoding="utf-8"))
  def test_dock_last_page_and_keyboard_help(self):
-  for marker in ("vgpDock","vgpReturnPage","vgpShortcuts","vgpShortcutModal","event.altKey","vgp-last-page"):
+  for marker in ("vgpDock","vgpReturnPage","vgpShortcuts","vgpShortcutModal","e.altKey","vgp-last-page"):
    with self.subTest(marker=marker):self.assertIn(marker,self.js)
  def test_queue_health_progress_and_storage_estimate(self):
   for marker in ("vgpQueueHealth","vgpProgressFill","navigator.storage?.estimate","vgpStorageFill"):
