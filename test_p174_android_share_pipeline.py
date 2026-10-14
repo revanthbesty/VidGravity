@@ -596,6 +596,27 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('Text("Keep running")',main)
   self.assertIn('Completed files will not be deleted.',main)
 
+ def test_download_queue_has_blocked_filter_and_cancellation_action(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('val blockedWorks = works.filter { it.state == WorkInfo.State.BLOCKED }',main)
+  self.assertIn('"Blocked" -> blockedWorks',main)
+  self.assertIn('Text("Cancel blocked downloads',main)
+
+ def test_download_queue_can_copy_queued_titles_and_retryable_links(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Text("Copy queued titles")',main)
+  self.assertIn('Text("Copy retryable links")',main)
+  self.assertIn('val titles = queuedWorks.map',main)
+  self.assertIn('val links = retryableWorks.mapNotNull',main)
+
+ def test_download_queue_can_share_failure_report_and_copy_queue_summary(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Text("Share failure report")',main)
+  self.assertIn('Text("Copy queue summary")',main)
+  self.assertIn('Intent.EXTRA_SUBJECT, "VidGravity failure report"',main)
+  self.assertIn('Share unavailable; failure report copied instead.',main)
+  self.assertIn('VidGravity queue summary',main)
+
  def test_media_rename_reports_success_and_preserves_extension_case_insensitively(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('endsWith(".$suffix", ignoreCase = true)',main)
