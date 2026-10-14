@@ -98,3 +98,14 @@ Status meanings: **Present** = implementation found in source; **CI pending** = 
 4. Consolidate Create workflows, then update camera reachability and branding.
 5. Run exact-head CI and produce a fresh APK artifact. The earlier p180 APK is not equivalent to the later UI-change commit.
 6. Request physical-device verification; never mark device-only behavior as passed from source/CI alone.
+
+
+## Latest CI status update — 2026-10-15
+
+- Latest full CI run inspected: https://github.com/revanthbesty/VidGravity/actions/runs/38628543175
+- Commit tested: `4fdbccd7df8d8351f9f7ad563c03e9d8ccfe9c4c`
+- Results: regression, PWA AI Studio and Cloud AI API jobs passed; Android share pipeline/export job failed in the feature-ledger unit tests.
+- Failure cause: `test_studytok_quick_action_does_not_require_url` still required the StudyTok Home quick action, contradicting the user's explicit request to remove StudyTok. This is a stale assertion, not proof of an Android compile failure.
+- Corrective commit: `d1ffa0569a6bfd5dede7f803173a3c421cbbbb8e` updates the test to assert that StudyTok and Grab Best Video are absent from the quick-action carousel while Sound Only and Status Clip Splitter remain.
+- New CI for the corrective commit and a matching APK artifact are not yet verified.
+- P0 functional defects reported by the user remain open: Sound Only does not work; Status Splitter does not work. UI reorganization, media detail tiles, branding, camera ergonomics and full StudyTok cleanup remain outstanding.
