@@ -494,6 +494,43 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn(".onSuccess { queued++ }.onFailure { failed++ }",main)
   self.assertIn('notify("$queued of ${candidates.size} links queued using your saved quality preset; $failed failed.")',main)
 
+ def test_creator_caption_studio_persists_platform_caption_and_hashtags(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('getString("captionPlatform", "Instagram")',main)
+  self.assertIn('getString("captionText", "")',main)
+  self.assertIn('getString("hashtagText", "#VidGravity #Creator")',main)
+  self.assertIn('putString("captionPlatform", captionPlatform)',main)
+  self.assertIn('putString("captionText", captionText.take(2200))',main)
+  self.assertIn('putString("hashtagText", hashtagText.take(500))',main)
+
+ def test_creator_caption_studio_has_platforms_templates_and_character_limits(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  for label in ("Instagram", "TikTok", "YouTube Shorts", "WhatsApp"):
+   self.assertIn('"'+label+'"',main)
+  for label in ("Behind the scenes", "Quick tutorial", "New creation", "Study notes"):
+   self.assertIn('"'+label+'"',main)
+  self.assertIn('captionText = it.take(2200)',main)
+  self.assertIn('hashtagText = it.take(500)',main)
+  self.assertIn('contentDescription = "Clear caption"',main)
+  self.assertIn('contentDescription = "Clear hashtags"',main)
+
+ def test_creator_caption_studio_has_emoji_hashtag_normalization_and_copy_actions(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  for emoji in ("✨", "🎬", "🔥", "📚", "💡", "❤️"):
+   self.assertIn('"'+emoji+'"',main)
+  self.assertIn('distinctBy { it.lowercase() }.joinToString(" ")',main)
+  self.assertIn('Text("Normalize hashtags")',main)
+  self.assertIn('Text("Copy caption")',main)
+  self.assertIn('Text("Copy tags")',main)
+  self.assertIn('Text("Copy caption + hashtags")',main)
+  self.assertIn('Text("Share caption")',main)
+
+ def test_sharing_original_media_includes_caption_without_modifying_original(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('val socialCaption = listOf(captionText.trim(), hashtagText.trim())',main)
+  self.assertIn('if (socialCaption.isNotBlank()) putExtra(Intent.EXTRA_TEXT, socialCaption)',main)
+  self.assertIn('Text("The original stays safe. What do you think?")',main)
+
  def test_media_rename_reports_success_and_preserves_extension_case_insensitively(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('endsWith(".$suffix", ignoreCase = true)',main)
