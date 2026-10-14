@@ -1607,11 +1607,11 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 Icons.Default.VideoLibrary, Modifier.fillMaxWidth()
             )
         } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+            Column(
+                modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(visibleMedia, key = { it.uri.toString() }) { item ->
+                visibleMedia.forEach { item ->
                     Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp),
                         modifier = Modifier.fillMaxWidth().clickable { onPlay(item) }) {
                         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
