@@ -36,6 +36,16 @@ class SocialExportPresetTests(unittest.TestCase):
                 validate_export_request("square","smart-reframe",start_seconds=start)
         with self.assertRaises(ExportError):
             validate_export_request("square","smart-reframe",trim_seconds="20",start_seconds="3590")
+    def test_animated_sticker_requires_short_webp_export(self):
+        from media_export import validate_export_request
+        result=validate_export_request("animated-sticker","fit-letterbox",trim_seconds="8",start_seconds="2",output_format="webp")
+        self.assertEqual((result["width"],result["height"]),(512,512))
+        self.assertEqual(result["output_format"],"webp")
+        for duration in (None,"10.1"):
+            with self.subTest(duration=duration), self.assertRaises(ExportError):
+                validate_export_request("animated-sticker","fit-letterbox",trim_seconds=duration,output_format="webp")
+        with self.assertRaises(ExportError):
+            validate_export_request("square","fit-letterbox",trim_seconds="5",output_format="webp")
     def test_custom_dimensions_are_even(self):
         result=validate_export_request("custom","smart-reframe",1081,1351)
         self.assertEqual((result["width"],result["height"]),(1080,1350))
