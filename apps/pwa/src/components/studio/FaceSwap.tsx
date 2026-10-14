@@ -17,7 +17,7 @@ export function FaceSwap({ onTaskStarted }: FaceSwapProps) {
       const canvas=document.createElement("canvas"),ctx=canvas.getContext("2d");if(!ctx)throw new Error("Canvas is unavailable.");
       canvas.width=videoEl.videoWidth;canvas.height=videoEl.videoHeight;const boxes:FaceBox[]=[];
       const duration=Math.max(0,videoEl.duration||0), sampleCount=Math.min(180,Math.max(1,Math.ceil(duration)));
-      for(let i=0;i<sampleCount;i++){const time=Math.min(Math.max(0,duration-.05),i);videoEl.currentTime=time;await new Promise<void>(resolve=>{videoEl.onseeked=()=>resolve();});ctx.drawImage(videoEl,0,0,canvas.width,canvas.height);const result=detector.detect(canvas);for(const detection of result.detections){const box=detection.boundingBox;if(box)boxes.push({time,x:box.originX,y:box.originY,width:box.width,height:box.height,frameWidth:canvas.width,frameHeight:canvas.height});}setProgress(Math.round((i+1)/sampleCount*100));}
+      for(let i=0;i<sampleCount;i++){const time=Math.min(Math.max(0,duration-.05),i);await new Promise<void>(resolve=>{videoEl.onseeked=()=>resolve();videoEl.currentTime=time;});ctx.drawImage(videoEl,0,0,canvas.width,canvas.height);const result=detector.detect(canvas);for(const detection of result.detections){const box=detection.boundingBox;if(box)boxes.push({time,x:box.originX,y:box.originY,width:box.width,height:box.height,frameWidth:canvas.width,frameHeight:canvas.height});}setProgress(Math.round((i+1)/sampleCount*100));}
       detector.close();if(!boxes.length)throw new Error("No face was detected. Try a clearer, front-facing clip.");return boxes;
     } finally { URL.revokeObjectURL(url);videoEl.removeAttribute("src");videoEl.load(); }
   };
