@@ -7,7 +7,7 @@ PRESETS = {
  "whatsapp-status": (1080,1920), "instagram-story": (1080,1920),
  "instagram-reels": (1080,1920), "youtube-shorts": (1080,1920), "tiktok": (1080,1920),
  "instagram-feed-portrait": (1080,1350), "linkedin-portrait": (1080,1350),
- "square": (1080,1080), "youtube-landscape": (1920,1080), "x-landscape": (1920,1080)
+ "square": (1080,1080), "youtube-landscape": (1920,1080), "x-landscape": (1920,1080), "animated-sticker": (512,512)
 }
 MODES = {"smart-reframe","blurred-backdrop","fit-letterbox"}
 MAX_DIMENSION=2160
@@ -16,8 +16,12 @@ MAX_TRIM_SECONDS=3600
 class ExportError(ValueError):
     """Rejected export request or unsuccessful media transcode."""
 
-def validate_export_request(preset, mode, width=None, height=None, trim_seconds=None, start_seconds=None):
+def validate_export_request(preset, mode, width=None, height=None, trim_seconds=None, start_seconds=None, output_format="mp4"):
+    if output_format not in ("mp4","webp"): raise ExportError("Unsupported export format.")
     if preset not in PRESETS and preset != "custom": raise ExportError("Unsupported social export preset.")
+    if output_format == "webp" and (preset != "animated-sticker" or mode != "fit-letterbox"):
+        raise ExportError("Animated WebP requires the animated-sticker preset and fit-letterbox framing.")
+    if output_format == "mp4" and preset == "animated-sticker": raise ExportError("The animated-sticker preset requires WebP output.")
     if mode not in MODES: raise ExportError("Unsupported framing mode.")
     if preset == "custom":
         try: w,h=int(width),int(height)
@@ -36,7 +40,8 @@ def validate_export_request(preset, mode, width=None, height=None, trim_seconds=
         except (TypeError,ValueError): raise ExportError("Start time must be a number of seconds.")
         if not (0<=start<MAX_TRIM_SECONDS): raise ExportError("Start time must be between 0 and 3599.999 seconds.")
         if trim is not None and start+trim>MAX_TRIM_SECONDS: raise ExportError("Start time plus clip length must not exceed 3600 seconds.")
-    return {"preset":preset,"mode":mode,"width":w,"height":h,"trim_seconds":trim,"start_seconds":start}
+    if output_format == "webp" and (trim is None or trim > 10): raise ExportError("Animated stickers must be trimmed to 10 seconds or less.")
+    return {"preset":preset,"mode":mode,"width":w,"height":h,"trim_seconds":trim,"start_seconds":start,"output_format":output_format}
 
 def build_filter_graph(width,height,mode):
     try: w,h=int(width),int(height)
@@ -53,18 +58,22 @@ def export_media_file(source,destination,request):
     if not source.is_file() or source.stat().st_size<=0: raise ExportError("The uploaded source media is empty or unavailable.")
     if source.resolve()==destination.resolve(): raise ExportError("Source and output paths must be different.")
     if shutil.which("ffmpeg") is None: raise ExportError("FFmpeg is not installed on this server.")
-    checked=validate_export_request(request.get("preset",""),request.get("mode",""),request.get("width"),request.get("height"),request.get("trim_seconds"),request.get("start_seconds"))
+    checked=validate_export_request(request.get("preset",""),request.get("mode",""),request.get("width"),request.get("height"),request.get("trim_seconds"),request.get("start_seconds"),request.get("output_format","mp4"))
     graph=build_filter_graph(checked["width"],checked["height"],checked["mode"])
     args=["ffmpeg","-hide_banner","-loglevel","error","-nostdin","-y","-i",str(source)]
     if checked["start_seconds"] is not None and checked["start_seconds"] > 0: args += ["-ss",f'{checked["start_seconds"]:.3f}']
     if checked["trim_seconds"] is not None: args += ["-t",f'{checked["trim_seconds"]:.3f}']
-    if checked["mode"]=="blurred-backdrop": args += ["-filter_complex",f"[0:v]{graph}[vout]","-map","[vout]","-map","0:a?"]
-    else: args += ["-vf",graph,"-map","0:v:0","-map","0:a?"]
-    args += ["-c:v","libx264","-preset","veryfast","-crf","20","-pix_fmt","yuv420p","-c:a","aac","-b:a","160k","-movflags","+faststart","-f","mp4",str(destination)]
+    if checked["output_format"]=="webp":
+        sticker_graph="fps=12,scale=512:512:force_original_aspect_ratio=decrease,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=yuva420p"
+        args += ["-vf",sticker_graph,"-an","-c:v","libwebp_anim","-loop","0","-lossless","0","-q:v","70","-f","webp",str(destination)]
+    else:
+        if checked["mode"]=="blurred-backdrop": args += ["-filter_complex",f"[0:v]{graph}[vout]","-map","[vout]","-map","0:a?"]
+        else: args += ["-vf",graph,"-map","0:v:0","-map","0:a?"]
+        args += ["-c:v","libx264","-preset","veryfast","-crf","20","-pix_fmt","yuv420p","-c:a","aac","-b:a","160k","-movflags","+faststart","-f","mp4",str(destination)]
     try: result=subprocess.run(args,capture_output=True,timeout=1800,check=False)
     except subprocess.TimeoutExpired as exc: raise ExportError("Media export timed out. Try a shorter clip.") from exc
     if result.returncode!=0 or not destination.is_file() or destination.stat().st_size<=0:
         destination.unlink(missing_ok=True)
         detail=result.stderr.decode("utf-8","replace")[-600:] if result.stderr else ""
         raise ExportError("FFmpeg could not export this media. "+detail)
-    return {"width":checked["width"],"height":checked["height"],"preset":checked["preset"],"mode":checked["mode"],"size":destination.stat().st_size,"mime_type":"video/mp4"}
+    return {"width":checked["width"],"height":checked["height"],"preset":checked["preset"],"mode":checked["mode"],"size":destination.stat().st_size,"mime_type":"image/webp" if checked["output_format"]=="webp" else "video/mp4"}
