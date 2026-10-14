@@ -29,7 +29,7 @@ class AndroidProductionReleaseGateTests(unittest.TestCase):
         pipeline = (ROOT / "docs" / "ANDROID_FEATURE_PIPELINE.md").read_text(encoding="utf-8")
         notes = (ROOT / "docs" / "RELEASE_NOTES.md").read_text(encoding="utf-8")
         self.assertIn("ANDROID_KEYSTORE_BASE64", pipeline)
-        self.assertIn("Physical-device installation", pipeline)
+        self.assertIn("on-device acceptance checklist", pipeline)
         self.assertIn("not a claim that a signed production APK", notes)
 
 
