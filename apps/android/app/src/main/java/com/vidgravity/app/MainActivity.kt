@@ -2240,6 +2240,79 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                 Text("Gauge is relative to 2 GB; it does not represent total device capacity.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+        var diagnosticsRunning by remember { mutableStateOf(false) }
+        var diagnosticsReport by remember { mutableStateOf<String?>(null) }
+        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.HealthAndSafety, null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Diagnostics & self-test", fontWeight = FontWeight.SemiBold)
+                        Text("Check network, backend health, storage and Library indexing.", fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Button(
+                    enabled = !diagnosticsRunning,
+                    onClick = {
+                        diagnosticsRunning = true
+                        diagnosticsReport = null
+                        scope.launch {
+                            val report = withContext(Dispatchers.IO) {
+                                val lines = mutableListOf<String>()
+                                val connectivity = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                                val network = connectivity.activeNetwork
+                                val capabilities = network?.let { connectivity.getNetworkCapabilities(it) }
+                                val connected = capabilities?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+                                lines.add("Network: " + if (connected) "internet network detected" else "no internet network detected")
+                                val stat = android.os.StatFs(context.filesDir.absolutePath)
+                                val freeMb = stat.availableBytes / 1_000_000L
+                                lines.add("App storage available: $freeMb MB")
+                                try {
+                                    lines.add(DownloadApi.healthCheck())
+                                } catch (failure: Exception) {
+                                    lines.add("Backend: unavailable — " + (failure.message ?: "health check failed").take(180))
+                                }
+                                try {
+                                    val indexed = MediaLibraryIndexer.list(context)
+                                    lines.add("Library: ${indexed.size} item(s) indexed")
+                                    lines.add("Indexed media size: " + String.format("%.1f MB", indexed.sumOf { it.sizeBytes.coerceAtLeast(0L) } / 1_000_000.0))
+                                } catch (failure: Exception) {
+                                    lines.add("Library: indexing check failed — " + (failure.message ?: "unknown error").take(140))
+                                }
+                                lines.add("App version: " + runCatching {
+                                    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
+                                }.getOrDefault("unknown"))
+                                lines.joinToString("\\n")
+                            }
+                            diagnosticsReport = report
+                            diagnosticsRunning = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                ) {
+                    if (diagnosticsRunning) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Icon(Icons.Default.HealthAndSafety, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (diagnosticsRunning) "Running checks…" else "Run diagnostics")
+                }
+                diagnosticsReport?.let { report ->
+                    Text(report, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedButton(
+                        onClick = {
+                            clipboard.setText(androidx.compose.ui.text.AnnotatedString("VidGravity diagnostics\\n$report"))
+                            android.widget.Toast.makeText(context, "Diagnostics report copied.", android.widget.Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                    ) {
+                        Icon(Icons.Default.ContentCopy, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Copy diagnostics report")
+                    }
+                }
+            }
+        }
         if (showActivation) AlertDialog(
             onDismissRequest = { showActivation = false },
             title = { Text("License activation") },
