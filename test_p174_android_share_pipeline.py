@@ -247,4 +247,13 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('if (searchTerm.isNotBlank()) "No matching downloads"',downloads)
   self.assertIn('Text("Reset download search and filters")',downloads)
   self.assertIn('downloadSearch = ""\n                            downloadFilter = "All"\n                            downloadSort = "Newest"',downloads)
+
+ def test_storage_refresh_reports_permission_or_indexing_failure(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  start=main.index("private fun SettingsContent(")
+  end=main.index("private fun ",start+30)
+  settings=main[start:end]
+  self.assertIn("var storageRefreshError by remember { mutableStateOf<String?>(null) }",settings)
+  self.assertIn('storageRefreshError = "Could not refresh library size. Check storage access and try again."',settings)
+  self.assertIn("storageRefreshError?.let { message ->",settings)
 if __name__=="__main__":unittest.main(verbosity=2)
