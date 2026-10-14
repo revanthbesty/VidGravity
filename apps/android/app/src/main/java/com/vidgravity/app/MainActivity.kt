@@ -2243,10 +2243,14 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
     var showActivation by remember { mutableStateOf(false) }
     var mediaBytes by remember { mutableLongStateOf(0L) }
     var refreshingStorage by remember { mutableStateOf(false) }
+    var storageRefreshError by remember { mutableStateOf<String?>(null) }
     suspend fun refreshStorageUsage() {
         refreshingStorage = true
+        storageRefreshError = null
         try {
             mediaBytes = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context).sumOf { it.sizeBytes.coerceAtLeast(0L) } }
+        } catch (failure: Exception) {
+            storageRefreshError = "Could not refresh library size. Check storage access and try again."
         } finally {
             refreshingStorage = false
         }
@@ -2366,6 +2370,9 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                         Spacer(Modifier.width(8.dp))
                         Text("Refresh library size")
                     }
+                }
+                storageRefreshError?.let { message ->
+                    Text(message, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                 }
             }
         }
