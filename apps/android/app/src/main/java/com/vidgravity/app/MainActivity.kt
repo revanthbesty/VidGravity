@@ -282,7 +282,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                     modifier = Modifier.fillMaxWidth().clickable {
                                         try {
                                             val preferences = SecureDownloadPreferences.load(context)
-                                            if (rememberQuality && choice.first != "Highest available") {
+                                            if (rememberQuality && choice.first != "Best available") {
                                                 SecureDownloadPreferences.save(context, preferences.copy(
                                                     autoDownloadWithPreferredPreset = true,
                                                     preferredFormatSelector = choice.second
