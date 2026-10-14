@@ -205,7 +205,9 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('Text("Clear filters")',main)
  def test_device_id_has_copy_action(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
-  self.assertIn('TextButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(deviceId)) })',main)
+  self.assertIn('TextButton(onClick = {',main)
+  self.assertIn('androidx.compose.ui.text.AnnotatedString(deviceId)',main)
+  self.assertIn('Device ID copied.',main)
  def test_diagnostics_report_has_copy_action(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('Text("Copy diagnostics report")',main)
