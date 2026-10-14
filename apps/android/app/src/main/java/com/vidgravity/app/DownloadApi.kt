@@ -238,10 +238,16 @@ object DownloadApi {
     ): Uri {
         require(outputFormat in setOf("mp4", "webp")) { "Unsupported export format." }
         require(if (outputFormat == "webp") preset == "animated-sticker" else preset in setOf("whatsapp-status", "instagram-story", "instagram-reels", "youtube-shorts", "tiktok")) { "Unsupported export preset." }
-        require(mode in setOf("smart-reframe", "blurred-backdrop", "fit-letterbox")) { "Unsupported framing mode." }
+        require(mode in setOf("smart-reframe", "blurred-backdrop", "fit-letterbox", "privacy-blur", "audio-story")) { "Unsupported framing mode." }
         if (outputFormat == "webp") {
             require(mode == "fit-letterbox" && trimSeconds <= 10f) { "Animated stickers must use fit-letterbox framing and be 10 seconds or shorter." }
             require(context.contentResolver.getType(sourceUri)?.startsWith("video/") == true) { "Animated stickers require a video source." }
+        }
+        if (mode == "audio-story") {
+            require(outputFormat == "mp4" && preset in setOf("whatsapp-status", "instagram-story", "instagram-reels", "youtube-shorts", "tiktok")) {
+                "Audio visualizer stories require a vertical MP4 social preset."
+            }
+            require(context.contentResolver.getType(sourceUri)?.startsWith("audio/") == true) { "Audio visualizer stories require an audio source." }
         }
         require(startSeconds.isFinite() && startSeconds >= 0f && startSeconds < 3600f) { "Invalid clip start time." }
         require(trimSeconds.isFinite() && trimSeconds > 0f && trimSeconds <= 3600f && startSeconds + trimSeconds <= 3600f) { "Invalid clip duration." }
@@ -264,7 +270,7 @@ object DownloadApi {
                 }
             } ?: throw IllegalStateException("Cannot open the selected source media.")
             require(sourceFile.length() > 0L) { "The selected source media is empty." }
-            val mime = context.contentResolver.getType(sourceUri)?.takeIf { it.startsWith("video/") } ?: "application/octet-stream"
+            val mime = context.contentResolver.getType(sourceUri)?.takeIf { it.startsWith("video/") || (mode == "audio-story" && it.startsWith("audio/")) } ?: "application/octet-stream"
             val connection = open("/api/media/export", "POST", mime)
             connection.doOutput = true
             connection.connectTimeout = 15_000
