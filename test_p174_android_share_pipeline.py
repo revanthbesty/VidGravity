@@ -467,7 +467,7 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
  def test_home_inspect_trims_and_validates_url_host(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn("val candidate = url.trim().lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()",main)
-  self.assertIn('parsed?.scheme in setOf("http", "https") && !parsed.host.isNullOrBlank()',main)
+  self.assertIn('parsed != null && parsed.scheme in setOf("http", "https") && !parsed.host.isNullOrBlank()',main)
   self.assertIn('Enter a complete URL with https:// and a valid host name.',main)
 
  def test_home_url_input_has_accessible_label_and_actions(self):
