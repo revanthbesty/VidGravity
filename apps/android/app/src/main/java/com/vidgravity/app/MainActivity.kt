@@ -1705,13 +1705,12 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             onClose = { storyEditorOpen = false },
             isRendering = isRendering,
             onRenderStory = { source, startSeconds, endSeconds, title, artist, layout ->
-                if (!source.mimeType.startsWith("video/")) {
-                    notify("Story export currently requires a video file. Audio-only story cards are not yet supported.")
-                } else if (!isRendering) {
+                if (!isRendering) {
                     scope.launch {
                         isRendering = true
                         try {
                             val mode = when (layout) {
+                                "Audio Visualizer" -> "audio-story"
                                 "Video Backdrop" -> "blurred-backdrop"
                                 "Privacy Blur" -> "privacy-blur"
                                 else -> "fit-letterbox"
