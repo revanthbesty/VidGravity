@@ -1705,7 +1705,11 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                     scope.launch {
                         isRendering = true
                         try {
-                            val mode = if (layout == "Video Backdrop") "blurred-backdrop" else "fit-letterbox"
+                            val mode = when (layout) {
+                                "Video Backdrop" -> "blurred-backdrop"
+                                "Privacy Blur" -> "privacy-blur"
+                                else -> "fit-letterbox"
+                            }
                             val uri = withContext(Dispatchers.IO) {
                                 DownloadApi.exportMedia(
                                     context, source.uri, "whatsapp-status", mode,
