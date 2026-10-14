@@ -42,7 +42,11 @@ object MediaLibraryIndexer {
         val resolver = context.contentResolver
         val sources = listOf(
             MediaStore.Video.Media.EXTERNAL_CONTENT_URI to "Movies/VidGravity/",
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI to "Music/VidGravity/"
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI to "Music/VidGravity/",
+            // Creator exports use the Images collection and this dedicated folder.
+            // Reconcile it too so verified animated stickers survive process restarts
+            // and appear in Library's Images filter.
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI to "Pictures/VidGravity/Stickers/"
         )
         LibraryIndexDb(context).use { helper ->
             val db = helper.writableDatabase
@@ -62,7 +66,11 @@ object MediaLibraryIndexer {
                         val uri = ContentUris.withAppendedId(collection, id)
                         val name = cursor.getString(1) ?: "VidGravity media"
                         val size = cursor.getLong(2).coerceAtLeast(0L)
-                        val mime = cursor.getString(3) ?: if (collection == MediaStore.Audio.Media.EXTERNAL_CONTENT_URI) "audio/*" else "video/*"
+                        val mime = cursor.getString(3) ?: when (collection) {
+                            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI -> "audio/*"
+                            MediaStore.Images.Media.EXTERNAL_CONTENT_URI -> "image/*"
+                            else -> "video/*"
+                        }
                         val created = cursor.getLong(4) * 1000L
                         val existing = db.rawQuery("SELECT is_favorite FROM media WHERE content_uri=?", arrayOf(uri.toString())).use {
                             if (it.moveToFirst()) it.getInt(0) else -1

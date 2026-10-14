@@ -76,7 +76,11 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             var lastProgressBytes = 0L
             var lastProgressAt = System.currentTimeMillis()
             var currentSpeed = 0L
-            val receipt = DownloadApi.downloadResult(remoteJobId!!, partial) { bytes, total ->
+            var lastTransferPercent = 0
+            val receipt = DownloadApi.downloadResult(
+                remoteJobId!!,
+                partial,
+                onProgress = { bytes, total ->
                 val now = System.currentTimeMillis()
                 val elapsed = (now - lastProgressAt).coerceAtLeast(1L)
                 if (elapsed >= 400L) {
@@ -85,6 +89,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     lastProgressAt = now
                 }
                 val percent = if (total != null && total > 0) ((bytes * 100) / total).toInt().coerceIn(0, 99) else 0
+                lastTransferPercent = percent
                 val eta = if (total != null && currentSpeed > 0L) ((total - bytes).coerceAtLeast(0L) / currentSpeed) else -1L
                 setProgressAsync(workDataOf("bytes_downloaded" to bytes, "total_bytes" to (total ?: -1L),
                     "bytes_per_second" to currentSpeed, "eta_seconds" to eta, "progress" to percent,
@@ -92,7 +97,18 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 DownloadNotifications.progress(applicationContext, workId, title,
                     if (total != null) (bytes / 1_000_000).toString() + " / " + (total / 1_000_000) + " MB" else (bytes / 1_000_000).toString() + " MB transferred",
                     percent, false)
-            }
+                },
+                shouldPause = { DownloadActionReceiver.isPaused(applicationContext, workId) },
+                isStopped = { isStopped },
+                onPauseState = { paused ->
+                    setProgressAsync(workDataOf("state" to if (paused) "paused" else "downloading",
+                        "progress" to lastTransferPercent,
+                        "media_url" to url, "format_selector" to selector, "media_title" to title))
+                    DownloadNotifications.progress(applicationContext, workId, title,
+                        if (paused) "Paused — download will resume from saved bytes" else "Download resumed",
+                        lastTransferPercent, paused)
+                }
+            )
             // The provider may omit a precomputed checksum. Hash received bytes locally;
             // compare against the companion only when it supplied a valid SHA-256.
             val actual = receipt.calculatedSha256 ?: DownloadApi.sha256(partial)
