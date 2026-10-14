@@ -1233,6 +1233,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
     var swipeFeedOpen by remember { mutableStateOf(false) }
     var showLibraryTools by remember { mutableStateOf(false) }
     var showBulkActions by remember { mutableStateOf(false) }
+    var showStorageInsights by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     suspend fun refreshMedia() { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
     LaunchedEffect(Unit) { refreshMedia() }
@@ -1340,6 +1341,31 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                     Icon(Icons.Default.ContentCopy, null)
                     Spacer(Modifier.width(8.dp))
                     Text("Copy visible library report")
+                }
+                OutlinedButton(
+                    onClick = { showStorageInsights = !showStorageInsights },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 42.dp)
+                ) {
+                    Icon(if (showStorageInsights) Icons.Default.ExpandLess else Icons.Default.BarChart, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (showStorageInsights) "Hide storage insights" else "Storage insights")
+                }
+                if (showStorageInsights) {
+                    val videoCount = media.count { it.mimeType.startsWith("video/") }
+                    val audioCount = media.count { it.mimeType.startsWith("audio/") }
+                    val imageCount = media.count { it.mimeType.startsWith("image/") }
+                    val otherCount = media.size - videoCount - audioCount - imageCount
+                    val largest = media.maxByOrNull { it.sizeBytes }
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Videos  $videoCount  ·  Audio  $audioCount", fontSize = 13.sp)
+                        Text("Images  $imageCount  ·  Other  $otherCount", fontSize = 13.sp)
+                        if (largest != null) {
+                            Text("Largest file: ${largest.displayName}", fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(String.format("%.1f MB", largest.sizeBytes.coerceAtLeast(0L) / 1_000_000.0),
+                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                 }
             }
         }
