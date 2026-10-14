@@ -103,6 +103,14 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   library=main[library_start:library_end]
   self.assertIn("var showLibraryTools by remember { mutableStateOf(false) }",library)
   self.assertIn('Text(if (showLibraryTools) "Hide library sharing tools" else "Library tools · share report")',library)
+ def test_library_bulk_favorites_are_available_for_selected_media(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  start=main.index("@Composable\\nprivate fun LibraryContent(")
+  end=main.index("@Composable\\nprivate fun CreateStudioContent",start)
+  library=main[start:end]
+  self.assertIn("var showBulkActions by remember { mutableStateOf(false) }",library)
+  self.assertIn("MediaLibraryIndexer.setFavorite(context, item.uri, !allChosenAreFavorites)",library)
+  self.assertIn('Text(if (showBulkActions) "Hide selection tools" else "Selection tools")',library)
  def test_simple_collection_screen_supports_vertical_scrolling(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   start=main.index("fun SimpleCollectionScreen(")
