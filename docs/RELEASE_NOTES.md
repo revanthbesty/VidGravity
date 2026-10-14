@@ -1,5 +1,12 @@
 # VidGravity Release Notes
 
+## Android release candidate — 1.0.9-p179 (versionCode 179)
+
+- Added a protected GitHub Actions workflow for producing a signed Android release APK and SHA-256 checksum when release-signing secrets are configured.
+- Added fail-closed checks for missing signing configuration; no keystore or signing secrets are stored in the repository.
+- This is release-pipeline preparation, not a claim that a signed production APK or physical-device certification is complete.
+
+
 ## Unreleased — Help Center foundation
 
 - Added a searchable Help Center page for web/PWA with category filters and how-to, FAQ, and troubleshooting articles.
