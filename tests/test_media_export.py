@@ -116,4 +116,26 @@ class SocialExportPresetTests(unittest.TestCase):
                 export_media_file(source,source,{"preset":"square","mode":"smart-reframe"})
             self.assertEqual(source.read_bytes(),b"immutable-original")
 
+    def test_story_title_and_artist_are_burned_in_and_sanitized(self):
+        from media_export import export_media_file, _clean_overlay_text
+        with tempfile.TemporaryDirectory() as directory:
+            source=Path(directory)/"original.mp4"
+            destination=Path(directory)/"story.mp4"
+            source.write_bytes(b"immutable-original")
+            def fake_ffmpeg(args, **kwargs):
+                self.assertIn("drawtext=textfile=", " ".join(args))
+                content=" ".join(p.read_text(encoding="utf-8") for p in Path(directory).glob("vg-*.txt"))
+                self.assertIn("My Story",content)
+                self.assertIn("Artist Name",content)
+                Path(args[-1]).write_bytes(b"fake-mp4")
+                return subprocess.CompletedProcess(args,0,b"",b"")
+            request={"preset":"whatsapp-status","mode":"fit-letterbox","trim_seconds":"8","output_format":"mp4","title":"My Story","artist":"Artist Name"}
+            with patch("media_export.shutil.which",return_value="/usr/bin/ffmpeg"), patch("media_export.subprocess.run",side_effect=fake_ffmpeg):
+                result=export_media_file(source,destination,request)
+            self.assertTrue(result["title_overlay"])
+            self.assertTrue(result["artist_overlay"])
+            self.assertEqual(_clean_overlay_text("My Story"+chr(10)),"My Story")
+            self.assertEqual(source.read_bytes(),b"immutable-original")
+            self.assertEqual(list(Path(directory).glob("vg-*.txt")),[])
+
 if __name__=="__main__": unittest.main()
