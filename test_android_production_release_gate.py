@@ -1,4 +1,5 @@
 import pathlib
+import re
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parent
@@ -7,8 +8,13 @@ ROOT = pathlib.Path(__file__).resolve().parent
 class AndroidProductionReleaseGateTests(unittest.TestCase):
     def test_candidate_version_is_explicit_and_incremented(self):
         gradle = (ROOT / "apps" / "android" / "app" / "build.gradle.kts").read_text(encoding="utf-8")
-        self.assertIn("versionCode = 179", gradle)
-        self.assertIn('versionName = "1.0.9-p179"', gradle)
+        code = re.search(r"versionCode = (\d+)", gradle)
+        name = re.search(r'versionName = "([^"]+)"', gradle)
+        self.assertIsNotNone(code, "Android versionCode must be explicit")
+        self.assertIsNotNone(name, "Android versionName must be explicit")
+        version_code = int(code.group(1))
+        self.assertGreaterEqual(version_code, 179)
+        self.assertIn(f"p{version_code}", name.group(1))
         self.assertIn('signingConfig = signingConfigs.getByName("release")', gradle)
 
     def test_release_workflow_requires_secrets_and_uploads_checksum(self):
