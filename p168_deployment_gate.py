@@ -12,7 +12,18 @@ def build_report(env=None, which=shutil.which, repo=Path(__file__).resolve().par
     url=(env.get('VIDGRAVITY_PUBLIC_BASE_URL') or '').strip()
     live=(env.get('VIDGRAVITY_LIVE_TEST_URL') or '').strip()
     pay=['RAZORPAY_KEY_ID','RAZORPAY_KEY_SECRET','RAZORPAY_WEBHOOK_SECRET']
-    android=any((repo/p).exists() for p in ('android/gradlew','android/gradlew.bat','gradlew','gradlew.bat'))
+    # The native project lives under apps/android. CI invokes Gradle directly, so
+    # detect the Gradle project files rather than requiring a checked-in wrapper.
+    android_project_paths = (
+        'apps/android/settings.gradle.kts',
+        'apps/android/build.gradle.kts',
+        'apps/android/app/build.gradle.kts',
+        'android/settings.gradle', 'android/settings.gradle.kts',
+        'android/build.gradle', 'android/build.gradle.kts',
+        'settings.gradle', 'settings.gradle.kts',
+        'build.gradle', 'build.gradle.kts',
+    )
+    android=any((repo/p).is_file() for p in android_project_paths)
     checks=[
       check('https_url','Public HTTPS URL',url.startswith('https://'),'HTTPS URL configured' if url.startswith('https://') else 'VIDGRAVITY_PUBLIC_BASE_URL is absent or not HTTPS','Deploy behind a valid TLS reverse proxy and set VIDGRAVITY_PUBLIC_BASE_URL','configuration'),
       check('docker_cli','Docker CLI',bool(which('docker')),'Docker CLI detected' if which('docker') else 'Docker CLI not detected in this environment','Build and start the image on a Docker-capable host; record image and runtime results'),

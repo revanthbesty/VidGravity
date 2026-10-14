@@ -1179,7 +1179,10 @@ private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, o
         } else if (visibleItems.isEmpty()) {
             Text("No saved links match “${searchQuery.trim()}”.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 items(visibleItems, key = { it.id }) { item ->
                     Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1604,7 +1607,10 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 Icons.Default.VideoLibrary, Modifier.fillMaxWidth()
             )
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 items(visibleMedia, key = { it.uri.toString() }) { item ->
                     Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp),
                         modifier = Modifier.fillMaxWidth().clickable { onPlay(item) }) {

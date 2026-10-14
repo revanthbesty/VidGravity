@@ -79,6 +79,15 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('.putStringSet("known_cards"',study)
   self.assertIn('.putInt("practice_index"',study)
   self.assertIn("Clear study pack and draft",study)
+ def test_share_inbox_and_library_lists_have_bounded_scroll_viewports(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  inbox_start=main.index("private fun ShareInboxContent(")
+  library_start=main.index("@Composable\nprivate fun LibraryContent(",inbox_start)
+  inbox=main[inbox_start:library_start]
+  self.assertIn("Modifier.weight(1f).fillMaxWidth()",inbox)
+  library_end=main.index("\n@Composable",library_start+20)
+  library=main[library_start:library_end]
+  self.assertIn("heightIn(max = 420.dp)",library)
  def test_simple_collection_screen_supports_vertical_scrolling(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   start=main.index("fun SimpleCollectionScreen(")
