@@ -80,3 +80,7 @@ The guide provides safe first steps, not a guaranteed fix. Check the exact downl
 
 ### Does the Help Center mean Android behavior has been verified?
 No. Automated builds and documentation checks cannot verify scrolling, playback, or background execution on every physical device. Those still need installation and real-device testing.
+
+
+### I cannot find cancel, retry, or queue report actions in Android Downloads
+Open the **Queue controls · cancel, retry & reports** section. It is collapsed by default to keep the screen less cluttered. Expand it to see bulk actions; individual download actions remain on each job card.
