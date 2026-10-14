@@ -38,9 +38,9 @@ fun StudyTokScreen(onBack: () -> Unit, notify: (String) -> Unit) {
                 (if (sentence.contains(Regex("(?i)\\b(definition|important|principle|formula|key|example|process|result|therefore)\\b"))) 3 else 0) +
                 minOf(sentence.length / 120, 3)
             Triple(index, sentence, score)
-        }.sortedByDescending { it.third }.take(20).sortedBy { it.first.first }
+        }.sortedByDescending { it.third }.take(20).sortedBy { it.first }
         cards = ranked.map { (_, sentence, _) ->
-            val clean = sentence.second.trim().trimEnd('.', '!', '?')
+            val clean = sentence.trim().trimEnd('.', '!', '?')
             val match = Regex("(?i)^(.*?)(\\s+(?:is defined as|means|refers to|is called|is known as|is the process of|is a method of)\\s+)(.+)$").matchEntire(clean)
             val question = if (match != null) "What is ${match.groupValues[1].trim()}?" else "What is the key point?"
             val answer = if (match != null) match.groupValues[3].trim() else clean
