@@ -1781,9 +1781,9 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 Text("Share selected media report")
             }
             OutlinedButton(
-                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                enabled = media.any { it.uri.toString() in selectedUris },
                 onClick = {
-                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    val chosen = media.filter { it.uri.toString() in selectedUris }
                     val markFavorite = chosen.any { !it.isFavorite }
                     scope.launch {
                         withContext(Dispatchers.IO) {
@@ -1798,16 +1798,16 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
             ) {
                 Icon(Icons.Default.Star, null); Spacer(Modifier.width(6.dp))
-                val chosenItems = visibleMedia.filter { it.uri.toString() in selectedUris }
+                val chosenItems = media.filter { it.uri.toString() in selectedUris }
                 Text(if (chosenItems.isNotEmpty() && chosenItems.all { it.isFavorite }) "Remove selected from Favorites" else "Add selected to Favorites")
             }
             OutlinedButton(
-                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                enabled = media.any { it.uri.toString() in selectedUris },
                 onClick = { showBulkDeleteConfirm = true },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
             ) {
                 Icon(Icons.Default.DeleteOutline, null); Spacer(Modifier.width(6.dp))
-                Text("Delete selected (${visibleMedia.count { it.uri.toString() in selectedUris }})")
+                Text("Delete selected (${media.count { it.uri.toString() in selectedUris }})")
             }
         }
         OutlinedTextField(
@@ -1963,7 +1963,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         )
     }
     if (showBulkDeleteConfirm) {
-        val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+        val chosen = media.filter { it.uri.toString() in selectedUris }
         AlertDialog(
             onDismissRequest = { showBulkDeleteConfirm = false },
             title = { Text("Delete selected media?") },
