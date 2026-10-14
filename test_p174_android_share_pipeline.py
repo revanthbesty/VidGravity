@@ -95,7 +95,8 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   start=main.index("private fun DownloadsContent(")
   end=main.index("private fun InfoCard",start)
   downloads=main[start:end]
-  self.assertIn("var showDownloadTools by remember { mutableStateOf(false) }",downloads)
+  self.assertIn('getBoolean("show_download_tools", false)',downloads)
+  self.assertIn('putBoolean("show_download_tools", showDownloadTools)',downloads)
   self.assertIn('Text(if (showDownloadTools) "Hide download tools" else "More tools · reports & history")',downloads)
   self.assertIn('Text("Copy CSV report (',downloads)
   library_start=main.index("@Composable\nprivate fun LibraryContent(")
@@ -108,7 +109,8 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   start=main.index("@Composable\nprivate fun LibraryContent(")
   end=main.index("@Composable\nprivate fun CreateStudioContent",start)
   library=main[start:end]
-  self.assertIn("var showBulkActions by remember { mutableStateOf(false) }",library)
+  self.assertIn('getBoolean("show_bulk_actions", false)',library)
+  self.assertIn('putBoolean("show_bulk_actions", showBulkActions)',library)
   self.assertIn("MediaLibraryIndexer.setFavorite(context, item.uri, !allChosenAreFavorites)",library)
   self.assertIn('Text(if (showBulkActions) "Hide selection tools" else "Selection tools")',library)
  def test_library_storage_insights_include_type_counts_and_largest_file(self):
@@ -116,7 +118,8 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   start=main.index("@Composable\nprivate fun LibraryContent(")
   end=main.index("@Composable\nprivate fun CreateStudioContent",start)
   library=main[start:end]
-  self.assertIn("var showStorageInsights by remember { mutableStateOf(false) }",library)
+  self.assertIn('getBoolean("show_storage_insights", false)',library)
+  self.assertIn('putBoolean("show_storage_insights", showStorageInsights)',library)
   self.assertIn('Text(if (showStorageInsights) "Hide storage insights" else "Storage insights")',library)
   self.assertIn("val largest = media.maxByOrNull { it.sizeBytes }",library)
   self.assertIn('Text("Videos  $videoCount  ·  Audio  $audioCount"',library)
@@ -148,7 +151,7 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   inbox=main[main.index("private fun ShareInboxContent("):main.index("@Composable",main.index("private fun ShareInboxContent(")+1)]
   library=main[main.index("private fun LibraryContent("):main.index("@Composable",main.index("private fun LibraryContent(")+1)]
   self.assertNotIn("initialSearch",inbox)
-  self.assertIn("mutableStateOf(initialSearch)",library)
+  self.assertIn('LaunchedEffect(initialSearch) { if (initialSearch.isNotBlank()) searchQuery = initialSearch }',library)
   self.assertIn("LaunchedEffect(initialSearch)",library)
  def test_completed_download_opens_library_filtered_to_its_title(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
@@ -304,7 +307,8 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('Text("Retry all available failures (${retryableFilteredWorks.size})")',main)
   self.assertIn('retryableFilteredWorks.forEach { work ->',main)
-  self.assertIn('"Queued $queuedRetries of ${retryableFilteredWorks.size} retryable download(s)."',main)
+  self.assertIn('"Queued $queuedRetries retry(s); skipped $skippedRetries duplicate or invalid item(s)."',main)
+  self.assertIn("var skippedRetries = 0",main)
 
  def test_library_filter_search_and_sort_persist_between_visits(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
@@ -318,7 +322,7 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('selectedUris = if (allVisibleSelected) selectedUris - visibleUris else selectedUris + visibleUris',main)
   self.assertIn('Text(if (visibleMedia.isNotEmpty() && visibleMedia.all { it.uri.toString() in selectedUris }) "Deselect visible" else "Select visible")',main)
-  self.assertIn('Text("${selectedUris.size} item(s) selected across your library"',main)
+  self.assertIn('Text("${selectedLibraryItems.size} item(s) selected across your library"',main)
 
  def test_library_empty_results_can_reset_search_and_filters(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
