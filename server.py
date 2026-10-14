@@ -798,12 +798,13 @@ class Handler(SimpleHTTPRequestHandler):
                 'width': self.headers.get('X-VG-Width'),
                 'height': self.headers.get('X-VG-Height'),
                 'trim_seconds': self.headers.get('X-VG-Trim-Seconds'),
-                'start_seconds': self.headers.get('X-VG-Start-Seconds')
+                'start_seconds': self.headers.get('X-VG-Start-Seconds'),
+                'output_format': self.headers.get('X-VG-Format', 'mp4').lower()
             }
             try:
                 with tempfile.TemporaryDirectory(prefix='vidgravity-export-') as temp_dir:
                     source = Path(temp_dir) / 'source-media.bin'
-                    output = Path(temp_dir) / 'social-derivative.mp4'
+                    output = Path(temp_dir) / ('social-derivative.webp' if request['output_format'] == 'webp' else 'social-derivative.mp4')
                     with source.open('wb') as handle:
                         remaining = length
                         while remaining:
@@ -813,8 +814,9 @@ class Handler(SimpleHTTPRequestHandler):
                             handle.write(chunk)
                             remaining -= len(chunk)
                     result = export_media_file(source, output, request)
-                    if output.stat().st_size > max_input:
-                        return self._json(413, {'error': 'Export exceeds the 256 MiB response limit; trim and retry'})
+                    max_output = 8 * 1024 * 1024 if request['output_format'] == 'webp' else max_input
+                    if output.stat().st_size > max_output:
+                        return self._json(413, {'error': 'Animated sticker exceeds the 8 MiB limit; use a shorter clip.' if request['output_format'] == 'webp' else 'Export exceeds the 256 MiB response limit; trim and retry'})
                     digest = hashlib.sha256()
                     with output.open('rb') as handle:
                         while True:
@@ -822,9 +824,9 @@ class Handler(SimpleHTTPRequestHandler):
                             if not chunk: break
                             digest.update(chunk)
                     self.send_response(200)
-                    self.send_header('Content-Type', 'video/mp4')
+                    self.send_header('Content-Type', 'image/webp' if request['output_format'] == 'webp' else 'video/mp4')
                     self.send_header('Content-Length', str(output.stat().st_size))
-                    self.send_header('Content-Disposition', 'attachment; filename="vidgravity-social-export.mp4"')
+                    self.send_header('Content-Disposition', 'attachment; filename="vidgravity-animated-sticker.webp"' if request['output_format'] == 'webp' else 'attachment; filename="vidgravity-social-export.mp4"')
                     self.send_header('X-Content-SHA256', digest.hexdigest())
                     self.send_header('Cache-Control', 'no-store')
                     self.send_header('X-VG-Export-Width', str(result['width']))
