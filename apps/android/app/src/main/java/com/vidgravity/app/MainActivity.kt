@@ -558,7 +558,15 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
     var downloadSearch by remember { mutableStateOf("") }
     var downloadSort by remember { mutableStateOf("Newest") }
     val liveWorks = remember(context) { WorkManager.getInstance(context).getWorkInfosByTagLiveData("vidgravity-download") }
-    val works by liveWorks.observeAsState(emptyList())
+    val allWorks by liveWorks.observeAsState(emptyList())
+    val historyPrefs = remember(context) { context.getSharedPreferences("vg_downloads_ui", android.content.Context.MODE_PRIVATE) }
+    var hiddenHistoryIds by remember(context) {
+        mutableStateOf(historyPrefs.getStringSet("hidden_finished_ids", emptySet()).orEmpty().toSet())
+    }
+    val works = allWorks.filterNot { work ->
+        work.state in setOf(WorkInfo.State.SUCCEEDED, WorkInfo.State.FAILED, WorkInfo.State.CANCELLED) &&
+            work.id.toString() in hiddenHistoryIds
+    }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Downloads", fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Track active and completed transfers on this device.", color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -946,8 +954,10 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     if (downloadFilter == "Active") "Your download queue is idle." else "Items will appear here when they match this filter.",
                     Icons.Default.FilterList, Modifier.fillMaxWidth())
             }
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(filteredWorks, key = { it.id.toString() }) { work ->
+            // Use the screen's parent scroll container; nesting a LazyColumn here can
+            // measure it with infinite height and crash on some Compose versions.
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                filteredWorks.forEach { work ->
                     val progress = work.progress.getInt("progress", 0).coerceIn(0, 100)
                     val paused = DownloadActionReceiver.isPaused(context, work.id)
                     val title = work.outputData.getString("display_name") ?: work.outputData.getString("filename") ?: work.progress.getString("media_title") ?: "Media download"
@@ -1092,12 +1102,16 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
         AlertDialog(
             onDismissRequest = { showClearHistoryConfirm = false },
             title = { Text("Clear finished download history?") },
-            text = { Text("This removes completed, failed, and cancelled download records from the download history. Active downloads are not cancelled. Downloaded media files are kept.") },
+            text = { Text("This hides completed, failed, and cancelled items from this screen. Active downloads are not cancelled, and downloaded media files remain in your Library.") },
             confirmButton = {
                 TextButton(onClick = {
-                    WorkManager.getInstance(context).pruneWork()
+                    val finishedIds = works.filter {
+                        it.state == WorkInfo.State.SUCCEEDED || it.state == WorkInfo.State.FAILED || it.state == WorkInfo.State.CANCELLED
+                    }.map { it.id.toString() }.toSet()
+                    hiddenHistoryIds = hiddenHistoryIds + finishedIds
+                    historyPrefs.edit().putStringSet("hidden_finished_ids", hiddenHistoryIds.toSet()).apply()
                     showClearHistoryConfirm = false
-                    android.widget.Toast.makeText(context, "Finished download history cleared.", android.widget.Toast.LENGTH_LONG).show()
+                    android.widget.Toast.makeText(context, "Hidden ${finishedIds.size} finished item(s). Downloaded files are kept in Library.", android.widget.Toast.LENGTH_LONG).show()
                 }) { Text("Clear history") }
             },
             dismissButton = {
