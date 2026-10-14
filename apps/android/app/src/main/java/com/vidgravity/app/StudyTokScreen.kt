@@ -1,6 +1,8 @@
 package com.vidgravity.app
 
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -25,6 +27,20 @@ fun StudyTokScreen(onBack: () -> Unit, notify: (String) -> Unit) {
     var transcript by remember { mutableStateOf("") }
     var cards by remember { mutableStateOf(emptyList<StudyCard>()) }
     var title by remember { mutableStateOf("My Study Pack") }
+    var pendingCsv by remember { mutableStateOf<String?>(null) }
+    val saveCsvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        val csv = pendingCsv
+        pendingCsv = null
+        if (uri == null || csv == null) {
+            notify("CSV export cancelled.")
+        } else {
+            runCatching {
+                context.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter(Charsets.UTF_8)?.use { it.write(csv) }
+                    ?: throw IllegalStateException("Could not open the selected destination.")
+            }.onSuccess { notify("StudyTok CSV saved successfully.") }
+                .onFailure { notify("Could not save CSV: ${it.message ?: "try another destination"}") }
+        }
+    }
 
     fun buildCards() {
         val sentences = transcript
@@ -62,14 +78,10 @@ fun StudyTokScreen(onBack: () -> Unit, notify: (String) -> Unit) {
                 append(fields.joinToString(",")).append("\r\n")
             }
         }
-        runCatching {
-            val intent = Intent(Intent.ACTION_SEND).apply {
-                type = "text/csv"
-                putExtra(Intent.EXTRA_SUBJECT, title)
-                putExtra(Intent.EXTRA_TEXT, csv)
-            }
-            context.startActivity(Intent.createChooser(intent, "Export StudyTok flashcards"))
-        }.onFailure { notify("Could not open sharing: ${it.message ?: "try again"}") }
+        val safeName = title.trim().replace(Regex("[^A-Za-z0-9._ -]"), "_")
+            .take(70).trim().ifBlank { "VidGravity StudyTok" }
+        pendingCsv = csv
+        saveCsvLauncher.launch("${safeName}.csv")
     }
 
     Column(
