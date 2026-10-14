@@ -2421,6 +2421,22 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                         Spacer(Modifier.width(8.dp))
                         Text("Copy diagnostics report")
                     }
+                    OutlinedButton(
+                        onClick = {
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, "VidGravity diagnostics report")
+                                putExtra(Intent.EXTRA_TEXT, "VidGravity diagnostics\n$report")
+                            }
+                            runCatching { context.startActivity(Intent.createChooser(shareIntent, "Share diagnostics")) }
+                                .onFailure { android.widget.Toast.makeText(context, "Could not open sharing menu.", android.widget.Toast.LENGTH_LONG).show() }
+                        },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                    ) {
+                        Icon(Icons.Default.Share, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Share diagnostics report")
+                    }
                 }
             }
         }
