@@ -48,6 +48,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private lateinit var modeButton: Button
     private lateinit var dualButton: Button
     private lateinit var flashButton: Button
+    private lateinit var qualityButton: Button
     private lateinit var executor: ExecutorService
 
     private var provider: ProcessCameraProvider? = null
@@ -136,13 +137,15 @@ class DualCameraCaptureActivity : ComponentActivity() {
             gravity = Gravity.CENTER
         }
         modeButton = controlButton("PHOTO  |  VIDEO") { toggleMode() }
+        qualityButton = controlButton("Quality: 1080p") { chooseVideoQuality() }
         shutter = controlButton("●  Capture") { onShutterPressed() }.apply {
             textSize = 17f
             setTextColor(0xFFFFFFFF.toInt())
             setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF7657D8.toInt()))
         }
-        controls.addView(modeButton, LinearLayout.LayoutParams(0, dp(58), 1f).apply { marginEnd = dp(12) })
-        controls.addView(shutter, LinearLayout.LayoutParams(0, dp(58), 1.3f))
+        controls.addView(modeButton, LinearLayout.LayoutParams(0, dp(58), 0.9f).apply { marginEnd = dp(6) })
+        controls.addView(qualityButton, LinearLayout.LayoutParams(0, dp(58), 1.0f).apply { marginEnd = dp(6) })
+        controls.addView(shutter, LinearLayout.LayoutParams(0, dp(58), 1.15f))
         bottom.addView(controls, LinearLayout.LayoutParams(-1, -2))
         val hint = TextView(this).apply {
             text = "Tap Capture for a photo. In Video mode, tap to start/stop recording."
@@ -187,6 +190,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private fun bindCameraSession() {
         val cameraProvider = provider ?: return
         val selector = if (frontFacing) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+        camera?.let { oldCamera -> runCatching { oldCamera.cameraControl.enableTorch(false) } }
         cameraProvider.unbindAll()
         camera = null
         imageCapture = null
@@ -399,13 +403,19 @@ class DualCameraCaptureActivity : ComponentActivity() {
             Toast.makeText(this, "This camera has no flash unit.", Toast.LENGTH_SHORT).show()
             return
         }
-        flashEnabled = !flashEnabled
-        camera?.cameraControl?.enableTorch(flashEnabled)
-        updateFlashLabel()
+        val activeCamera = camera ?: return
+        val requestedState = !flashEnabled
+        activeCamera.cameraControl.enableTorch(requestedState).addListener({
+            runOnUiThread {
+                flashEnabled = requestedState
+                updateFlashLabel()
+                status.text = if (flashEnabled) "Flash is on" else "Flash is off"
+            }
+        }, ContextCompat.getMainExecutor(this))
     }
 
     private fun updateFlashLabel() {
-        flashButton.text = if (flashEnabled) "Flash on" else "Flash off"
+        flashButton.text = if (flashEnabled) "Flash ON · tap off" else "Flash OFF · tap on"
     }
 
     private fun showCameraSettings() {
@@ -443,9 +453,10 @@ class DualCameraCaptureActivity : ComponentActivity() {
                     2 -> Quality.FHD
                     else -> Quality.HIGHEST
                 }
+                qualityButton.text = "Quality: ${videoQualityLabel(videoQuality)}"
                 dialog.dismiss()
                 if (recording == null) bindCameraSession()
-                Toast.makeText(this, "Video quality: ${videoQualityLabel(videoQuality)}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Video quality set to ${videoQualityLabel(videoQuality)} for the next recording.", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Cancel", null)
             .show()
