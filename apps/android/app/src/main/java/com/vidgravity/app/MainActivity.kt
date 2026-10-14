@@ -1348,10 +1348,17 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
     var selectedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showBulkDeleteConfirm by remember { mutableStateOf(false) }
     var swipeFeedOpen by remember { mutableStateOf(false) }
-    var showLibraryTools by remember { mutableStateOf(false) }
-    var showBulkActions by remember { mutableStateOf(false) }
-    var showStorageInsights by remember { mutableStateOf(false) }
+    var showLibraryTools by remember { mutableStateOf(libraryUiPrefs.getBoolean("show_library_tools", false)) }
+    var showBulkActions by remember { mutableStateOf(libraryUiPrefs.getBoolean("show_bulk_actions", false)) }
+    var showStorageInsights by remember { mutableStateOf(libraryUiPrefs.getBoolean("show_storage_insights", false)) }
     var refreshingMedia by remember { mutableStateOf(false) }
+    LaunchedEffect(showLibraryTools, showBulkActions, showStorageInsights) {
+        libraryUiPrefs.edit()
+            .putBoolean("show_library_tools", showLibraryTools)
+            .putBoolean("show_bulk_actions", showBulkActions)
+            .putBoolean("show_storage_insights", showStorageInsights)
+            .apply()
+    }
     val scope = rememberCoroutineScope()
     var mediaRefreshError by remember { mutableStateOf<String?>(null) }
     suspend fun refreshMedia() {
@@ -2543,8 +2550,13 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                                 val connectivity = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
                                 val network = connectivity.activeNetwork
                                 val capabilities = network?.let { connectivity.getNetworkCapabilities(it) }
-                                val connected = capabilities?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
-                                lines.add("Network: " + if (connected) "internet network detected" else "no internet network detected")
+                                val hasInternetCapability = capabilities?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+                                val validatedInternet = capabilities?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+                                lines.add("Network: " + when {
+                                    validatedInternet -> "internet connection validated"
+                                    hasInternetCapability -> "network reports internet capability, but Android could not validate internet access"
+                                    else -> "no internet network detected"
+                                })
                                 val stat = android.os.StatFs(context.filesDir.absolutePath)
                                 val freeMb = stat.availableBytes / 1_000_000L
                                 lines.add("App storage available: $freeMb MB")
