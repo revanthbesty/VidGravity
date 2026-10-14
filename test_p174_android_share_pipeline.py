@@ -531,6 +531,39 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('if (socialCaption.isNotBlank()) putExtra(Intent.EXTRA_TEXT, socialCaption)',main)
   self.assertIn("The original stays safe. What do you think?",main)
 
+ def test_caption_toolkit_persists_selected_writing_style(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('getString("captionTone", "Casual")',main)
+  self.assertIn('putString("captionTone", captionTone)',main)
+  for tone in ("Casual", "Educational", "Playful", "Professional"):
+   self.assertIn('"'+tone+'"',main)
+
+ def test_caption_toolkit_has_hook_and_call_to_action_helpers(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  for phrase in ("Here's what I learned…", "A quick tip for you:", "I wish I knew this earlier…", "Behind this creation:", "Let's break it down:"):
+   self.assertIn(phrase,main)
+  for phrase in ("What would you try?", "Save this for later", "Tell me your thoughts", "Follow for more", "Share with a friend"):
+   self.assertIn(phrase,main)
+  self.assertIn('Text("HOOK STARTERS")',main)
+  self.assertIn('Text("CALL-TO-ACTION IDEAS")',main)
+
+ def test_caption_toolkit_has_metrics_and_platform_length_guidance(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('val captionWordCount',main)
+  self.assertIn('val captionLineCount',main)
+  self.assertIn('val estimatedReadSeconds',main)
+  self.assertIn('val platformCaptionLimit',main)
+  self.assertIn('Text("CAPTION CHECK"',main)
+  self.assertIn('Caption: ${captionText.length}/$platformCaptionLimit',main)
+  self.assertIn('Caption exceeds this platform\'s suggested limit.',main)
+
+ def test_caption_toolkit_cleans_whitespace_without_touching_original_media(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Text("Clean caption spacing")',main)
+  self.assertIn('replace(Regex("[ \\t]+"), " ")',main)
+  self.assertIn('replace(Regex("\\n{3,}"), "\\n\\n")',main)
+  self.assertIn('original file will not be replaced',main)
+
  def test_media_rename_reports_success_and_preserves_extension_case_insensitively(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('endsWith(".$suffix", ignoreCase = true)',main)
