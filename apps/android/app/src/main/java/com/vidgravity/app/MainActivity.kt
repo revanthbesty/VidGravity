@@ -2765,6 +2765,7 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
     }
     var activationKey by remember { mutableStateOf("") }
     var showActivation by remember { mutableStateOf(false) }
+    var showHelpCenter by remember { mutableStateOf(false) }
     var mediaBytes by remember { mutableLongStateOf(0L) }
     var refreshingStorage by remember { mutableStateOf(false) }
     var storageRefreshError by remember { mutableStateOf<String?>(null) }
@@ -2913,6 +2914,24 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                 }
             }
         }
+        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.HelpOutline, null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Help & troubleshooting", fontWeight = FontWeight.SemiBold)
+                        Text("Quick answers for downloads, quality, Library and playback.", fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                OutlinedButton(onClick = { showHelpCenter = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Icon(Icons.Default.MenuBook, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Open Help Center")
+                }
+            }
+        }
         var diagnosticsRunning by remember { mutableStateOf(false) }
         var diagnosticsReport by remember { mutableStateOf<String?>(null) }
         Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
@@ -3015,6 +3034,33 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                 }
             }
         }
+        if (showHelpCenter) AlertDialog(
+            onDismissRequest = { showHelpCenter = false },
+            title = { Text("VidGravity Help Center") },
+            text = {
+                Column(
+                    Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("GETTING STARTED", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("1. Open Home and paste a complete public media URL. 2. Tap Inspect link. 3. Choose a format actually offered by the source. 4. Open Downloads to follow the job. 5. When it succeeds, refresh Library.")
+                    Text("QUALITY OPTIONS", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("The quality picker lists formats returned by the source. If a resolution is missing, that source may not offer it, or inspection may be incomplete. Try inspecting again and compare the listed formats.")
+                    Text("DOWNLOAD STUCK OR AT 0%", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("A job can remain queued while waiting for network constraints or a worker slot. If transfer stays at 0%, check the job state and error, confirm internet access, review Wi-Fi-only settings, then retry when available.")
+                    Text("FILE MISSING FROM LIBRARY", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("Confirm the download says completed, open Library again, and check the media filter/search. If it still does not appear, open Settings → Diagnostics & self-test and copy the report.")
+                    Text("PLAYBACK PROBLEM", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("Playback depends on the file's container and codec. Try another player-supported format when available. Keep the original file if you need to report the issue.")
+                    Text("CHECKSUM OR SERVICE ERROR", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("If verification fails, the incomplete file is discarded rather than published. Retry once on a stable connection. Repeated service errors may require a backend fix.")
+                    Text("REPORT A PROBLEM", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("Include Android version, app version, exact job state/error, steps to reproduce, and a diagnostics report. Never share passwords, API tokens, cookies, or private signed URLs.")
+                    Text("Note: device-specific scrolling, background execution and playback still need real-device verification.")
+                }
+            },
+            confirmButton = { TextButton(onClick = { showHelpCenter = false }) { Text("Done") } }
+        )
         if (showActivation) AlertDialog(
             onDismissRequest = { showActivation = false },
             title = { Text("License activation") },
