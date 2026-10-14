@@ -591,14 +591,16 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
     var showClearHistoryConfirm by remember { mutableStateOf(false) }
     var showCancelActiveConfirm by remember { mutableStateOf(false) }
     var showDownloadTools by remember { mutableStateOf(downloadUiPrefs.getBoolean("show_download_tools", false)) }
+    var showQueueControls by remember { mutableStateOf(downloadUiPrefs.getBoolean("show_queue_controls", false)) }
     var downloadSearch by remember { mutableStateOf(downloadUiPrefs.getString("download_search", "") ?: "") }
     var downloadSort by remember { mutableStateOf(downloadUiPrefs.getString("download_sort", "Newest") ?: "Newest") }
-    LaunchedEffect(downloadFilter, downloadSearch, downloadSort, showDownloadTools) {
+    LaunchedEffect(downloadFilter, downloadSearch, downloadSort, showDownloadTools, showQueueControls) {
         downloadUiPrefs.edit()
             .putString("download_filter", downloadFilter)
             .putString("download_search", downloadSearch)
             .putString("download_sort", downloadSort)
             .putBoolean("show_download_tools", showDownloadTools)
+            .putBoolean("show_queue_controls", showQueueControls)
             .apply()
     }
     val liveWorks = remember(context) { WorkManager.getInstance(context).getWorkInfosByTagLiveData("vidgravity-download") }
@@ -738,161 +740,172 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
                 }
             }
             OutlinedButton(
-                enabled = activeWorks.isNotEmpty(),
-                onClick = { showCancelActiveConfirm = true },
+                onClick = { showQueueControls = !showQueueControls },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
             ) {
-                Icon(Icons.Default.Cancel, null); Spacer(Modifier.width(8.dp))
-                Text("Cancel all active downloads (${activeWorks.size})")
+                Icon(if (showQueueControls) Icons.Default.ExpandLess else Icons.Default.Tune, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (showQueueControls) "Hide queue controls" else "Queue controls · cancel, retry & reports")
             }
-            OutlinedButton(
-                enabled = queuedWorks.isNotEmpty(),
-                onClick = {
-                    queuedWorks.forEach { WorkManager.getInstance(context).cancelWorkById(it.id) }
-                    android.widget.Toast.makeText(context, "Cancelled ${queuedWorks.size} queued download(s).", android.widget.Toast.LENGTH_LONG).show()
-                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.PauseCircleOutline, null); Spacer(Modifier.width(8.dp))
-                Text("Cancel queued downloads (${queuedWorks.size})")
-            }
-            OutlinedButton(
-                enabled = runningWorks.isNotEmpty(),
-                onClick = {
-                    val links = runningWorks.mapNotNull { it.outputData.getString(DownloadWorker.RETRY_URL) ?: it.progress.getString("media_url") }.distinct()
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(links.joinToString("\\n")))
-                    android.widget.Toast.makeText(context, "Copied ${links.size} active source link(s).", android.widget.Toast.LENGTH_SHORT).show()
-                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.Link, null); Spacer(Modifier.width(8.dp)); Text("Copy active source links")
-            }
-            OutlinedButton(
-                enabled = completedWorks.isNotEmpty(),
-                onClick = {
-                    val titles = completedWorks.map { it.outputData.getString("display_name") ?: it.outputData.getString("filename") ?: it.progress.getString("media_title") ?: "Media download" }
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(titles.joinToString("\\n")))
-                    android.widget.Toast.makeText(context, "Copied ${titles.size} completed title(s).", android.widget.Toast.LENGTH_SHORT).show()
-                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(8.dp)); Text("Copy completed titles")
-            }
-            OutlinedButton(
-                enabled = failedWorks.isNotEmpty(),
-                onClick = {
-                    val report = failedWorks.joinToString("\\n\\n") { work ->
-                        val title = work.outputData.getString("display_name") ?: work.progress.getString("media_title") ?: "Media download"
-                        val error = work.outputData.getString("error") ?: "No error details recorded"
-                        "$title\\nStatus: ${work.state.name}\\n$error"
-                    }
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
-                    android.widget.Toast.makeText(context, "Copied failure summary for ${failedWorks.size} item(s).", android.widget.Toast.LENGTH_SHORT).show()
-                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.ErrorOutline, null); Spacer(Modifier.width(8.dp)); Text("Copy failure summary")
-            }
-            OutlinedButton(
-                enabled = blockedWorks.isNotEmpty(),
-                onClick = {
-                    blockedWorks.forEach { WorkManager.getInstance(context).cancelWorkById(it.id) }
-                    android.widget.Toast.makeText(context, "Cancelled ${blockedWorks.size} blocked job(s).", android.widget.Toast.LENGTH_LONG).show()
-                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.Block, null); Spacer(Modifier.width(8.dp)); Text("Cancel blocked downloads (${blockedWorks.size})")
-            }
-            OutlinedButton(
-                enabled = queuedWorks.isNotEmpty(),
-                onClick = {
-                    val titles = queuedWorks.map { it.outputData.getString("display_name") ?: it.progress.getString("media_title") ?: "Media download" }
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(titles.joinToString("\\n")))
-                    android.widget.Toast.makeText(context, "Copied ${titles.size} queued title(s).", android.widget.Toast.LENGTH_SHORT).show()
-                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(8.dp)); Text("Copy queued titles")
-            }
-            OutlinedButton(
-                enabled = retryableWorks.isNotEmpty(),
-                onClick = {
-                    val links = retryableWorks.mapNotNull { it.outputData.getString(DownloadWorker.RETRY_URL) ?: it.progress.getString("media_url") }.distinct()
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(links.joinToString("\\n")))
-                    android.widget.Toast.makeText(context, "Copied ${links.size} retryable source link(s).", android.widget.Toast.LENGTH_SHORT).show()
-                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.Refresh, null); Spacer(Modifier.width(8.dp)); Text("Copy retryable links")
-            }
-            OutlinedButton(
-                enabled = failedWorks.isNotEmpty(),
-                onClick = {
-                    val report = buildString {
-                        appendLine("VidGravity failure report")
-                        appendLine("Failed/cancelled: ${failedWorks.size}")
-                        failedWorks.forEach { work ->
-                            appendLine()
-                            appendLine(work.outputData.getString("display_name") ?: work.progress.getString("media_title") ?: "Media download")
-                            appendLine("Status: ${work.state.name}")
-                            appendLine("Error: ${work.outputData.getString("error") ?: "No error details recorded"}")
-                            appendLine("Source: ${work.outputData.getString(DownloadWorker.RETRY_URL) ?: work.progress.getString("media_url") ?: "Not saved"}")
-                        }
-                    }
-                    runCatching {
-                        context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"; putExtra(Intent.EXTRA_SUBJECT, "VidGravity failure report"); putExtra(Intent.EXTRA_TEXT, report)
-                        }, "Share failure report"))
-                    }.onFailure {
-                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
-                        android.widget.Toast.makeText(context, "Share unavailable; failure report copied instead.", android.widget.Toast.LENGTH_LONG).show()
-                    }
-                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Share failure report")
-            }
-            OutlinedButton(
-                enabled = works.isNotEmpty(),
-                onClick = {
-                    val summary = "VidGravity queue summary\\nActive: ${activeWorks.size}\\nQueued: ${queuedWorks.size}\\nRunning: ${runningWorks.size}\\nBlocked: ${blockedWorks.size}\\nCompleted: ${completedWorks.size}\\nFailed: ${failedWorks.size}\\nCancelled: ${cancelledWorks.size}\\nAverage active progress: $averageProgress%\\nSuccess rate*: $successRate%"
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(summary))
-                    android.widget.Toast.makeText(context, "Queue summary copied.", android.widget.Toast.LENGTH_SHORT).show()
-                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.Assessment, null); Spacer(Modifier.width(8.dp)); Text("Copy queue summary")
-            }
-            if (retryableFilteredWorks.isNotEmpty()) {
+            if (showQueueControls) {
                 OutlinedButton(
-                    onClick = {
-                        var queuedRetries = 0
-                        var skippedRetries = 0
-                        val preferences = SecureDownloadPreferences.load(context)
-                        val activeSources = activeWorks.mapNotNull { work ->
-                            (work.outputData.getString(DownloadWorker.RETRY_URL)
-                                ?: work.progress.getString("media_url"))?.trim()?.lowercase()
-                        }.toMutableSet()
-                        retryableFilteredWorks.forEach { work ->
-                            val source = (work.outputData.getString(DownloadWorker.RETRY_URL)
-                                ?: work.progress.getString("media_url"))?.trim()
-                            if (source.isNullOrBlank() || !activeSources.add(source.lowercase())) {
-                                skippedRetries++
-                            } else {
-                                runCatching {
-                                    DownloadWorker.enqueue(
-                                        context, source, preferences.preferredFormatSelector,
-                                        work.outputData.getString("display_name")
-                                            ?: work.progress.getString("media_title")
-                                            ?: ShareReceiverActivity.friendlyTitle(source),
-                                        preferences.unmeteredOnly
-                                    )
-                                }.onSuccess { queuedRetries++ }.onFailure { skippedRetries++ }
-                            }
-                        }
-                        android.widget.Toast.makeText(
-                            context,
-                            "Queued $queuedRetries retry(s); skipped $skippedRetries duplicate or invalid item(s).",
-                            android.widget.Toast.LENGTH_LONG
-                        ).show()
-                    },
+                    enabled = activeWorks.isNotEmpty(),
+                    onClick = { showCancelActiveConfirm = true },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
                 ) {
-                    Icon(Icons.Default.Refresh, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Retry all available failures (${retryableFilteredWorks.size})")
+                    Icon(Icons.Default.Cancel, null); Spacer(Modifier.width(8.dp))
+                    Text("Cancel all active downloads (${activeWorks.size})")
                 }
+                OutlinedButton(
+                    enabled = queuedWorks.isNotEmpty(),
+                    onClick = {
+                        queuedWorks.forEach { WorkManager.getInstance(context).cancelWorkById(it.id) }
+                        android.widget.Toast.makeText(context, "Cancelled ${queuedWorks.size} queued download(s).", android.widget.Toast.LENGTH_LONG).show()
+                    }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.PauseCircleOutline, null); Spacer(Modifier.width(8.dp))
+                    Text("Cancel queued downloads (${queuedWorks.size})")
+                }
+                OutlinedButton(
+                    enabled = runningWorks.isNotEmpty(),
+                    onClick = {
+                        val links = runningWorks.mapNotNull { it.outputData.getString(DownloadWorker.RETRY_URL) ?: it.progress.getString("media_url") }.distinct()
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(links.joinToString("\\n")))
+                        android.widget.Toast.makeText(context, "Copied ${links.size} active source link(s).", android.widget.Toast.LENGTH_SHORT).show()
+                    }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.Link, null); Spacer(Modifier.width(8.dp)); Text("Copy active source links")
+                }
+                OutlinedButton(
+                    enabled = completedWorks.isNotEmpty(),
+                    onClick = {
+                        val titles = completedWorks.map { it.outputData.getString("display_name") ?: it.outputData.getString("filename") ?: it.progress.getString("media_title") ?: "Media download" }
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(titles.joinToString("\\n")))
+                        android.widget.Toast.makeText(context, "Copied ${titles.size} completed title(s).", android.widget.Toast.LENGTH_SHORT).show()
+                    }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(8.dp)); Text("Copy completed titles")
+                }
+                OutlinedButton(
+                    enabled = failedWorks.isNotEmpty(),
+                    onClick = {
+                        val report = failedWorks.joinToString("\\n\\n") { work ->
+                            val title = work.outputData.getString("display_name") ?: work.progress.getString("media_title") ?: "Media download"
+                            val error = work.outputData.getString("error") ?: "No error details recorded"
+                            "$title\\nStatus: ${work.state.name}\\n$error"
+                        }
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
+                        android.widget.Toast.makeText(context, "Copied failure summary for ${failedWorks.size} item(s).", android.widget.Toast.LENGTH_SHORT).show()
+                    }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.ErrorOutline, null); Spacer(Modifier.width(8.dp)); Text("Copy failure summary")
+                }
+                OutlinedButton(
+                    enabled = blockedWorks.isNotEmpty(),
+                    onClick = {
+                        blockedWorks.forEach { WorkManager.getInstance(context).cancelWorkById(it.id) }
+                        android.widget.Toast.makeText(context, "Cancelled ${blockedWorks.size} blocked job(s).", android.widget.Toast.LENGTH_LONG).show()
+                    }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.Block, null); Spacer(Modifier.width(8.dp)); Text("Cancel blocked downloads (${blockedWorks.size})")
+                }
+                OutlinedButton(
+                    enabled = queuedWorks.isNotEmpty(),
+                    onClick = {
+                        val titles = queuedWorks.map { it.outputData.getString("display_name") ?: it.progress.getString("media_title") ?: "Media download" }
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(titles.joinToString("\\n")))
+                        android.widget.Toast.makeText(context, "Copied ${titles.size} queued title(s).", android.widget.Toast.LENGTH_SHORT).show()
+                    }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(8.dp)); Text("Copy queued titles")
+                }
+                OutlinedButton(
+                    enabled = retryableWorks.isNotEmpty(),
+                    onClick = {
+                        val links = retryableWorks.mapNotNull { it.outputData.getString(DownloadWorker.RETRY_URL) ?: it.progress.getString("media_url") }.distinct()
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(links.joinToString("\\n")))
+                        android.widget.Toast.makeText(context, "Copied ${links.size} retryable source link(s).", android.widget.Toast.LENGTH_SHORT).show()
+                    }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, null); Spacer(Modifier.width(8.dp)); Text("Copy retryable links")
+                }
+                OutlinedButton(
+                    enabled = failedWorks.isNotEmpty(),
+                    onClick = {
+                        val report = buildString {
+                            appendLine("VidGravity failure report")
+                            appendLine("Failed/cancelled: ${failedWorks.size}")
+                            failedWorks.forEach { work ->
+                                appendLine()
+                                appendLine(work.outputData.getString("display_name") ?: work.progress.getString("media_title") ?: "Media download")
+                                appendLine("Status: ${work.state.name}")
+                                appendLine("Error: ${work.outputData.getString("error") ?: "No error details recorded"}")
+                                appendLine("Source: ${work.outputData.getString(DownloadWorker.RETRY_URL) ?: work.progress.getString("media_url") ?: "Not saved"}")
+                            }
+                        }
+                        runCatching {
+                            context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"; putExtra(Intent.EXTRA_SUBJECT, "VidGravity failure report"); putExtra(Intent.EXTRA_TEXT, report)
+                            }, "Share failure report"))
+                        }.onFailure {
+                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
+                            android.widget.Toast.makeText(context, "Share unavailable; failure report copied instead.", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Share failure report")
+                }
+                OutlinedButton(
+                    enabled = works.isNotEmpty(),
+                    onClick = {
+                        val summary = "VidGravity queue summary\\nActive: ${activeWorks.size}\\nQueued: ${queuedWorks.size}\\nRunning: ${runningWorks.size}\\nBlocked: ${blockedWorks.size}\\nCompleted: ${completedWorks.size}\\nFailed: ${failedWorks.size}\\nCancelled: ${cancelledWorks.size}\\nAverage active progress: $averageProgress%\\nSuccess rate*: $successRate%"
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(summary))
+                        android.widget.Toast.makeText(context, "Queue summary copied.", android.widget.Toast.LENGTH_SHORT).show()
+                    }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.Assessment, null); Spacer(Modifier.width(8.dp)); Text("Copy queue summary")
+                }
+                if (retryableFilteredWorks.isNotEmpty()) {
+                    OutlinedButton(
+                        onClick = {
+                            var queuedRetries = 0
+                            var skippedRetries = 0
+                            val preferences = SecureDownloadPreferences.load(context)
+                            val activeSources = activeWorks.mapNotNull { work ->
+                                (work.outputData.getString(DownloadWorker.RETRY_URL)
+                                    ?: work.progress.getString("media_url"))?.trim()?.lowercase()
+                            }.toMutableSet()
+                            retryableFilteredWorks.forEach { work ->
+                                val source = (work.outputData.getString(DownloadWorker.RETRY_URL)
+                                    ?: work.progress.getString("media_url"))?.trim()
+                                if (source.isNullOrBlank() || !activeSources.add(source.lowercase())) {
+                                    skippedRetries++
+                                } else {
+                                    runCatching {
+                                        DownloadWorker.enqueue(
+                                            context, source, preferences.preferredFormatSelector,
+                                            work.outputData.getString("display_name")
+                                                ?: work.progress.getString("media_title")
+                                                ?: ShareReceiverActivity.friendlyTitle(source),
+                                            preferences.unmeteredOnly
+                                        )
+                                    }.onSuccess { queuedRetries++ }.onFailure { skippedRetries++ }
+                                }
+                            }
+                            android.widget.Toast.makeText(
+                                context,
+                                "Queued $queuedRetries retry(s); skipped $skippedRetries duplicate or invalid item(s).",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Retry all available failures (${retryableFilteredWorks.size})")
+                    }
+                }
+    
             }
             OutlinedButton(
                 onClick = { showDownloadTools = !showDownloadTools },
