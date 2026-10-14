@@ -16,7 +16,7 @@ MAX_TRIM_SECONDS=3600
 class ExportError(ValueError):
     """Rejected export request or unsuccessful media transcode."""
 
-def validate_export_request(preset, mode, width=None, height=None, trim_seconds=None):
+def validate_export_request(preset, mode, width=None, height=None, trim_seconds=None, start_seconds=None):
     if preset not in PRESETS and preset != "custom": raise ExportError("Unsupported social export preset.")
     if mode not in MODES: raise ExportError("Unsupported framing mode.")
     if preset == "custom":
@@ -30,7 +30,13 @@ def validate_export_request(preset, mode, width=None, height=None, trim_seconds=
         try: trim=float(trim_seconds)
         except (TypeError,ValueError): raise ExportError("Trim duration must be a number of seconds.")
         if not (0<trim<=MAX_TRIM_SECONDS): raise ExportError("Trim duration must be between 0 and 3600 seconds.")
-    return {"preset":preset,"mode":mode,"width":w,"height":h,"trim_seconds":trim}
+    start=None
+    if start_seconds not in (None,""):
+        try: start=float(start_seconds)
+        except (TypeError,ValueError): raise ExportError("Start time must be a number of seconds.")
+        if not (0<=start<MAX_TRIM_SECONDS): raise ExportError("Start time must be between 0 and 3599.999 seconds.")
+        if trim is not None and start+trim>MAX_TRIM_SECONDS: raise ExportError("Start time plus clip length must not exceed 3600 seconds.")
+    return {"preset":preset,"mode":mode,"width":w,"height":h,"trim_seconds":trim,"start_seconds":start}
 
 def build_filter_graph(width,height,mode):
     try: w,h=int(width),int(height)
@@ -47,9 +53,10 @@ def export_media_file(source,destination,request):
     if not source.is_file() or source.stat().st_size<=0: raise ExportError("The uploaded source media is empty or unavailable.")
     if source.resolve()==destination.resolve(): raise ExportError("Source and output paths must be different.")
     if shutil.which("ffmpeg") is None: raise ExportError("FFmpeg is not installed on this server.")
-    checked=validate_export_request(request.get("preset",""),request.get("mode",""),request.get("width"),request.get("height"),request.get("trim_seconds"))
+    checked=validate_export_request(request.get("preset",""),request.get("mode",""),request.get("width"),request.get("height"),request.get("trim_seconds"),request.get("start_seconds"))
     graph=build_filter_graph(checked["width"],checked["height"],checked["mode"])
     args=["ffmpeg","-hide_banner","-loglevel","error","-nostdin","-y","-i",str(source)]
+    if checked["start_seconds"] is not None and checked["start_seconds"] > 0: args += ["-ss",f'{checked["start_seconds"]:.3f}']
     if checked["trim_seconds"] is not None: args += ["-t",f'{checked["trim_seconds"]:.3f}']
     if checked["mode"]=="blurred-backdrop": args += ["-filter_complex",f"[0:v]{graph}[vout]","-map","[vout]","-map","0:a?"]
     else: args += ["-vf",graph,"-map","0:v:0","-map","0:a?"]
