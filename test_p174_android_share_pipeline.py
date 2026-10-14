@@ -143,6 +143,14 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('open("/api/health", "GET")',api)
   self.assertIn("android.permission.ACCESS_NETWORK_STATE",permissions)
   self.assertIn("Copy diagnostics report",main)
+ def test_creator_studio_persists_and_restores_local_draft(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('getSharedPreferences("vg-creator-draft", 0)',main)
+  self.assertIn('draftPrefs.getString("uri", null)',main)
+  self.assertIn('.putString("uri", media.uri.toString())',main)
+  self.assertIn('Creator draft saved on this device',main)
+  self.assertIn('Creator draft cleared from this device.',main)
+  self.assertIn('takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)',main)
  def test_simple_collection_screen_supports_vertical_scrolling(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   start=main.index("fun SimpleCollectionScreen(")
