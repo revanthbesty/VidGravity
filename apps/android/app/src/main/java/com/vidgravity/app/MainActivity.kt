@@ -480,7 +480,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(end = 4.dp)
                         ) {
-                            items(listOf("⚡ Grab Best Video", "♫ Sound Only", "✂ WhatsApp 30s", "✦ StudyTok AI")) { action ->
+                            items(listOf("⚡ Grab Best Video", "♫ Sound Only", "✂ Status Clip Splitter", "✦ StudyTok AI")) { action ->
                                 Surface(
                                     color = MaterialTheme.colorScheme.surfaceVariant,
                                     shape = RoundedCornerShape(18.dp),
@@ -502,8 +502,11 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                                     notify("Could not prepare audio: " + (failure.message ?: "Please try again."))
                                                 }
                                             }
-                                        } else if (action.contains("WhatsApp") || action.contains("StudyTok")) {
-                                            notify(if (action.contains("WhatsApp")) "Status splitting is not available in this build yet." else "StudyTok processing is not available in this build yet.")
+                                        } else if (action.contains("Status Clip")) {
+                                            selected = VgTab.Create
+                                            notify("In Create Studio, choose a local video and select a 30, 60, 90, or 120-second clip target.")
+                                        } else if (action.contains("StudyTok")) {
+                                            notify("StudyTok AI processing is still in the feature pipeline; this shortcut does not start a fake analysis.")
                                         } else inspect()
                                     }
                                 ) {
