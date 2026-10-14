@@ -19,7 +19,7 @@ class CreatorDeskBatchTests(unittest.TestCase):
   css=(ROOT/"site"/"creator-desk.css").read_text(encoding="utf-8")
   for marker in (".vgcd-panel",".vgcd-actions",".vgcd-lower","focus-visible","max-width:700px","prefers-reduced-motion"):
    with self.subTest(marker=marker): self.assertIn(marker,css)
-  self.assertIn('aria-live=\"polite\"',(ROOT/"site"/"creator-desk.js").read_text(encoding="utf-8"))
+  self.assertIn("setAttribute('aria-live','polite')",(ROOT/"site"/"creator-desk.js").read_text(encoding="utf-8"))
  def test_shell_assets_and_cache_are_synchronized(self):
   for p in ("index.html","styles.css","sw.js"):
    with self.subTest(p=p): self.assertEqual((ROOT/p).read_bytes(),(ROOT/"android-web"/p).read_bytes())
