@@ -328,4 +328,35 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('Diagnostics could not finish:',main)
   self.assertIn('finally {\n                                diagnosticsRunning = false\n                            }',main)
 
+ def test_library_has_explicit_clear_all_selection_action(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Text("Clear all selected items")',main)
+  self.assertIn('onClick = { selectedUris = emptySet() }',main)
+
+ def test_download_tools_can_copy_only_failed_source_links(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Text("Copy failed source links")',main)
+  self.assertIn('Copied ${links.size} failed source link(s).',main)
+  self.assertIn('.filter { it.state == WorkInfo.State.FAILED || it.state == WorkInfo.State.CANCELLED }',main)
+
+ def test_home_explains_supported_media_sources_and_access_limits(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Common sources: YouTube, Instagram, TikTok, Facebook, X, Vimeo and SoundCloud.',main)
+  self.assertIn('Availability depends on the source and its access rules.',main)
+
+ def test_wifi_only_toggle_confirms_saved_state(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Wi-Fi-only downloads enabled.',main)
+  self.assertIn('Wi-Fi-only downloads disabled.',main)
+
+ def test_auto_share_download_toggle_confirms_saved_state(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Automatic share downloads enabled.',main)
+  self.assertIn('Automatic share downloads disabled.',main)
+
+ def test_manual_storage_refresh_confirms_success(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Library size refreshed.',main)
+  self.assertIn('if (storageRefreshError == null)',main)
+
 if __name__=="__main__":unittest.main(verbosity=2)
