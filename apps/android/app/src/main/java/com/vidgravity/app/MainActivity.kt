@@ -700,11 +700,18 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
                 OutlinedButton(
                     onClick = {
                         var queuedRetries = 0
+                        var skippedRetries = 0
                         val preferences = SecureDownloadPreferences.load(context)
+                        val activeSources = activeWorks.mapNotNull { work ->
+                            (work.outputData.getString(DownloadWorker.RETRY_URL)
+                                ?: work.progress.getString("media_url"))?.trim()?.lowercase()
+                        }.toMutableSet()
                         retryableFilteredWorks.forEach { work ->
-                            val source = work.outputData.getString(DownloadWorker.RETRY_URL)
-                                ?: work.progress.getString("media_url")
-                            if (!source.isNullOrBlank()) {
+                            val source = (work.outputData.getString(DownloadWorker.RETRY_URL)
+                                ?: work.progress.getString("media_url"))?.trim()
+                            if (source.isNullOrBlank() || !activeSources.add(source.lowercase())) {
+                                skippedRetries++
+                            } else {
                                 runCatching {
                                     DownloadWorker.enqueue(
                                         context, source, preferences.preferredFormatSelector,
@@ -713,13 +720,13 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
                                             ?: ShareReceiverActivity.friendlyTitle(source),
                                         preferences.unmeteredOnly
                                     )
-                                }.onSuccess { queuedRetries++ }
+                                }.onSuccess { queuedRetries++ }.onFailure { skippedRetries++ }
                             }
                         }
                         android.widget.Toast.makeText(
                             context,
-                            "Queued $queuedRetries of ${retryableFilteredWorks.size} retryable download(s).",
-                            android.widget.Toast.LENGTH_SHORT
+                            "Queued $queuedRetries retry(s); skipped $skippedRetries duplicate or invalid item(s).",
+                            android.widget.Toast.LENGTH_LONG
                         ).show()
                     },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
