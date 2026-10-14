@@ -9,6 +9,7 @@ faceSwapRouter.post("/", upload.fields([{ name: "video", maxCount: 1 }, { name: 
     const files = (req.files ?? {}) as Record<string, Express.Multer.File[]>;
     const video = files.video?.[0], reference = files.reference?.[0];
     if (!video || !reference) { res.status(400).json({ error: "Face-Off requires target video and reference image." }); return; }
+    if (req.body.consentConfirmed !== "true") { res.status(400).json({ error: "Explicit permission confirmation is required before face-swap processing." }); return; }
     if (!video.mimetype.startsWith("video/") || !reference.mimetype.startsWith("image/")) { res.status(415).json({ error: "Expected a video and a reference image." }); return; }
     let timeline: unknown;
     try { timeline = JSON.parse(String(req.body.timeline ?? "{}")); } catch { res.status(400).json({ error: "Invalid face timeline JSON." }); return; }
