@@ -2201,9 +2201,16 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
     var activationKey by remember { mutableStateOf("") }
     var showActivation by remember { mutableStateOf(false) }
     var mediaBytes by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(Unit) {
-        mediaBytes = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context).sumOf { it.sizeBytes } }
+    var refreshingStorage by remember { mutableStateOf(false) }
+    suspend fun refreshStorageUsage() {
+        refreshingStorage = true
+        try {
+            mediaBytes = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context).sumOf { it.sizeBytes.coerceAtLeast(0L) } }
+        } finally {
+            refreshingStorage = false
+        }
     }
+    LaunchedEffect(Unit) { refreshStorageUsage() }
     var savedPreferences by remember { mutableStateOf(SecureDownloadPreferences.load(context)) }
     var unmeteredOnly by remember { mutableStateOf(savedPreferences.unmeteredOnly) }
     var autoPreset by remember { mutableStateOf(savedPreferences.autoDownloadWithPreferredPreset) }
@@ -2304,6 +2311,21 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                 }
                 LinearProgressIndicator(progress = { (mediaBytes.toFloat() / (2L * 1024 * 1024 * 1024)).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
                 Text("Gauge is relative to 2 GB; it does not represent total device capacity.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedButton(
+                    onClick = { scope.launch { refreshStorageUsage() } },
+                    enabled = !refreshingStorage,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    if (refreshingStorage) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Refreshing library size…")
+                    } else {
+                        Icon(Icons.Default.Refresh, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Refresh library size")
+                    }
+                }
             }
         }
         var diagnosticsRunning by remember { mutableStateOf(false) }
