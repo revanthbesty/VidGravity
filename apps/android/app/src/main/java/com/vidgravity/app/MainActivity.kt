@@ -1762,7 +1762,8 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                             val uri = withContext(Dispatchers.IO) {
                                 DownloadApi.exportMedia(
                                     context, source.uri, "whatsapp-status", mode,
-                                    startSeconds, (endSeconds - startSeconds).coerceIn(1f, 3600f)
+                                    startSeconds, (endSeconds - startSeconds).coerceIn(1f, 3600f),
+                                    outputFormat = "mp4", title = title, artist = artist
                                 )
                             }
                             exportedUri = uri
