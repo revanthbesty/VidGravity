@@ -990,12 +990,13 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
             }
             OutlinedTextField(
                 value = downloadSearch,
-                onValueChange = { downloadSearch = it },
+                onValueChange = { downloadSearch = it.take(200) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text("Search download history") },
                 placeholder = { Text("Filename, source URL, error, or status") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                supportingText = { Text("${downloadSearch.length}/200 characters") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search download history") },
                 trailingIcon = {
                     if (downloadSearch.isNotBlank()) {
                         IconButton(onClick = { downloadSearch = "" }) {
@@ -1579,6 +1580,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                             }
                         }
                         context.startActivity(Intent.createChooser(shareIntent, "Share selected media"))
+                        android.widget.Toast.makeText(context, "Prepared ${streams.size} item(s) to share.", android.widget.Toast.LENGTH_SHORT).show()
                     }.onFailure {
                         android.widget.Toast.makeText(context, "Could not share selected media. Try fewer files.", android.widget.Toast.LENGTH_LONG).show()
                     }
