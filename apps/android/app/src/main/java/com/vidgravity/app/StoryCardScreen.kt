@@ -121,8 +121,21 @@ fun StoryCardScreen(
         OutlinedTextField(value = title, onValueChange = { title = it.take(100) }, label = { Text("Track / story title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(value = artist, onValueChange = { artist = it.take(100) }, label = { Text("Artist / caption") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = layout == "Cover Art", onClick = { layout = "Cover Art" }, label = { Text("Cover Art") })
-            FilterChip(selected = layout == "Video Backdrop", onClick = { layout = "Video Backdrop" }, label = { Text("Video Backdrop") })
+            FilterChip(selected = layout == "Cover Art", onClick = { layout = "Cover Art" }, label = { Text("Fit / Letterbox") })
+            FilterChip(selected = layout == "Video Backdrop", onClick = { layout = "Video Backdrop" }, label = { Text("Blurred Backdrop") })
+        }
+        FilterChip(
+            selected = layout == "Privacy Blur",
+            onClick = { layout = "Privacy Blur" },
+            label = { Text("Privacy Blur · whole frame") },
+            enabled = !isRendering
+        )
+        if (layout == "Privacy Blur") {
+            Text(
+                "Blurs the entire video frame; this is not face detection or selective redaction.",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall
+            )
         }
         Button(enabled = !isRendering, onClick = { onRenderStory(media, start, end, title, artist, layout); status = "Story render requested." },
             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
