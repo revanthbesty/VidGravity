@@ -123,7 +123,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads })
+                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     VgTab.Library -> LibraryContent(onPlay = { playingMedia = it })
                     VgTab.Create -> CreateStudioContent(onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true })
@@ -360,7 +360,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
 }
 
 @Composable
-private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit) {
+private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -503,7 +503,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                                 }
                                             }
                                         } else if (action.contains("Status Clip")) {
-                                            selected = VgTab.Create
+                                            openCreate()
                                             notify("In Create Studio, choose a local video and select a 30, 60, 90, or 120-second clip target.")
                                         } else if (action.contains("StudyTok")) {
                                             notify("StudyTok AI processing is still in the feature pipeline; this shortcut does not start a fake analysis.")
