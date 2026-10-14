@@ -1158,8 +1158,7 @@ private fun InfoCard(title: String, detail: String, icon: androidx.compose.ui.gr
 private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, onOpen: (String) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var items by remember { mutableStateOf(ShareInboxStore.list(context)) }
-    var searchQuery by remember { mutableStateOf(initialSearch) }
-    LaunchedEffect(initialSearch) { if (initialSearch.isNotBlank()) searchQuery = initialSearch }
+    var searchQuery by remember { mutableStateOf("") }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -1235,7 +1234,8 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
     var filter by remember { mutableStateOf("All Media") }
     var sizeFilter by remember { mutableStateOf("Any size") }
     var sortBy by remember { mutableStateOf("Newest") }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf(initialSearch) }
+    LaunchedEffect(initialSearch) { if (initialSearch.isNotBlank()) searchQuery = initialSearch }
     var renameTarget by remember { mutableStateOf<LibraryMedia?>(null) }
     var renameText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<LibraryMedia?>(null) }
