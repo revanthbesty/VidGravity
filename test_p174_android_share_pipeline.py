@@ -464,4 +464,30 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('Library refreshed: ${media.size} item(s).',main)
   self.assertIn('.putBoolean("show_storage_insights", showStorageInsights)',main)
 
+ def test_home_inspect_trims_and_validates_url_host(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn("val candidate = url.trim().lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()",main)
+  self.assertIn('parsed?.scheme in setOf("http", "https") && !parsed.host.isNullOrBlank()',main)
+  self.assertIn('Enter a complete URL with https:// and a valid host name.',main)
+
+ def test_home_url_input_has_accessible_label_and_actions(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('label = { Text("Media URL or links") }',main)
+  self.assertIn('contentDescription = "Clear all pasted URLs"',main)
+  self.assertIn('contentDescription = "Paste URLs from clipboard"',main)
+
+ def test_media_rename_is_bounded_and_prevents_path_input(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  indexer=(ANDROID/"app/src/main/java/com/vidgravity/app/MediaLibraryIndexer.kt").read_text()
+  self.assertIn("renameText = it.take(180).replace(\"/\", \"\").replace(\"\\\\\\\", \"\")",main)
+  self.assertIn('supportingText = { Text("${renameText.length}/180 characters · File paths are not allowed") }',main)
+  self.assertIn("enabled = renameText.isNotBlank()",main)
+  self.assertIn('replace(Regex("[\\\\u0000-\\\\u001F\\\\u007F]"), "")',indexer)
+  self.assertIn("context.contentResolver.notifyChange(media.uri, null)",indexer)
+
+ def test_media_rename_reports_success_and_preserves_extension_case_insensitively(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('endsWith(".$suffix", ignoreCase = true)',main)
+  self.assertIn('if (ok) "Media renamed." else "Could not rename this media item."',main)
+
 if __name__=="__main__":unittest.main(verbosity=2)
