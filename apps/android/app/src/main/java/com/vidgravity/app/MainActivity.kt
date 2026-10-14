@@ -60,6 +60,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     var selected by remember { mutableStateOf(VgTab.Home) }
     var showInbox by remember { mutableStateOf(openInboxInitially) }
     var showStudyTok by remember { mutableStateOf(false) }
+    var creatorInitialMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var playingMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var url by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf<String?>(null) }
@@ -131,8 +132,14 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                         }
                     }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create }, { showStudyTok = true })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
-                    VgTab.Library -> LibraryContent(onPlay = { playingMedia = it })
-                    VgTab.Create -> CreateStudioContent(onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true })
+                    VgTab.Library -> LibraryContent(
+                        onPlay = { playingMedia = it },
+                        onCreateWithMedia = { media -> creatorInitialMedia = media; selected = VgTab.Create }
+                    )
+                    VgTab.Create -> CreateStudioContent(
+                        onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true },
+                        initialMedia = creatorInitialMedia
+                    )
                     VgTab.Settings -> SettingsContent(dark, { dark = it; prefs.edit().putBoolean("dark", it).apply() })
                 }
             }
@@ -1158,7 +1165,7 @@ private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, o
 }
 
 @Composable
-private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
+private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (LibraryMedia) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboard = LocalClipboardManager.current
     var media by remember { mutableStateOf(emptyList<LibraryMedia>()) }
@@ -1229,8 +1236,8 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
                     refreshMedia()
                 }
             },
-            onMakeSticker = { android.widget.Toast.makeText(context, "Sticker renderer integration is not available yet.", android.widget.Toast.LENGTH_LONG).show() },
-            onStatusSplit = { android.widget.Toast.makeText(context, "30-second status splitting is not available yet.", android.widget.Toast.LENGTH_LONG).show() }
+            onMakeSticker = { onCreateWithMedia(it) },
+            onStatusSplit = { onCreateWithMedia(it) }
         )
         return
     }
@@ -1663,10 +1670,10 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit) {
 }
 
 @Composable
-private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit, openInbox: () -> Unit) {
+private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, initialMedia: LibraryMedia? = null) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
-    var selectedMedia by remember { mutableStateOf<LibraryMedia?>(null) }
+    var selectedMedia by remember(initialMedia) { mutableStateOf(initialMedia) }
     var storyEditorOpen by remember { mutableStateOf(false) }
     var isRendering by remember { mutableStateOf(false) }
     var segmentProgress by remember { mutableStateOf<String?>(null) }
