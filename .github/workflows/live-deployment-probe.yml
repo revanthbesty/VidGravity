@@ -29,6 +29,30 @@ jobs:
           python-version: "3.12"
       - name: Probe configured public HTTPS backend
         run: python p169_deployment_probe.py --url https://vidgravity.onrender.com
+      - name: Verify live Story export route is deployed
+        run: |
+          python - <<'PY'
+          import urllib.error, urllib.request
+          url = "https://vidgravity.onrender.com/api/media/export"
+          req = urllib.request.Request(
+              url, data=b"", method="POST",
+              headers={"Content-Type": "video/mp4", "User-Agent": "VidGravity-Export-Route-Probe/1.0"}
+          )
+          try:
+              with urllib.request.urlopen(req, timeout=15) as response:
+                  status = response.status
+                  body = response.read(2048).decode("utf-8", "replace")
+          except urllib.error.HTTPError as exc:
+              status = exc.code
+              body = exc.read(2048).decode("utf-8", "replace")
+          # An empty POST must be rejected by the application (400); 404 means
+          # the deployed companion is stale or its route is not mounted.
+          if status == 404:
+              raise SystemExit("Story export route is missing from the live backend (HTTP 404). Redeploy the companion.")
+          if status not in (400, 403, 413, 429):
+              raise SystemExit(f"Unexpected export-route probe status HTTP {status}: {body[:300]}")
+          print(f"Story export route is mounted: HTTP {status} for intentionally empty probe")
+          PY
       - name: Verify PWA origin serves the app
         run: |
           python - <<'PY'
