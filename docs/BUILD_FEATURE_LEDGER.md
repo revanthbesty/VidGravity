@@ -162,3 +162,12 @@ Latest successful CI build checked:
 - User's screenshots may be from a build older than the latest candidate; ask them to confirm installed version only if necessary to distinguish stale build behavior. Do not assume screenshot behavior proves the new artifact has the same code.
 - Do not call the YouTube problem fixed until a real supported public test URL passes inspect → formats → download → playable file on the deployed service.
 - Do not call Story/Status export fixed until the deployed route returns a real playable output that is visible in Library.
+
+
+## Follow-up implementation — 2026-10-15
+
+- Sound Only: updated Home quick action to prefer a listed audio-only format and fall back to the explicit `bestaudio` selector when the extractor omits separate audio-only rows. User-facing status now distinguishes the fallback path. Regression assertion added in `test_android_ux_regressions.py`.
+- Commit sequence: `e6712385d6c3c5cd88b3a3b26758044ea9bb3490` (implementation), `ccaf692e2560be3fd49f7795ac48494a1185f767` (regression test).
+- Validation: exact-head CI has been triggered; result and fresh APK artifact must be checked before treating this as verified.
+- Status Clip Splitter: Android source already routes exports through `POST /api/media/export`, and `server.py` contains that route. The user's HTTP 404 therefore still needs live companion endpoint/deployment evidence; source presence alone does not prove the deployed service has the route.
+- Release blockers remain: live YouTube extraction, deployed Story export endpoint, end-to-end Status clip output, and physical-device acceptance. Do not mark p180 release-ready until these are verified.
