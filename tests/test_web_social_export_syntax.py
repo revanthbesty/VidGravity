@@ -23,6 +23,15 @@ class WebSocialExportSyntaxTests(unittest.TestCase):
         self.assertIn('$("#vgExportVideo").addEventListener("timeupdate"', script)
         self.assertNotIn(r'\n    $("#vgExportVideo").addEventListener("timeupdate"', script)
 
+    def test_custom_clip_targets_and_start_time_are_wired_to_renderer(self):
+        script = (ROOT / "site" / "social-export.js").read_text(encoding="utf-8")
+        for seconds in (30, 60, 90, 120):
+            self.assertIn(f'data-vg-clip-seconds="{seconds}"', script)
+        self.assertIn('id="vgExportStart"', script)
+        self.assertIn('headers["X-VG-Start-Seconds"]=String(start)', script)
+        self.assertIn('$("#vgExportTrim").value=button.dataset.vgClipSeconds', script)
+        self.assertIn('id="vgExportClipTargets"', script)
+
 
 if __name__ == "__main__":
     unittest.main()
