@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,11 +30,27 @@ import androidx.media3.ui.PlayerView
 fun PlayerScreen(media: LibraryMedia, onBack: () -> Unit) {
     val context = LocalContext.current
     val activity = context as? Activity
+    val progressPrefs = remember(context) { context.getSharedPreferences("vg_player_progress", android.content.Context.MODE_PRIVATE) }
+    val progressKey = remember(media.uri) { "position_" + media.uri.toString().hashCode().toUInt().toString(16) }
     val player = remember(media.uri) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(media.uri))
+            val resumeAt = progressPrefs.getLong(progressKey, 0L).coerceAtLeast(0L)
+            if (resumeAt > 3_000L) seekTo(resumeAt)
             prepare()
             playWhenReady = true
+        }
+    }
+    LaunchedEffect(player, progressKey) {
+        while (true) {
+            delay(2_000)
+            if (player.duration > 0L && player.currentPosition > 0L) {
+                progressPrefs.edit().putLong(progressKey, player.currentPosition).apply()
+            }
+            if (player.playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                progressPrefs.edit().remove(progressKey).apply()
+                break
+            }
         }
     }
     var speed by remember { mutableFloatStateOf(1f) }
@@ -54,6 +71,10 @@ fun PlayerScreen(media: LibraryMedia, onBack: () -> Unit) {
 
     DisposableEffect(player) {
         onDispose {
+            if (player.duration > 0L && player.currentPosition > 0L &&
+                player.playbackState != androidx.media3.common.Player.STATE_ENDED) {
+                progressPrefs.edit().putLong(progressKey, player.currentPosition).apply()
+            }
             player.release()
             applyFullscreen(false)
         }
