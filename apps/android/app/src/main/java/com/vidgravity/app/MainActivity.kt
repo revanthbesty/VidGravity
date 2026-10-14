@@ -1660,28 +1660,6 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                     Text(message, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                 }
                 OutlinedButton(
-                    onClick = {
-                        val report = buildString {
-                            appendLine("VidGravity media library")
-                            appendLine("Visible: ${visibleMedia.size} | Total indexed: ${media.size} | Favorites: ${favoriteCount}")
-                            appendLine("Visible size: ${String.format("%.1f MB", visibleBytes / 1_000_000.0)}")
-                            appendLine()
-                            visibleMedia.forEachIndexed { index, item ->
-                                appendLine("${index + 1}. ${item.displayName}")
-                                appendLine("   Type: ${item.mimeType} | Size: ${if (item.sizeBytes > 0) String.format("%.1f MB", item.sizeBytes / 1_000_000.0) else "Unknown"}")
-                            }
-                        }
-                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
-                        android.widget.Toast.makeText(context, "Library report copied.", android.widget.Toast.LENGTH_SHORT).show()
-                    },
-                    enabled = visibleMedia.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-                ) {
-                    Icon(Icons.Default.ContentCopy, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Copy visible library report")
-                }
-                OutlinedButton(
                     onClick = { showStorageInsights = !showStorageInsights },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 42.dp)
                 ) {
