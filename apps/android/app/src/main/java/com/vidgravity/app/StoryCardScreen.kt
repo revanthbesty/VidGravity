@@ -122,7 +122,7 @@ fun StoryCardScreen(
         OutlinedTextField(value = title, onValueChange = { title = it.take(100) }, label = { Text("Track / story title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(value = artist, onValueChange = { artist = it.take(100) }, label = { Text("Artist / caption") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Text(
-            "Title and caption are preview labels; the current export renders the media and framing, not text overlays.",
+            "Title and caption are embedded in the exported video. Your original media stays unchanged.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall
         )
