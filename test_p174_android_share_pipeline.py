@@ -150,6 +150,15 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('initialSearch = librarySearchTarget',main)
   self.assertIn('LaunchedEffect(initialSearch) { if (initialSearch.isNotBlank()) searchQuery = initialSearch }',main)
   self.assertIn('Text("Find this download in Library")',main)
+ def test_story_card_restores_per_media_editor_draft(self):
+  story=(ANDROID/"app/src/main/java/com/vidgravity/app/StoryCardScreen.kt").read_text()
+  self.assertIn('getSharedPreferences("vg-story-card-drafts"',story)
+  self.assertIn('putFloat("${draftKey}_start", start)',story)
+  self.assertIn('putFloat("${draftKey}_length", length)',story)
+  self.assertIn('putString("${draftKey}_title", title)',story)
+  self.assertIn('putString("${draftKey}_artist", artist)',story)
+  self.assertIn('putString("${draftKey}_layout", layout)',story)
+  self.assertIn('remember(media.uri)',story)
  def test_creator_status_clip_length_persists_without_clearing_draft_preference(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('draftPrefs.getInt("statusClipSeconds", 90)',main)
