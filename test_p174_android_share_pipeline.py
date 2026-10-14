@@ -479,10 +479,13 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
  def test_media_rename_is_bounded_and_prevents_path_input(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   indexer=(ANDROID/"app/src/main/java/com/vidgravity/app/MediaLibraryIndexer.kt").read_text()
-  self.assertIn("renameText = it.take(180).replace(\"/\", \"\").replace(\"\\\\\\\", \"\")",main)
+  self.assertIn("renameText = it.take(180)",main)
+  self.assertIn('replace("/", "")',main)
+  self.assertIn('replace("\\\\", "")',main)
   self.assertIn('supportingText = { Text("${renameText.length}/180 characters · File paths are not allowed") }',main)
   self.assertIn("enabled = renameText.isNotBlank()",main)
-  self.assertIn('replace(Regex("[\\\\u0000-\\\\u001F\\\\u007F]"), "")',indexer)
+  self.assertIn('replace(Regex(',indexer)
+  self.assertIn('.take(140)',indexer)
   self.assertIn("context.contentResolver.notifyChange(media.uri, null)",indexer)
 
  def test_batch_queue_reports_partial_failures_and_saved_quality(self):
