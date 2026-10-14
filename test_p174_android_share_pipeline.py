@@ -269,13 +269,13 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
  def test_home_url_input_has_clear_action_and_character_limit(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('onValueChange = { onUrl(it.take(10000)) }',main)
-  self.assertIn('contentDescription = "Clear URL input"',main)
+  self.assertIn('contentDescription = "Clear all pasted URLs"',main)
   self.assertIn('${url.length}/10000 characters · Up to 10 links per batch',main)
 
  def test_home_clipboard_paste_reports_empty_clipboard(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('Clipboard does not contain text to paste.',main)
-  self.assertIn('contentDescription = "Paste URL"',main)
+  self.assertIn('contentDescription = "Paste URLs from clipboard"',main)
 
  def test_clipboard_suggestion_can_be_dismissed(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
