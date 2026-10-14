@@ -37,7 +37,7 @@ fun StoryCardScreen(
     var length by remember(media.uri) { mutableFloatStateOf(15f) }
     var title by remember(media.uri) { mutableStateOf(media.displayName.substringBeforeLast(".")) }
     var artist by remember(media.uri) { mutableStateOf("") }
-    var layout by remember(media.uri) { mutableStateOf("Cover Art") }
+    var layout by remember(media.uri) { mutableStateOf(if (media.mimeType.startsWith("audio/")) "Audio Visualizer" else "Cover Art") }
     var status by remember { mutableStateOf("") }
     var duration by remember(media.uri) { mutableFloatStateOf(60f) }
     var durationKnown by remember(media.uri) { mutableStateOf(false) }
@@ -120,22 +120,36 @@ fun StoryCardScreen(
         )
         OutlinedTextField(value = title, onValueChange = { title = it.take(100) }, label = { Text("Track / story title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         OutlinedTextField(value = artist, onValueChange = { artist = it.take(100) }, label = { Text("Artist / caption") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(selected = layout == "Cover Art", onClick = { layout = "Cover Art" }, label = { Text("Fit / Letterbox") })
-            FilterChip(selected = layout == "Video Backdrop", onClick = { layout = "Video Backdrop" }, label = { Text("Blurred Backdrop") })
-        }
-        FilterChip(
-            selected = layout == "Privacy Blur",
-            onClick = { layout = "Privacy Blur" },
-            label = { Text("Privacy Blur · whole frame") },
-            enabled = !isRendering
-        )
-        if (layout == "Privacy Blur") {
+        if (media.mimeType.startsWith("audio/")) {
+            FilterChip(
+                selected = layout == "Audio Visualizer",
+                onClick = { layout = "Audio Visualizer" },
+                label = { Text("Audio Visualizer · 9:16") },
+                enabled = !isRendering
+            )
             Text(
-                "Blurs the entire video frame; this is not face detection or selective redaction.",
+                "Creates a vertical MP4 with an animated waveform and your original audio.",
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall
             )
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = layout == "Cover Art", onClick = { layout = "Cover Art" }, label = { Text("Fit / Letterbox") })
+                FilterChip(selected = layout == "Video Backdrop", onClick = { layout = "Video Backdrop" }, label = { Text("Blurred Backdrop") })
+            }
+            FilterChip(
+                selected = layout == "Privacy Blur",
+                onClick = { layout = "Privacy Blur" },
+                label = { Text("Privacy Blur · whole frame") },
+                enabled = !isRendering
+            )
+            if (layout == "Privacy Blur") {
+                Text(
+                    "Blurs the entire video frame; this is not face detection or selective redaction.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
         }
         Button(enabled = !isRendering, onClick = { onRenderStory(media, start, end, title, artist, layout); status = "Story render requested." },
             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
