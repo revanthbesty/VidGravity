@@ -2128,6 +2128,7 @@ private fun SimpleCollectionScreen(title: String, subtitle: String, icon: androi
 private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
     val deviceId = remember {
         val androidId = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ANDROID_ID).orEmpty()
         "VG-" + androidId.takeLast(8).uppercase()
@@ -2284,7 +2285,7 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                                 lines.add("App version: " + runCatching {
                                     context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
                                 }.getOrDefault("unknown"))
-                                lines.joinToString("\\n")
+                                lines.joinToString("\n")
                             }
                             diagnosticsReport = report
                             diagnosticsRunning = false
@@ -2301,7 +2302,7 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                     Text(report, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedButton(
                         onClick = {
-                            clipboard.setText(androidx.compose.ui.text.AnnotatedString("VidGravity diagnostics\\n$report"))
+                            clipboard.setText(androidx.compose.ui.text.AnnotatedString("VidGravity diagnostics\n$report"))
                             android.widget.Toast.makeText(context, "Diagnostics report copied.", android.widget.Toast.LENGTH_SHORT).show()
                         },
                         modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
