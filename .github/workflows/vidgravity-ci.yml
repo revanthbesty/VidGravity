@@ -79,6 +79,7 @@ jobs:
           node --check site/quickflow.js
           node --check site/workspace-plus.js
           node --check site/creator-desk.js
+          node --check site/focus-studio.js
           node --check app.js
           node --check site/app.js
           node --check android-web/app.js
