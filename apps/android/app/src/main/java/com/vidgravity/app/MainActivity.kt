@@ -448,6 +448,8 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                         fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp)
                     Text("Paste a public video or audio link. Inspect available quality, then choose exactly what to save.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Common sources: YouTube, Instagram, TikTok, Facebook, X, Vimeo and SoundCloud. Availability depends on the source and its access rules.",
+                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedTextField(value = url, onValueChange = { onUrl(it.take(10000)) }, modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("Paste one link or multiple links (one per line)") }, leadingIcon = { Icon(Icons.Default.Link, null) },
                         trailingIcon = {
@@ -777,6 +779,25 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
                     Icon(Icons.Default.Link, null)
                     Spacer(Modifier.width(8.dp))
                     Text("Copy visible source links")
+                }
+                OutlinedButton(
+                    onClick = {
+                        val links = filteredWorks
+                            .filter { it.state == WorkInfo.State.FAILED || it.state == WorkInfo.State.CANCELLED }
+                            .mapNotNull { work ->
+                                (work.outputData.getString(DownloadWorker.RETRY_URL)
+                                    ?: work.progress.getString("media_url"))?.takeIf { it.isNotBlank() }
+                            }.distinct()
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(links.joinToString("\n")))
+                        android.widget.Toast.makeText(context, "Copied ${links.size} failed source link(s).", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    enabled = filteredWorks.any { (it.state == WorkInfo.State.FAILED || it.state == WorkInfo.State.CANCELLED) &&
+                        !(it.outputData.getString(DownloadWorker.RETRY_URL) ?: it.progress.getString("media_url")).isNullOrBlank() },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.ErrorOutline, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Copy failed source links")
                 }
                 OutlinedButton(
                     onClick = {
@@ -1574,6 +1595,13 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
             }
             Text("${selectedUris.size} item(s) selected across your library", fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (selectedUris.isNotEmpty()) {
+                TextButton(onClick = { selectedUris = emptySet() }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Close, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Clear all selected items")
+                }
+            }
             if (showBulkActions) {
                 val chosenMedia = visibleMedia.filter { it.uri.toString() in selectedUris }
                 val allChosenAreFavorites = chosenMedia.isNotEmpty() && chosenMedia.all { it.isFavorite }
@@ -2397,6 +2425,7 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                 Switch(checked = unmeteredOnly, onCheckedChange = {
                     unmeteredOnly = it
                     SecureDownloadPreferences.save(context, SecureDownloadPreferences.load(context).copy(unmeteredOnly = it))
+                    android.widget.Toast.makeText(context, if (it) "Wi-Fi-only downloads enabled." else "Wi-Fi-only downloads disabled.", android.widget.Toast.LENGTH_SHORT).show()
                 })
             }
         }
@@ -2411,6 +2440,7 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                 Switch(checked = autoPreset, onCheckedChange = {
                     autoPreset = it
                     SecureDownloadPreferences.save(context, SecureDownloadPreferences.load(context).copy(autoDownloadWithPreferredPreset = it))
+                    android.widget.Toast.makeText(context, if (it) "Automatic share downloads enabled." else "Automatic share downloads disabled.", android.widget.Toast.LENGTH_SHORT).show()
                 })
             }
         }
@@ -2447,7 +2477,14 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                 LinearProgressIndicator(progress = { (mediaBytes.toFloat() / (2L * 1024 * 1024 * 1024)).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
                 Text("Gauge is relative to 2 GB; it does not represent total device capacity.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedButton(
-                    onClick = { scope.launch { refreshStorageUsage() } },
+                    onClick = {
+                        scope.launch {
+                            refreshStorageUsage()
+                            if (storageRefreshError == null) {
+                                android.widget.Toast.makeText(context, "Library size refreshed.", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
                     enabled = !refreshingStorage,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
                 ) {
