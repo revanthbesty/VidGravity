@@ -176,6 +176,9 @@ jobs:
       - name: Type-check AI studio components
         working-directory: apps/pwa
         run: npm run typecheck
+      - name: Build Next.js PWA
+        working-directory: apps/pwa
+        run: npm run build
 
   cloud-ai-api:
     name: Cloud AI API TypeScript
