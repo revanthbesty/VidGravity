@@ -43,6 +43,16 @@ class SocialExportPresetTests(unittest.TestCase):
                 validate_export_request("square","smart-reframe",start_seconds=start)
         with self.assertRaises(ExportError):
             validate_export_request("square","smart-reframe",trim_seconds="20",start_seconds="3590")
+    def test_audio_story_requires_vertical_mp4_and_duration(self):
+        from media_export import validate_export_request
+        result=validate_export_request("whatsapp-status","audio-story",trim_seconds="12",start_seconds="3")
+        self.assertEqual(result["mode"],"audio-story")
+        self.assertEqual(result["width"],1080)
+        with self.assertRaises(ExportError):
+            validate_export_request("square","audio-story",trim_seconds="12")
+        with self.assertRaises(ExportError):
+            validate_export_request("whatsapp-status","audio-story",trim_seconds="12",output_format="webp")
+
     def test_animated_sticker_requires_short_webp_export(self):
         from media_export import validate_export_request
         result=validate_export_request("animated-sticker","fit-letterbox",trim_seconds="8",start_seconds="2",output_format="webp")
