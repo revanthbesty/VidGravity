@@ -304,4 +304,28 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('retryableFilteredWorks.forEach { work ->',main)
   self.assertIn('"Queued $queuedRetries of ${retryableFilteredWorks.size} retryable download(s)."',main)
 
+ def test_library_filter_search_and_sort_persist_between_visits(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('getSharedPreferences("vg_library_ui"',main)
+  self.assertIn('.putString("filter", filter)',main)
+  self.assertIn('.putString("size_filter", sizeFilter)',main)
+  self.assertIn('.putString("sort_by", sortBy)',main)
+  self.assertIn('.putString("search_query", searchQuery)',main)
+
+ def test_library_visible_selection_preserves_other_filtered_selections(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('selectedUris = if (allVisibleSelected) selectedUris - visibleUris else selectedUris + visibleUris',main)
+  self.assertIn('Text(if (visibleMedia.isNotEmpty() && visibleMedia.all { it.uri.toString() in selectedUris }) "Deselect visible" else "Select visible")',main)
+  self.assertIn('Text("${selectedUris.size} item(s) selected across your library"',main)
+
+ def test_library_empty_results_can_reset_search_and_filters(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Text("Reset library search and filters")',main)
+  self.assertIn('searchQuery = ""\n                        filter = "All Media"\n                        sizeFilter = "Any size"\n                        sortBy = "Newest"',main)
+
+ def test_diagnostics_always_clears_running_state_after_failure(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Diagnostics could not finish:',main)
+  self.assertIn('finally {\n                                diagnosticsRunning = false\n                            }',main)
+
 if __name__=="__main__":unittest.main(verbosity=2)
