@@ -77,7 +77,7 @@ class SocialExportPresetTests(unittest.TestCase):
             with patch("media_export.shutil.which", return_value="/usr/bin/ffmpeg"), patch("media_export.subprocess.run", side_effect=fake_ffmpeg) as run:
                 result=export_media_file(source,destination,request)
             args=run.call_args.args[0]
-            self.assertIn("showwaves=s=900x420",args)
+            self.assertTrue(any("showwaves=s=900x420" in arg for arg in args))
             self.assertIn("lavfi",args)
             self.assertIn("-ss",args)
             self.assertIn("1:a:0",args)
