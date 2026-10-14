@@ -134,3 +134,31 @@ User supplied phone screenshots showing:
 - CI run `38629301419`: regression, PWA AI Studio and Cloud AI API jobs passed; Android share pipeline was still running at check time.
 - Artifacts available from that run were CI reports only; no fresh APK artifact was present at that time.
 - Do not treat earlier p180 APK as containing the latest UI cleanup or the new screenshot fixes.
+
+
+## Additional screenshot findings — p180 device feedback (2026-10-15)
+
+Latest successful CI build checked:
+- Run: https://github.com/revanthbesty/VidGravity/actions/runs/38629581817
+- Candidate commit: `bae16ad723a8246f95cdfcf8b2395349aec59b0d`
+- Artifact: https://github.com/revanthbesty/VidGravity/actions/runs/38629581817/artifacts/11925392393
+- Artifact SHA-256: `f2f74b05d1ddd57b6bcd545a0ae6ff59d3fab0a4ab1ab300bd921531231e5578`
+- All four CI jobs passed. This proves compilation and automated checks only, not physical-device functionality.
+
+### New confirmed-by-screenshot issues
+| Priority | Issue | Evidence / likely investigation | Status |
+|---|---|---|---|
+| P0 | YouTube inspect/download returns generic “cloud service temporarily unavailable”; Instagram works | User screenshot shows app's generic cloud error on a YouTube URL. Check live backend health, formats/inspect endpoint response and logs; distinguish backend outage, provider bot/verification, extractor/JS-runtime issues and rate limits. Do not bypass provider access controls. Show the real actionable provider error rather than generic cloud-unavailable text. | Open; live root cause not yet confirmed |
+| P0 | Story export returns HTTP 404 `{"error":"Not found"}` | User screenshot shows Create Studio Story export endpoint not found. Trace the Android export request path and compare it with deployed backend route; align route/payload or deploy the missing supported endpoint, then verify a real export. | Open; endpoint mismatch or missing deployed route suspected |
+| P0 | Status splitter appears to accept a selected duration but export fails in user workflow | User screenshot shows split UI, but the previous story export error is distinct; reproduce the Status splitter endpoint and inspect `DownloadApi.exportMedia` response, backend route, output persistence and MIME. Keep the 30/60/90/120-second targets. | Open |
+| P1 | Library shows empty even while Downloads has an active transfer | Screenshots show one Instagram job at 0.0 MB / 0% and Library empty. This may be an active/incomplete transfer rather than a completed media indexing bug; verify a successful completed download first, then inspect publication/indexing. | Open |
+| P1 | UI still looks dense and secondary actions require too much scrolling | Screenshots show repeated large outlined controls, horizontal chips cut off at screen edges, too much vertical height, and crowded Create Studio. Consolidate duplicate actions, use compact grouped sections, wrap filter chips or provide accessible horizontal scrolling, and keep primary actions visible above bottom navigation. | Open |
+| P1 | Download card metadata and thumbnail are not sufficiently clear | Screenshot shows source and title but little completed-file metadata because the item is still running. For completed items show thumbnail/icon, title, source, resolution, duration, size, file type, completion state, and Play/Share/Library actions where data exists. | Open |
+| P1 | Camera ergonomics and brand polish remain unverified | User's earlier report: move frequently used camera controls to reachable bottom/right-hand zones, add app branding, consistent colorful theme and modern icons without feature duplication. | Open |
+
+### Current source checks
+- The latest candidate source no longer contains the Home “Grab Best Video” tile and keeps “Inspect link” as the single inspection action.
+- StudyTok has been removed from the Home quick-action carousel. Full screen/navigation cleanup still needs an explicit audit.
+- User's screenshots may be from a build older than the latest candidate; ask them to confirm installed version only if necessary to distinguish stale build behavior. Do not assume screenshot behavior proves the new artifact has the same code.
+- Do not call the YouTube problem fixed until a real supported public test URL passes inspect → formats → download → playable file on the deployed service.
+- Do not call Story/Status export fixed until the deployed route returns a real playable output that is visible in Library.
