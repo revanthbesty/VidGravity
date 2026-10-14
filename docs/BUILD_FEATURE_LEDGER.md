@@ -109,3 +109,28 @@ Status meanings: **Present** = implementation found in source; **CI pending** = 
 - Corrective commit: `d1ffa0569a6bfd5dede7f803173a3c421cbbbb8e` updates the test to assert that StudyTok and Grab Best Video are absent from the quick-action carousel while Sound Only and Status Clip Splitter remain.
 - New CI for the corrective commit and a matching APK artifact are not yet verified.
 - P0 functional defects reported by the user remain open: Sound Only does not work; Status Splitter does not work. UI reorganization, media detail tiles, branding, camera ergonomics and full StudyTok cleanup remain outstanding.
+
+
+## Additional user device evidence — Story export HTTP 404 (2026-10-15)
+
+User supplied phone screenshots showing:
+- Create Studio's “Render 9:16 Story” action fails with `Story export failed: Export HTTP 404: {"error":"Not found"}`.
+- The same Create screen displays “Story render requested” underneath, which is misleading after the server has returned a 404. UI must show a failed state and must not imply a job was accepted.
+- The Library reports `0 total` / “Your library is empty” while the Downloads screen shows an Instagram download still running at `0.0 MB`, `0.00 MB/s`, and calculating ETA. This is not proof of a backend bug by itself, but a long-running zero-progress job must have a timeout/stalled state, useful error details, and a retry/cancel path.
+- Downloads and Library screens have many full-width secondary controls, horizontally overflowing filter chips, large vertical spacing, and repeated tools; simplify hierarchy and group secondary actions.
+- Status splitter UI shows 30/60/90/120 choices and a Split button, but user reports it does not work. Presence of controls is not proof export succeeds.
+
+### Updated priority from screenshot evidence
+1. **P0 — Story export 404:** inspect the Android export request URL and deployed server route/version; add a contract test that the client path exists and returns a valid export response. Fix route mismatch or deploy the missing route only after identifying the exact cause. Never mask 404 as a successful queued render.
+2. **P0 — Status splitter actual export:** verify the export route used by `DownloadApi.exportMedia`, test a real short video end-to-end, and confirm resulting clip is saved and playable.
+3. **P0 — Sound Only:** test audio-only selector through server job creation, worker download, extension/MIME and playback.
+4. **P1 — stalled download state:** stop indefinite `0.0 MB / 0.00 MB/s` waiting; surface actionable stalled/error state without discarding the user's job.
+5. **P1 — Downloads/Library/Create UX:** reduce repeated full-width tools, use responsive wrapping or vertical filter groups, present clear video/audio tiles with thumbnails and metadata, and group creator actions by workflow.
+6. **P1 — camera reachability, branding, and colorful consistent iconography.**
+7. Remove StudyTok from navigation and remove duplicate Grab Best Video quick action; latest UI change is commit `1e779174ad72619f283cf6440a0556f8d3f22a6` only if confirmed by GitHub history. The current branch head at the latest CI check is `ff84580c72d2506da39b944179310f459f8f9812`; use that exact SHA as the source of truth for subsequent commits.
+
+### CI / APK state after UI cleanup
+- Latest checked head: `ff84580c72d2506da39b944179310f459f8f9812`.
+- CI run `38629301419`: regression, PWA AI Studio and Cloud AI API jobs passed; Android share pipeline was still running at check time.
+- Artifacts available from that run were CI reports only; no fresh APK artifact was present at that time.
+- Do not treat earlier p180 APK as containing the latest UI cleanup or the new screenshot fixes.
