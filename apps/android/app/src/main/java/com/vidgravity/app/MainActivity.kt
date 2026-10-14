@@ -1662,6 +1662,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     var isRendering by remember { mutableStateOf(false) }
     var segmentProgress by remember { mutableStateOf<String?>(null) }
     var segmentJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var statusClipSeconds by remember { mutableStateOf(90) }
     var exportedUri by remember { mutableStateOf<Uri?>(null) }
     var stickerUri by remember { mutableStateOf<Uri?>(null) }
     val picker = rememberLauncherForActivityResult(
@@ -1783,6 +1784,25 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                     Button(onClick = { storyEditorOpen = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
                         Icon(Icons.Default.AutoAwesome, null); Spacer(Modifier.width(8.dp)); Text("Create 9:16 Story / Status")
                     }
+                    Text("STATUS CLIP LENGTH", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(30, 60, 90, 120).forEach { seconds ->
+                            FilterChip(
+                                selected = statusClipSeconds == seconds,
+                                onClick = { statusClipSeconds = seconds },
+                                enabled = segmentJob == null && !isRendering,
+                                label = { Text("${seconds}s") },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                    Text(
+                        if (statusClipSeconds > 90)
+                            "120s is a custom split target; WhatsApp documents a 90-second maximum per Status video, so it may trim this clip. Use 90s or less for safer Status uploads."
+                        else "Each exported clip targets ${statusClipSeconds} seconds. WhatsApp's current documented maximum is 90 seconds per Status video.",
+                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     OutlinedButton(
                         enabled = !isRendering && segmentJob == null,
                         onClick = {
@@ -1802,11 +1822,12 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                                         } ?: throw IllegalStateException("Could not read the video duration.")
                                         require(durationSeconds > 0f) { "The video duration is unavailable." }
                                         require(durationSeconds <= 600f) { "For safety and predictable processing, split videos up to 10 minutes per batch." }
-                                        val count = kotlin.math.ceil(durationSeconds / 30f).toInt()
+                                        val clipTargetSeconds = statusClipSeconds.toFloat()
+                                        val count = kotlin.math.ceil(durationSeconds / clipTargetSeconds).toInt()
                                         for (index in 0 until count) {
-                                            val startSeconds = index * 30f
-                                            val clipSeconds = (durationSeconds - startSeconds).coerceAtMost(30f)
-                                            segmentProgress = "Rendering status clip ${index + 1} of $count…"
+                                            val startSeconds = index * clipTargetSeconds
+                                            val clipSeconds = (durationSeconds - startSeconds).coerceAtMost(clipTargetSeconds)
+                                            segmentProgress = "Rendering ${statusClipSeconds}s clip ${index + 1} of $count…"
                                             withContext(Dispatchers.IO) {
                                                 DownloadApi.exportMedia(
                                                     context, media.uri, "whatsapp-status", "fit-letterbox",
@@ -1835,7 +1856,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                         } else {
                             Icon(Icons.Default.ContentCut, null)
                             Spacer(Modifier.width(8.dp))
-                            Text("Split into 30-second WhatsApp Status clips")
+                            Text("Split into ${statusClipSeconds}-second clips")
                         }
                     }
                     OutlinedButton(
