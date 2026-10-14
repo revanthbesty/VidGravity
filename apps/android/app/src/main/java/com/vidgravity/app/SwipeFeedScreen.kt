@@ -42,7 +42,7 @@ fun SwipeFeedScreen(
     val pager = rememberPagerState(pageCount = { maxOf(1, clips.size) })
     var muted by remember { mutableStateOf(false) }
     var speedIndex by remember { mutableIntStateOf(0) }
-    var liked by remember { mutableStateOf(setOf<String>()) }
+    var liked by remember(clips) { mutableStateOf(clips.filter { it.isFavorite }.map { it.uri.toString() }.toSet()) }
     val speeds = listOf(1f, 1.5f, 2f)
     val players = remember {
         List(2) { slot ->
