@@ -25,9 +25,11 @@ class AndroidBuildFeatureLedgerTests(unittest.TestCase):
         self.assertIn("120s is a custom split target", self.main)
         self.assertIn("WhatsApp Status", self.ledger)
 
-    def test_studytok_quick_action_does_not_require_url(self):
-        self.assertIn('if (action.contains("StudyTok"))', self.main)
-        self.assertIn("openStudyTok()", self.main)
+    def test_removed_studytok_and_duplicate_grab_best_video_quick_actions(self):
+        self.assertNotIn('"✦ StudyTok AI"', self.main)
+        self.assertNotIn('"⚡ Grab Best Video"', self.main)
+        self.assertIn('"♫ Sound Only"', self.main)
+        self.assertIn('"✂ Status Clip Splitter"', self.main)
 
     def test_creator_video_picker_actions_exist(self):
         self.assertIn("Choose video for animated sticker", self.main)
