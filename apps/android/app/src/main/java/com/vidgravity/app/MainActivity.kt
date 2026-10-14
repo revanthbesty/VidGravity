@@ -1254,6 +1254,8 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
             "Images" -> item.mimeType.startsWith("image/")
             "Other Files" -> !item.mimeType.startsWith("video/") && !item.mimeType.startsWith("audio/") && !item.mimeType.startsWith("image/")
             "Favorites" -> item.isFavorite
+            "Recent 7 days" -> item.createdAtMs >= System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
+            "Large files" -> item.sizeBytes > 100_000_000L
             else -> true
         }
         val matchesSize = when (sizeFilter) {
@@ -1649,7 +1651,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
             Text("Reset library filters and sorting")
         }
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-            items(listOf("All Media", "Video", "Audio", "Images", "Other Files", "Favorites")) { value ->
+            items(listOf("All Media", "Video", "Audio", "Images", "Other Files", "Favorites", "Recent 7 days", "Large files")) { value ->
                 FilterChip(
                     selected = filter == value,
                     onClick = { filter = value },
