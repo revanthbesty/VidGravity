@@ -29,6 +29,7 @@ fun StudyTokScreen(onBack: () -> Unit, notify: (String) -> Unit) {
     var title by remember { mutableStateOf("My Study Pack") }
     var practiceMode by remember { mutableStateOf(false) }
     var practiceIndex by remember { mutableIntStateOf(0) }
+    var practiceQueue by remember { mutableStateOf(emptyList<Int>()) }
     var showAnswer by remember { mutableStateOf(false) }
     var knownCards by remember { mutableStateOf(setOf<Int>()) }
     var pendingCsv by remember { mutableStateOf<String?>(null) }
@@ -134,6 +135,7 @@ fun StudyTokScreen(onBack: () -> Unit, notify: (String) -> Unit) {
                 Button(onClick = {
                     practiceMode = true
                     practiceIndex = 0
+                    practiceQueue = cards.indices.toList()
                     showAnswer = false
                     knownCards = emptySet()
                 }, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) {
@@ -150,14 +152,15 @@ fun StudyTokScreen(onBack: () -> Unit, notify: (String) -> Unit) {
                     }
                 }
             } else {
-                val finished = practiceIndex >= cards.size
+                val finished = practiceIndex >= practiceQueue.size
                 if (finished) {
                     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
                         Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text("Practice complete", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                            Text("You marked ${knownCards.size} of ${cards.size} cards as known.")
+                            Text("You marked ${knownCards.size} of ${cards.size} original cards as known.")
                             Button(onClick = {
                                 practiceIndex = 0
+                                practiceQueue = cards.indices.toList()
                                 showAnswer = false
                                 knownCards = emptySet()
                             }, modifier = Modifier.fillMaxWidth()) { Text("Practice again") }
@@ -165,10 +168,11 @@ fun StudyTokScreen(onBack: () -> Unit, notify: (String) -> Unit) {
                         }
                     }
                 } else {
-                    val card = cards[practiceIndex]
-                    Text("CARD ${practiceIndex + 1} OF ${cards.size} · ${knownCards.size} KNOWN",
+                    val currentCardIndex = practiceQueue[practiceIndex]
+                    val card = cards[currentCardIndex]
+                    Text("CARD ${practiceIndex + 1} OF ${practiceQueue.size} · ${knownCards.size} KNOWN",
                         color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
-                    LinearProgressIndicator(progress = { (practiceIndex.toFloat() / cards.size).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
+                    LinearProgressIndicator(progress = { (practiceIndex.toFloat() / practiceQueue.size.coerceAtLeast(1)).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
                     Card(Modifier.fillMaxWidth().heightIn(min = 220.dp), shape = RoundedCornerShape(20.dp)) {
                         Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             Text("QUESTION", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
@@ -185,11 +189,12 @@ fun StudyTokScreen(onBack: () -> Unit, notify: (String) -> Unit) {
                     if (showAnswer) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             OutlinedButton(onClick = {
+                                practiceQueue = practiceQueue + currentCardIndex
                                 practiceIndex++
                                 showAnswer = false
                             }, modifier = Modifier.weight(1f).heightIn(min = 50.dp)) { Text("Review again") }
                             Button(onClick = {
-                                knownCards = knownCards + practiceIndex
+                                knownCards = knownCards + currentCardIndex
                                 practiceIndex++
                                 showAnswer = false
                             }, modifier = Modifier.weight(1f).heightIn(min = 50.dp)) { Text("I knew it") }
