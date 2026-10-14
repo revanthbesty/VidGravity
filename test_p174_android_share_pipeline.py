@@ -120,6 +120,14 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('Text(if (showStorageInsights) "Hide storage insights" else "Storage insights")',library)
   self.assertIn("val largest = media.maxByOrNull { it.sizeBytes }",library)
   self.assertIn('Text("Videos  $videoCount  ·  Audio  $audioCount"',library)
+ def test_library_quick_filters_include_recent_and_large_files(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  start=main.index("@Composable\\nprivate fun LibraryContent(")
+  end=main.index("@Composable\\nprivate fun CreateStudioContent",start)
+  library=main[start:end]
+  self.assertIn('"Recent 7 days" -> item.createdAtMs >= System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000',library)
+  self.assertIn('"Large files" -> item.sizeBytes > 100_000_000L',library)
+  self.assertIn('"Favorites", "Recent 7 days", "Large files"',library)
  def test_simple_collection_screen_supports_vertical_scrolling(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   start=main.index("fun SimpleCollectionScreen(")
