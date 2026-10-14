@@ -9,7 +9,16 @@ Release target: native Android APK first. A feature is **not verified** just bec
 |---|---|---|---|---|---|
 | p178 | 1.0.8-p178 (previous baseline) | Historical build reference; exact commit/artifact mapping not confirmed in this ledger yet | Older debug artifact exists from commit `30c8753bb12af7584a8a090826b5845eb36fb3d6` (CI run `38617206744`) | CI passed for that commit; physical-device status unknown | Do not assume every reported-working feature was verified on this exact build until the user/build mapping is confirmed. |
 | p179 | 1.0.9-p179 | Release gate branch head `13e9d1f39a4c1383dcdcb8a86f7bef54df80a934` | Signed production APK not confirmed | Bootstrap validation passed; VidGravity CI was still running at last check | Signing workflow preparation only; not a production release. |
-| p180 | 1.1.0-p180 | Fix branch `fix/android-ux-camera-creator-20261015`; initial changes include `486e79b41bf7c8c35da50fab121da1be96b5c6ab`, `954a0df0d741413cbc409035839750f00a0b791f`, and `2ddf0330519dae52c60e73efa50f391032ba1f30` | Not yet built/verified at ledger creation | Pending fresh CI and APK artifact | Regression-fix candidate. Do not call fixed until build, automated tests, and device checks are recorded. |
+| p180 | 1.1.0-p180 | Fix branch `fix/android-ux-camera-creator-20261015`; candidate head before CI fix `640f5bff70aec53613e298a3e0a0556f8d3f22a6`; CI-test correction commit `d1ec2a7a72cc317aacf5524e16c721f90e8f6558` | Debug APK for corrected head not yet confirmed | CI run `38623533114` failed in `test_android_production_release_gate.py` because a p179-only assertion rejected p180 versionCode 180; the failing assertion was updated to validate explicit versionCode/versionName for later candidate builds. A fresh exact-head CI result is pending. | Regression-fix candidate; do not call fixed until fresh build, automated tests, artifact and device checks are recorded. |
+
+## Latest CI investigation — 2026-10-15
+
+- Run: https://github.com/revanthbesty/VidGravity/actions/runs/38623533114
+- Tested head: `640f5bff70aec53613e298a3e0a0556f8d3f22a6`
+- Failure isolated: the inherited release-gate test hard-coded `versionCode = 179` and `versionName = "1.0.9-p179"`, causing a false failure after p180 correctly bumped the app to `versionCode = 180`, `versionName = "1.1.0-p180"`.
+- Correction committed to the same candidate branch: `d1ec2a7a72cc317aacf5524e16c721f90e8f6558`; test now checks an explicit code of at least 179 and that the version name includes the matching p-number.
+- A new workflow result and APK artifact for the corrected exact head are not yet verified. Existing artifact `vidgravity-ci-reports` from run `38623533114` is only a test-report artifact, **not an APK**.
+- Other checks observed in that run: PWA AI Studio TypeScript/build passed; Cloud AI API TypeScript/build/task lifecycle passed; Android share pipeline build was still running when inspected. No physical-device tests have been performed by the assistant.
 
 ## Feature-to-build matrix
 
@@ -43,10 +52,11 @@ Status meanings: **Present** = implementation found in source; **CI pending** = 
 6. Do not drop previously working StudyTok, WhatsApp, creator, downloader, library, camera or sharing behavior when changing navigation/layout.
 7. Keep WhatsApp Status clip target choices at 30/60/90/120 seconds. Explain that 120 seconds is a custom split target and may not be accepted as one standard WhatsApp Status item.
 8. Before adding new features, close P0 regressions. Next-feature work may be prepared behind core stability but must not displace APK validation.
+9. Update this ledger after every meaningful code, build, test, artifact, or device-verification change.
 
 ## Known evidence gaps to fill
 
 - Identify the exact older APK/build where the user last confirmed StudyTok and WhatsApp features working.
-- Record p180 CI run, debug APK artifact URL and SHA-256 when available.
+- Record corrected p180 CI run, debug APK artifact URL and SHA-256 when available.
 - Record physical-device acceptance results for scroll, flash, photo/video capture, dual-camera support, video quality, Status splitting and StudyTok/Inbox.
 - Record the signed production APK build separately from debug builds.
