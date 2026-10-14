@@ -96,3 +96,10 @@ Include platform/build version, device/OS where relevant, numbered reproduction 
 - [FAQ and Troubleshooting](FAQ_TROUBLESHOOTING.md)
 - [Feature Documentation Standard](FEATURE_DOCUMENTATION_STANDARD.md)
 - [Release Notes](RELEASE_NOTES.md)
+
+
+## Android in-app Help Center
+
+In the Android app, open **Settings → Help & troubleshooting → Open Help Center**. It includes quick guidance for inspecting links, choosing source-provided quality options, stalled downloads, missing Library items, playback, checksum/service errors, and safely reporting a problem. This built-in guide is available offline once the app screen is loaded.
+
+The Help Center explains troubleshooting steps; it does not guarantee that a source, cloud service, codec, or device will support every workflow. For device-specific issues, use **Settings → Diagnostics & self-test → Run diagnostics**, then copy or share the report after removing any private information.
