@@ -541,13 +541,20 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                             scope.launch {
                                                 try {
                                                     val result = withContext(Dispatchers.IO) { DownloadApi.analyzeSource(url.trim()) }
+                                                    // Some extractors return only combined formats even when the provider
+                                                    // can resolve an audio-only selector. Prefer an explicit audio stream;
+                                                    // fall back to yt-dlp's best-audio selector instead of failing the action.
                                                     val audio = result.formats.firstOrNull { it.hasAudio && !it.hasVideo }
-                                                    if (audio == null) notify("No audio-only stream was found for this link.")
-                                                    else {
-                                                        val prefs = SecureDownloadPreferences.load(context)
-                                                        DownloadWorker.enqueue(context, url.trim(), audio.selector, result.title + " — Audio", prefs.unmeteredOnly)
-                                                        notify("Audio download added to queue. Open Downloads to track progress.")
-                                                    }
+                                                    val selector = audio?.selector ?: "bestaudio"
+                                                    val prefs = SecureDownloadPreferences.load(context)
+                                                    DownloadWorker.enqueue(
+                                                        context, url.trim(), selector,
+                                                        result.title + " — Audio", prefs.unmeteredOnly
+                                                    )
+                                                    notify(
+                                                        if (audio != null) "Audio download added to queue. Open Downloads to track progress."
+                                                        else "No separate audio stream was listed; queued best-audio extraction. Check Downloads for the result."
+                                                    )
                                                 } catch (failure: Exception) {
                                                     notify("Could not prepare audio: " + (failure.message ?: "Please try again."))
                                                 }
