@@ -1122,6 +1122,18 @@ private fun InfoCard(title: String, detail: String, icon: androidx.compose.ui.gr
 private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, onOpen: (String) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var items by remember { mutableStateOf(ShareInboxStore.list(context)) }
+    var searchQuery by remember { mutableStateOf("") }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) items = ShareInboxStore.list(context)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val visibleItems = items.filter {
+        it.title.contains(searchQuery.trim(), ignoreCase = true) || it.url.contains(searchQuery.trim(), ignoreCase = true)
+    }
     Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Back") }
@@ -1130,6 +1142,15 @@ private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, o
                 Text("Links you choose to save. Nothing downloads automatically.", fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        }
+        if (items.isNotEmpty()) {
+            OutlinedTextField(
+                value = searchQuery, onValueChange = { searchQuery = it.take(160) },
+                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                label = { Text("Search saved links") },
+                leadingIcon = { Icon(Icons.Default.Search, null) },
+                trailingIcon = { if (searchQuery.isNotBlank()) IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Close, "Clear search") } }
+            )
         }
         if (items.isEmpty()) {
             Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp)) {
@@ -1141,9 +1162,11 @@ private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, o
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+        } else if (visibleItems.isEmpty()) {
+            Text("No saved links match “${searchQuery.trim()}”.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(items, key = { it.id }) { item ->
+                items(visibleItems, key = { it.id }) { item ->
                     Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
