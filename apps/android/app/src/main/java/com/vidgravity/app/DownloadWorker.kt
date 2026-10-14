@@ -76,6 +76,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             var lastProgressBytes = 0L
             var lastProgressAt = System.currentTimeMillis()
             var currentSpeed = 0L
+            var lastTransferPercent = 0
             val receipt = DownloadApi.downloadResult(
                 remoteJobId!!,
                 partial,
@@ -88,6 +89,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                     lastProgressAt = now
                 }
                 val percent = if (total != null && total > 0) ((bytes * 100) / total).toInt().coerceIn(0, 99) else 0
+                lastTransferPercent = percent
                 val eta = if (total != null && currentSpeed > 0L) ((total - bytes).coerceAtLeast(0L) / currentSpeed) else -1L
                 setProgressAsync(workDataOf("bytes_downloaded" to bytes, "total_bytes" to (total ?: -1L),
                     "bytes_per_second" to currentSpeed, "eta_seconds" to eta, "progress" to percent,
@@ -100,11 +102,11 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 isStopped = { isStopped },
                 onPauseState = { paused ->
                     setProgressAsync(workDataOf("state" to if (paused) "paused" else "downloading",
-                        "progress" to if (paused) lastKnownProgress else 0,
+                        "progress" to lastTransferPercent,
                         "media_url" to url, "format_selector" to selector, "media_title" to title))
                     DownloadNotifications.progress(applicationContext, workId, title,
                         if (paused) "Paused — download will resume from saved bytes" else "Download resumed",
-                        lastKnownProgress, paused)
+                        lastTransferPercent, paused)
                 }
             )
             // The provider may omit a precomputed checksum. Hash received bytes locally;
