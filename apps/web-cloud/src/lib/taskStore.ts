@@ -1,5 +1,7 @@
 import { EventEmitter } from "node:events";
 import { randomUUID } from "node:crypto";
+import { dirname } from "node:path";
+import { rm } from "node:fs/promises";
 import type { Response } from "express";
 
 export type TaskKind = "inpaint" | "face-swap" | "motion-transfer";
@@ -55,5 +57,5 @@ export function subscribeTask(id: string, response: Response): () => void {
 }
 setInterval(() => {
   const cutoff = Date.now() - TTL_MS;
-  for (const [id, task] of tasks) if (task.updatedAt < cutoff) { tasks.delete(id); events.get(id)?.removeAllListeners(); events.delete(id); }
+  for (const [id, task] of tasks) if (task.updatedAt < cutoff) { tasks.delete(id); events.get(id)?.removeAllListeners(); events.delete(id); if (task.resultPath) void rm(dirname(task.resultPath), { recursive: true, force: true }); }
 }, 10 * 60 * 1000).unref();
