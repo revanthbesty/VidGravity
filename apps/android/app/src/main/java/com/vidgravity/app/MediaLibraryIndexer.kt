@@ -97,7 +97,8 @@ object MediaLibraryIndexer {
     }
 
     fun rename(context: Context, media: LibraryMedia, newName: String): Boolean {
-        val safeName = newName.trim().replace("/", "_").replace("\\", "_").take(140)
+        val safeName = newName.trim().replace("/", "_").replace("\\", "_")
+            .replace(Regex("[\\u0000-\\u001F\\u007F]"), "").take(140)
         if (safeName.isBlank()) return false
         val updated = context.contentResolver.update(media.uri,
             ContentValues().apply { put(MediaStore.MediaColumns.DISPLAY_NAME, safeName) }, null, null)
@@ -106,6 +107,7 @@ object MediaLibraryIndexer {
             db.writableDatabase.update("media", ContentValues().apply { put("display_name", safeName) },
                 "content_uri=?", arrayOf(media.uri.toString()))
         }
+        context.contentResolver.notifyChange(media.uri, null)
         return true
     }
 
