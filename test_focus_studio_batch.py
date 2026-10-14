@@ -10,7 +10,7 @@ class FocusStudioBatchTests(unittest.TestCase):
     self.assertIn('src="focus-studio.js?v=fs1"',text)
  def test_twenty_focus_features_are_implemented(self):
   js=(ROOT/"site"/"focus-studio.js").read_text(encoding="utf-8")
-  for marker in ("vgFocusStudio","data-fs=\"preset\"","Custom minutes","paused","Start 5-min break","autoBreak","vgfsGoal","vgfsProgress","Recent focus sessions","data-fs=\"delete\"","data-fs=\"clear\"","Session notes","vidgravity-focus-history.csv","vidgravity-focus-history.json","vgfs-focus-mode","e.code!=='Space'","Notification.permission","Current streak","aria-live=\"polite\"","localStorage"):
+  for marker in ("vgFocusStudio","data-fs=\"preset\"","Custom minutes","paused","Start 5-min break","autoBreak","vgfsGoal","role=\"progressbar\"","Recent focus sessions","data-fs=\"delete\"","data-fs=\"clear\"","Session notes","vidgravity-focus-history.csv","vidgravity-focus-history.json","vgfs-focus-mode","e.code!=='Space'","Notification.permission","Current streak","aria-live=\"polite\"","localStorage"):
    with self.subTest(marker=marker): self.assertIn(marker,js)
  def test_privacy_and_local_persistence(self):
   js=(ROOT/"site"/"focus-studio.js").read_text(encoding="utf-8")
