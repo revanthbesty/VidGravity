@@ -10,6 +10,10 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import java.security.MessageDigest
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 
 data class FormatOption(
     val selector: String,
@@ -147,7 +151,14 @@ object DownloadApi {
         } finally { connection.disconnect() }
     }
 
-    fun downloadResult(id: String, destination: File, onProgress: (Long, Long?) -> Unit): TransferReceipt {
+    suspend fun downloadResult(
+        id: String,
+        destination: File,
+        onProgress: (Long, Long?) -> Unit,
+        shouldPause: () -> Boolean = { false },
+        isStopped: () -> Boolean = { false },
+        onPauseState: (Boolean) -> Unit = {}
+    ): TransferReceipt {
         require(id.matches(Regex("[A-Fa-f0-9-]{16,64}"))) { "Invalid task ID." }
         val offset = destination.takeIf { it.isFile }?.length() ?: 0L
         val connection = open("/api/download-jobs/" + id + "/result", "GET")
@@ -160,7 +171,7 @@ object DownloadApi {
                 // to repeat the same invalid Range request.
                 connection.disconnect()
                 destination.delete()
-                return downloadResult(id, destination, onProgress)
+                return downloadResult(id, destination, onProgress, shouldPause, isStopped, onPauseState)
             }
             if (code !in 200..299) {
                 val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
@@ -196,7 +207,23 @@ object DownloadApi {
                 FileOutputStream(destination, append).use { output ->
                     val buffer = ByteArray(128 * 1024)
                     var lastUpdate = System.currentTimeMillis()
+                    var pauseNotified = false
                     while (true) {
+                        currentCoroutineContext().ensureActive()
+                        if (isStopped()) throw CancellationException("Download was cancelled.")
+                        while (shouldPause()) {
+                            if (!pauseNotified) {
+                                pauseNotified = true
+                                onPauseState(true)
+                            }
+                            currentCoroutineContext().ensureActive()
+                            if (isStopped()) throw CancellationException("Download was cancelled.")
+                            delay(300L)
+                        }
+                        if (pauseNotified) {
+                            pauseNotified = false
+                            onPauseState(false)
+                        }
                         val count = input.read(buffer)
                         if (count < 0) break
                         output.write(buffer, 0, count)
