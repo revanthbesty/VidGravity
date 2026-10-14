@@ -238,4 +238,13 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
  def test_library_refresh_reindexes_off_main_thread(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn("media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) }",main)
+
+ def test_empty_download_search_has_one_tap_recovery(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  start=main.index("private fun DownloadsContent(")
+  end=main.index("private fun InfoCard",start)
+  downloads=main[start:end]
+  self.assertIn('if (searchTerm.isNotBlank()) "No matching downloads"',downloads)
+  self.assertIn('Text("Reset download search and filters")',downloads)
+  self.assertIn('downloadSearch = ""\n                            downloadFilter = "All"\n                            downloadSort = "Newest"',downloads)
 if __name__=="__main__":unittest.main(verbosity=2)
