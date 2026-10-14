@@ -34,4 +34,13 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn("verticalScroll(rememberScrollState())",study)
   self.assertIn("return ScrollView(context)",picker)
   self.assertIn("orientation|screenSize|keyboardHidden",activity.attrib.get(ns+"configChanges",""))
+ def test_creator_stickers_are_reconciled_and_published_atomically(self):
+  app=ANDROID/"app/src/main/java/com/vidgravity/app"
+  indexer=(app/"MediaLibraryIndexer.kt").read_text()
+  api=(app/"DownloadApi.kt").read_text()
+  self.assertIn("MediaStore.Images.Media.EXTERNAL_CONTENT_URI to \"Pictures/VidGravity/Stickers/\"",indexer)
+  self.assertIn('MediaStore.Images.Media.EXTERNAL_CONTENT_URI -> "image/*"',indexer)
+  self.assertIn("MediaStore.MediaColumns.IS_PENDING, 1",api)
+  self.assertIn("MediaStore.MediaColumns.IS_PENDING, 0",api)
+  self.assertIn("context.contentResolver.notifyChange(publishedUri, null)",api)
 if __name__=="__main__":unittest.main(verbosity=2)
