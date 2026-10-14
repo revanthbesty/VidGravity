@@ -1232,6 +1232,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
     var showBulkDeleteConfirm by remember { mutableStateOf(false) }
     var swipeFeedOpen by remember { mutableStateOf(false) }
     var showLibraryTools by remember { mutableStateOf(false) }
+    var showBulkActions by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     suspend fun refreshMedia() { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
     LaunchedEffect(Unit) { refreshMedia() }
@@ -1415,6 +1416,40 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                     Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Share (${visibleMedia.count { it.uri.toString() in selectedUris }})")
                 }
             }
+            OutlinedButton(
+                onClick = { showBulkActions = !showBulkActions },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(if (showBulkActions) Icons.Default.ExpandLess else Icons.Default.Tune, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (showBulkActions) "Hide selection tools" else "Selection tools")
+            }
+            if (showBulkActions) {
+                val chosenMedia = visibleMedia.filter { it.uri.toString() in selectedUris }
+                val allChosenAreFavorites = chosenMedia.isNotEmpty() && chosenMedia.all { it.isFavorite }
+                OutlinedButton(
+                    enabled = chosenMedia.isNotEmpty(),
+                    onClick = {
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                chosenMedia.forEach { item ->
+                                    MediaLibraryIndexer.setFavorite(context, item.uri, !allChosenAreFavorites)
+                                }
+                            }
+                            refreshMedia()
+                            android.widget.Toast.makeText(
+                                context,
+                                if (allChosenAreFavorites) "Removed ${chosenMedia.size} favorite(s)." else "Added ${chosenMedia.size} favorite(s).",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
+                ) {
+                    Icon(if (allChosenAreFavorites) Icons.Default.StarBorder else Icons.Default.Star, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (allChosenAreFavorites) "Remove selected from favorites (${chosenMedia.size})" else "Favorite selected (${chosenMedia.size})")
+                }
             OutlinedButton(
                 enabled = visibleMedia.isNotEmpty(),
                 onClick = {
