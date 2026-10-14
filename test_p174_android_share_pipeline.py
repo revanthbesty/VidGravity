@@ -564,6 +564,38 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('Caption spacing cleaned up.',main)
   self.assertIn('original file will not be replaced',main)
 
+ def test_download_queue_has_queued_running_and_cancelled_filters(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('val queuedWorks = works.filter { it.state == WorkInfo.State.ENQUEUED }',main)
+  self.assertIn('val runningWorks = works.filter { it.state == WorkInfo.State.RUNNING }',main)
+  self.assertIn('val cancelledWorks = works.filter { it.state == WorkInfo.State.CANCELLED }',main)
+  self.assertIn('items(listOf("All", "Active", "Queued", "Running", "Completed", "Failed", "Cancelled"))',main)
+
+ def test_download_queue_health_explains_progress_success_and_next_steps(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Text("Queue health"',main)
+  self.assertIn('val successRate =',main)
+  self.assertIn('val averageProgress =',main)
+  self.assertIn('Next step: review the error details',main)
+  self.assertIn('Success rate*',main)
+
+ def test_download_bulk_controls_copy_active_completed_and_failure_summaries(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  for label in ("Copy active source links", "Copy completed titles", "Copy failure summary"):
+   self.assertIn(label,main)
+  self.assertIn('runningWorks.mapNotNull',main)
+  self.assertIn('completedWorks.map',main)
+  self.assertIn('failedWorks.joinToString',main)
+
+ def test_cancel_queued_downloads_and_cancel_all_active_requires_confirmation(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Text("Cancel queued downloads',main)
+  self.assertIn('Text("Cancel all active downloads',main)
+  self.assertIn('title = { Text("Cancel active downloads?") }',main)
+  self.assertIn('Text("Cancel downloads")',main)
+  self.assertIn('Text("Keep running")',main)
+  self.assertIn('Completed files will not be deleted.',main)
+
  def test_media_rename_reports_success_and_preserves_extension_case_insensitively(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('endsWith(".$suffix", ignoreCase = true)',main)
