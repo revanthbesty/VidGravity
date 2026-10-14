@@ -17,7 +17,11 @@
         android:theme="@style/Theme.VidGravity"
         android:usesCleartextTraffic="false">
         <activity android:name=".GhostPlayerActivity" android:exported="false" android:excludeFromRecents="true" />
-        <activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTop">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:configChanges="orientation|screenSize|keyboardHidden">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
