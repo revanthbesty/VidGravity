@@ -574,14 +574,15 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (Str
     val downloadUiPrefs = remember(context) { context.getSharedPreferences("vg_downloads_ui", android.content.Context.MODE_PRIVATE) }
     var downloadFilter by remember { mutableStateOf(downloadUiPrefs.getString("download_filter", "All") ?: "All") }
     var showClearHistoryConfirm by remember { mutableStateOf(false) }
-    var showDownloadTools by remember { mutableStateOf(false) }
+    var showDownloadTools by remember { mutableStateOf(downloadUiPrefs.getBoolean("show_download_tools", false)) }
     var downloadSearch by remember { mutableStateOf(downloadUiPrefs.getString("download_search", "") ?: "") }
     var downloadSort by remember { mutableStateOf(downloadUiPrefs.getString("download_sort", "Newest") ?: "Newest") }
-    LaunchedEffect(downloadFilter, downloadSearch, downloadSort) {
+    LaunchedEffect(downloadFilter, downloadSearch, downloadSort, showDownloadTools) {
         downloadUiPrefs.edit()
             .putString("download_filter", downloadFilter)
             .putString("download_search", downloadSearch)
             .putString("download_sort", downloadSort)
+            .putBoolean("show_download_tools", showDownloadTools)
             .apply()
     }
     val liveWorks = remember(context) { WorkManager.getInstance(context).getWorkInfosByTagLiveData("vidgravity-download") }
@@ -1593,7 +1594,8 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 Spacer(Modifier.width(8.dp))
                 Text(if (showBulkActions) "Hide selection tools" else "Selection tools")
             }
-            Text("${selectedUris.size} item(s) selected across your library", fontSize = 12.sp,
+            val selectedLibraryItems = media.filter { it.uri.toString() in selectedUris }
+            Text("${selectedLibraryItems.size} item(s) selected across your library", fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (selectedUris.isNotEmpty()) {
                 TextButton(onClick = { selectedUris = emptySet() }, modifier = Modifier.fillMaxWidth()) {
@@ -1603,7 +1605,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 }
             }
             if (showBulkActions) {
-                val chosenMedia = visibleMedia.filter { it.uri.toString() in selectedUris }
+                val chosenMedia = media.filter { it.uri.toString() in selectedUris }
                 val allChosenAreFavorites = chosenMedia.isNotEmpty() && chosenMedia.all { it.isFavorite }
                 OutlinedButton(
                     enabled = chosenMedia.isNotEmpty(),
@@ -1683,9 +1685,9 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 Text("Copy visible filenames (" + visibleMedia.size + ")")
             }
             OutlinedButton(
-                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                enabled = media.any { it.uri.toString() in selectedUris },
                 onClick = {
-                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    val chosen = media.filter { it.uri.toString() in selectedUris }
                     val names = chosen.joinToString("\n") { it.displayName }
                     clipboard.setText(androidx.compose.ui.text.AnnotatedString(names))
                     android.widget.Toast.makeText(context, "Copied ${chosen.size} filename(s).", android.widget.Toast.LENGTH_SHORT).show()
@@ -1697,9 +1699,9 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 Text("Copy selected filenames")
             }
             OutlinedButton(
-                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                enabled = media.any { it.uri.toString() in selectedUris },
                 onClick = {
-                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    val chosen = media.filter { it.uri.toString() in selectedUris }
                     val report = buildString {
                         appendLine("VidGravity selected media report")
                         appendLine("Selected visible items: ${chosen.size}")
@@ -1720,9 +1722,9 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 Text("Copy selected media report")
             }
             OutlinedButton(
-                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                enabled = media.any { it.uri.toString() in selectedUris },
                 onClick = {
-                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    val chosen = media.filter { it.uri.toString() in selectedUris }
                     val report = buildString {
                         appendLine("VidGravity selected media report")
                         appendLine("Selected visible items: ${chosen.size}")
@@ -1781,10 +1783,16 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
             }
         }
         OutlinedTextField(
-            value = searchQuery, onValueChange = { searchQuery = it },
+            value = searchQuery, onValueChange = { searchQuery = it.take(200) },
             modifier = Modifier.fillMaxWidth(), singleLine = true,
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search library") },
+            trailingIcon = {
+                if (searchQuery.isNotBlank()) IconButton(onClick = { searchQuery = "" }) {
+                    Icon(Icons.Default.Close, contentDescription = "Clear library search")
+                }
+            },
             placeholder = { Text("Search your downloads") },
+            supportingText = { Text("${searchQuery.length}/200 characters") },
             shape = RoundedCornerShape(16.dp)
         )
         OutlinedButton(
