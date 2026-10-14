@@ -485,6 +485,12 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('replace(Regex("[\\\\u0000-\\\\u001F\\\\u007F]"), "")',indexer)
   self.assertIn("context.contentResolver.notifyChange(media.uri, null)",indexer)
 
+ def test_batch_queue_reports_partial_failures_and_saved_quality(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn("var failed = 0",main)
+  self.assertIn(".onSuccess { queued++ }.onFailure { failed++ }",main)
+  self.assertIn('notify("$queued of ${candidates.size} links queued using your saved quality preset; $failed failed.")',main)
+
  def test_media_rename_reports_success_and_preserves_extension_case_insensitively(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('endsWith(".$suffix", ignoreCase = true)',main)
