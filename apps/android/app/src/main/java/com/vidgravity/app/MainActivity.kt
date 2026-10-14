@@ -1804,7 +1804,33 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
 private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, initialMedia: LibraryMedia? = null) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
-    var selectedMedia by remember(initialMedia) { mutableStateOf(initialMedia) }
+    val draftPrefs = remember { context.getSharedPreferences("vg-creator-draft", 0) }
+    var selectedMedia by remember(initialMedia) {
+        mutableStateOf(initialMedia ?: runCatching {
+            val savedUri = draftPrefs.getString("uri", null) ?: return@runCatching null
+            LibraryMedia(
+                Uri.parse(savedUri),
+                draftPrefs.getString("name", "Saved creator draft") ?: "Saved creator draft",
+                draftPrefs.getLong("size", 0L),
+                draftPrefs.getString("mime", "video/*") ?: "video/*",
+                draftPrefs.getLong("savedAt", System.currentTimeMillis())
+            )
+        }.getOrNull())
+    }
+    LaunchedEffect(selectedMedia) {
+        val media = selectedMedia
+        if (media == null) {
+            draftPrefs.edit().clear().apply()
+        } else {
+            draftPrefs.edit()
+                .putString("uri", media.uri.toString())
+                .putString("name", media.displayName)
+                .putLong("size", media.sizeBytes)
+                .putString("mime", media.mimeType)
+                .putLong("savedAt", media.lastModified)
+                .apply()
+        }
+    }
     var storyEditorOpen by remember { mutableStateOf(false) }
     var isRendering by remember { mutableStateOf(false) }
     var segmentProgress by remember { mutableStateOf<String?>(null) }
@@ -1898,6 +1924,32 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
         Text("Create studio", fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Choose local video, preview it, or create a share-ready 9:16 derivative. Originals remain unchanged.",
             color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (selectedMedia != null) {
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Save, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Creator draft saved on this device. Reopen Create to continue.",
+                        Modifier.weight(1f),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    TextButton(onClick = {
+                        selectedMedia = null
+                        exportedUri = null
+                        stickerUri = null
+                        notify("Creator draft cleared from this device.")
+                    }) { Text("Clear") }
+                }
+            }
+        }
         Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
