@@ -68,3 +68,33 @@ Status meanings: **Present** = implementation found in source; **CI pending** = 
 - Fix committed to `.github/workflows/vidgravity-ci.yml`: use unittest discovery with `-s tests -p "test_android_build_feature_ledger.py"`. Fix commit: `acb5cdcae6689c1481b9621d7f42d1b7bc7c1043`.
 - Validation after the correction: **pending**. Wait for CI on the new exact head; do not mark p180 ready until the Android build, feature tests and artifact upload succeed.
 - APK artifact status remains **not verified**. The prior run only produced CI reports, not the APK.
+
+
+## User-reported p180 regression pass — 2026-10-15
+
+### Latest verified candidate
+- p180 debug APK artifact: https://github.com/revanthbesty/VidGravity/actions/runs/38625194536/artifacts/11924346679
+- CI run: https://github.com/revanthbesty/VidGravity/actions/runs/38625194536
+- Commit built by that artifact: `ff9328a7d1a3820bd8e6e6d6198dd9a648b0c290`
+- CI: all four jobs passed and the debug APK upload succeeded.
+- Subsequent UI change commit: `1e779174ad72619f283cf6447b9e9cda797774d5` removes the redundant “Grab Best Video” quick action (Inspect Link already exists) and removes StudyTok from the Home quick-action carousel. This later commit has NOT yet been built or tested; do not use the prior artifact as if it contains this change.
+
+### New issues from the user's p180 test — highest priority first
+| Priority | Issue / request | Required implementation | Acceptance test | Status |
+|---|---|---|---|---|
+| P0 | Audio-only / “Sound Only” does not work | Trace source inspection → audio stream selection → job enqueue → worker selector handling; support valid audio-only formats and show actionable failure states. Do not claim fixed until end-to-end test succeeds. | Use a permitted test source with audio-only stream; queue, download, verify nonzero audio file, correct MIME/extension and playable output in Library. | Open |
+| P0 | WhatsApp Status split cutter does not work | Reproduce actual failure from source/logs; repair export/splitting flow, job completion handling and output publishing. Preserve 30/60/90/120-second user-selectable targets and 120s compatibility warning. | Test short and multi-segment videos at each target; confirm playable clips, correct duration/count, progress/cancel and Library visibility. | Open |
+| P1 | Downloads and Library UI are cluttered / poorly organized | Prioritize one clean information hierarchy, grouped primary actions, compact secondary actions, clear empty/progress/completed/error states, and no duplicated controls. Downloaded video tiles must show thumbnail, title, duration, resolution, size, status, date and clear actions where metadata is available. | Verify queued, downloading, failed, completed and media-library states on a phone; test search/filter/sort and play/share/rename/delete/favorite. | Open |
+| P1 | Create menu has too many poorly organized options | Group by workflow (Create/Convert, WhatsApp Status, Stickers, Captions/Share), remove duplicate entry points, make every visible action do something or clearly show why unavailable. | Tap every action; confirm correct picker, processing flow, progress/error, and saved output. | Open |
+| P1 | Camera controls are poorly aligned and hard to reach | Move primary capture/mode/flash/quality controls into a reachable lower control zone or right-side thumb zone, maintain status-bar/inset safety and avoid obstructing preview. | One-handed reach check on target phone; photo/video/flash/quality/dual-camera controls and capture outputs verified. | Open |
+| P1 | Add VidGravity logo and premium colorful visual system | Use one consistent brand asset in launcher and in-app navigation/header; cohesive accent gradients, consistent icon family, clear contrast, comfortable touch targets, and no duplicated features. | Verify launcher icon, splash/header/navigation and all main tabs in light/dark themes. | Open |
+| P2 | Remove StudyTok completely | Home quick-action entry removed in commit `1e779174ad72619f283cf6447b9e9cda797774d5`; screen/navigation implementation cleanup remains to be audited before claiming fully removed. | No StudyTok tile, tab, menu item or reachable route; compile and regression pass. | Partially implemented; CI pending |
+| P2 | Remove redundant “Grab Best Video” action | Home quick-action removed in commit `1e779174ad72619f283cf6447b9e9cda797774d5`; keep Inspect Link as the single inspection entry point. | No duplicate action remains in Home or other menus; CI pass. | Partially implemented; CI pending |
+
+### Required workflow for the next candidate
+1. Inspect the latest source and reproduce audio-only and Status splitter failures before making assumptions.
+2. Fix P0 audio-only and Status split first; add regression tests.
+3. Redesign Downloads and Library before adding any more feature tiles.
+4. Consolidate Create workflows, then update camera reachability and branding.
+5. Run exact-head CI and produce a fresh APK artifact. The earlier p180 APK is not equivalent to the later UI-change commit.
+6. Request physical-device verification; never mark device-only behavior as passed from source/CI alone.
