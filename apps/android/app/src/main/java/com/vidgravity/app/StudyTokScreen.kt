@@ -42,7 +42,10 @@ fun StudyTokScreen(onBack: () -> Unit, notify: (String) -> Unit) {
         cards = ranked.map { (_, sentence, _) ->
             val clean = sentence.trim().trimEnd('.', '!', '?')
             val match = Regex("(?i)^(.*?)(\\s+(?:is defined as|means|refers to|is called|is known as|is the process of|is a method of)\\s+)(.+)$").matchEntire(clean)
-            val question = if (match != null) "What is ${match.groupValues[1].trim()}?" else "What is the key point?"
+            val question = if (match != null) "What is ${match.groupValues[1].trim()}?" else {
+                val prompt = clean.split(Regex("\\s+")).take(7).joinToString(" ")
+                "Explain: ${prompt}${if (clean.split(Regex("\\s+")).size > 7) "…" else ""}"
+            }
             val answer = if (match != null) match.groupValues[3].trim() else clean
             StudyCard(question.take(500), answer.take(2000))
         }.distinctBy { it.question.lowercase() + "|" + it.answer.lowercase() }
