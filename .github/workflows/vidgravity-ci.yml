@@ -72,8 +72,11 @@ jobs:
         run: python -m unittest -v test_download_job_direct.py
       - name: YouTube extractor configuration regression tests
         run: python -m unittest -v test_youtube_extractor_config.py
+      - name: QuickFlow usability regression checks
+        run: python -m unittest -v test_quickflow_features.py
       - name: JavaScript syntax checks for every shipped frontend
         run: |
+          node --check site/quickflow.js
           node --check app.js
           node --check site/app.js
           node --check android-web/app.js
