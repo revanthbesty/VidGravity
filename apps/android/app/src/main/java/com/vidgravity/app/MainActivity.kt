@@ -61,6 +61,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     var showInbox by remember { mutableStateOf(openInboxInitially) }
     var showStudyTok by remember { mutableStateOf(false) }
     var creatorInitialMedia by remember { mutableStateOf<LibraryMedia?>(null) }
+    var librarySearchTarget by remember { mutableStateOf("") }
     var playingMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var url by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf<String?>(null) }
@@ -131,10 +132,11 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                             }
                         }
                     }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create }, { showStudyTok = true })
-                    VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it }, onOpenLibrary = { selected = VgTab.Library })
+                    VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it }, onOpenLibrary = { title -> librarySearchTarget = title; selected = VgTab.Library })
                     VgTab.Library -> LibraryContent(
                         onPlay = { playingMedia = it },
-                        onCreateWithMedia = { media -> creatorInitialMedia = media; selected = VgTab.Create }
+                        onCreateWithMedia = { media -> creatorInitialMedia = media; selected = VgTab.Create },
+                        initialSearch = librarySearchTarget
                     )
                     VgTab.Create -> CreateStudioContent(
                         onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true },
@@ -549,7 +551,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
 }
 
 @Composable
-private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: () -> Unit) {
+private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (String) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboard = LocalClipboardManager.current
     var expandedErrors by remember { mutableStateOf(setOf<java.util.UUID>()) }
@@ -1056,7 +1058,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: () -
                                         }
                                     }
                                     OutlinedButton(
-                                        onClick = onOpenLibrary,
+                                        onClick = { onOpenLibrary(title) },
                                         modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
                                     ) {
                                         Icon(Icons.Default.VideoLibrary, null)
@@ -1156,7 +1158,8 @@ private fun InfoCard(title: String, detail: String, icon: androidx.compose.ui.gr
 private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, onOpen: (String) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var items by remember { mutableStateOf(ShareInboxStore.list(context)) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf(initialSearch) }
+    LaunchedEffect(initialSearch) { if (initialSearch.isNotBlank()) searchQuery = initialSearch }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -1225,7 +1228,7 @@ private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, o
 }
 
 @Composable
-private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (LibraryMedia) -> Unit) {
+private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (LibraryMedia) -> Unit, initialSearch: String = "") {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboard = LocalClipboardManager.current
     var media by remember { mutableStateOf(emptyList<LibraryMedia>()) }
