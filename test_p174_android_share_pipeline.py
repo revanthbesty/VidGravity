@@ -191,4 +191,35 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('choice.first != "Best available"',main)
   self.assertNotIn('choice.first != "Highest available"',main)
+ def test_library_search_has_clear_action(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Close, "Clear search") }',main)
+ def test_library_filters_can_be_reset_together(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('searchQuery = ""\n                filter = "All Media"\n                sizeFilter = "Any size"\n                sortBy = "Newest"',main)
+ def test_download_history_search_can_be_cleared(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('IconButton(onClick = { downloadSearch = "" })',main)
+ def test_download_history_filters_have_reset_action(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Text("Clear filters")',main)
+ def test_device_id_has_copy_action(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('TextButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(deviceId)) })',main)
+ def test_diagnostics_report_has_copy_action(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('Text("Copy diagnostics report")',main)
+ def test_wifi_only_setting_persists_preference(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('copy(unmeteredOnly = it)',main)
+ def test_default_quality_presets_include_common_choices(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  for quality in ['"Best"', '"2160p"', '"1080p"', '"720p"', '"Audio"']:
+   self.assertIn(quality,main)
+ def test_creator_status_clip_lengths_are_validated(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('it in listOf(30, 60, 90, 120)',main)
+ def test_creator_draft_preserves_persistable_uri_permission(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)',main)
 if __name__=="__main__":unittest.main(verbosity=2)
