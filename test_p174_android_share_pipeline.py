@@ -419,4 +419,10 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('internet connection validated',main)
   self.assertIn('Android could not validate internet access',main)
 
+ def test_bulk_retry_skips_duplicate_and_already_active_sources(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  self.assertIn('val activeSources = activeWorks.mapNotNull',main)
+  self.assertIn('!activeSources.add(source.lowercase())',main)
+  self.assertIn('skipped $skippedRetries duplicate or invalid item(s).',main)
+
 if __name__=="__main__":unittest.main(verbosity=2)
