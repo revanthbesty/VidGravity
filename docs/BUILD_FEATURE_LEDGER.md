@@ -60,3 +60,11 @@ Status meanings: **Present** = implementation found in source; **CI pending** = 
 - Record corrected p180 CI run, debug APK artifact URL and SHA-256 when available.
 - Record physical-device acceptance results for scroll, flash, photo/video capture, dual-camera support, video quality, Status splitting and StudyTok/Inbox.
 - Record the signed production APK build separately from debug builds.
+
+
+## CI correction log — 2026-10-15
+- Latest confirmed p180 candidate commit before CI correction: `e4dab6683bb87afb123909e44b84beb0cdc28a8f`.
+- CI run `38624075700` failed in **Android share pipeline and social export** because the workflow invoked `test_android_build_feature_ledger.py` as a repository-root module, while the file is stored under `tests/`.
+- Fix committed to `.github/workflows/vidgravity-ci.yml`: use unittest discovery with `-s tests -p "test_android_build_feature_ledger.py"`. Fix commit: `acb5cdcae6689c1481b9621d7f42d1b7bc7c1043`.
+- Validation after the correction: **pending**. Wait for CI on the new exact head; do not mark p180 ready until the Android build, feature tests and artifact upload succeed.
+- APK artifact status remains **not verified**. The prior run only produced CI reports, not the APK.
