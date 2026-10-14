@@ -486,17 +486,18 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                 notify("Please queue up to 10 links at a time.")
                             } else {
                                 var queued = 0
+                                var failed = 0
                                 val preferences = SecureDownloadPreferences.load(context)
                                 candidates.forEach { link ->
                                     runCatching {
                                         DownloadWorker.enqueue(context, link, preferences.preferredFormatSelector,
                                             ShareReceiverActivity.friendlyTitle(link), preferences.unmeteredOnly)
-                                    }.onSuccess { queued++ }
+                                    }.onSuccess { queued++ }.onFailure { failed++ }
                                 }
                                 if (queued > 0) {
                                     onBatchQueued()
-                                    notify("${queued} of ${candidates.size} links added to Downloads using best available quality.")
-                                } else notify("No links could be queued. Please check the URLs and try again.")
+                                    notify("$queued of ${candidates.size} links queued using your saved quality preset; $failed failed.")
+                                } else notify("No links could be queued. Check the URLs and try again.")
                             }
                         },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
