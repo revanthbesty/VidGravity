@@ -1660,6 +1660,8 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     var selectedMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var storyEditorOpen by remember { mutableStateOf(false) }
     var isRendering by remember { mutableStateOf(false) }
+    var segmentProgress by remember { mutableStateOf<String?>(null) }
+    var segmentJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     var exportedUri by remember { mutableStateOf<Uri?>(null) }
     val picker = rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
@@ -1778,6 +1780,61 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                     }
                     Button(onClick = { storyEditorOpen = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
                         Icon(Icons.Default.AutoAwesome, null); Spacer(Modifier.width(8.dp)); Text("Create 9:16 Story / Status")
+                    }
+                    OutlinedButton(
+                        enabled = !isRendering && segmentJob == null,
+                        onClick = {
+                            if (!media.mimeType.startsWith("video/")) {
+                                notify("Status segmentation requires a video file.")
+                            } else {
+                                segmentJob = scope.launch {
+                                    var completed = 0
+                                    try {
+                                        val durationSeconds = withContext(Dispatchers.IO) {
+                                            val retriever = android.media.MediaMetadataRetriever()
+                                            try {
+                                                retriever.setDataSource(context, media.uri)
+                                                retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
+                                                    ?.toLongOrNull()?.toFloat()?.div(1000f)
+                                            } finally { retriever.release() }
+                                        } ?: throw IllegalStateException("Could not read the video duration.")
+                                        require(durationSeconds > 0f) { "The video duration is unavailable." }
+                                        require(durationSeconds <= 600f) { "For safety and predictable processing, split videos up to 10 minutes per batch." }
+                                        val count = kotlin.math.ceil(durationSeconds / 30f).toInt()
+                                        for (index in 0 until count) {
+                                            val startSeconds = index * 30f
+                                            val clipSeconds = (durationSeconds - startSeconds).coerceAtMost(30f)
+                                            segmentProgress = "Rendering status clip ${index + 1} of $count…"
+                                            withContext(Dispatchers.IO) {
+                                                DownloadApi.exportMedia(
+                                                    context, media.uri, "whatsapp-status", "fit-letterbox",
+                                                    startSeconds, clipSeconds
+                                                )
+                                            }
+                                            completed++
+                                            if (index < count - 1) kotlinx.coroutines.delay(21_000L)
+                                        }
+                                        notify("Created $completed WhatsApp Status clips. Verified clips are saved in Movies/VidGravity.")
+                                    } catch (failure: Exception) {
+                                        notify("Status splitting stopped after $completed clip(s): ${failure.message ?: "Please retry."}".take(240))
+                                    } finally {
+                                        segmentJob = null
+                                        segmentProgress = null
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+                    ) {
+                        if (segmentJob != null) {
+                            CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text(segmentProgress ?: "Preparing status clips…")
+                        } else {
+                            Icon(Icons.Default.ContentCut, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Split into 30-second WhatsApp Status clips")
+                        }
                     }
                     exportedUri?.let {
                         Text("Latest story saved in Movies/VidGravity. Use the story share buttons to send the verified derivative.",
