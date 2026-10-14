@@ -143,6 +143,13 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('open("/api/health", "GET")',api)
   self.assertIn("android.permission.ACCESS_NETWORK_STATE",permissions)
   self.assertIn("Copy diagnostics report",main)
+ def test_library_search_prefill_is_scoped_to_library_not_share_inbox(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  inbox=main[main.index("private fun ShareInboxContent("):main.index("@Composable",main.index("private fun ShareInboxContent(")+1)]
+  library=main[main.index("private fun LibraryContent("):main.index("@Composable",main.index("private fun LibraryContent(")+1)]
+  self.assertNotIn("initialSearch",inbox)
+  self.assertIn("mutableStateOf(initialSearch)",library)
+  self.assertIn("LaunchedEffect(initialSearch)",library)
  def test_completed_download_opens_library_filtered_to_its_title(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   self.assertIn('onOpenLibrary = { title -> librarySearchTarget = title; selected = VgTab.Library }',main)
