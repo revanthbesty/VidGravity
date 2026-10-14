@@ -32,6 +32,14 @@ class WebSocialExportSyntaxTests(unittest.TestCase):
         self.assertIn('$("#vgExportTrim").value=button.dataset.vgClipSeconds', script)
         self.assertIn('id="vgExportClipTargets"', script)
 
+    def test_pwa_cache_bust_and_deploy_smoke_checks_match(self):
+        index = (ROOT / "site" / "index.html").read_text(encoding="utf-8")
+        workflow = (ROOT / ".github" / "workflows" / "cloudflare-wpa-deploy.yml").read_text(encoding="utf-8")
+        self.assertIn('href="social-export.css?v=p176"', index)
+        self.assertIn('src="social-export.js?v=p176"', index)
+        self.assertIn('app.js?v=p176', workflow)
+        self.assertIn('styles.css?v=p176', workflow)
+
 
 if __name__ == "__main__":
     unittest.main()
