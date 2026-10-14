@@ -79,4 +79,11 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('.putStringSet("known_cards"',study)
   self.assertIn('.putInt("practice_index"',study)
   self.assertIn("Clear study pack and draft",study)
+ def test_simple_collection_screen_supports_vertical_scrolling(self):
+  main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
+  start=main.index("fun SimpleCollectionScreen(")
+  end=main.index("\n@Composable",start)
+  screen=main[start:end]
+  self.assertIn("verticalScroll(rememberScrollState())",screen)
+  self.assertIn("rows.forEach { row ->",screen)
 if __name__=="__main__":unittest.main(verbosity=2)
