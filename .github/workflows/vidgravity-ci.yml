@@ -160,3 +160,42 @@ jobs:
           path: apps/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+  pwa-ai-studio:
+    name: PWA AI Studio TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/pwa/package.json
+      - name: Install PWA AI studio dependencies
+        working-directory: apps/pwa
+        run: npm install --no-package-lock
+      - name: Type-check AI studio components
+        working-directory: apps/pwa
+        run: npm run typecheck
+
+  cloud-ai-api:
+    name: Cloud AI API TypeScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web-cloud/package.json
+      - name: Install cloud AI API dependencies
+        working-directory: apps/web-cloud
+        run: npm install --no-package-lock
+      - name: Type-check cloud AI API
+        working-directory: apps/web-cloud
+        run: npm run typecheck
+      - name: Build cloud AI API
+        working-directory: apps/web-cloud
+        run: npm run build
