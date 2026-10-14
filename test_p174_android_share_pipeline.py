@@ -98,23 +98,23 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn("var showDownloadTools by remember { mutableStateOf(false) }",downloads)
   self.assertIn('Text(if (showDownloadTools) "Hide download tools" else "More tools · reports & history")',downloads)
   self.assertIn('Text("Copy CSV report (',downloads)
-  library_start=main.index("@Composable\\nprivate fun LibraryContent(")
-  library_end=main.index("@Composable\\nprivate fun CreateStudioContent",library_start)
+  library_start=main.index("@Composable\nprivate fun LibraryContent(")
+  library_end=main.index("@Composable\nprivate fun CreateStudioContent",library_start)
   library=main[library_start:library_end]
   self.assertIn("var showLibraryTools by remember { mutableStateOf(false) }",library)
   self.assertIn('Text(if (showLibraryTools) "Hide library sharing tools" else "Library tools · share report")',library)
  def test_library_bulk_favorites_are_available_for_selected_media(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
-  start=main.index("@Composable\\nprivate fun LibraryContent(")
-  end=main.index("@Composable\\nprivate fun CreateStudioContent",start)
+  start=main.index("@Composable\nprivate fun LibraryContent(")
+  end=main.index("@Composable\nprivate fun CreateStudioContent",start)
   library=main[start:end]
   self.assertIn("var showBulkActions by remember { mutableStateOf(false) }",library)
   self.assertIn("MediaLibraryIndexer.setFavorite(context, item.uri, !allChosenAreFavorites)",library)
   self.assertIn('Text(if (showBulkActions) "Hide selection tools" else "Selection tools")',library)
  def test_library_storage_insights_include_type_counts_and_largest_file(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
-  start=main.index("@Composable\\nprivate fun LibraryContent(")
-  end=main.index("@Composable\\nprivate fun CreateStudioContent",start)
+  start=main.index("@Composable\nprivate fun LibraryContent(")
+  end=main.index("@Composable\nprivate fun CreateStudioContent",start)
   library=main[start:end]
   self.assertIn("var showStorageInsights by remember { mutableStateOf(false) }",library)
   self.assertIn('Text(if (showStorageInsights) "Hide storage insights" else "Storage insights")',library)
@@ -122,8 +122,8 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   self.assertIn('Text("Videos  $videoCount  ·  Audio  $audioCount"',library)
  def test_library_quick_filters_include_recent_and_large_files(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
-  start=main.index("@Composable\\nprivate fun LibraryContent(")
-  end=main.index("@Composable\\nprivate fun CreateStudioContent",start)
+  start=main.index("@Composable\nprivate fun LibraryContent(")
+  end=main.index("@Composable\nprivate fun CreateStudioContent",start)
   library=main[start:end]
   self.assertIn('"Recent 7 days" -> item.createdAtMs >= System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000',library)
   self.assertIn('"Large files" -> item.sizeBytes > 100_000_000L',library)
