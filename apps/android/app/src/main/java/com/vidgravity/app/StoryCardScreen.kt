@@ -33,11 +33,22 @@ fun StoryCardScreen(
     isRendering: Boolean = false
 ) {
     val context = LocalContext.current
-    var start by remember(media.uri) { mutableFloatStateOf(0f) }
-    var length by remember(media.uri) { mutableFloatStateOf(15f) }
-    var title by remember(media.uri) { mutableStateOf(media.displayName.substringBeforeLast(".")) }
-    var artist by remember(media.uri) { mutableStateOf("") }
-    var layout by remember(media.uri) { mutableStateOf(if (media.mimeType.startsWith("audio/")) "Audio Visualizer" else "Cover Art") }
+    val draftPrefs = remember(context) { context.getSharedPreferences("vg-story-card-drafts", android.content.Context.MODE_PRIVATE) }
+    val draftKey = remember(media.uri) { media.uri.toString().hashCode().toUInt().toString(16) }
+    var start by remember(media.uri) { mutableFloatStateOf(draftPrefs.getFloat("${draftKey}_start", 0f).coerceAtLeast(0f)) }
+    var length by remember(media.uri) { mutableFloatStateOf(draftPrefs.getFloat("${draftKey}_length", 15f).coerceIn(1f, 120f)) }
+    var title by remember(media.uri) { mutableStateOf(draftPrefs.getString("${draftKey}_title", media.displayName.substringBeforeLast(".")) ?: media.displayName.substringBeforeLast(".")) }
+    var artist by remember(media.uri) { mutableStateOf(draftPrefs.getString("${draftKey}_artist", "") ?: "") }
+    var layout by remember(media.uri) { mutableStateOf(draftPrefs.getString("${draftKey}_layout", if (media.mimeType.startsWith("audio/")) "Audio Visualizer" else "Cover Art") ?: "Cover Art") }
+    LaunchedEffect(media.uri, start, length, title, artist, layout) {
+        draftPrefs.edit()
+            .putFloat("${draftKey}_start", start)
+            .putFloat("${draftKey}_length", length)
+            .putString("${draftKey}_title", title)
+            .putString("${draftKey}_artist", artist)
+            .putString("${draftKey}_layout", layout)
+            .apply()
+    }
     var status by remember { mutableStateOf("") }
     var duration by remember(media.uri) { mutableFloatStateOf(60f) }
     var durationKnown by remember(media.uri) { mutableStateOf(false) }
