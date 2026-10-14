@@ -68,3 +68,15 @@ No. Support depends on source, access permissions, service capability, and appli
 5. Exact error and approximate time.
 6. Whether it reproduces consistently.
 7. Remove credentials and private data.
+
+
+## Android in-app Help Center
+
+### Where do I find help in Android?
+Open **Settings → Help & troubleshooting → Open Help Center**. Use the quick guides first, then run **Settings → Diagnostics & self-test** if the issue persists.
+
+### The Help Center says to retry, but the download still fails
+The guide provides safe first steps, not a guaranteed fix. Check the exact download error, network state, Wi-Fi-only preference, and service availability. If repeated, capture a diagnostics report and reproduction steps. Do not share API tokens, cookies, passwords, or private signed URLs.
+
+### Does the Help Center mean Android behavior has been verified?
+No. Automated builds and documentation checks cannot verify scrolling, playback, or background execution on every physical device. Those still need installation and real-device testing.
