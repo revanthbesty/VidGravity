@@ -56,7 +56,7 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
  def test_downloads_scroll_and_clear_history_are_real(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   start=main.index("private fun DownloadsContent(")
-  end=main.index("\\nprivate fun InfoCard",start)
+  end=main.index("private fun InfoCard",start)
   downloads=main[start:end]
   self.assertIn("Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())",downloads)
   self.assertIn("filteredWorks.forEach { work ->",downloads)
