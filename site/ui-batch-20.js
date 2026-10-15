@@ -34,7 +34,7 @@
 
   // 4. Restore the last workspace only when the app has not already selected a page.
   const lastPage=safeStore.get('vg-ui-last-page');
-  if(lastPage && !$('.nav.active') && navButtons.some(b=>b.dataset.page===lastPage)) $('[data-page="'+lastPage+'"]')?.click();
+  if(lastPage && lastPage!=='home' && navButtons.some(b=>b.dataset.page===lastPage)) $('[data-page="'+lastPage+'"]')?.click();
 
   // 5. Add an accessible command palette.
   const palette=document.createElement('div');
