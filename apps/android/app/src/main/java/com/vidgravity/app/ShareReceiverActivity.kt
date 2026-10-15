@@ -18,38 +18,30 @@ class ShareReceiverActivity : FragmentActivity(), FormatPickerBottomSheet.Listen
     private fun handleShare(intent: Intent?) {
         if (handled) return
         handled = true
-        val raw = if (intent?.action == Intent.ACTION_SEND) intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() else null
-        val url = normalizeSharedUrl(raw)
-        if (url == null) {
+        val urls = extractSharedUrls(intent)
+        if (urls.isEmpty()) {
             Toast.makeText(this, "VidGravity could not find a supported public URL.", Toast.LENGTH_LONG).show()
             finish()
             return
         }
-        val title = friendlyTitle(url)
         val preferences = SecureDownloadPreferences.load(this)
-
-        // Handle URLs shared from any Android app through the standard Sharesheet.
-        // Queue immediately and return to the source app so the user can share
-        // additional URLs without opening VidGravity or pasting links.
-        runCatching {
-            DownloadNotifications.ensureChannel(this)
-            DownloadNotifications.analyzing(this, title)
-            DownloadWorker.enqueue(
-                this,
-                url,
-                preferences.preferredFormatSelector,
-                title,
-                preferences.unmeteredOnly
-            )
-        }.onSuccess {
-            Toast.makeText(
-                this,
-                "Added to VidGravity queue. Share another link; downloads continue in the background.",
-                Toast.LENGTH_LONG
-            ).show()
-        }.onFailure {
-            Toast.makeText(this, "Could not queue this link: ${it.message ?: "please try again"}", Toast.LENGTH_LONG).show()
+        val uniqueUrls = urls.distinct()
+        var queued = 0
+        var rejected = 0
+        uniqueUrls.forEach { url ->
+            val title = friendlyTitle(url)
+            runCatching {
+                DownloadNotifications.ensureChannel(this)
+                DownloadNotifications.analyzing(this, title)
+                DownloadWorker.enqueue(this, url, preferences.preferredFormatSelector, title, preferences.unmeteredOnly)
+            }.onSuccess { queued++ }.onFailure { rejected++ }
         }
+        val message = when {
+            queued > 0 && rejected == 0 -> "Added $queued link(s) to VidGravity Downloads."
+            queued > 0 -> "Added $queued link(s); $rejected could not be queued."
+            else -> "Could not queue these links. Please try again."
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
         finish()
     }
 
@@ -72,12 +64,36 @@ class ShareReceiverActivity : FragmentActivity(), FormatPickerBottomSheet.Listen
         private val URL_PATTERN = Pattern.compile("(?i)(https?://[^\\s<>\\\"']+|(?:www\\.)?[a-z0-9][a-z0-9.-]+\\.[a-z]{2,}(?:/[^\\s<>\\\"']*)?)")
         private val TRAILING = Regex("[),.;!?\\]}]+$")
 
-        fun normalizeSharedUrl(raw: String?): String? {
+        fun extractSharedUrls(intent: Intent?): List<String> {
+            if (intent == null) return emptyList()
+            val texts = when (intent.action) {
+                Intent.ACTION_SEND -> listOfNotNull(intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString())
+                Intent.ACTION_SEND_MULTIPLE -> {
+                    val items = intent.getCharSequenceArrayListExtra(Intent.EXTRA_TEXT)?.map { it.toString() }.orEmpty()
+                    val streams = intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)?.map(Uri::toString).orEmpty()
+                    items + streams
+                }
+                else -> emptyList()
+            }
+            return texts.flatMap(::extractUrlsFromText).distinct().take(30)
+        }
+
+        fun extractUrlsFromText(raw: String?): List<String> {
             val text = raw?.take(MAX_SHARED_TEXT)?.replace("\\u0000", " ")?.trim().orEmpty()
-            if (text.isBlank()) return null
-            val match = URL_PATTERN.matcher(text)
-            if (!match.find()) return null
-            var candidate = match.group(1).trim().replace(TRAILING, "")
+            if (text.isBlank()) return emptyList()
+            val matcher = URL_PATTERN.matcher(text)
+            val urls = mutableListOf<String>()
+            while (matcher.find() && urls.size < 30) {
+                normalizeCandidate(matcher.group(1))?.let(urls::add)
+            }
+            return urls.distinct()
+        }
+
+        fun normalizeSharedUrl(raw: String?): String? = extractUrlsFromText(raw).firstOrNull()
+
+        private fun normalizeCandidate(rawCandidate: String?): String? {
+            var candidate = rawCandidate?.trim()?.replace(TRAILING, "") ?: return null
+            if (candidate.isBlank()) return null
             if (candidate.startsWith("www.", true) || !candidate.contains("://")) candidate = "https://" + candidate
             val uri = Uri.parse(candidate)
             val scheme = uri.scheme?.lowercase(Locale.ROOT) ?: return null
