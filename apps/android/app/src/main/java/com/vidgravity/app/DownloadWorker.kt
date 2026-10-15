@@ -31,6 +31,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             ?: return@withContext Result.failure(workDataOf("error" to "Invalid shared URL"))
         val preferences = SecureDownloadPreferences.load(applicationContext)
         val selector = inputData.getString(KEY_FORMAT)?.takeIf { it.isNotBlank() } ?: preferences.preferredFormatSelector
+        val audioOnly = inputData.getBoolean(KEY_AUDIO_ONLY, false)
         var title = inputData.getString(KEY_TITLE)?.take(180) ?: ShareReceiverActivity.friendlyTitle(url)
         val workDirectory = applicationContext.getExternalFilesDir(null) ?: applicationContext.filesDir
         val partial = File(workDirectory, "downloads/" + workId + ".part")
@@ -42,7 +43,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             val analysis = DownloadApi.analyzeSource(url)
             title = analysis.title.ifBlank { title }
             if (remoteJobId == null) {
-                remoteJobId = DownloadApi.createJob(url, selector)
+                remoteJobId = DownloadApi.createJob(url, selector, audioOnly)
                 registry.edit().putString(workId.toString(), remoteJobId).commit()
             }
             var job: RemoteDownloadJob
@@ -67,7 +68,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                         partial.delete()
                         registry.edit().remove(workId.toString()).commit()
                         DownloadActionReceiver.clear(applicationContext, workId)
-                        return@withContext failureResult(job.message, url, selector, title)
+                        return@withContext failureResult(job.message, url, selector, title, audioOnly)
                     }
                     "queued", "running", "processing", "downloading", "cancelling" -> delay(if (job.state == "queued") 2500 else 1500)
                     else -> delay(2000)
@@ -140,7 +141,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 registry.edit().remove(workId.toString()).commit()
                 DownloadActionReceiver.clear(applicationContext, workId)
                 DownloadNotifications.terminal(applicationContext, title, "Network error after retries: " + (networkFailure.message ?: "connection interrupted"), false)
-                failureResult("Network error after retries: " + (networkFailure.message ?: "connection interrupted"), url, selector, title)
+                failureResult("Network error after retries: " + (networkFailure.message ?: "connection interrupted"), url, selector, title, audioOnly)
             }
         } catch (failure: Exception) {
             remoteJobId?.let { runCatching { DownloadApi.cancelJob(it) } }
@@ -148,7 +149,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             registry.edit().remove(workId.toString()).commit()
             DownloadActionReceiver.clear(applicationContext, workId)
             DownloadNotifications.terminal(applicationContext, title, failure.message ?: "Download failed", false)
-            failureResult(failure.message ?: "Download failed", url, selector, title)
+            failureResult(failure.message ?: "Download failed", url, selector, title, audioOnly)
         }
     }
 
@@ -166,25 +167,28 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
         const val KEY_URL = "shared_url"
         const val KEY_FORMAT = "format_selector"
         const val KEY_TITLE = "media_title"
+        const val KEY_AUDIO_ONLY = "audio_only"
         const val RETRY_URL = "retry_url"
         const val RETRY_FORMAT = "retry_format"
         const val RETRY_TITLE = "retry_title"
+        const val RETRY_AUDIO_ONLY = "retry_audio_only"
         private const val REGISTRY = "vg_remote_job_registry"
 
-        private fun failureResult(message: String, url: String, selector: String, title: String): Result =
+        private fun failureResult(message: String, url: String, selector: String, title: String, audioOnly: Boolean = false): Result =
             Result.failure(workDataOf(
                 "error" to message.take(300),
                 RETRY_URL to url,
                 RETRY_FORMAT to selector,
-                RETRY_TITLE to title.take(180)
+                RETRY_TITLE to title.take(180),
+                RETRY_AUDIO_ONLY to audioOnly
             ))
 
-        fun enqueue(context: Context, url: String, selector: String, title: String, unmeteredOnly: Boolean): UUID {
+        fun enqueue(context: Context, url: String, selector: String, title: String, unmeteredOnly: Boolean, audioOnly: Boolean = false): UUID {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(if (unmeteredOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
                 .build()
             val request = OneTimeWorkRequestBuilder<DownloadWorker>()
-                .setInputData(workDataOf(KEY_URL to url, KEY_FORMAT to selector, KEY_TITLE to title))
+                .setInputData(workDataOf(KEY_URL to url, KEY_FORMAT to selector, KEY_TITLE to title, KEY_AUDIO_ONLY to audioOnly))
                 .setConstraints(constraints)
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.SECONDS)
                 .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
