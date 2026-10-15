@@ -1308,26 +1308,22 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(
-                onClick = { picker.launch(arrayOf("video/*", "audio/*", "image/*")) },
-                modifier = Modifier.weight(1f).heightIn(min = 58.dp)
-            ) {
-                Icon(Icons.Default.FolderOpen, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Media")
-            }
-            Button(
+            VgPrimaryButton(
+                text = "Media",
+                icon = Icons.Default.FolderOpen,
+                modifier = Modifier.weight(1f).heightIn(min = 58.dp),
+                onClick = { picker.launch(arrayOf("video/*", "audio/*", "image/*")) }
+            )
+            VgPrimaryButton(
+                text = "Camera",
+                icon = Icons.Default.PhotoCamera,
+                modifier = Modifier.weight(1f).heightIn(min = 58.dp),
                 onClick = {
                     runCatching {
                         context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
                     }.onFailure { notify("Could not open camera: ${it.message ?: "try again"}") }
-                },
-                modifier = Modifier.weight(1f).heightIn(min = 58.dp)
-            ) {
-                Icon(Icons.Default.PhotoCamera, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Camera")
-            }
+                }
+            )
         }
         selectedMedia?.let { media ->
             Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(18.dp)) {
@@ -1351,9 +1347,13 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                             Icon(Icons.Default.Share, null); Spacer(Modifier.width(5.dp)); Text("Share original")
                         }
                     }
-                    Button(onClick = { storyEditorOpen = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
-                        Icon(Icons.Default.AutoAwesome, null); Spacer(Modifier.width(8.dp)); Text("Create 9:16 Story / Status")
-                    }
+                    VgPrimaryButton(
+                        text = "Create 9:16 Story / Status",
+                        icon = Icons.Default.AutoAwesome,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                        enabled = !isRendering && segmentJob == null,
+                        onClick = { storyEditorOpen = true }
+                    )
                     Text("STATUS CLIP LENGTH", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
