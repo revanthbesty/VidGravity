@@ -656,3 +656,35 @@ button{min-height:48px}
 .is-busy{opacity:.82;pointer-events:none}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 @media(max-width:650px){.page{padding:24px 16px calc(48px + env(safe-area-inset-bottom,0px))}.topbar{padding-left:14px;padding-right:14px}.urlRow .primary{min-height:52px}}
+
+
+/* Screen-level finish: quiet slate surfaces, teal progress and restrained creative accents. */
+.bar{background:var(--vg-surface-raised)}
+.bar i{background:var(--vg-brand-gradient)}
+.pill{border-color:var(--vg-border);background:var(--vg-teal-soft);color:var(--vg-teal)}
+.pill.muted{border-color:var(--vg-border);background:var(--vg-surface-raised);color:var(--vg-text-muted)}
+.inspect{background:var(--vg-surface-raised);border-color:var(--vg-border)}
+.quickAsk button,.copilot-suggestions button,.uip-actions button{border-color:var(--vg-border);background:var(--vg-surface-raised);color:var(--vg-text-muted)}
+.quickAsk button:hover,.copilot-suggestions button:hover,.uip-actions button:hover{border-color:var(--vg-teal);color:var(--vg-text)}
+.unified-media-workspace,.unified-intelligence-panel{background:var(--vg-dark-surface-gradient);border-color:var(--vg-border);box-shadow:0 18px 42px rgba(0,0,0,.12)}
+.unified-media-workspace .umw-player,.unified-media-workspace .umw-transcript,
+.unified-intelligence-panel .uip-copilot,.unified-intelligence-panel .uip-memory{border-color:var(--vg-border)}
+.unified-media-workspace .umw-player-meta button{background:var(--vg-teal-soft);color:var(--vg-text)}
+.unified-media-workspace .umw-segment:hover{background:rgba(56,184,178,.08)}
+html[data-theme="light"] .unified-media-workspace,
+html[data-theme="light"] .unified-intelligence-panel{background:var(--vg-light-surface-gradient);border-color:var(--vg-border);color:var(--vg-text);box-shadow:0 12px 30px rgba(38,54,59,.06)}
+html[data-theme="light"] .unified-media-workspace .umw-player,
+html[data-theme="light"] .unified-media-workspace .umw-transcript,
+html[data-theme="light"] .unified-intelligence-panel .uip-copilot,
+html[data-theme="light"] .unified-intelligence-panel .uip-memory{background:var(--vg-surface);border-color:var(--vg-border);color:var(--vg-text)}
+html[data-theme="light"] .unified-media-workspace .umw-title,
+html[data-theme="light"] .unified-intelligence-panel .uip-label{color:var(--vg-text);border-color:var(--vg-border)}
+html[data-theme="light"] .unified-media-workspace .umw-title span,
+html[data-theme="light"] .unified-media-workspace .umw-player-meta,
+html[data-theme="light"] .unified-media-workspace .umw-segment,
+html[data-theme="light"] .unified-intelligence-panel .uip-item{color:var(--vg-text-muted)}
+html[data-theme="light"] .unified-media-workspace .umw-segment{border-bottom-color:var(--vg-border)}
+html[data-theme="light"] .unified-media-workspace .umw-segment:hover{background:var(--vg-teal-soft)}
+html[data-theme="light"] .uip-answer{background:var(--vg-surface-raised);color:var(--vg-text-muted)}
+.vg-ux-toast{background:var(--vg-surface);border-color:var(--vg-border);color:var(--vg-text);box-shadow:0 14px 32px rgba(0,0,0,.18)}
+html[data-theme="light"] .vg-ux-toast{background:var(--vg-surface);border-color:var(--vg-border);color:var(--vg-text)}
