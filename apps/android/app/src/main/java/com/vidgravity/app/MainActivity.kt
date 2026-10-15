@@ -1877,14 +1877,54 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                                             val startSeconds = index * clipTargetSeconds
                                             val clipSeconds = (durationSeconds - startSeconds).coerceAtMost(clipTargetSeconds)
                                             segmentProgress = "Rendering ${statusClipSeconds}s clip ${index + 1} of $count…"
-                                            withContext(Dispatchers.IO) {
-                                                DownloadApi.exportMedia(
-                                                    context, media.uri, "whatsapp-status", "fit-letterbox",
-                                                    startSeconds, clipSeconds
-                                                )
+                                            val cloudExport = runCatching {
+                                                withContext(Dispatchers.IO) {
+                                                    DownloadApi.exportMedia(
+                                                        context, media.uri, "whatsapp-status", "fit-letterbox",
+                                                        startSeconds, clipSeconds
+                                                    )
+                                                }
                                             }
-                                            completed++
-                                            if (index < count - 1) kotlinx.coroutines.delay(21_000L)
+                                            if (cloudExport.isSuccess) {
+                                                completed++
+                                                if (index < count - 1) kotlinx.coroutines.delay(21_000L)
+                                            } else {
+                                                val cloudFailure = cloudExport.exceptionOrNull()
+                                                segmentProgress = "Cloud export unavailable; switching to on-device splitting…"
+                                                val localFiles = LocalStatusSplitter.split(
+                                                    context = context,
+                                                    sourceUri = media.uri,
+                                                    splitSeconds = statusClipSeconds,
+                                                    durationSeconds = durationSeconds,
+                                                    startIndex = index,
+                                                    onProgress = { current, total ->
+                                                        segmentProgress = "Splitting locally: clip $current of $total…"
+                                                    }
+                                                )
+                                                try {
+                                                    localFiles.forEachIndexed { localIndex, file ->
+                                                        withContext(Dispatchers.IO) {
+                                                            MediaLibraryIndexer.publish(
+                                                                context,
+                                                                file,
+                                                                "VidGravity_Status_${String.format(java.util.Locale.US, "%02d", index + localIndex + 1)}.mp4",
+                                                                DownloadApi.sha256(file)
+                                                            )
+                                                        }
+                                                        completed++
+                                                    }
+                                                } finally {
+                                                    localFiles.forEach { it.delete() }
+                                                }
+                                                if (completed == count) {
+                                                    notify("Cloud export failed; created all $completed clips on this device.")
+                                                } else if (localFiles.isEmpty()) {
+                                                    throw IllegalStateException(
+                                                        "Cloud export failed and local splitting returned no clips: ${cloudFailure?.message ?: "retry the source"}"
+                                                    )
+                                                }
+                                                break
+                                            }
                                         }
                                         notify("Created $completed WhatsApp Status clips. Verified clips are saved in Movies/VidGravity.")
                                     } catch (cancelled: kotlinx.coroutines.CancellationException) {
