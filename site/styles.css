@@ -511,3 +511,148 @@ html[data-theme="dark"] .card,html[data-theme="dark"] .job,html[data-theme="dark
 .vg-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 @media(max-width:600px){.vg-shortcut-hint{width:100%;margin-left:0}.vg-quick-intake-tools button{min-height:40px}.vg-queue-filters button{flex:1 0 auto}}
 @media(prefers-reduced-motion:reduce){.vg-queue-filters button{transition:none!important}}
+
+
+/* VidGravity Premium UI System v1 — shared token layer. Keep the legacy component
+   selectors below/above intact; these overrides migrate their surfaces safely. */
+:root{
+  color-scheme:dark;
+  --vg-bg:#171F23;
+  --vg-surface:#202B30;
+  --vg-surface-raised:#29373D;
+  --vg-text:#E6EEF0;
+  --vg-text-muted:#AFBEC3;
+  --vg-teal:#8CC8BC;
+  --vg-teal-hover:#A8D9CE;
+  --vg-teal-soft:#304842;
+  --vg-border:#38484E;
+  --vg-brand-gradient:linear-gradient(110deg,#38B8B2 0%,#35C6B0 48%,#7D5CFF 100%);
+  --vg-teal-gradient:linear-gradient(110deg,#38B8B2,#35C6B0);
+  --vg-violet-gradient:linear-gradient(110deg,#967BFF,#6845DB);
+  --vg-dark-surface-gradient:linear-gradient(145deg,#29373D,#202B30);
+  --vg-light-surface-gradient:linear-gradient(145deg,#FFFFFF,#E8EEF0);
+  --panel:var(--vg-surface);
+  --panel2:var(--vg-surface-raised);
+  --line:var(--vg-border);
+  --accent:#38B8B2;
+  --accent2:#7D5CFF;
+  --muted:var(--vg-text-muted);
+  --text-primary:var(--vg-text);
+  --text-muted:var(--vg-text-muted);
+  --border-subtle:var(--vg-border);
+  --focus-ring:#8CC8BC;
+}
+html[data-theme="dark"]{color-scheme:dark;background:var(--vg-bg);color:var(--vg-text)}
+html[data-theme="dark"] body{background:var(--vg-bg);color:var(--vg-text)}
+html[data-theme="dark"] .sidebar{background:#1B262A;border-color:var(--vg-border)}
+html[data-theme="dark"] .card,
+html[data-theme="dark"] .job,
+html[data-theme="dark"] .setting,
+html[data-theme="dark"] .stat,
+html[data-theme="dark"] .intake,
+html[data-theme="dark"] .ask,
+html[data-theme="dark"] .downloadItem,
+html[data-theme="dark"] .media,
+html[data-theme="dark"] .workflowStep{background:var(--vg-dark-surface-gradient);border-color:var(--vg-border);color:var(--vg-text)}
+html[data-theme="dark"] .topbar{border-color:var(--vg-border)}
+html[data-theme="dark"] .nav{color:var(--vg-text-muted)}
+html[data-theme="dark"] .nav.active,
+html[data-theme="dark"] .nav:hover{background:var(--vg-teal-soft);color:var(--vg-text)}
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea{background:#182328;color:var(--vg-text);border-color:var(--vg-border)}
+html[data-theme="dark"] .urlRow input,
+html[data-theme="dark"] .search,
+html[data-theme="dark"] .askRow input{background:#182328;color:var(--vg-text);border-color:var(--vg-border)}
+html[data-theme="dark"] .urlRow input::placeholder,
+html[data-theme="dark"] .search::placeholder,
+html[data-theme="dark"] .askRow input::placeholder{color:#AFBEC3}
+html[data-theme="dark"] .hero h1 span{color:#8CC8BC}
+html[data-theme="dark"] .heroOrb{background:linear-gradient(145deg,#29373D,#202B30);color:#8CC8BC;box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 18px 42px rgba(0,0,0,.2)}
+html[data-theme="dark"] .logo{background:var(--vg-brand-gradient);color:#172126;box-shadow:0 8px 22px rgba(56,184,178,.15)}
+html[data-theme="light"]{
+  color-scheme:light;
+  --vg-bg:#F3F6F7;
+  --vg-surface:#FFFFFF;
+  --vg-surface-raised:#E8EEF0;
+  --vg-text:#26363B;
+  --vg-text-muted:#5C6D73;
+  --vg-teal:#286B66;
+  --vg-teal-hover:#205A56;
+  --vg-teal-soft:#DDEDE9;
+  --vg-border:#D5E0E3;
+  --accent:#286B66;
+  --accent2:#6845DB;
+  --muted:var(--vg-text-muted);
+  --text-primary:var(--vg-text);
+  --text-muted:var(--vg-text-muted);
+  --border-subtle:var(--vg-border);
+  --focus-ring:#286B66;
+  background:var(--vg-bg);
+  color:var(--vg-text);
+}
+html[data-theme="light"] body{background:var(--vg-bg);color:var(--vg-text)}
+html[data-theme="light"] .sidebar{background:#FFFFFF;border-right-color:var(--vg-border)}
+html[data-theme="light"] .nav{color:var(--vg-text-muted)}
+html[data-theme="light"] .nav.active,
+html[data-theme="light"] .nav:hover{background:var(--vg-teal-soft);color:#205A56}
+html[data-theme="light"] .card,
+html[data-theme="light"] .job,
+html[data-theme="light"] .setting,
+html[data-theme="light"] .stat,
+html[data-theme="light"] .intake,
+html[data-theme="light"] .ask,
+html[data-theme="light"] .downloadItem,
+html[data-theme="light"] .media,
+html[data-theme="light"] .workflowStep{background:var(--vg-light-surface-gradient);border-color:var(--vg-border);color:var(--vg-text);box-shadow:0 10px 26px rgba(38,54,59,.055)}
+html[data-theme="light"] .topbar{border-bottom-color:var(--vg-border)}
+html[data-theme="light"] .brand b,
+html[data-theme="light"] .crumb b,
+html[data-theme="light"] .hero h1,
+html[data-theme="light"] .sectionTitle h1,
+html[data-theme="light"] .sectionHead h2,
+html[data-theme="light"] .intakeTitleRow b,
+html[data-theme="light"] .mediaTitle,
+html[data-theme="light"] .downloadItemTitle,
+html[data-theme="light"] .jobTitle{color:var(--vg-text)}
+html[data-theme="light"] .hero p,
+html[data-theme="light"] .sectionTitle p,
+html[data-theme="light"] .sectionSubcopy,
+html[data-theme="light"] .notice,
+html[data-theme="light"] .intakeHead small,
+html[data-theme="light"] .stat small,
+html[data-theme="light"] .stat span,
+html[data-theme="light"] .mediaMeta,
+html[data-theme="light"] .downloadItemDate,
+html[data-theme="light"] .downloadItemMeta{color:var(--vg-text-muted)}
+html[data-theme="light"] input,
+html[data-theme="light"] select,
+html[data-theme="light"] textarea,
+html[data-theme="light"] .urlRow input,
+html[data-theme="light"] .search,
+html[data-theme="light"] .askRow input{background:#FFFFFF;color:var(--vg-text);border-color:var(--vg-border)}
+html[data-theme="light"] .urlRow input::placeholder,
+html[data-theme="light"] .search::placeholder,
+html[data-theme="light"] .askRow input::placeholder{color:#5C6D73}
+html[data-theme="light"] .hero h1 span{color:#286B66}
+html[data-theme="light"] .heroOrb{background:var(--vg-light-surface-gradient);color:#6845DB;box-shadow:inset 0 1px 0 #fff,0 12px 32px rgba(38,54,59,.1)}
+html[data-theme="light"] .logo{background:var(--vg-brand-gradient);color:#172126;box-shadow:0 8px 22px rgba(40,107,102,.14)}
+/* Primary, secondary and creative action hierarchy */
+.primary,.heroCta,.urlRow .primary{background:var(--vg-brand-gradient);color:#102725;border:1px solid rgba(255,255,255,.24);border-radius:15px;box-shadow:0 7px 18px rgba(56,184,178,.16),inset 0 1px 0 rgba(255,255,255,.38);font-weight:750;transition:transform .16s ease,filter .16s ease,box-shadow .16s ease}
+.primary:hover,.heroCta:hover,.urlRow .primary:hover{filter:brightness(1.045);transform:translateY(-1px);box-shadow:0 10px 22px rgba(56,184,178,.19),inset 0 1px 0 rgba(255,255,255,.4)}
+.primary:active,.heroCta:active,.urlRow .primary:active{transform:translateY(1px);box-shadow:0 2px 6px rgba(56,184,178,.12),inset 0 1px 0 rgba(255,255,255,.2)}
+.smallBtn,.ghost,.textBtn,.topbarActions .ghost{border-radius:12px;border-color:var(--vg-border);background:var(--vg-surface-raised);color:var(--vg-text);box-shadow:0 2px 5px rgba(0,0,0,.05)}
+html[data-theme="light"] .smallBtn,
+html[data-theme="light"] .ghost,
+html[data-theme="light"] .textBtn,
+html[data-theme="light"] .topbarActions .ghost{background:var(--vg-surface-raised);color:var(--vg-text);border-color:var(--vg-border)}
+html[data-theme="dark"] .smallBtn,
+html[data-theme="dark"] .ghost,
+html[data-theme="dark"] .textBtn,
+html[data-theme="dark"] .topbarActions .ghost{background:var(--vg-surface-raised);color:var(--vg-text);border-color:var(--vg-border)}
+button,input,select,textarea{font-family:inherit;touch-action:manipulation}
+button{min-height:48px}
+:focus-visible{outline:2px solid var(--focus-ring)!important;outline-offset:3px}
+.is-busy{opacity:.82;pointer-events:none}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+@media(max-width:650px){.page{padding:24px 16px calc(48px + env(safe-area-inset-bottom,0px))}.topbar{padding-left:14px;padding-right:14px}.urlRow .primary{min-height:52px}}
