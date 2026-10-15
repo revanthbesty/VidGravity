@@ -39,7 +39,9 @@ fun StoryCardScreen(
     var length by remember(media.uri) { mutableFloatStateOf(draftPrefs.getFloat("${draftKey}_length", 15f).coerceIn(1f, 120f)) }
     var title by remember(media.uri) { mutableStateOf(draftPrefs.getString("${draftKey}_title", media.displayName.substringBeforeLast(".")) ?: media.displayName.substringBeforeLast(".")) }
     var artist by remember(media.uri) { mutableStateOf(draftPrefs.getString("${draftKey}_artist", "") ?: "") }
-    var layout by remember(media.uri) { mutableStateOf(draftPrefs.getString("${draftKey}_layout", if (media.mimeType.startsWith("audio/")) "Audio Visualizer" else "Cover Art") ?: "Cover Art") }
+    val isAudioSource = remember(media.uri, media.mimeType, media.displayName) { isAudioStorySource(media.mimeType, media.displayName) }
+    var layout by remember(media.uri) { mutableStateOf(draftPrefs.getString("${draftKey}_layout", if (isAudioSource) "Audio Visualizer" else "Cover Art") ?: if (isAudioSource) "Audio Visualizer" else "Cover Art") }
+    var showAdvanced by remember(media.uri) { mutableStateOf(false) }
     LaunchedEffect(media.uri, start, length, title, artist, layout) {
         draftPrefs.edit()
             .putFloat("${draftKey}_start", start)
@@ -85,7 +87,7 @@ fun StoryCardScreen(
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(18.dp))
                     .background(MaterialTheme.colorScheme.surface), contentAlignment = Alignment.Center) {
-                    Text(if (media.mimeType.startsWith("audio/")) "♫" else "▶", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.primary)
+                    Text(if (isAudioSource) "♫" else "▶", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.primary)
                 }
                 Spacer(Modifier.height(16.dp))
                 Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
@@ -109,6 +111,13 @@ fun StoryCardScreen(
                 )
             }
         }
+        OutlinedButton(
+            onClick = { showAdvanced = !showAdvanced },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+        ) {
+            Text(if (showAdvanced) "Hide editing options" else "Fine-tune clip, caption & layout")
+        }
+        if (showAdvanced) {
         Slider(
             value = length.coerceIn(1f, maxLength),
             onValueChange = {
@@ -137,7 +146,7 @@ fun StoryCardScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall
         )
-        if (media.mimeType.startsWith("audio/")) {
+        if (isAudioSource) {
             FilterChip(
                 selected = layout == "Audio Visualizer",
                 onClick = { layout = "Audio Visualizer" },
@@ -168,7 +177,8 @@ fun StoryCardScreen(
                 )
             }
         }
-        Button(enabled = !isRendering, onClick = { onRenderStory(media, start, end, title, artist, layout); status = "Story render requested." },
+        }
+        Button(enabled = !isRendering, onClick = { onRenderStory(media, start, end, title, artist, layout); status = "Preparing export… Keep VidGravity open until it finishes." },
             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
             if (isRendering) { CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)); Text("Rendering story…") }
             else Text("Render 9:16 Story")
@@ -179,4 +189,10 @@ fun StoryCardScreen(
         }
         if (status.isNotBlank()) Text(status, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
+}
+
+private fun isAudioStorySource(mimeType: String, displayName: String): Boolean {
+    if (mimeType.startsWith("audio/", ignoreCase = true)) return true
+    val extension = displayName.substringBefore('?').substringBefore('#').substringAfterLast('.', "").lowercase()
+    return extension in setOf("mp3", "m4a", "aac", "wav", "ogg", "oga", "opus", "flac", "wma", "weba")
 }

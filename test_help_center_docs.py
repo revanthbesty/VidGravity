@@ -36,6 +36,7 @@ class HelpCenterDocumentationTests(unittest.TestCase):
                   "com" / "vidgravity" / "app" / "MainActivity.kt").read_text(encoding="utf-8")
         for phrase in ("Help & troubleshooting", "Open Help Center", "VidGravity Help Center",
                        "DOWNLOAD STUCK OR AT 0%", "FILE MISSING FROM LIBRARY",
+                       "YOUTUBE LINK DOES NOT WORK", "CREATE A STORY", "STORY EXPORT FAILED",
                        "CHECKSUM OR SERVICE ERROR", "Queue controls · cancel, retry & reports", "show_queue_controls"):
             self.assertIn(phrase, source)
         guide = (ROOT / "docs" / "USER_GUIDE.md").read_text(encoding="utf-8")

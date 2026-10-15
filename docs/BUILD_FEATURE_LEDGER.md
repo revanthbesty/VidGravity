@@ -236,3 +236,57 @@ This section records the user's requirements in their own terms. These are persi
 - Outstanding P0: Sound Only, Status Splitter export, Story export 404, YouTube URL cloud service unavailable/format inspection/download path.
 - Outstanding P1: Download/Library organization and media metadata tiles, Create workflow organization, brand logo and color system, reachable camera controls.
 - Do not mark any user-reported feature fixed until a fresh test of its actual workflow succeeds.
+
+
+## Candidate audit refresh — 2026-10-15 11:25 IST
+
+This section supersedes stale "CI pending" statements above for the **pre-ledger candidate head**. It does not claim the app is release-ready.
+
+### Exact candidate evidence (before this ledger-only commit)
+
+- Candidate PR: https://github.com/revanthbesty/VidGravity/pull/36
+- Candidate branch: `fix/reported-workflows-20261015`
+- Tested source HEAD: `ea2d958fbca275af97275971f6a9dc3227879d77`
+- Android CI run: https://github.com/revanthbesty/VidGravity/actions/runs/38688766833 — completed successfully on that exact HEAD.
+- Jobs passed: native Android APK build + export/share tests + APK upload; regression suite; PWA AI Studio type-check/build; Cloud AI API type-check/build/task-lifecycle tests.
+- Debug APK artifact: https://github.com/revanthbesty/VidGravity/actions/runs/38688766833/artifacts/11951065711 (artifact ID `11951065711`, approx. 24.1 MB; not a signed production APK).
+- Artifact ZIP digest reported by GitHub: `sha256:3f862868c6172a1a7803d942165920a83151f68a9eb77776d68169556e85920e`.
+- Raw APK SHA-256 computed after extracting `app-debug.apk`: `f24cb8f2c1fab4a26852b7790a8d9b1c053d24f68cc4caca13f9032b008f0554`.
+- Live deployment probe: https://github.com/revanthbesty/VidGravity/actions/runs/38688762429 — PASS on the same source HEAD. Public backend health returned HTTP 200, homepage HTTP 200, Story export route returned HTTP 400 for an intentionally empty request (expected validation, not 404), and the PWA origin returned HTTP 200.
+- Scope limit: this live probe confirms service reachability and that the route is mounted. It does **not** execute a real Story render/export, validate playable output, or prove a live YouTube download.
+- Important: this ledger update itself creates a new commit on this branch. That new exact HEAD must rerun CI and produce a fresh APK artifact; compare its raw APK SHA-256 with the value above before considering the checksum/artifact gate closed. Do not report readiness until that new exact-head check is complete.
+
+### Required feature acceptance matrix
+
+Status meanings: **Code/CI evidence** is not phone-level proof. Any item marked device/end-to-end pending remains open.
+
+| Required item | Evidence on pre-ledger candidate | Current status / remaining acceptance |
+|---|---|---|
+| Sound Only end-to-end | Home quick-action source contains Sound Only; selector falls back to `bestaudio`; regression suite passed. | **P0 OPEN** — no successful live audio download, non-empty playable audio file, checksum verification and Library publication evidenced. Test on an allowed/public source or a local authorized fixture. |
+| Remove redundant Grab Best Video; retain Inspect Link | Candidate MainActivity contains no `Grab Best Video` string and has an `Inspect link` action. | **Code PASS; device visual pending** — verify installed APK shows Inspect Link and no duplicate Grab Best action. |
+| Status Split Cutter exports playable saved clips at 30/60/90/120 seconds | UI exposes Status Clip Splitter; split/export code, progress/cancel and saved draft targets are present; generic FFmpeg derivative integration tests passed. | **P0 OPEN** — generic FFmpeg tests are not proof of this Android workflow. For each target (30/60/90/120), export a representative source, inspect actual duration/codec, play every clip, and verify MediaStore/Library publication, names, checksum and retry/cancel. |
+| StudyTok removed from all user-facing navigation | StudyTok is absent from the Home quick-action list. | **PARTIAL** — internal screen/state and callback references remain in MainActivity; audit all user-visible routes and remove dead navigation/state/tests if the feature is meant to be fully removed. Do not re-add a StudyTok nav item. |
+| Media tiles have clear icons/thumbnails and metadata | Library/Downloads media models and row/card actions exist in source. | **DEVICE/UI PENDING** — inspect actual downloaded files for thumbnail/icon, title, type, duration/size/date where available, and sensible empty/error states. |
+| Downloads and Library are organized, scrollable, non-duplicative | Scroll-owning screen containers, persisted Library filters/sort, Download search/status filters and collapsible Library tools exist; regression job passed. | **DEVICE PENDING** — scroll each screen to both ends with long lists and keyboard open/closed; confirm no duplicate controls, hidden rows, clipped actions or lost queue state. |
+| Create workflows organized and functional | Story advanced options are behind “Fine-tune clip, caption & layout”; creator picker entry points and export handling are in source; tests passed. | **DEVICE/E2E PENDING** — exercise every visible workflow and confirm outputs are created, playable, saved and shareable; no dead-end cards. |
+| VidGravity logo and colorful modern navigation/icons/buttons | VidGravity wordmark text, Material icons and adaptive color schemes exist. | **VISUAL PENDING** — dedicated logo treatment and requested colorful premium styling must be checked in the installed build, including light/dark/system, contrast and status-bar safe areas. |
+| Camera one-hand controls, capture, flash, quality | Static regression checks cover quality control, torch ON/tap-off behavior and MediaStore publication. | **DEVICE PENDING** — one-hand reach, rear/front switching, repeated flash ON→OFF, photo/video capture, quality applied to recording, orientation, permissions and gallery playback. Dual-camera remains hardware-dependent. |
+| YouTube URL handling | yt-dlp/Deno/ejs prerequisites and extractor-configuration tests passed; provider-aware failure classification is in candidate history. | **P0 E2E OPEN** — verify a permitted test URL through Inspect Link → format list → job → output. Provider verification/rate limits must fail clearly; do not claim cloud extraction works merely because prerequisites pass or bypass provider controls. |
+| Story export endpoint/deployment | Same-head probe confirmed backend health/homepage HTTP 200 and `POST /api/media/export` responds HTTP 400 for empty input, not 404. | **ROUTE PASS; REAL EXPORT P0 OPEN** — execute valid video and audio Story exports, confirm HTTP 2xx, returned `X-Content-SHA256`, local digest equality, playable output and saved MediaStore file. |
+| Stalled download recovery | Candidate classifies provider failures, times out stalled yt-dlp jobs after 180 seconds and removes partial output; CI regression passed. | **DEVICE/INTEGRATION PENDING** — force a stalled/failing job and confirm timeout/retry/cancel works, partial files are removed, status is actionable and queue can recover. |
+| Library playback/indexing | Download completion attempts MediaStore publication and Library refresh/search/filter/actions exist. | **DEVICE PENDING** — complete a real download/export, verify one visible indexed item, play it, then rename/favorite/share/delete and confirm index consistency. |
+| Close/clear/dismiss behavior | URL clear and clipboard suggestion dismiss controls are present. | **DEVICE PENDING** — test close/back on every sheet/dialog/player/camera/export flow; ensure closing never accidentally deletes or cancels completed media. |
+| All-screen scrolling | Main screen host no longer imposes a competing scroll container; Home/Downloads/Library/Create use screen-owned scrolling. | **DEVICE PENDING** — verify Home, Downloads, Library, Create, Share Inbox, Settings, Help, camera and all sheets on narrow screens and landscape. |
+| Checksum handling | Client requires a valid 64-hex `X-Content-SHA256`; error path says unverified/incomplete output must not be published. | **REAL EXPORT P0 OPEN** — prove server hash equals locally computed output hash for real exports/downloads; corrupt/missing checksum must block publication and preserve actionable retry. |
+| WhatsApp / Share Inbox | Inbox entry and status split workflow are present in source. | **DEVICE PENDING** — share inbound text/media from another app, verify correct Inbox routing, permissions, deduplication and actual WhatsApp share-sheet target when installed. Verify clips are accepted by the chosen destination; do not assume 120-second segments are accepted by WhatsApp Status. |
+| Camera gallery saving | Static regression checks assert JPEG/MP4 MediaStore publication under Pictures/Movies/VidGravity. | **DEVICE PENDING** — capture photo and video, restart app, verify files in Android Gallery and VidGravity Library, playable metadata and no duplicate/broken entries. |
+| Premium status-bar-safe UI/accessibility | Material theme and status-bar inset usage exist in source. | **DEVICE PENDING** — verify light/dark/system, contrast, touch target size, screen-reader labels, navigation bar/status bar insets and no overlaps. |
+| Foreground service / pause-resume-cancel / progress-size-speed-ETA / 360p–8K+audio picker | Implementation and prior regression coverage exist; current CI build passed. | **DEVICE PENDING** — test Android 14+ notification/service behavior, real progress metrics, pause/resume/cancel, retry after process interruption, and all available quality/audio options on a real device. |
+
+### Release gate after this ledger commit
+
+1. Wait for Android CI/regression to finish on the **new branch HEAD** created by this ledger update.
+2. Download the APK artifact from that exact run, compute the raw APK SHA-256, and compare it with the recorded value above; if it differs, update the ledger and rerun the gate.
+3. Keep live service reachability marked PASS only for the successful probe scope; keep real Story render/audio/video export and actual YouTube media flow OPEN until exercised end-to-end.
+4. Phone-level acceptance is still required. No camera, scrolling, playback, media-indexing, or WhatsApp behavior may be marked device-passed without real-device evidence.
+5. Candidate is **NOT READY FOR TESTING sign-off yet**: exact-head CI/artifact after this documentation commit and real media export/download acceptance remain open.

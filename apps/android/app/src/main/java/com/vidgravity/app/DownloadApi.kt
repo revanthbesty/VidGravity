@@ -319,48 +319,67 @@ object DownloadApi {
                 }
             } ?: throw IllegalStateException("Cannot open the selected source media.")
             require(sourceFile.length() > 0L) { "The selected source media is empty." }
-            val mime = context.contentResolver.getType(sourceUri)?.takeIf { it.startsWith("video/") || (mode == "audio-story" && it.startsWith("audio/")) } ?: "application/octet-stream"
-            val connection = open("/api/media/export", "POST", mime)
-            connection.doOutput = true
-            connection.connectTimeout = 15_000
-            connection.readTimeout = 1_800_000
-            connection.setFixedLengthStreamingMode(sourceFile.length())
-            connection.setRequestProperty("X-VG-Preset", preset)
-            connection.setRequestProperty("X-VG-Format", outputFormat)
-            connection.setRequestProperty("X-VG-Mode", mode)
-            connection.setRequestProperty("X-VG-Start-Seconds", "%.3f".format(java.util.Locale.US, startSeconds))
-            connection.setRequestProperty("X-VG-Trim-Seconds", "%.3f".format(java.util.Locale.US, trimSeconds))
-            connection.setRequestProperty("X-VG-Title-Encoded", URLEncoder.encode(title.take(100), "UTF-8"))
-            connection.setRequestProperty("X-VG-Artist-Encoded", URLEncoder.encode(artist.take(100), "UTF-8"))
-            try {
-                sourceFile.inputStream().buffered(128 * 1024).use { input ->
-                    connection.outputStream.buffered(128 * 1024).use { output -> input.copyTo(output, 128 * 1024) }
-                }
-                val code = connection.responseCode
-                if (code !in 200..299) {
-                    val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                    throw IllegalStateException("Export HTTP $code: ${detail.take(300)}")
-                }
-                val expected = connection.getHeaderField("X-Content-SHA256")?.trim()?.takeIf { it.matches(Regex("[a-fA-F0-9]{64}")) }
-                    ?: throw java.io.IOException("The renderer did not provide a valid SHA-256 checksum.")
-                connection.inputStream.buffered(128 * 1024).use { input ->
-                    FileOutputStream(outputFile).use { output ->
-                        val buffer = ByteArray(128 * 1024)
-                        var total = 0L
-                        while (true) {
-                            val count = input.read(buffer)
-                            if (count < 0) break
-                            total += count
-                            require(total <= 256L * 1024L * 1024L) { "Export exceeds the 256 MiB response limit." }
-                            output.write(buffer, 0, count)
-                        }
-                        output.fd.sync()
+            val mime = resolveExportMime(context, sourceUri, mode)
+            var exportComplete = false
+            var lastConnectionFailure: java.io.IOException? = null
+            for (attempt in 0..1) {
+                val connection = open("/api/media/export", "POST", mime)
+                connection.doOutput = true
+                connection.connectTimeout = 20_000
+                connection.readTimeout = 1_800_000
+                connection.setFixedLengthStreamingMode(sourceFile.length())
+                connection.setRequestProperty("Connection", "close")
+                connection.setRequestProperty("X-VG-Preset", preset)
+                connection.setRequestProperty("X-VG-Format", outputFormat)
+                connection.setRequestProperty("X-VG-Mode", mode)
+                connection.setRequestProperty("X-VG-Start-Seconds", "%.3f".format(java.util.Locale.US, startSeconds))
+                connection.setRequestProperty("X-VG-Trim-Seconds", "%.3f".format(java.util.Locale.US, trimSeconds))
+                connection.setRequestProperty("X-VG-Title-Encoded", URLEncoder.encode(title.take(100), "UTF-8"))
+                connection.setRequestProperty("X-VG-Artist-Encoded", URLEncoder.encode(artist.take(100), "UTF-8"))
+                try {
+                    sourceFile.inputStream().buffered(128 * 1024).use { input ->
+                        connection.outputStream.buffered(128 * 1024).use { output -> input.copyTo(output, 128 * 1024) }
                     }
+                    val code = connection.responseCode
+                    if (code !in 200..299) {
+                        val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                        throw IllegalStateException("Export HTTP $code: ${detail.take(300)}")
+                    }
+                    val expected = connection.getHeaderField("X-Content-SHA256")?.trim()?.takeIf { it.matches(Regex("[a-fA-F0-9]{64}")) }
+                        ?: throw java.io.IOException("The renderer did not provide a valid SHA-256 checksum.")
+                    connection.inputStream.buffered(128 * 1024).use { input ->
+                        FileOutputStream(outputFile).use { output ->
+                            val buffer = ByteArray(128 * 1024)
+                            var total = 0L
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                total += count
+                                require(total <= 256L * 1024L * 1024L) { "Export exceeds the 256 MiB response limit." }
+                                output.write(buffer, 0, count)
+                            }
+                            output.fd.sync()
+                        }
+                    }
+                    if (!sha256(outputFile).equals(expected, ignoreCase = true)) {
+                        throw java.io.IOException("Export SHA-256 verification failed; the file was not published.")
+                    }
+                    exportComplete = true
+                    break
+                } catch (failure: java.io.IOException) {
+                    lastConnectionFailure = failure
+                    if (attempt == 1) {
+                        throw java.io.IOException(
+                            "The export connection was interrupted twice. Check your connection and retry. For a large source, try a shorter clip or a smaller file. Details: ${failure.message ?: "connection closed"}",
+                            failure
+                        )
+                    }
+                    Thread.sleep(700L)
+                } finally {
+                    connection.disconnect()
                 }
-                if (!sha256(outputFile).equals(expected, ignoreCase = true)) {
-                    throw java.io.IOException("Export SHA-256 verification failed; the file was not published.")
-                }
-            } finally { connection.disconnect() }
+            }
+            if (!exportComplete) throw java.io.IOException("The story export did not complete.", lastConnectionFailure)
             val values = android.content.ContentValues().apply {
                 val suffix = if (outputFormat == "webp") "Sticker" else "Story"
                 val extension = if (outputFormat == "webp") "webp" else "mp4"
@@ -397,6 +416,38 @@ object DownloadApi {
             sourceFile.delete()
             outputFile.delete()
         }
+    }
+
+    private fun resolveExportMime(context: android.content.Context, uri: Uri, mode: String): String {
+        val reported = context.contentResolver.getType(uri)?.substringBefore(';')?.lowercase()
+        val displayName = runCatching {
+            context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+                ?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else ""
+                }.orEmpty()
+        }.getOrDefault("")
+        val extension = (displayName.ifBlank { uri.lastPathSegment.orEmpty() })
+            .substringBefore('?').substringBefore('#').substringAfterLast('.', "").lowercase()
+        val inferred = when (extension) {
+            "mp3" -> "audio/mpeg"
+            "m4a", "mp4", "aac" -> if (extension == "mp4") "video/mp4" else "audio/mp4"
+            "wav" -> "audio/wav"
+            "ogg", "oga" -> "audio/ogg"
+            "opus" -> "audio/opus"
+            "flac" -> "audio/flac"
+            "wma" -> "audio/x-ms-wma"
+            "webm" -> if (mode == "audio-story") "audio/webm" else "video/webm"
+            "mov" -> "video/quicktime"
+            "mkv" -> "video/x-matroska"
+            "3gp" -> "video/3gpp"
+            else -> null
+        }
+        val mime = reported?.takeIf { it.startsWith("video/") || (mode == "audio-story" && it.startsWith("audio/")) }
+            ?: inferred?.takeIf { it.startsWith("video/") || (mode == "audio-story" && it.startsWith("audio/")) }
+        if (mode == "audio-story" && mime == null) {
+            throw IllegalArgumentException("VidGravity could not identify this as an audio file. Choose an audio file such as MP3, M4A, WAV, OGG or FLAC.")
+        }
+        return mime ?: "application/octet-stream"
     }
 
     fun sha256(file: File): String {

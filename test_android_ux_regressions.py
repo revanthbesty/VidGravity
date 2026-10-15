@@ -43,3 +43,28 @@ def test_camera_captures_are_published_to_shared_gallery():
     assert "publishCapture(target, \"image/jpeg\")" in source
     assert "publishCapture(target, \"video/mp4\")" in source
     assert 'put(MediaStore.MediaColumns.RELATIVE_PATH, if (isVideo) "Movies/VidGravity" else "Pictures/VidGravity")' in source
+
+
+def test_story_editor_hides_advanced_controls_until_requested_and_detects_audio_extensions():
+    story = (ROOT / "apps/android/app/src/main/java/com/vidgravity/app/StoryCardScreen.kt").read_text(encoding="utf-8")
+    assert 'Fine-tune clip, caption & layout' in story
+    assert 'if (showAdvanced)' in story
+    assert 'isAudioStorySource(media.mimeType, media.displayName)' in story
+    assert '"mp3", "m4a", "aac", "wav", "ogg", "oga", "opus", "flac", "wma", "weba"' in story
+
+
+def test_story_export_retries_interrupted_connection_and_infers_audio_mime():
+    api = (ROOT / "apps/android/app/src/main/java/com/vidgravity/app/DownloadApi.kt").read_text(encoding="utf-8")
+    assert 'for (attempt in 0..1)' in api
+    assert 'The export connection was interrupted twice.' in api
+    assert 'setRequestProperty("Connection", "close")' in api
+    assert 'private fun resolveExportMime' in api
+    assert 'VidGravity could not identify this as an audio file.' in api
+
+
+def test_library_filters_and_sorting_are_collapsed_behind_one_action():
+    source = MAIN.read_text(encoding="utf-8")
+    assert "var showAdvancedFilters by remember" in source
+    assert 'Text(if (showAdvancedFilters) "Hide filters & sorting" else "Filters & sorting")' in source
+    assert "if (showAdvancedFilters) {" in source
+    assert '.putBoolean("show_advanced_filters", showAdvancedFilters)' in source

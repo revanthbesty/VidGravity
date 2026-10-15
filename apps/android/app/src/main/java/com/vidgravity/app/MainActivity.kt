@@ -1553,12 +1553,14 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
     var swipeFeedOpen by remember { mutableStateOf(false) }
     var showLibraryTools by remember { mutableStateOf(libraryUiPrefs.getBoolean("show_library_tools", false)) }
     var showBulkActions by remember { mutableStateOf(libraryUiPrefs.getBoolean("show_bulk_actions", false)) }
+    var showAdvancedFilters by remember { mutableStateOf(libraryUiPrefs.getBoolean("show_advanced_filters", false)) }
     var showStorageInsights by remember { mutableStateOf(libraryUiPrefs.getBoolean("show_storage_insights", false)) }
     var refreshingMedia by remember { mutableStateOf(false) }
-    LaunchedEffect(showLibraryTools, showBulkActions, showStorageInsights) {
+    LaunchedEffect(showLibraryTools, showBulkActions, showAdvancedFilters, showStorageInsights) {
         libraryUiPrefs.edit()
             .putBoolean("show_library_tools", showLibraryTools)
             .putBoolean("show_bulk_actions", showBulkActions)
+            .putBoolean("show_advanced_filters", showAdvancedFilters)
             .putBoolean("show_storage_insights", showStorageInsights)
             .apply()
     }
@@ -2013,6 +2015,15 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
             Spacer(Modifier.width(6.dp))
             Text("Reset library filters and sorting")
         }
+        OutlinedButton(
+            onClick = { showAdvancedFilters = !showAdvancedFilters },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+        ) {
+            Icon(if (showAdvancedFilters) Icons.Default.ExpandLess else Icons.Default.FilterList, null)
+            Spacer(Modifier.width(8.dp))
+            Text(if (showAdvancedFilters) "Hide filters & sorting" else "Filters & sorting")
+        }
+        if (showAdvancedFilters) {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
             items(listOf("All Media", "Video", "Audio", "Images", "Other Files", "Favorites", "Recent 7 days", "Large files")) { value ->
                 FilterChip(
@@ -2049,6 +2060,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                     )
                 }
             }
+        }
         }
         if (visibleMedia.isEmpty()) {
             InfoCard(
@@ -3062,17 +3074,22 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                     Text("1. Open Home and paste a complete public media URL. 2. Tap Inspect link. 3. Choose a format actually offered by the source. 4. Open Downloads to follow the job. 5. When it succeeds, refresh Library.")
                     Text("QUALITY OPTIONS", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Text("The quality picker lists formats returned by the source. If a resolution is missing, that source may not offer it, or inspection may be incomplete. Try inspecting again and compare the listed formats.")
+                    Text("YOUTUBE LINK DOES NOT WORK", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("The cloud service can be blocked by YouTube verification even when a link is public. VidGravity will not bypass that check. For your own upload, use YouTube's official download option. Other providers must be tested independently.")
+                    Text("CREATE A STORY", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("Choose a source file, set a clip length, then open Fine-tune clip, caption & layout for the start point, title, caption and framing. Tap Render 9:16 Story and keep the app open until the export completes. The original file is not replaced.")
+                    Text("STORY EXPORT FAILED", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("Retry once on a stable connection. For a large source, use a shorter clip or a smaller file. For an audio visualizer, select a recognized audio file such as MP3, M4A, WAV, OGG or FLAC. If the connection aborts again, the cloud renderer needs investigation; repeated retries alone will not fix a server failure.")
                     Text("DOWNLOAD STUCK OR AT 0%", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    Text("A job can remain queued while waiting for network constraints or a worker slot. If transfer stays at 0%, check the job state and error, confirm internet access, review Wi-Fi-only settings, then retry when available.")
+                    Text("A job may be queued while waiting for network constraints or a worker slot. Check its status and error, confirm internet access, and review Wi-Fi-only settings. If it remains at 0%, cancel it and retry once; provider verification or a stalled server job must return an error rather than be treated as a completed download.")
                     Text("FILE MISSING FROM LIBRARY", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                    Text("Confirm the download says completed, open Library again, and check the media filter/search. If it still does not appear, open Settings → Diagnostics & self-test and copy the report.")
+                    Text("Confirm the download says completed, open Library again, and check the media filter/search. Tap Filters & sorting to reveal or reset filters. If it still does not appear, open Settings → Diagnostics & self-test and copy the report.")
                     Text("PLAYBACK PROBLEM", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Text("Playback depends on the file's container and codec. Try another player-supported format when available. Keep the original file if you need to report the issue.")
                     Text("CHECKSUM OR SERVICE ERROR", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Text("If verification fails, the incomplete file is discarded rather than published. Retry once on a stable connection. Repeated service errors may require a backend fix.")
                     Text("REPORT A PROBLEM", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Text("Include Android version, app version, exact job state/error, steps to reproduce, and a diagnostics report. Never share passwords, API tokens, cookies, or private signed URLs.")
-                    Text("Note: device-specific scrolling, background execution and playback still need real-device verification.")
                 }
             },
             confirmButton = { TextButton(onClick = { showHelpCenter = false }) { Text("Done") } }
