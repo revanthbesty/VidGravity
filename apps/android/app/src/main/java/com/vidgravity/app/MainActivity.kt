@@ -77,7 +77,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
         primaryContainer = Color(0xFF304842),
         onPrimaryContainer = Color(0xFFE6EEF0),
         secondary = Color(0xFF38B8B2),
-        onSecondary = Color(0xFF102725),
+        onSecondary = Color(0xFF05090A),
         tertiary = Color(0xFF967BFF),
         onTertiary = Color(0xFF17102F),
         background = Color(0xFF171F23),
@@ -94,7 +94,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
         primaryContainer = Color(0xFFDDEDE9),
         onPrimaryContainer = Color(0xFF205A56),
         secondary = Color(0xFF35A99D),
-        onSecondary = Color(0xFF102725),
+        onSecondary = Color(0xFF05090A),
         tertiary = Color(0xFF6845DB),
         onTertiary = Color.White,
         background = Color(0xFFF3F6F7),
@@ -447,12 +447,12 @@ private fun VgPrimaryButton(
             )
             Spacer(Modifier.width(8.dp))
         } else if (icon != null) {
-            Icon(icon, contentDescription = null, tint = if (active) Color(0xFF102725) else MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(icon, contentDescription = null, tint = if (active) Color(0xFF05090A) else MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.width(8.dp))
         }
         Text(
             text = text,
-            color = if (active) Color(0xFF102725) else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (active) Color(0xFF05090A) else MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.Bold
         )
     }
