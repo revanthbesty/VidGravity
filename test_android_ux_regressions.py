@@ -60,3 +60,11 @@ def test_story_export_retries_interrupted_connection_and_infers_audio_mime():
     assert 'setRequestProperty("Connection", "close")' in api
     assert 'private fun resolveExportMime' in api
     assert 'VidGravity could not identify this as an audio file.' in api
+
+
+def test_library_filters_and_sorting_are_collapsed_behind_one_action():
+    source = MAIN.read_text(encoding="utf-8")
+    assert "var showAdvancedFilters by remember" in source
+    assert 'Text(if (showAdvancedFilters) "Hide filters & sorting" else "Filters & sorting")' in source
+    assert "if (showAdvancedFilters) {" in source
+    assert '.putBoolean("show_advanced_filters", showAdvancedFilters)' in source
