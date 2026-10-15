@@ -76,7 +76,9 @@ object DownloadApi {
     }
 
     fun analyzeSource(url: String): SourceAnalysisResult {
-        val connection = open("/api/formats?url=" + URLEncoder.encode(url, "UTF-8"), "GET")
+        val normalizedUrl = ShareReceiverActivity.normalizeSharedUrl(url)
+            ?: throw IllegalArgumentException("Enter a complete public media URL.")
+        val connection = open("/api/formats?url=" + URLEncoder.encode(normalizedUrl, "UTF-8"), "GET")
         try {
             val json = readJson(connection)
             val formats = json.optJSONArray("formats") ?: JSONArray()
