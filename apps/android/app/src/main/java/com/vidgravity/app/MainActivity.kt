@@ -66,17 +66,50 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     var analysis by remember { mutableStateOf<SourceAnalysisResult?>(null) }
     var inspecting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    // VidGravity Premium UI tokens: Soft Slate + Muted Teal + selective Creative Violet.
     val scheme = if (dark) darkColorScheme(
-        primary = Color(0xFFB8A5FF), secondary = Color(0xFF8B7BFF),
-        background = Color(0xFF101014), surface = Color(0xFF19191F),
-        surfaceVariant = Color(0xFF25252D), onBackground = Color(0xFFF4F2FA),
-        onSurface = Color(0xFFF4F2FA)
+        primary = Color(0xFF8CC8BC),
+        onPrimary = Color(0xFF171F23),
+        primaryContainer = Color(0xFF304842),
+        onPrimaryContainer = Color(0xFFE6EEF0),
+        secondary = Color(0xFF38B8B2),
+        onSecondary = Color(0xFF102725),
+        tertiary = Color(0xFF967BFF),
+        onTertiary = Color(0xFF17102F),
+        background = Color(0xFF171F23),
+        surface = Color(0xFF202B30),
+        surfaceVariant = Color(0xFF29373D),
+        onBackground = Color(0xFFE6EEF0),
+        onSurface = Color(0xFFE6EEF0),
+        onSurfaceVariant = Color(0xFFAFBEC3),
+        outline = Color(0xFF38484E),
+        outlineVariant = Color(0xFF38484E)
     ) else lightColorScheme(
-        primary = Color(0xFF5B43D6), secondary = Color(0xFF735FE3),
-        background = Color(0xFFF7F7FB), surface = Color.White,
-        surfaceVariant = Color(0xFFECECF4)
+        primary = Color(0xFF286B66),
+        onPrimary = Color.White,
+        primaryContainer = Color(0xFFDDEDE9),
+        onPrimaryContainer = Color(0xFF205A56),
+        secondary = Color(0xFF35A99D),
+        onSecondary = Color(0xFF102725),
+        tertiary = Color(0xFF6845DB),
+        onTertiary = Color.White,
+        background = Color(0xFFF3F6F7),
+        surface = Color(0xFFFFFFFF),
+        surfaceVariant = Color(0xFFE8EEF0),
+        onBackground = Color(0xFF26363B),
+        onSurface = Color(0xFF26363B),
+        onSurfaceVariant = Color(0xFF5C6D73),
+        outline = Color(0xFFD5E0E3),
+        outlineVariant = Color(0xFFD5E0E3)
     )
-    MaterialTheme(colorScheme = scheme) {
+    val vgShapes = Shapes(
+        extraSmall = RoundedCornerShape(8.dp),
+        small = RoundedCornerShape(12.dp),
+        medium = RoundedCornerShape(16.dp),
+        large = RoundedCornerShape(20.dp),
+        extraLarge = RoundedCornerShape(26.dp)
+    )
+    MaterialTheme(colorScheme = scheme, shapes = vgShapes) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
