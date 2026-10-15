@@ -1916,9 +1916,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                                                 } finally {
                                                     localFiles.forEach { it.delete() }
                                                 }
-                                                if (completed == count) {
-                                                    notify("Cloud export failed; created all $completed clips on this device.")
-                                                } else if (localFiles.isEmpty()) {
+                                                if (localFiles.isEmpty()) {
                                                     throw IllegalStateException(
                                                         "Cloud export failed and local splitting returned no clips: ${cloudFailure?.message ?: "retry the source"}"
                                                     )
