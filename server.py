@@ -892,7 +892,9 @@ class Handler(SimpleHTTPRequestHandler):
                 DOWNLOAD_JOBS[job_id]={"id":job_id,"state":"queued","progress":0,"message":"Queued","url":url,"format":fmt,"audio_only":bool(data.get('audio_only',False)),"created_at":time.time(),"updated_at":time.time()}
                 _persist_job(DOWNLOAD_JOBS[job_id])
             import threading
-            threading.Thread(target=_run_download_job,args=(job_id,url,fmt,bool(data.get('audio_only',False))),daemon=True).start()
+            audio_only=bool(data.get('audio_only',False))
+            worker_args=(job_id,url,fmt,True) if audio_only else (job_id,url,fmt)
+            threading.Thread(target=_run_download_job,args=worker_args,daemon=True).start()
             return self._json(202,{"id":job_id,"state":"queued","progress":0})
         if self.path.startswith('/api/download-jobs/') and self.path.endswith('/retry'):
             job_id=self.path.split('/')[-2]
@@ -907,7 +909,9 @@ class Handler(SimpleHTTPRequestHandler):
                 DOWNLOAD_JOBS[new_id]=new_job
                 _persist_job(new_job)
             import threading
-            threading.Thread(target=_run_download_job,args=(new_id,new_job['url'],new_job['format'],bool(new_job.get('audio_only',False))),daemon=True).start()
+            audio_only=bool(new_job.get('audio_only',False))
+            worker_args=(new_id,new_job['url'],new_job['format'],True) if audio_only else (new_id,new_job['url'],new_job['format'])
+            threading.Thread(target=_run_download_job,args=worker_args,daemon=True).start()
             return self._json(202,{"id":new_id,"state":"queued","retry_of":job_id})
         if self.path.startswith('/api/download-jobs/') and self.path.endswith('/cancel'):
             job_id=self.path.split('/')[-2]; job=DOWNLOAD_JOBS.get(job_id)
