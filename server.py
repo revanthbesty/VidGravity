@@ -16,6 +16,68 @@ def _yt_dlp_command(*args):
     if browser and SERVER_HOST.strip('[]').lower() in ('127.0.0.1','localhost','::1'):
         command[1:1]=['--cookies-from-browser',browser]
     return command
+
+def _classify_extractor_error(message):
+    """Map extractor failures to safe, actionable provider-facing diagnostics.
+
+    This does not attempt to bypass provider access controls or verification.
+    Returns a stable code and a user-facing message; callers may retain a
+    bounded raw diagnostic separately for troubleshooting.
+    """
+    raw=(message or '').strip()
+    lowered=raw.lower()
+    if any(token in lowered for token in (
+        'sign in to confirm you', 'login_required', 'not a bot',
+        'bot verification', 'confirm you’re not a bot',
+        "confirm you're not a bot", 'confirm you are not a bot'
+    )):
+        return {
+            'code':'provider_verification_required',
+            'message':(
+                "The provider is asking VidGravity's cloud server to verify access, "
+                "so this URL cannot be processed by the cloud downloader right now. "
+                "Try a public, non-restricted URL again later. If it is your own upload, "
+                "use the provider's official download option. Instagram and other providers "
+                "should be tested separately."
+            )
+        }
+    if any(token in lowered for token in (
+        'private video', 'video is private', 'members-only', 'members only',
+        'age-restricted', 'confirm your age', 'sign in to view'
+    )):
+        return {
+            'code':'provider_access_restricted',
+            'message':(
+                "This media appears to require an account, membership, age confirmation, "
+                "or other permission that VidGravity's cloud downloader does not have. "
+                "Use an authorized public link or the provider's official download option."
+            )
+        }
+    if any(token in lowered for token in (
+        'timed out', 'temporary failure', 'connection reset',
+        'http error 429', 'too many requests', 'service unavailable'
+    )):
+        return {
+            'code':'provider_temporarily_unavailable',
+            'message':(
+                "The provider is temporarily unavailable or rate-limiting requests. "
+                "Wait a little and retry; this does not confirm that the URL is downloadable."
+            )
+        }
+    if raw:
+        return {
+            'code':'provider_extraction_failed',
+            'message':(
+                "VidGravity could not extract media from this provider. Check that the link "
+                "is public and supported, then retry. If it continues, use the provider's "
+                "official download option where available."
+            )
+        }
+    return {
+        'code':'provider_extraction_failed',
+        'message':'VidGravity could not extract media from this URL. Check that the link is public and supported, then retry.'
+    }
+
 # P162 security controls: bounded request bodies and per-client in-memory throttles.
 P162_SECURITY=True
 MAX_JSON_BODY_BYTES=1_048_576
@@ -675,8 +737,6 @@ class Handler(SimpleHTTPRequestHandler):
                             'formats':format_rows[:40]
                         })
                     extractor_error=(p.stderr or p.stdout or 'The media provider could not identify this URL')[-1200:]
-                    if 'sign in to confirm you' in extractor_error.lower() or 'login_required' in extractor_error.lower() or 'bot' in extractor_error.lower() and 'verification' in extractor_error.lower():
-                        extractor_error="YouTube requires bot verification that this hosted cloud server cannot complete. This URL is currently unavailable through VidGravity's cloud backend. No local companion or PC installation is required or supported."
                 except subprocess.TimeoutExpired:
                     extractor_error='Media inspection timed out while contacting the provider'
                 except (ValueError, OSError) as exc:
@@ -703,17 +763,17 @@ class Handler(SimpleHTTPRequestHandler):
                             'has_video':signature.startswith('video/'),'has_audio':signature.startswith('audio/')}]
                     })
                 if content_type in ('text/html','application/xhtml+xml') or content_type.startswith('text/'):
-                    message='This URL returned a webpage, not a direct media file.'
-                    if extractor_error and ('sign in to confirm' in extractor_error.lower() or 'not a bot' in extractor_error.lower() or 'bot verification' in extractor_error.lower()):
-                        message="YouTube or this provider requires verification that VidGravity's cloud server cannot currently complete. This URL is unavailable through the cloud backend right now."
-                    elif extractor_error:
-                        message='The provider could not extract media metadata from this webpage.'
-                    return self._json(422,{'error':message,'source':'inspect','details':extractor_error[-700:]})
+                    diagnostic=_classify_extractor_error(extractor_error) if extractor_error else {
+                        'code':'webpage_not_media',
+                        'message':'This URL returned a webpage, not a direct media file.'
+                    }
+                    return self._json(422,{'error':diagnostic['message'],'code':diagnostic['code'],'source':'inspect','details':extractor_error[-700:]})
                 return self._json(415,{'error':'The URL did not return a recognized audio/video file. Content type: '+(content_type or 'unknown')+'. The server could not verify a media-file signature.','source':'inspect','details':extractor_error[-700:]})
             except Exception as exc:
                 detail=str(exc)[:400]
-                if extractor_error and ('sign in to confirm' in extractor_error.lower() or 'not a bot' in extractor_error.lower() or 'bot verification' in extractor_error.lower()):
-                    return self._json(422,{'error':"YouTube or this provider requires verification that VidGravity\'s cloud server cannot currently complete. This URL is unavailable through the cloud backend right now.",'source':'inspect','details':extractor_error[-700:]})
+                if extractor_error:
+                    diagnostic=_classify_extractor_error(extractor_error)
+                    return self._json(422,{'error':diagnostic['message'],'code':diagnostic['code'],'source':'inspect','details':extractor_error[-700:]})
                 return self._json(502,{'error':'Could not inspect this URL from the companion server. Check that the link is public and reachable.','source':'inspect','details':detail or extractor_error[-700:]})
         if self.path.startswith('/api/download-jobs/'):
             _cleanup_download_outputs()
