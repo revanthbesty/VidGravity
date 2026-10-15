@@ -156,7 +156,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                         }
                     )
                 } else when (selected) {
-                    VgTab.Home -> HomeContent(url, { url = it }, {
+                    VgTab.Home -> HomeContent(url, inspecting, { url = it }, {
                         if (url.isBlank()) notice = "Paste a public media URL first."
                         else {
                             inspecting = true
@@ -459,7 +459,7 @@ private fun VgPrimaryButton(
 }
 
 @Composable
-private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, openStudyTok: () -> Unit) {
+private fun HomeContent(url: String, inspecting: Boolean, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, openStudyTok: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
