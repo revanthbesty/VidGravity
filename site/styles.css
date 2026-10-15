@@ -511,3 +511,42 @@ html[data-theme="dark"] .card,html[data-theme="dark"] .job,html[data-theme="dark
 .vg-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 @media(max-width:600px){.vg-shortcut-hint{width:100%;margin-left:0}.vg-quick-intake-tools button{min-height:40px}.vg-queue-filters button{flex:1 0 auto}}
 @media(prefers-reduced-motion:reduce){.vg-queue-filters button{transition:none!important}}
+
+
+/* UI polish batch: reliable scrolling, mobile navigation, and resilient touch layouts. */
+html,body{min-height:100%;overscroll-behavior-y:auto}
+body{overflow-x:hidden}
+.app{min-height:100svh;align-items:stretch}
+.sidebar{position:sticky;top:0;height:100svh;overflow-y:auto;overscroll-behavior:contain}
+main{min-width:0;overflow-x:clip}
+.page{min-width:0;overflow:visible}
+.page.active{animation:vgPageEnter .16s ease-out}
+@keyframes vgPageEnter{from{opacity:.82;transform:translateY(3px)}to{opacity:1;transform:none}}
+button,a,input,select,textarea{touch-action:manipulation}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent,#9b7cff);outline-offset:3px}
+#downloadList,#libraryGrid,#recentGrid{min-width:0}
+#downloadList .vg-queue-tools{position:sticky;top:8px;z-index:3;backdrop-filter:blur(16px)}
+.media,.downloadItem,.job,.card{min-width:0}
+.mediaTitle,.jobTitle,.downloadItemTitle{overflow-wrap:anywhere}
+.vg-mobile-nav-backdrop{display:none}
+@media(max-width:650px){
+ .app{display:block}
+ .sidebar{position:fixed;left:0;top:0;bottom:0;width:min(290px,86vw);height:100dvh;z-index:40;transform:translateX(-105%);transition:transform .22s ease;box-shadow:20px 0 60px rgba(0,0,0,.3)}
+ .sidebar.open{left:0;transform:translateX(0)}
+ .vg-mobile-nav-backdrop{display:block;position:fixed;inset:0;z-index:39;background:rgba(5,6,12,.58);backdrop-filter:blur(3px);opacity:0;pointer-events:none;transition:opacity .2s ease}
+ .vg-mobile-nav-backdrop.open{opacity:1;pointer-events:auto}
+ .topbar{position:sticky;top:0;z-index:20;background:rgba(12,12,20,.92);backdrop-filter:blur(18px)}
+ html[data-theme="light"] .topbar{background:rgba(255,255,255,.94)}
+ .page{padding-bottom:calc(40px + env(safe-area-inset-bottom))}
+ .urlRow input,.askRow input,.search,.libraryTools select,.vg-queue-search input{font-size:16px}
+ .heroActions,.topbarActions,.sectionHead,.sectionTitle{min-width:0;flex-wrap:wrap}
+ .sectionHead>.textBtn{min-height:40px}
+ .job{grid-template-columns:minmax(0,1fr)!important;gap:10px}
+ .jobStatus{text-align:left}
+ .vg-queue-tools{position:static!important}
+ .vg-queue-filters button{min-height:42px}
+ .downloadItemActions .smallBtn,.actions .smallBtn{min-height:40px}
+ .modal{padding:10px}
+ .modalBox{max-height:calc(100dvh - 20px);overflow:auto}
+}
+@media(prefers-reduced-motion:reduce){.page.active,.sidebar,.vg-mobile-nav-backdrop{animation:none!important;transition:none!important}}
