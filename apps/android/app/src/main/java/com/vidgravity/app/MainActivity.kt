@@ -599,7 +599,6 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Downloads", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Track active and completed transfers on this device.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (works.isEmpty()) {
             InfoCard("Nothing downloading yet", "Inspect a public link from Home to get started.", Icons.Default.Download, Modifier.fillMaxWidth())
         } else {
@@ -636,245 +635,44 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 "Newest" -> matchedWorks
                 "Oldest" -> matchedWorks.reversed()
                 "Name A–Z" -> matchedWorks.sortedBy { work ->
-                    (work.outputData.getString("display_name")
-                        ?: work.outputData.getString("filename")
-                        ?: work.progress.getString("media_title")
-                        ?: "Media download").lowercase()
+                    (work.outputData.getString("display_name") ?: work.outputData.getString("filename")
+                        ?: work.progress.getString("media_title") ?: "Media download").lowercase()
                 }
-                "Progress" -> matchedWorks.sortedByDescending { work ->
-                    work.progress.getInt("progress", 0).coerceIn(0, 100)
-                }
-                "Status" -> matchedWorks.sortedWith(
-                    compareBy<WorkInfo> { it.state.name }.thenBy { work ->
-                        (work.outputData.getString("display_name")
-                            ?: work.outputData.getString("filename")
-                            ?: work.progress.getString("media_title")
-                            ?: "Media download").lowercase()
-                    }
-                )
-                "Failed first" -> matchedWorks.sortedWith(
-                    compareBy<WorkInfo> {
-                        when (it.state) {
-                            WorkInfo.State.FAILED, WorkInfo.State.CANCELLED -> 0
-                            WorkInfo.State.RUNNING, WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED -> 1
-                            WorkInfo.State.SUCCEEDED -> 2
-                            else -> 3
-                        }
-                    }.thenBy { work ->
-                        (work.outputData.getString("display_name")
-                            ?: work.outputData.getString("filename")
-                            ?: work.progress.getString("media_title")
-                            ?: "Media download").lowercase()
-                    }
-                )
+                "Progress" -> matchedWorks.sortedByDescending { it.progress.getInt("progress", 0).coerceIn(0, 100) }
                 else -> matchedWorks
             }
-            // Keep active downloads pinned first regardless of the selected secondary sort.
-            // Apply the selected sort inside each group so completed/failed history stays useful.
-            val filteredWorks = sortedMatchedWorks.filter { work ->
-                work.state == WorkInfo.State.RUNNING || work.state == WorkInfo.State.ENQUEUED || work.state == WorkInfo.State.BLOCKED
-            } + sortedMatchedWorks.filterNot { work ->
-                work.state == WorkInfo.State.RUNNING || work.state == WorkInfo.State.ENQUEUED || work.state == WorkInfo.State.BLOCKED
-            }
+            val filteredWorks = sortedMatchedWorks.filter { it.state in setOf(WorkInfo.State.RUNNING, WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED) } +
+                sortedMatchedWorks.filterNot { it.state in setOf(WorkInfo.State.RUNNING, WorkInfo.State.ENQUEUED, WorkInfo.State.BLOCKED) }
             val retryableFilteredWorks = filteredWorks.filter { work ->
                 (work.state == WorkInfo.State.FAILED || work.state == WorkInfo.State.CANCELLED) &&
                     !(work.outputData.getString(DownloadWorker.RETRY_URL)
                         ?: work.progress.getString("media_url")).isNullOrBlank()
             }
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Download overview", fontWeight = FontWeight.SemiBold)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column {
-                            Text("${activeWorks.size}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            Text("Active", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Column {
-                            Text("${completedWorks.size}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            Text("Completed", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Column {
-                            Text("${failedWorks.size}", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                            Text("Failed", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            }
-            OutlinedButton(
-                onClick = { showClearHistoryConfirm = true },
-                enabled = completedWorks.isNotEmpty() || failedWorks.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.DeleteSweep, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Clear finished history")
-            }
+            var sortMenuExpanded by remember { mutableStateOf(false) }
+            var filterMenuExpanded by remember { mutableStateOf(false) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = {
-                        activeWorks.forEach { work ->
-                            DownloadActionReceiver.clear(context, work.id)
-                            WorkManager.getInstance(context).cancelWorkById(work.id)
+                Box(Modifier.weight(1f)) {
+                    OutlinedButton(onClick = { filterMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
+                        Icon(Icons.Default.FilterList, null); Spacer(Modifier.width(6.dp)); Text(if (downloadFilter == "All") "Filter" else "Filter · " + downloadFilter)
+                    }
+                    DropdownMenu(expanded = filterMenuExpanded, onDismissRequest = { filterMenuExpanded = false }) {
+                        listOf("All", "Active", "Completed", "Failed").forEach { option ->
+                            DropdownMenuItem(text = { Text(option) }, onClick = { downloadFilter = option; filterMenuExpanded = false })
                         }
-                    },
-                    enabled = activeWorks.isNotEmpty(),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Default.StopCircle, null)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Cancel active (${activeWorks.size})")
-                }
-                OutlinedButton(
-                    onClick = {
-                        var queued = 0
-                        val preferences = SecureDownloadPreferences.load(context)
-                        retryableFilteredWorks.forEach { work ->
-                            val sourceUrl = work.outputData.getString(DownloadWorker.RETRY_URL)
-                                ?: work.progress.getString("media_url")
-                            val selector = work.outputData.getString(DownloadWorker.RETRY_FORMAT)
-                                ?: work.progress.getString("format_selector")
-                                ?: preferences.preferredFormatSelector
-                            val retryTitle = work.outputData.getString(DownloadWorker.RETRY_TITLE)
-                                ?: work.progress.getString("media_title")
-                                ?: "Media download"
-                            if (!sourceUrl.isNullOrBlank()) {
-                                runCatching {
-                                    DownloadWorker.enqueue(context, sourceUrl, selector, retryTitle, preferences.unmeteredOnly, work.outputData.getBoolean(DownloadWorker.RETRY_AUDIO_ONLY, work.progress.getBoolean(DownloadWorker.KEY_AUDIO_ONLY, false)))
-                                }.onSuccess { queued++ }
-                            }
-                        }
-                        android.widget.Toast.makeText(
-                            context,
-                            if (queued > 0) "Queued ${queued} retry attempt(s)." else "No failed items had enough saved information to retry.",
-                            android.widget.Toast.LENGTH_LONG
-                        ).show()
-                    },
-                    enabled = retryableFilteredWorks.isNotEmpty(),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Default.Refresh, null)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Retry visible (${retryableFilteredWorks.size})")
-                }
-            }
-            val runningWorks = works.filter { it.state == WorkInfo.State.RUNNING }
-            val pausableWorks = runningWorks.filterNot { DownloadActionReceiver.isPaused(context, it.id) }
-            val resumableWorks = runningWorks.filter { DownloadActionReceiver.isPaused(context, it.id) }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = {
-                        pausableWorks.forEach { work ->
-                            context.sendBroadcast(Intent(context, DownloadActionReceiver::class.java)
-                                .setAction(DownloadActionReceiver.ACTION_PAUSE)
-                                .putExtra(DownloadActionReceiver.EXTRA_WORK_ID, work.id.toString()))
-                        }
-                    },
-                    enabled = pausableWorks.isNotEmpty(),
-                    modifier = Modifier.weight(1f).heightIn(min = 46.dp)
-                ) {
-                    Icon(Icons.Default.Pause, null)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Pause running (${pausableWorks.size})")
-                }
-                OutlinedButton(
-                    onClick = {
-                        resumableWorks.forEach { work ->
-                            context.sendBroadcast(Intent(context, DownloadActionReceiver::class.java)
-                                .setAction(DownloadActionReceiver.ACTION_RESUME)
-                                .putExtra(DownloadActionReceiver.EXTRA_WORK_ID, work.id.toString()))
-                        }
-                    },
-                    enabled = resumableWorks.isNotEmpty(),
-                    modifier = Modifier.weight(1f).heightIn(min = 46.dp)
-                ) {
-                    Icon(Icons.Default.PlayArrow, null)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Resume paused (${resumableWorks.size})")
-                }
-            }
-            OutlinedTextField(
-                value = downloadSearch,
-                onValueChange = { downloadSearch = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text("Search downloads") },
-                placeholder = { Text("Search title, source, or error") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                trailingIcon = {
-                    if (downloadSearch.isNotBlank()) IconButton(onClick = { downloadSearch = "" }) {
-                        Icon(Icons.Default.Close, contentDescription = "Clear search")
                     }
                 }
-            )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(
-                    onClick = { showDownloadFilters = true },
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-                ) {
-                    Icon(Icons.Default.FilterList, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Filter")
-                    if (downloadFilter != "All") Text(" · $downloadFilter")
-                }
-                OutlinedButton(
-                    onClick = { showDownloadSort = true },
-                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
-                ) {
-                    Icon(Icons.Default.Sort, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Sort")
-                    Text(" · $downloadSort")
-                }
-            }
-            Text("${filteredWorks.size} downloads shown", fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (showDownloadFilters) AlertDialog(
-                onDismissRequest = { showDownloadFilters = false },
-                title = { Text("Filter downloads") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        listOf("All", "Active", "Completed", "Failed").forEach { value ->
-                            Row(
-                                Modifier.fillMaxWidth().clickable { downloadFilter = value },
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(selected = downloadFilter == value, onClick = { downloadFilter = value })
-                                Text(value)
-                            }
+                Box(Modifier.weight(1f)) {
+                    OutlinedButton(onClick = { sortMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
+                        Icon(Icons.Default.Sort, null); Spacer(Modifier.width(6.dp)); Text("Sort · " + downloadSort)
+                    }
+                    DropdownMenu(expanded = sortMenuExpanded, onDismissRequest = { sortMenuExpanded = false }) {
+                        listOf("Newest", "Oldest", "Name A–Z", "Progress").forEach { option ->
+                            DropdownMenuItem(text = { Text(option) }, onClick = { downloadSort = option; sortMenuExpanded = false })
                         }
                     }
-                },
-                confirmButton = { TextButton(onClick = { showDownloadFilters = false }) { Text("Apply") } },
-                dismissButton = { TextButton(onClick = { downloadFilter = "All"; showDownloadFilters = false }) { Text("Clear filter") } }
-            )
-            if (showDownloadSort) AlertDialog(
-                onDismissRequest = { showDownloadSort = false },
-                title = { Text("Sort downloads") },
-                text = {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        listOf("Newest", "Oldest", "Name A–Z", "Progress", "Status", "Failed first").forEach { value ->
-                            Row(
-                                Modifier.fillMaxWidth().clickable { downloadSort = value },
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(selected = downloadSort == value, onClick = { downloadSort = value })
-                                Text(value)
-                            }
-                        }
-                    }
-                },
-                confirmButton = { TextButton(onClick = { showDownloadSort = false }) { Text("Apply") } },
-                dismissButton = { TextButton(onClick = { downloadSort = "Newest"; showDownloadSort = false }) { Text("Newest first") } }
-            )
-            if (filteredWorks.isEmpty()) {
-                InfoCard("No ${downloadFilter.lowercase()} downloads",
-                    if (downloadFilter == "Active") "Your download queue is idle." else "Items will appear here when they match this filter.",
-                    Icons.Default.FilterList, Modifier.fillMaxWidth())
+                }
             }
-            // Use the screen's parent scroll container; nesting a LazyColumn here can
-            // measure it with infinite height and crash on some Compose versions.
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                filteredWorks.forEach { work ->
+            filteredWorks.forEach { work ->
                     val progress = work.progress.getInt("progress", 0).coerceIn(0, 100)
                     val paused = DownloadActionReceiver.isPaused(context, work.id)
                     val title = work.outputData.getString("display_name") ?: work.outputData.getString("filename") ?: work.progress.getString("media_title") ?: "Media download"
@@ -1014,7 +812,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             }
         }
-    }
+
     if (showClearHistoryConfirm) {
         AlertDialog(
             onDismissRequest = { showClearHistoryConfirm = false },
@@ -1036,7 +834,8 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
             }
         )
     }
-}
+
+    }
 
 @Composable
 private fun InfoCard(title: String, detail: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
@@ -1206,309 +1005,34 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Swipe Feed")
             }
         }
-        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(16.dp)) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column {
-                        Text("${visibleMedia.size} shown", fontWeight = FontWeight.SemiBold)
-                        Text(String.format("%.1f MB", visibleBytes / 1_000_000.0),
-                            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        var libraryFilterMenuExpanded by remember { mutableStateOf(false) }
+        var librarySortMenuExpanded by remember { mutableStateOf(false) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.weight(1f)) {
+                OutlinedButton(onClick = { libraryFilterMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
+                    Icon(Icons.Default.FilterList, null); Spacer(Modifier.width(6.dp)); Text(if (filter == "All Media" && sizeFilter == "Any size") "Filter" else "Filter · Applied")
+                }
+                DropdownMenu(expanded = libraryFilterMenuExpanded, onDismissRequest = { libraryFilterMenuExpanded = false }) {
+                    listOf("All Media", "Video", "Audio", "Images", "Other Files", "Favorites").forEach { option ->
+                        DropdownMenuItem(text = { Text(option + if (filter == option) " ✓" else "") }, onClick = { filter = option; libraryFilterMenuExpanded = false })
                     }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("${media.size} total", fontWeight = FontWeight.SemiBold)
-                        Text("${favoriteCount} favorites", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Divider()
+                    listOf("Any size", "Under 10 MB", "10–100 MB", "Over 100 MB", "Unknown size").forEach { option ->
+                        DropdownMenuItem(text = { Text(option + if (sizeFilter == option) " ✓" else "") }, onClick = { sizeFilter = option; libraryFilterMenuExpanded = false })
                     }
                 }
-                OutlinedButton(
-                    onClick = {
-                        val report = buildString {
-                            appendLine("VidGravity media library")
-                            appendLine("Visible: ${visibleMedia.size} | Total indexed: ${media.size} | Favorites: ${favoriteCount}")
-                            appendLine("Visible size: ${String.format("%.1f MB", visibleBytes / 1_000_000.0)}")
-                            appendLine()
-                            visibleMedia.forEachIndexed { index, item ->
-                                appendLine("${index + 1}. ${item.displayName}")
-                                appendLine("   Type: ${item.mimeType} | Size: ${if (item.sizeBytes > 0) String.format("%.1f MB", item.sizeBytes / 1_000_000.0) else "Unknown"}")
-                            }
-                        }
-                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
-                        android.widget.Toast.makeText(context, "Library report copied.", android.widget.Toast.LENGTH_SHORT).show()
-                    },
-                    enabled = visibleMedia.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-                ) {
-                    Icon(Icons.Default.ContentCopy, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Copy visible library report")
+            }
+            Box(Modifier.weight(1f)) {
+                OutlinedButton(onClick = { librarySortMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
+                    Icon(Icons.Default.Sort, null); Spacer(Modifier.width(6.dp)); Text("Sort · " + sortBy)
+                }
+                DropdownMenu(expanded = librarySortMenuExpanded, onDismissRequest = { librarySortMenuExpanded = false }) {
+                    listOf("Newest", "Oldest", "Name A-Z", "Largest", "Smallest", "Type", "Extension").forEach { option ->
+                        DropdownMenuItem(text = { Text(option) }, onClick = { sortBy = option; librarySortMenuExpanded = false })
+                    }
                 }
             }
         }
-        OutlinedButton(
-            onClick = {
-                val report = buildString {
-                    appendLine("VidGravity media library")
-                    appendLine("Visible: ${visibleMedia.size} | Total indexed: ${media.size} | Favorites: ${favoriteCount}")
-                    appendLine("Visible size: ${String.format("%.1f MB", visibleBytes / 1_000_000.0)}")
-                    appendLine()
-                    visibleMedia.forEachIndexed { index, item ->
-                        appendLine("${index + 1}. ${item.displayName}")
-                        appendLine("   Type: ${item.mimeType} | Size: ${if (item.sizeBytes > 0) String.format("%.1f MB", item.sizeBytes / 1_000_000.0) else "Unknown"}")
-                    }
-                }
-                runCatching {
-                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_SUBJECT, "VidGravity media library report")
-                        putExtra(Intent.EXTRA_TEXT, report)
-                    }
-                    context.startActivity(Intent.createChooser(shareIntent, "Share library report"))
-                }.onFailure {
-                    android.widget.Toast.makeText(context, "Could not open the sharing menu.", android.widget.Toast.LENGTH_LONG).show()
-                }
-            },
-            enabled = visibleMedia.isNotEmpty(),
-            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-        ) {
-            Icon(Icons.Default.Share, null)
-            Spacer(Modifier.width(8.dp))
-            Text("Share visible library report")
-        }
-        if (visibleMedia.isNotEmpty()) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = {
-                    val allSelected = visibleMedia.all { it.uri.toString() in selectedUris }
-                    selectedUris = if (allSelected) emptySet() else visibleMedia.map { it.uri.toString() }.toSet()
-                }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
-                    Icon(Icons.Default.Checklist, null); Spacer(Modifier.width(6.dp))
-                    Text(if (visibleMedia.all { it.uri.toString() in selectedUris }) "Clear selection" else "Select all")
-                }
-                Button(enabled = visibleMedia.any { it.uri.toString() in selectedUris }, onClick = {
-                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
-                    runCatching {
-                        val streams = ArrayList<Uri>()
-                        chosen.forEach { streams.add(it.uri) }
-                        val majorTypes = chosen.map { it.mimeType.substringBefore('/') }.distinct()
-                        val shareIntent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
-                            type = if (majorTypes.size == 1) majorTypes.first() + "/*" else "*/*"
-                            putParcelableArrayListExtra(Intent.EXTRA_STREAM, streams)
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                            if (streams.isNotEmpty()) {
-                                clipData = android.content.ClipData.newUri(context.contentResolver, "VidGravity media", streams.first())
-                                streams.drop(1).forEach { clipData?.addItem(android.content.ClipData.Item(it)) }
-                            }
-                        }
-                        context.startActivity(Intent.createChooser(shareIntent, "Share selected media"))
-                    }.onFailure {
-                        android.widget.Toast.makeText(context, "Could not share selected media. Try fewer files.", android.widget.Toast.LENGTH_LONG).show()
-                    }
-                }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
-                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Share (${visibleMedia.count { it.uri.toString() in selectedUris }})")
-                }
-            }
-            OutlinedButton(
-                enabled = visibleMedia.isNotEmpty(),
-                onClick = {
-                    val visibleUris = visibleMedia.map { it.uri.toString() }.toSet()
-                    selectedUris = selectedUris + visibleUris
-                    android.widget.Toast.makeText(context, "Selected " + visibleUris.size + " visible item(s).", android.widget.Toast.LENGTH_SHORT).show()
-                },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
-            ) {
-                Icon(Icons.Default.SelectAll, null)
-                Spacer(Modifier.width(6.dp))
-                Text("Select all visible (" + visibleMedia.size + ")")
-            }
-            OutlinedButton(
-                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
-                onClick = {
-                    val visibleUris = visibleMedia.map { it.uri.toString() }.toSet()
-                    selectedUris = selectedUris - visibleUris
-                    android.widget.Toast.makeText(context, "Cleared selection for " + visibleUris.size + " visible item(s).", android.widget.Toast.LENGTH_SHORT).show()
-                },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
-            ) {
-                Icon(Icons.Default.Clear, null)
-                Spacer(Modifier.width(6.dp))
-                Text("Deselect visible items")
-            }
-            OutlinedButton(
-                enabled = visibleMedia.isNotEmpty(),
-                onClick = {
-                    val visibleUris = visibleMedia.map { it.uri.toString() }.toSet()
-                    val currentlySelected = selectedUris.intersect(visibleUris)
-                    val invertVisible = visibleUris - currentlySelected
-                    selectedUris = (selectedUris - visibleUris) + invertVisible
-                },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
-            ) {
-                Icon(Icons.Default.SwapVert, null)
-                Spacer(Modifier.width(6.dp))
-                Text("Invert visible selection")
-            }
-            OutlinedButton(
-                enabled = visibleMedia.isNotEmpty(),
-                onClick = {
-                    val names = visibleMedia.joinToString("\n") { it.displayName }
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(names))
-                    android.widget.Toast.makeText(context, "Copied " + visibleMedia.size + " visible filename(s).", android.widget.Toast.LENGTH_SHORT).show()
-                },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
-            ) {
-                Icon(Icons.Default.ContentCopy, null)
-                Spacer(Modifier.width(6.dp))
-                Text("Copy visible filenames (" + visibleMedia.size + ")")
-            }
-            OutlinedButton(
-                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
-                onClick = {
-                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
-                    val names = chosen.joinToString("\n") { it.displayName }
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(names))
-                    android.widget.Toast.makeText(context, "Copied ${chosen.size} filename(s).", android.widget.Toast.LENGTH_SHORT).show()
-                },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
-            ) {
-                Icon(Icons.Default.ContentCopy, null)
-                Spacer(Modifier.width(6.dp))
-                Text("Copy selected filenames")
-            }
-            OutlinedButton(
-                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
-                onClick = {
-                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
-                    val report = buildString {
-                        appendLine("VidGravity selected media report")
-                        appendLine("Selected visible items: ${chosen.size}")
-                        appendLine("Total size: ${String.format("%.1f MB", chosen.sumOf { it.sizeBytes.coerceAtLeast(0L) } / 1_000_000.0)}")
-                        appendLine()
-                        chosen.forEachIndexed { index, item ->
-                            appendLine("${index + 1}. ${item.displayName}")
-                            appendLine("   Type: ${item.mimeType} | Size: ${if (item.sizeBytes > 0) String.format("%.1f MB", item.sizeBytes / 1_000_000.0) else "Unknown"} | Favorite: ${if (item.isFavorite) "Yes" else "No"}")
-                        }
-                    }
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
-                    android.widget.Toast.makeText(context, "Selected media report copied.", android.widget.Toast.LENGTH_SHORT).show()
-                },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
-            ) {
-                Icon(Icons.Default.ContentCopy, null)
-                Spacer(Modifier.width(6.dp))
-                Text("Copy selected media report")
-            }
-            OutlinedButton(
-                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
-                onClick = {
-                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
-                    val report = buildString {
-                        appendLine("VidGravity selected media report")
-                        appendLine("Selected visible items: ${chosen.size}")
-                        appendLine("Total size: ${String.format("%.1f MB", chosen.sumOf { it.sizeBytes.coerceAtLeast(0L) } / 1_000_000.0)}")
-                        appendLine()
-                        chosen.forEachIndexed { index, item ->
-                            appendLine("${index + 1}. ${item.displayName}")
-                            appendLine("Type: ${item.mimeType} | Size: ${if (item.sizeBytes > 0) String.format("%.1f MB", item.sizeBytes / 1_000_000.0) else "Unknown"} | Favorite: ${if (item.isFavorite) "Yes" else "No"}")
-                        }
-                    }
-                    runCatching {
-                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_SUBJECT, "VidGravity selected media report")
-                            putExtra(Intent.EXTRA_TEXT, report)
-                        }
-                        context.startActivity(Intent.createChooser(shareIntent, "Share selected media report"))
-                    }.onFailure {
-                        android.widget.Toast.makeText(context, "Could not open the sharing menu.", android.widget.Toast.LENGTH_LONG).show()
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
-            ) {
-                Icon(Icons.Default.Share, null)
-                Spacer(Modifier.width(6.dp))
-                Text("Share selected media report")
-            }
-            OutlinedButton(
-                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
-                onClick = {
-                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
-                    val markFavorite = chosen.any { !it.isFavorite }
-                    scope.launch {
-                        withContext(Dispatchers.IO) {
-                            chosen.forEach { item -> MediaLibraryIndexer.setFavorite(context, item.uri, markFavorite) }
-                        }
-                        refreshMedia()
-                        val count = chosen.size
-                        val message = if (markFavorite) "Added $count item(s) to Favorites." else "Removed $count item(s) from Favorites."
-                        android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
-                    }
-                },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
-            ) {
-                Icon(Icons.Default.Star, null); Spacer(Modifier.width(6.dp))
-                val chosenItems = visibleMedia.filter { it.uri.toString() in selectedUris }
-                Text(if (chosenItems.isNotEmpty() && chosenItems.all { it.isFavorite }) "Remove selected from Favorites" else "Add selected to Favorites")
-            }
-            OutlinedButton(
-                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
-                onClick = { showBulkDeleteConfirm = true },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
-            ) {
-                Icon(Icons.Default.DeleteOutline, null); Spacer(Modifier.width(6.dp))
-                Text("Delete selected (${visibleMedia.count { it.uri.toString() in selectedUris }})")
-            }
-        }
-        OutlinedTextField(
-            value = searchQuery, onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth(), singleLine = true,
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            placeholder = { Text("Search your media") },
-            shape = RoundedCornerShape(16.dp)
-        )
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { showLibraryFilters = true }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
-                Icon(Icons.Default.FilterList, null); Spacer(Modifier.width(6.dp)); Text("Filters & sorting")
-            }
-            Text("${visibleMedia.size} shown", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            TextButton(
-                enabled = searchQuery.isNotBlank() || filter != "All Media" || sizeFilter != "Any size" || sortBy != "Newest",
-                onClick = { searchQuery = ""; filter = "All Media"; sizeFilter = "Any size"; sortBy = "Newest" }
-            ) { Text("Reset") }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-            FilterChip(selected = filter == "All Media", onClick = { filter = "All Media" }, label = { Text("All") })
-            FilterChip(selected = filter == "Video", onClick = { filter = "Video" }, label = { Text("Video") })
-            FilterChip(selected = filter == "Audio", onClick = { filter = "Audio" }, label = { Text("Audio") })
-            FilterChip(selected = filter == "Images", onClick = { filter = "Images" }, label = { Text("Images") })
-        }
-        if (showLibraryFilters) AlertDialog(
-            onDismissRequest = { showLibraryFilters = false },
-            title = { Text("Library filters") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Media type", fontWeight = FontWeight.SemiBold)
-                    listOf("All Media", "Video", "Audio", "Images", "Other Files", "Favorites").forEach { value ->
-                        Row(Modifier.fillMaxWidth().clickable { filter = value }, verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = filter == value, onClick = { filter = value }); Text(value)
-                        }
-                    }
-                    Text("File size", fontWeight = FontWeight.SemiBold)
-                    listOf("Any size", "Under 10 MB", "10–100 MB", "Over 100 MB", "Unknown size").forEach { value ->
-                        Row(Modifier.fillMaxWidth().clickable { sizeFilter = value }, verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = sizeFilter == value, onClick = { sizeFilter = value }); Text(value)
-                        }
-                    }
-                    Text("Sort by", fontWeight = FontWeight.SemiBold)
-                    listOf("Newest", "Oldest", "Name A-Z", "Largest", "Smallest", "Type", "Extension").forEach { value ->
-                        Row(Modifier.fillMaxWidth().clickable { sortBy = value }, verticalAlignment = Alignment.CenterVertically) {
-                            RadioButton(selected = sortBy == value, onClick = { sortBy = value }); Text(value)
-                        }
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { showLibraryFilters = false }) { Text("Apply") } },
-            dismissButton = { TextButton(onClick = { filter = "All Media"; sizeFilter = "Any size"; sortBy = "Newest"; searchQuery = ""; showLibraryFilters = false }) { Text("Reset all") } }
-        )
         if (visibleMedia.isEmpty()) {
             InfoCard(
                 if (searchQuery.isNotBlank()) "No matching media" else if (filter == "Favorites") "No favorites yet" else "Your library is empty",
@@ -1708,24 +1232,26 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
         return
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        OutlinedButton(onClick = openInbox, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
-            Icon(Icons.Default.Inbox, null)
-            Spacer(Modifier.width(8.dp))
-            Text("Share Inbox · Watch / Learn Later")
-        }
-        Text("Create studio", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Choose local video, preview it, or create a share-ready 9:16 derivative. Originals remain unchanged.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
-            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
-                Text("Start with your own media", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text("Select a video from this device. Rendering uses the configured VidGravity companion and never overwrites the selected source.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                Button(onClick = { picker.launch(arrayOf("video/*", "audio/*")) }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("Choose media")
-                }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(
+                onClick = { picker.launch(arrayOf("video/*", "audio/*", "image/*")) },
+                modifier = Modifier.weight(1f).heightIn(min = 58.dp)
+            ) {
+                Icon(Icons.Default.FolderOpen, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Media")
+            }
+            Button(
+                onClick = {
+                    runCatching {
+                        context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
+                    }.onFailure { notify("Could not open camera: ${it.message ?: "try again"}") }
+                },
+                modifier = Modifier.weight(1f).heightIn(min = 58.dp)
+            ) {
+                Icon(Icons.Default.PhotoCamera, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Camera")
             }
         }
         selectedMedia?.let { media ->
@@ -1945,22 +1471,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                 }
             }
         }
-        Text("Capture", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        OutlinedButton(
-            onClick = {
-                runCatching {
-                    context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
-                }.onFailure { notify("Could not open camera capture: ${it.message ?: "try again"}") }
-            },
-            modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp)
-        ) {
-            Icon(Icons.Default.PhotoCamera, null)
-            Spacer(Modifier.width(8.dp))
-            Text("Open POV camera")
-        }
-        Text("More creator tools", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        InfoCard("Animated stickers", "Next pipeline batch: render short source clips as animated WebP with size and duration limits.", Icons.Default.AutoAwesome, Modifier.fillMaxWidth())
-        InfoCard("WhatsApp Status segments", "Next pipeline batch: create multiple bounded segments and verify every output before sharing.", Icons.Default.ContentCut, Modifier.fillMaxWidth())
+
     }
 }
 
@@ -1998,6 +1509,7 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
     var savedPreferences by remember { mutableStateOf(SecureDownloadPreferences.load(context)) }
     var unmeteredOnly by remember { mutableStateOf(savedPreferences.unmeteredOnly) }
     var autoPreset by remember { mutableStateOf(savedPreferences.autoDownloadWithPreferredPreset) }
+    var instantShareDownload by remember { mutableStateOf(savedPreferences.instantDownloadSharedLinks) }
     val formatPresets = listOf(
         "Best" to "bv*+ba/b",
         "2160p" to "bestvideo[height<=2160]+bestaudio/best[height<=2160]",
@@ -2021,6 +1533,25 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
             }
         }
         Text("DOWNLOADS", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.FlashOn, null)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Instant download for single shared links", fontWeight = FontWeight.SemiBold)
+                    Text("Off: review and select links first. Multiple shared links always open Review & Select.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(checked = instantShareDownload, onCheckedChange = {
+                    instantShareDownload = it
+                    val updated = SecureDownloadPreferences.load(context).copy(instantDownloadSharedLinks = it)
+                    savedPreferences = updated
+                    SecureDownloadPreferences.save(context, updated)
+                })
+            }
+        }
+        OutlinedButton(onClick = { context.startActivity(Intent(context, ClipboardInboxActivity::class.java)) }, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) {
+            Icon(Icons.Default.ContentPaste, null); Spacer(Modifier.width(8.dp)); Text("Open Clipboard Inbox")
+        }
         Text("Default download quality", fontWeight = FontWeight.SemiBold)
         Text("Used by bulk queueing and automatic share downloads. You can still choose a different format when inspecting a link.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
