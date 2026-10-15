@@ -14,6 +14,9 @@
   const flipBtn = $('vgCameraFlip');
   const recordBtn = $('vgRecordToggle');
   const stopBtn = $('vgCameraStop');
+  const zoomSelect = $('vgZoomPreference');
+  const applyZoom = value => { const zoom = ['90','100','110','120','130'].includes(String(value)) ? String(value) : '100'; document.documentElement.style.zoom = (Number(zoom) / 100) + ''; if (zoomSelect) zoomSelect.value = zoom; try { localStorage.setItem('vg-display-zoom', zoom); } catch (_) {} };
+  if (zoomSelect) { const savedZoom = (() => { try { return localStorage.getItem('vg-display-zoom') || '100'; } catch (_) { return '100'; } })(); applyZoom(savedZoom); zoomSelect.addEventListener('change', () => applyZoom(zoomSelect.value)); }
   if (!fileInput || !cameraVideo) return;
 
   let previewUrls = [];
