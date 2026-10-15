@@ -421,7 +421,7 @@ private fun VgPrimaryButton(
     val shape = RoundedCornerShape(16.dp)
     val active = enabled && !loading
     val brush = if (active) Brush.linearGradient(
-        colors = listOf(Color(0xFF38B8B2), Color(0xFF35C6B0), Color(0xFF7D5CFF))
+        colors = listOf(Color(0xFF1C6C68), Color(0xFF246B61), Color(0xFF6845DB))
     ) else Brush.linearGradient(
         colors = listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant)
     )
