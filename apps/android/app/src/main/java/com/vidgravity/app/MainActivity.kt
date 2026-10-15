@@ -648,7 +648,31 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     !(work.outputData.getString(DownloadWorker.RETRY_URL)
                         ?: work.progress.getString("media_url")).isNullOrBlank()
             }
-                filteredWorks.forEach { work ->
+            var sortMenuExpanded by remember { mutableStateOf(false) }
+            var filterMenuExpanded by remember { mutableStateOf(false) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.weight(1f)) {
+                    OutlinedButton(onClick = { filterMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
+                        Icon(Icons.Default.FilterList, null); Spacer(Modifier.width(6.dp)); Text(if (downloadFilter == "All") "Filter" else "Filter · " + downloadFilter)
+                    }
+                    DropdownMenu(expanded = filterMenuExpanded, onDismissRequest = { filterMenuExpanded = false }) {
+                        listOf("All", "Active", "Completed", "Failed").forEach { option ->
+                            DropdownMenuItem(text = { Text(option) }, onClick = { downloadFilter = option; filterMenuExpanded = false })
+                        }
+                    }
+                }
+                Box(Modifier.weight(1f)) {
+                    OutlinedButton(onClick = { sortMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
+                        Icon(Icons.Default.Sort, null); Spacer(Modifier.width(6.dp)); Text("Sort · " + downloadSort)
+                    }
+                    DropdownMenu(expanded = sortMenuExpanded, onDismissRequest = { sortMenuExpanded = false }) {
+                        listOf("Newest", "Oldest", "Name A–Z", "Progress").forEach { option ->
+                            DropdownMenuItem(text = { Text(option) }, onClick = { downloadSort = option; sortMenuExpanded = false })
+                        }
+                    }
+                }
+            }
+            filteredWorks.forEach { work ->
                     val progress = work.progress.getInt("progress", 0).coerceIn(0, 100)
                     val paused = DownloadActionReceiver.isPaused(context, work.id)
                     val title = work.outputData.getString("display_name") ?: work.outputData.getString("filename") ?: work.progress.getString("media_title") ?: "Media download"
@@ -978,6 +1002,34 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
             }
             FilledTonalButton(onClick = { swipeFeedOpen = true }, modifier = Modifier.heightIn(min = 48.dp)) {
                 Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Swipe Feed")
+            }
+        }
+        var libraryFilterMenuExpanded by remember { mutableStateOf(false) }
+        var librarySortMenuExpanded by remember { mutableStateOf(false) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.weight(1f)) {
+                OutlinedButton(onClick = { libraryFilterMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
+                    Icon(Icons.Default.FilterList, null); Spacer(Modifier.width(6.dp)); Text(if (filter == "All Media" && sizeFilter == "Any size") "Filter" else "Filter · Applied")
+                }
+                DropdownMenu(expanded = libraryFilterMenuExpanded, onDismissRequest = { libraryFilterMenuExpanded = false }) {
+                    listOf("All Media", "Video", "Audio", "Images", "Other Files", "Favorites").forEach { option ->
+                        DropdownMenuItem(text = { Text(option + if (filter == option) " ✓" else "") }, onClick = { filter = option; libraryFilterMenuExpanded = false })
+                    }
+                    Divider()
+                    listOf("Any size", "Under 10 MB", "10–100 MB", "Over 100 MB", "Unknown size").forEach { option ->
+                        DropdownMenuItem(text = { Text(option + if (sizeFilter == option) " ✓" else "") }, onClick = { sizeFilter = option; libraryFilterMenuExpanded = false })
+                    }
+                }
+            }
+            Box(Modifier.weight(1f)) {
+                OutlinedButton(onClick = { librarySortMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
+                    Icon(Icons.Default.Sort, null); Spacer(Modifier.width(6.dp)); Text("Sort · " + sortBy)
+                }
+                DropdownMenu(expanded = librarySortMenuExpanded, onDismissRequest = { librarySortMenuExpanded = false }) {
+                    listOf("Newest", "Oldest", "Name A-Z", "Largest", "Smallest", "Type", "Extension").forEach { option ->
+                        DropdownMenuItem(text = { Text(option) }, onClick = { sortBy = option; librarySortMenuExpanded = false })
+                    }
+                }
             }
         }
         if (visibleMedia.isEmpty()) {
