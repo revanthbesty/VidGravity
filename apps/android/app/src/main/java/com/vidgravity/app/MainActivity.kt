@@ -574,6 +574,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                 color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
         }
     }
+}
 
 @Composable
 private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
