@@ -111,7 +111,7 @@ object DownloadApi {
         } finally { connection.disconnect() }
     }
 
-    fun createJob(url: String, selector: String): String {
+    fun createJob(url: String, selector: String, audioOnly: Boolean = false): String {
         require(selector.isNotBlank() && selector.length <= 200 && selector.matches(Regex("[A-Za-z0-9_*+./,\\[\\]()-]+"))) {
             "Invalid format selector."
         }
@@ -119,7 +119,7 @@ object DownloadApi {
         connection.doOutput = true
         try {
             connection.outputStream.use {
-                it.write(JSONObject().put("url", url).put("format", selector).toString().toByteArray(Charsets.UTF_8))
+                it.write(JSONObject().put("url", url).put("format", selector).put("audio_only", audioOnly).toString().toByteArray(Charsets.UTF_8))
             }
             val id = readJson(connection).optString("id")
             require(id.matches(Regex("[A-Fa-f0-9-]{16,64}"))) { "Companion returned an invalid task ID." }
