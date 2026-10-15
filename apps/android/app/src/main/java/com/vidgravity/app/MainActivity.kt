@@ -1509,6 +1509,7 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
     var savedPreferences by remember { mutableStateOf(SecureDownloadPreferences.load(context)) }
     var unmeteredOnly by remember { mutableStateOf(savedPreferences.unmeteredOnly) }
     var autoPreset by remember { mutableStateOf(savedPreferences.autoDownloadWithPreferredPreset) }
+    var instantShareDownload by remember { mutableStateOf(savedPreferences.instantDownloadSharedLinks) }
     val formatPresets = listOf(
         "Best" to "bv*+ba/b",
         "2160p" to "bestvideo[height<=2160]+bestaudio/best[height<=2160]",
@@ -1532,6 +1533,22 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
             }
         }
         Text("DOWNLOADS", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.FlashOn, null)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Instant download for single shared links", fontWeight = FontWeight.SemiBold)
+                    Text("Off: review and select links first. Multiple shared links always open Review & Select.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Switch(checked = instantShareDownload, onCheckedChange = {
+                    instantShareDownload = it
+                    val updated = SecureDownloadPreferences.load(context).copy(instantDownloadSharedLinks = it)
+                    savedPreferences = updated
+                    SecureDownloadPreferences.save(context, updated)
+                })
+            }
+        }
         OutlinedButton(onClick = { context.startActivity(Intent(context, ClipboardInboxActivity::class.java)) }, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) {
             Icon(Icons.Default.ContentPaste, null); Spacer(Modifier.width(8.dp)); Text("Open Clipboard Inbox")
         }
