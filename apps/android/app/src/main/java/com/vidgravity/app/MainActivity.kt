@@ -9,6 +9,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -23,6 +25,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.font.FontWeight
@@ -67,17 +70,50 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     var analysis by remember { mutableStateOf<SourceAnalysisResult?>(null) }
     var inspecting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    // VidGravity Premium UI tokens: Soft Slate + Muted Teal + selective Creative Violet.
     val scheme = if (dark) darkColorScheme(
-        primary = Color(0xFFB8A5FF), secondary = Color(0xFF8B7BFF),
-        background = Color(0xFF101014), surface = Color(0xFF19191F),
-        surfaceVariant = Color(0xFF25252D), onBackground = Color(0xFFF4F2FA),
-        onSurface = Color(0xFFF4F2FA)
+        primary = Color(0xFF8CC8BC),
+        onPrimary = Color(0xFF171F23),
+        primaryContainer = Color(0xFF304842),
+        onPrimaryContainer = Color(0xFFE6EEF0),
+        secondary = Color(0xFF38B8B2),
+        onSecondary = Color(0xFF102725),
+        tertiary = Color(0xFF967BFF),
+        onTertiary = Color(0xFF17102F),
+        background = Color(0xFF171F23),
+        surface = Color(0xFF202B30),
+        surfaceVariant = Color(0xFF29373D),
+        onBackground = Color(0xFFE6EEF0),
+        onSurface = Color(0xFFE6EEF0),
+        onSurfaceVariant = Color(0xFFAFBEC3),
+        outline = Color(0xFF38484E),
+        outlineVariant = Color(0xFF38484E)
     ) else lightColorScheme(
-        primary = Color(0xFF5B43D6), secondary = Color(0xFF735FE3),
-        background = Color(0xFFF7F7FB), surface = Color.White,
-        surfaceVariant = Color(0xFFECECF4)
+        primary = Color(0xFF286B66),
+        onPrimary = Color.White,
+        primaryContainer = Color(0xFFDDEDE9),
+        onPrimaryContainer = Color(0xFF205A56),
+        secondary = Color(0xFF35A99D),
+        onSecondary = Color(0xFF102725),
+        tertiary = Color(0xFF6845DB),
+        onTertiary = Color.White,
+        background = Color(0xFFF3F6F7),
+        surface = Color(0xFFFFFFFF),
+        surfaceVariant = Color(0xFFE8EEF0),
+        onBackground = Color(0xFF26363B),
+        onSurface = Color(0xFF26363B),
+        onSurfaceVariant = Color(0xFF5C6D73),
+        outline = Color(0xFFD5E0E3),
+        outlineVariant = Color(0xFFD5E0E3)
     )
-    MaterialTheme(colorScheme = scheme) {
+    val vgShapes = Shapes(
+        extraSmall = RoundedCornerShape(8.dp),
+        small = RoundedCornerShape(12.dp),
+        medium = RoundedCornerShape(16.dp),
+        large = RoundedCornerShape(20.dp),
+        extraLarge = RoundedCornerShape(26.dp)
+    )
+    MaterialTheme(colorScheme = scheme, shapes = vgShapes) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
@@ -372,6 +408,56 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     }
 }
 
+/** Reusable primary action with a restrained brand gradient and accessible tap/loading states. */
+@Composable
+private fun VgPrimaryButton(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    loading: Boolean = false,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(16.dp)
+    val active = enabled && !loading
+    val brush = if (active) Brush.linearGradient(
+        colors = listOf(Color(0xFF38B8B2), Color(0xFF35C6B0), Color(0xFF7D5CFF))
+    ) else Brush.linearGradient(
+        colors = listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant)
+    )
+    Row(
+        modifier = modifier
+            .heightIn(min = 52.dp)
+            .background(brush, shape)
+            .border(1.dp, Color.White.copy(alpha = if (active) 0.24f else 0.08f), shape)
+            .clickable(
+                enabled = active,
+                role = androidx.compose.ui.semantics.Role.Button,
+                onClick = onClick
+            )
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (loading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(18.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.width(8.dp))
+        } else if (icon != null) {
+            Icon(icon, contentDescription = null, tint = if (active) Color(0xFF102725) else MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(
+            text = text,
+            color = if (active) Color(0xFF102725) else MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
 @Composable
 private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, openStudyTok: () -> Unit) {
     val clipboard = LocalClipboardManager.current
@@ -482,10 +568,14 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                         Spacer(Modifier.width(8.dp))
                         Text("Queue multiple links · best quality")
                     }
-                    Button(onClick = { if (url.startsWith("http://") || url.startsWith("https://")) inspect() else notify("Enter a complete public URL starting with https://") },
-                        modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
-                        Icon(Icons.Default.Search, null); Spacer(Modifier.width(8.dp)); Text("Inspect link")
-                    }
+                    VgPrimaryButton(
+                        text = "Inspect link",
+                        icon = Icons.Default.Search,
+                        modifier = Modifier.fillMaxWidth(),
+                        loading = inspecting,
+                        enabled = !inspecting,
+                        onClick = { if (url.startsWith("http://") || url.startsWith("https://")) inspect() else notify("Enter a complete public URL starting with https://") }
+                    )
                     Text("QUICK ACTIONS", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     LazyRow(
