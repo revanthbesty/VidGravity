@@ -171,8 +171,12 @@ def _init_job_store():
             message TEXT NOT NULL DEFAULT '', error TEXT, filename TEXT, output_path TEXT,
             completed_at REAL, created_at REAL NOT NULL, updated_at REAL NOT NULL,
             retry_of TEXT, url TEXT NOT NULL, format TEXT NOT NULL,
-            cancel_requested INTEGER NOT NULL DEFAULT 0
+            cancel_requested INTEGER NOT NULL DEFAULT 0,
+            audio_only INTEGER NOT NULL DEFAULT 0
         )''')
+        columns={row[1] for row in db.execute('PRAGMA table_info(download_jobs)').fetchall()}
+        if 'audio_only' not in columns:
+            db.execute('ALTER TABLE download_jobs ADD COLUMN audio_only INTEGER NOT NULL DEFAULT 0')
         db.commit()
     _recover_persisted_jobs()
 
@@ -182,18 +186,18 @@ def _persist_job(job):
     with _db_connect() as db:
         db.execute('BEGIN IMMEDIATE')
         db.execute('''INSERT INTO download_jobs
-            (id,state,progress,message,error,filename,output_path,completed_at,created_at,updated_at,retry_of,url,format,cancel_requested)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            (id,state,progress,message,error,filename,output_path,completed_at,created_at,updated_at,retry_of,url,format,cancel_requested,audio_only)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(id) DO UPDATE SET
               state=excluded.state, progress=excluded.progress, message=excluded.message,
               error=excluded.error, filename=excluded.filename, output_path=excluded.output_path,
               completed_at=excluded.completed_at, updated_at=excluded.updated_at,
               retry_of=excluded.retry_of, url=excluded.url, format=excluded.format,
-              cancel_requested=excluded.cancel_requested''',
+              cancel_requested=excluded.cancel_requested, audio_only=excluded.audio_only''',
             (snap['id'],snap.get('state','queued'),int(snap.get('progress',0)),str(snap.get('message','')),
              snap.get('error'),snap.get('filename'),snap.get('output_path'),snap.get('completed_at'),
              snap.get('created_at',time.time()),time.time(),snap.get('retry_of'),snap.get('url',''),
-             snap.get('format','bv*+ba/b'),int(bool(snap.get('cancel_requested')))))
+             snap.get('format','bv*+ba/b'),int(bool(snap.get('cancel_requested'))),int(bool(snap.get('audio_only')))))
         db.commit()
 
 def _load_persisted_jobs():
@@ -370,7 +374,7 @@ def _download_direct_media(url, job_id, job):
     _job_changed(job)
     return True
 
-def _run_download_job(job_id,url,fmt):
+def _run_download_job(job_id,url,fmt,audio_only=False):
     with DOWNLOAD_JOB_LOCK: job=DOWNLOAD_JOBS[job_id]
     if job.get('cancel_requested'): return
     with DOWNLOAD_JOB_LOCK: job.update({"state":"running","progress":0,"message":"Starting provider download"})
@@ -383,13 +387,18 @@ def _run_download_job(job_id,url,fmt):
         DOWNLOAD_OUTPUT_DIR.mkdir(parents=True,exist_ok=True)
         # Direct MP4/MP3/WebM links should use a plain HTTP stream first; this avoids
         # depending on extractor heuristics for files that are already directly hosted.
-        if _download_direct_media(url,job_id,job):
+        if not audio_only and _download_direct_media(url,job_id,job):
             return
         if shutil.which('yt-dlp') is None:
             _job_transition(job,"failed",error="yt-dlp is not installed",message="Provider unavailable")
             _job_changed(job); return
         out=str(DOWNLOAD_OUTPUT_DIR/(job_id+'.%(ext)s'))
-        p=subprocess.Popen(_yt_dlp_command('--no-playlist','-f',fmt or 'bv*+ba/b','-o',out,'--restrict-filenames','--newline',url),stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
+        download_args=['--no-playlist','-f',fmt or 'bv*+ba/b']
+        if audio_only:
+            # Normalize audio-only selections (including Opus/WebM) to a broadly playable M4A.
+            download_args.extend(['-x','--audio-format','m4a','--audio-quality','0'])
+        download_args.extend(['-o',out,'--restrict-filenames','--newline',url])
+        p=subprocess.Popen(_yt_dlp_command(*download_args),stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
         with DOWNLOAD_JOB_LOCK: job['process']=p
         for line in p.stdout:
             line=line.strip()
@@ -880,10 +889,10 @@ class Handler(SimpleHTTPRequestHandler):
                 if len(DOWNLOAD_JOBS)>=DOWNLOAD_JOB_LIMIT:
                     return self._json(429,{'error':'Download job limit reached; active and retained jobs are not removed'})
                 job_id=__import__('uuid').uuid4().hex
-                DOWNLOAD_JOBS[job_id]={"id":job_id,"state":"queued","progress":0,"message":"Queued","url":url,"format":fmt,"created_at":time.time(),"updated_at":time.time()}
+                DOWNLOAD_JOBS[job_id]={"id":job_id,"state":"queued","progress":0,"message":"Queued","url":url,"format":fmt,"audio_only":bool(data.get('audio_only',False)),"created_at":time.time(),"updated_at":time.time()}
                 _persist_job(DOWNLOAD_JOBS[job_id])
             import threading
-            threading.Thread(target=_run_download_job,args=(job_id,url,fmt),daemon=True).start()
+            threading.Thread(target=_run_download_job,args=(job_id,url,fmt,bool(data.get('audio_only',False))),daemon=True).start()
             return self._json(202,{"id":job_id,"state":"queued","progress":0})
         if self.path.startswith('/api/download-jobs/') and self.path.endswith('/retry'):
             job_id=self.path.split('/')[-2]
@@ -894,11 +903,11 @@ class Handler(SimpleHTTPRequestHandler):
                 _cleanup_job_store()
                 if len(DOWNLOAD_JOBS)>=DOWNLOAD_JOB_LIMIT:return self._json(429,{'error':'Download job limit reached; active and retained jobs are not removed'})
                 new_id=__import__('uuid').uuid4().hex
-                new_job={"id":new_id,"state":"queued","progress":0,"message":"Retry queued","url":old.get('url'),"format":old.get('format') or 'bv*+ba/b',"retry_of":job_id,"created_at":time.time(),"updated_at":time.time()}
+                new_job={"id":new_id,"state":"queued","progress":0,"message":"Retry queued","url":old.get('url'),"format":old.get('format') or 'bv*+ba/b',"audio_only":bool(old.get('audio_only',False)),"retry_of":job_id,"created_at":time.time(),"updated_at":time.time()}
                 DOWNLOAD_JOBS[new_id]=new_job
                 _persist_job(new_job)
             import threading
-            threading.Thread(target=_run_download_job,args=(new_id,new_job['url'],new_job['format']),daemon=True).start()
+            threading.Thread(target=_run_download_job,args=(new_id,new_job['url'],new_job['format'],bool(new_job.get('audio_only',False))),daemon=True).start()
             return self._json(202,{"id":new_id,"state":"queued","retry_of":job_id})
         if self.path.startswith('/api/download-jobs/') and self.path.endswith('/cancel'):
             job_id=self.path.split('/')[-2]; job=DOWNLOAD_JOBS.get(job_id)
