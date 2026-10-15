@@ -34,6 +34,14 @@ _RATE_LIMITS={
     'formats':(15,60), 'license':(10,60), 'direct-download':(5,60), 'media-export':(3,60),
 }
 
+def _export_diagnostic(event, **fields):
+    """Emit sanitized export diagnostics; never include media URLs, client IPs, or credentials."""
+    record = {"event": event, "time": round(time.time(), 3), **fields}
+    try:
+        print("VIDGRAVITY_EXPORT " + json.dumps(record, sort_keys=True, separators=(",", ":")), flush=True)
+    except Exception:
+        pass
+
 def _client_ip(handler):
     try: return handler.client_address[0]
     except Exception: return 'unknown'
@@ -588,10 +596,20 @@ class Handler(SimpleHTTPRequestHandler):
             if shutil.which('yt-dlp') is None:
                 return self._json(200,{'source':'direct','formats':[],'message':'yt-dlp is not installed'})
             try:
-                p=subprocess.run(_yt_dlp_command('--no-playlist','-J','--skip-download','--no-warnings',url),capture_output=True,text=True,timeout=45)
+                p=subprocess.run(_yt_dlp_command('--no-playlist','-J','--skip-download','--no-warnings',url),capture_output=True,text=True,timeout=30)
             except subprocess.TimeoutExpired:
-                return self._json(504,{'error':'Format inspection timed out while contacting the provider'})
-            if p.returncode!=0:return self._json(502,{'error':p.stderr[-1200:] or 'format inspection failed'})
+                return self._json(504,{'error':'Format inspection timed out while contacting the provider. Try a single video URL rather than a playlist, then retry.'})
+            fallback_args=_youtube_android_fallback_args(url)
+            if p.returncode!=0 and fallback_args:
+                try:
+                    p=subprocess.run(_yt_dlp_command(*fallback_args,'--no-playlist','-J','--skip-download','--no-warnings',url),capture_output=True,text=True,timeout=20)
+                except subprocess.TimeoutExpired:
+                    return self._json(504,{'error':'YouTube format inspection timed out on both supported extraction attempts. Try again later or check whether the video is publicly accessible.'})
+            if p.returncode!=0:
+                detail=(p.stderr or p.stdout or 'format inspection failed')[-1200:]
+                if 'sign in to confirm you' in detail.lower() or 'login_required' in detail.lower() or ('bot' in detail.lower() and 'verification' in detail.lower()):
+                    return self._json(422,{'error':'YouTube requires verification that this hosted cloud server cannot complete. This video is unavailable through the cloud backend right now.','source':'youtube','details':detail})
+                return self._json(502,{'error':detail})
             try:
                 d=json.loads(p.stdout); rows=[]
                 for f in d.get('formats',[]):
@@ -808,7 +826,15 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path.startswith('/api/') and self._origin_rejected():
             return self._json(403,{'error':'Origin is not allowed'})
         if urllib.parse.urlsplit(self.path).path == '/api/media/export':
+            export_started = time.monotonic()
+            raw_mode = self.headers.get('X-VG-Mode', '')[:40]
+            raw_preset = self.headers.get('X-VG-Preset', '')[:60]
+            raw_length = self.headers.get('Content-Length', '0')
+            _export_diagnostic('request_start', mode=raw_mode, preset=raw_preset,
+                               content_length=raw_length if raw_length.isdigit() else 'invalid')
             if self._limited('media-export'):
+                _export_diagnostic('request_rejected', reason='rate_limit',
+                                   elapsed_ms=round((time.monotonic()-export_started)*1000))
                 return
             raw_length = self.headers.get('Content-Length', '0')
             if not raw_length.isdigit():
@@ -859,6 +885,11 @@ class Handler(SimpleHTTPRequestHandler):
                             chunk = handle.read(1024 * 1024)
                             if not chunk: break
                             digest.update(chunk)
+                    output_size = output.stat().st_size
+                    _export_diagnostic('export_success', mode=request['mode'], preset=request['preset'],
+                                       output_format=request['output_format'], input_bytes=length,
+                                       output_bytes=output_size,
+                                       elapsed_ms=round((time.monotonic()-export_started)*1000))
                     self.send_response(200)
                     self.send_header('Content-Type', 'image/webp' if request['output_format'] == 'webp' else 'video/mp4')
                     self.send_header('Content-Length', str(output.stat().st_size))
@@ -877,8 +908,16 @@ class Handler(SimpleHTTPRequestHandler):
             except ExportError as exc:
                 message = str(exc)
                 status = 400 if any(x in message.lower() for x in ('unsupported', 'invalid', 'must be', 'between', 'dimensions', 'source and output')) else 422
+                _export_diagnostic('export_failed', category='media_processing', status=status,
+                                   mode=request.get('mode', ''), preset=request.get('preset', ''),
+                                   elapsed_ms=round((time.monotonic()-export_started)*1000),
+                                   error_type=type(exc).__name__)
                 return self._json(status, {'error': message})
             except (OSError, ValueError) as exc:
+                _export_diagnostic('export_failed', category='server_io_or_validation', status=500,
+                                   mode=request.get('mode', ''), preset=request.get('preset', ''),
+                                   elapsed_ms=round((time.monotonic()-export_started)*1000),
+                                   error_type=type(exc).__name__)
                 return self._json(500, {'error': 'Media export failed safely: ' + str(exc)[:240]})
         if self.path=='/api/download-jobs' and self._limited('download-create'): return
         if self.path.endswith('/retry') and self._limited('download-retry'): return

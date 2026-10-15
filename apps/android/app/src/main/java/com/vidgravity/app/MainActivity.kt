@@ -311,11 +311,44 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 }
                             }
                             }
-                            if (qualityTab == "Audio Only" && audioFormats.isNotEmpty()) {
+                            if (qualityTab == "Audio Only") {
                                 item {
                                     Spacer(Modifier.height(8.dp))
                                     Text("AUDIO ONLY", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                                         letterSpacing = 1.sp, color = MaterialTheme.colorScheme.primary)
+                                }
+                                if (audioFormats.isEmpty()) {
+                                    item {
+                                        Surface(
+                                            modifier = Modifier.fillMaxWidth().clickable {
+                                                try {
+                                                    val preferences = SecureDownloadPreferences.load(context)
+                                                    DownloadWorker.enqueue(
+                                                        context, url.trim(), "bestaudio/best",
+                                                        result.title + " — Audio", preferences.unmeteredOnly, audioOnly = true
+                                                    )
+                                                    analysis = null
+                                                    selected = VgTab.Downloads
+                                                    notice = "Sound Only queued using the provider's best audio stream."
+                                                } catch (failure: Exception) {
+                                                    notice = "Could not queue Sound Only: " + (failure.message ?: "Please try again.")
+                                                }
+                                            },
+                                            shape = RoundedCornerShape(16.dp),
+                                            color = MaterialTheme.colorScheme.surfaceVariant
+                                        ) {
+                                            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(Icons.Default.MusicNote, null, tint = MaterialTheme.colorScheme.primary)
+                                                Spacer(Modifier.width(12.dp))
+                                                Column(Modifier.weight(1f)) {
+                                                    Text("Best available audio", fontWeight = FontWeight.SemiBold)
+                                                    Text("Let yt-dlp select and convert the audio stream",
+                                                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
+                                                Icon(Icons.Default.ChevronRight, null)
+                                            }
+                                        }
+                                    }
                                 }
                                 items(audioFormats, key = { "audio:" + it.formatId }) { audio ->
                                     Surface(
@@ -498,13 +531,16 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                             scope.launch {
                                                 try {
                                                     val result = withContext(Dispatchers.IO) { DownloadApi.analyzeSource(url.trim()) }
+                                                    // Some providers omit or mislabel the audio-only format metadata.
+                                                    // Ask yt-dlp for its best audio stream as a reliable fallback.
                                                     val audio = result.formats.firstOrNull { it.hasAudio && !it.hasVideo }
-                                                    if (audio == null) notify("No audio-only stream was found for this link.")
-                                                    else {
-                                                        val prefs = SecureDownloadPreferences.load(context)
-                                                        DownloadWorker.enqueue(context, url.trim(), audio.selector, result.title + " — Audio", prefs.unmeteredOnly, audioOnly = true)
-                                                        notify("Audio download added to queue. Open Downloads to track progress.")
-                                                    }
+                                                    val selector = audio?.selector?.takeIf { it.isNotBlank() } ?: "bestaudio/best"
+                                                    val prefs = SecureDownloadPreferences.load(context)
+                                                    DownloadWorker.enqueue(
+                                                        context, url.trim(), selector, result.title + " — Audio",
+                                                        prefs.unmeteredOnly, audioOnly = true
+                                                    )
+                                                    notify("Sound Only queued. Audio will be converted to M4A when supported; check Downloads for status.")
                                                 } catch (failure: Exception) {
                                                     notify("Could not prepare audio: " + (failure.message ?: "Please try again."))
                                                 }
@@ -546,6 +582,8 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
     val clipboard = LocalClipboardManager.current
     var expandedErrors by remember { mutableStateOf(setOf<java.util.UUID>()) }
     var downloadFilter by remember { mutableStateOf("All") }
+    var showDownloadFilters by remember { mutableStateOf(false) }
+    var showDownloadSort by remember { mutableStateOf(false) }
     var showClearHistoryConfirm by remember { mutableStateOf(false) }
     var downloadSearch by remember { mutableStateOf("") }
     var downloadSort by remember { mutableStateOf("Newest") }
@@ -594,7 +632,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                         work.state.name.contains(searchTerm, ignoreCase = true)
                 }
             }
-            val filteredWorks = when (downloadSort) {
+            val sortedMatchedWorks = when (downloadSort) {
                 "Newest" -> matchedWorks
                 "Oldest" -> matchedWorks.reversed()
                 "Name A–Z" -> matchedWorks.sortedBy { work ->
@@ -631,6 +669,13 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 )
                 else -> matchedWorks
             }
+            // Keep active downloads pinned first regardless of the selected secondary sort.
+            // Apply the selected sort inside each group so completed/failed history stays useful.
+            val filteredWorks = sortedMatchedWorks.filter { work ->
+                work.state == WorkInfo.State.RUNNING || work.state == WorkInfo.State.ENQUEUED || work.state == WorkInfo.State.BLOCKED
+            } + sortedMatchedWorks.filterNot { work ->
+                work.state == WorkInfo.State.RUNNING || work.state == WorkInfo.State.ENQUEUED || work.state == WorkInfo.State.BLOCKED
+            }
             val retryableFilteredWorks = filteredWorks.filter { work ->
                 (work.state == WorkInfo.State.FAILED || work.state == WorkInfo.State.CANCELLED) &&
                     !(work.outputData.getString(DownloadWorker.RETRY_URL)
@@ -656,129 +701,6 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             }
             OutlinedButton(
-                onClick = {
-                    fun csvCell(value: String): String = "\"" + value.replace("\"", "\"\"").replace("\r", " ").replace("\n", " ") + "\""
-                    val csv = buildString {
-                        appendLine("Title,Status,Progress,Source URL,Error")
-                        filteredWorks.forEach { work ->
-                            val title = work.outputData.getString("display_name")
-                                ?: work.progress.getString("media_title")
-                                ?: work.progress.getString("title")
-                                ?: "Media download"
-                            val source = work.outputData.getString(DownloadWorker.RETRY_URL)
-                                ?: work.progress.getString("media_url")
-                                ?: ""
-                            val percent = work.progress.getInt("progress", -1)
-                            val error = work.outputData.getString("error") ?: ""
-                            appendLine(listOf(title, work.state.name, if (percent >= 0) "$percent%" else "", source, error).joinToString(",") { csvCell(it) })
-                        }
-                    }
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(csv))
-                    android.widget.Toast.makeText(context, "CSV download report copied.", android.widget.Toast.LENGTH_SHORT).show()
-                },
-                enabled = filteredWorks.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.TableChart, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Copy CSV report (${filteredWorks.size})")
-            }
-            OutlinedButton(
-                onClick = {
-                    val links = filteredWorks.mapNotNull { work ->
-                        (work.outputData.getString(DownloadWorker.RETRY_URL)
-                            ?: work.progress.getString("media_url"))
-                            ?.takeIf { it.isNotBlank() }
-                    }.distinct()
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(links.joinToString("\n")))
-                    android.widget.Toast.makeText(context, "Copied ${links.size} source link(s).", android.widget.Toast.LENGTH_SHORT).show()
-                },
-                enabled = filteredWorks.any { work ->
-                    !(work.outputData.getString(DownloadWorker.RETRY_URL)
-                        ?: work.progress.getString("media_url")).isNullOrBlank()
-                },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.Link, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Copy visible source links")
-            }
-            OutlinedButton(
-                onClick = {
-                    val report = buildString {
-                        appendLine("VidGravity download report")
-                        appendLine("Filter: $downloadFilter")
-                        appendLine("Listed: ${filteredWorks.size} | Active: ${activeWorks.size} | Completed: ${completedWorks.size} | Failed/cancelled: ${failedWorks.size}")
-                        appendLine()
-                        filteredWorks.forEachIndexed { index, work ->
-                            val title = work.outputData.getString("display_name")
-                                ?: work.progress.getString("media_title")
-                                ?: work.progress.getString("title")
-                                ?: "Media download"
-                            val source = work.outputData.getString(DownloadWorker.RETRY_URL)
-                                ?: work.progress.getString("media_url")
-                                ?: "Not saved"
-                            val percent = work.progress.getInt("progress", -1)
-                            val error = work.outputData.getString("error")
-                            appendLine("${index + 1}. $title")
-                            appendLine("   Status: ${work.state.name}${if (percent >= 0) " | Progress: $percent%" else ""}")
-                            appendLine("   Source: $source")
-                            if (!error.isNullOrBlank()) appendLine("   Error: $error")
-                        }
-                    }
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
-                    android.widget.Toast.makeText(context, "Download report copied (${filteredWorks.size} item(s)).", android.widget.Toast.LENGTH_SHORT).show()
-                },
-                enabled = filteredWorks.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.ContentCopy, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Copy download report (${filteredWorks.size})")
-            }
-            OutlinedButton(
-                onClick = {
-                    val report = buildString {
-                        appendLine("VidGravity download report")
-                        appendLine("Filter: $downloadFilter")
-                        appendLine("Listed: ${filteredWorks.size} | Active: ${activeWorks.size} | Completed: ${completedWorks.size} | Failed/cancelled: ${failedWorks.size}")
-                        appendLine()
-                        filteredWorks.forEachIndexed { index, work ->
-                            val title = work.outputData.getString("display_name")
-                                ?: work.progress.getString("media_title")
-                                ?: work.progress.getString("title")
-                                ?: "Media download"
-                            val source = work.outputData.getString(DownloadWorker.RETRY_URL)
-                                ?: work.progress.getString("media_url")
-                                ?: "Not saved"
-                            val percent = work.progress.getInt("progress", -1)
-                            val error = work.outputData.getString("error")
-                            appendLine("${index + 1}. $title")
-                            appendLine("Status: ${work.state.name}${if (percent >= 0) " | Progress: $percent%" else ""}")
-                            appendLine("Source: $source")
-                            if (!error.isNullOrBlank()) appendLine("Error: $error")
-                            appendLine()
-                        }
-                    }
-                    runCatching {
-                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_SUBJECT, "VidGravity download report")
-                            putExtra(Intent.EXTRA_TEXT, report)
-                        }
-                        context.startActivity(Intent.createChooser(shareIntent, "Share download report"))
-                    }.onFailure {
-                        android.widget.Toast.makeText(context, "Could not open the sharing menu.", android.widget.Toast.LENGTH_LONG).show()
-                    }
-                },
-                enabled = filteredWorks.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.Share, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Share report (${filteredWorks.size})")
-            }
-            OutlinedButton(
                 onClick = { showClearHistoryConfirm = true },
                 enabled = completedWorks.isNotEmpty() || failedWorks.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
@@ -786,25 +708,6 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 Icon(Icons.Default.DeleteSweep, null)
                 Spacer(Modifier.width(8.dp))
                 Text("Clear finished history")
-            }
-            if (failedWorks.isNotEmpty()) {
-                OutlinedButton(
-                    onClick = {
-                        val report = failedWorks.joinToString("\n\n") { work ->
-                            val title = work.outputData.getString("display_name")
-                                ?: work.progress.getString("media_title") ?: "Media download"
-                            val error = work.outputData.getString("error") ?: "No technical error was saved."
-                            "${title}\nStatus: ${work.state.name}\nError: ${error}"
-                        }
-                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
-                        android.widget.Toast.makeText(context, "Failure report copied (${failedWorks.size} item(s)).", android.widget.Toast.LENGTH_LONG).show()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.ContentCopy, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Copy failure report (${failedWorks.size})")
-                }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
@@ -894,53 +797,75 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 onValueChange = { downloadSearch = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                label = { Text("Search download history") },
-                placeholder = { Text("Filename, source URL, error, or status") },
+                label = { Text("Search downloads") },
+                placeholder = { Text("Search title, source, or error") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
-                    if (downloadSearch.isNotBlank()) {
-                        IconButton(onClick = { downloadSearch = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear search")
-                        }
+                    if (downloadSearch.isNotBlank()) IconButton(onClick = { downloadSearch = "" }) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear search")
                     }
                 }
             )
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(listOf("Newest", "Oldest", "Name A–Z", "Progress", "Status", "Failed first")) { sort ->
-                    FilterChip(
-                        selected = downloadSort == sort,
-                        onClick = { downloadSort = sort },
-                        label = { Text("Sort: $sort") }
-                    )
-                }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("${filteredWorks.size} matching download(s)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(
-                    enabled = downloadSearch.isNotBlank() || downloadFilter != "All" || downloadSort != "Newest",
-                    onClick = {
-                        downloadSearch = ""
-                        downloadFilter = "All"
-                        downloadSort = "Newest"
-                    }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedButton(
+                    onClick = { showDownloadFilters = true },
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = null)
-                    Spacer(Modifier.width(4.dp))
-                    Text("Clear filters")
+                    Icon(Icons.Default.FilterList, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Filter")
+                    if (downloadFilter != "All") Text(" · $downloadFilter")
+                }
+                OutlinedButton(
+                    onClick = { showDownloadSort = true },
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                ) {
+                    Icon(Icons.Default.Sort, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Sort")
+                    Text(" · $downloadSort")
                 }
             }
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(listOf("All", "Active", "Completed", "Failed")) { filter ->
-                    val count = when (filter) {
-                        "Active" -> activeWorks.size
-                        "Completed" -> completedWorks.size
-                        "Failed" -> failedWorks.size
-                        else -> works.size
+            Text("${filteredWorks.size} downloads shown", fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (showDownloadFilters) AlertDialog(
+                onDismissRequest = { showDownloadFilters = false },
+                title = { Text("Filter downloads") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf("All", "Active", "Completed", "Failed").forEach { value ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable { downloadFilter = value },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = downloadFilter == value, onClick = { downloadFilter = value })
+                                Text(value)
+                            }
+                        }
                     }
-                    FilterChip(selected = downloadFilter == filter, onClick = { downloadFilter = filter },
-                        label = { Text("$filter ($count)") })
-                }
-            }
+                },
+                confirmButton = { TextButton(onClick = { showDownloadFilters = false }) { Text("Apply") } },
+                dismissButton = { TextButton(onClick = { downloadFilter = "All"; showDownloadFilters = false }) { Text("Clear filter") } }
+            )
+            if (showDownloadSort) AlertDialog(
+                onDismissRequest = { showDownloadSort = false },
+                title = { Text("Sort downloads") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        listOf("Newest", "Oldest", "Name A–Z", "Progress", "Status", "Failed first").forEach { value ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable { downloadSort = value },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = downloadSort == value, onClick = { downloadSort = value })
+                                Text(value)
+                            }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { showDownloadSort = false }) { Text("Apply") } },
+                dismissButton = { TextButton(onClick = { downloadSort = "Newest"; showDownloadSort = false }) { Text("Newest first") } }
+            )
             if (filteredWorks.isEmpty()) {
                 InfoCard("No ${downloadFilter.lowercase()} downloads",
                     if (downloadFilter == "Active") "Your download queue is idle." else "Items will appear here when they match this filter.",
@@ -1201,6 +1126,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
     var filter by remember { mutableStateOf("All Media") }
     var sizeFilter by remember { mutableStateOf("Any size") }
     var sortBy by remember { mutableStateOf("Newest") }
+    var showLibraryFilters by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var renameTarget by remember { mutableStateOf<LibraryMedia?>(null) }
     var renameText by remember { mutableStateOf("") }
@@ -1535,60 +1461,54 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
             value = searchQuery, onValueChange = { searchQuery = it },
             modifier = Modifier.fillMaxWidth(), singleLine = true,
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            placeholder = { Text("Search your downloads") },
+            placeholder = { Text("Search your media") },
             shape = RoundedCornerShape(16.dp)
         )
-        OutlinedButton(
-            enabled = searchQuery.isNotBlank() || filter != "All Media" || sizeFilter != "Any size" || sortBy != "Newest",
-            onClick = {
-                searchQuery = ""
-                filter = "All Media"
-                sizeFilter = "Any size"
-                sortBy = "Newest"
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { showLibraryFilters = true }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                Icon(Icons.Default.FilterList, null); Spacer(Modifier.width(6.dp)); Text("Filters & sorting")
+            }
+            Text("${visibleMedia.size} shown", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(
+                enabled = searchQuery.isNotBlank() || filter != "All Media" || sizeFilter != "Any size" || sortBy != "Newest",
+                onClick = { searchQuery = ""; filter = "All Media"; sizeFilter = "Any size"; sortBy = "Newest" }
+            ) { Text("Reset") }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            FilterChip(selected = filter == "All Media", onClick = { filter = "All Media" }, label = { Text("All") })
+            FilterChip(selected = filter == "Video", onClick = { filter = "Video" }, label = { Text("Video") })
+            FilterChip(selected = filter == "Audio", onClick = { filter = "Audio" }, label = { Text("Audio") })
+            FilterChip(selected = filter == "Images", onClick = { filter = "Images" }, label = { Text("Images") })
+        }
+        if (showLibraryFilters) AlertDialog(
+            onDismissRequest = { showLibraryFilters = false },
+            title = { Text("Library filters") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Media type", fontWeight = FontWeight.SemiBold)
+                    listOf("All Media", "Video", "Audio", "Images", "Other Files", "Favorites").forEach { value ->
+                        Row(Modifier.fillMaxWidth().clickable { filter = value }, verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = filter == value, onClick = { filter = value }); Text(value)
+                        }
+                    }
+                    Text("File size", fontWeight = FontWeight.SemiBold)
+                    listOf("Any size", "Under 10 MB", "10–100 MB", "Over 100 MB", "Unknown size").forEach { value ->
+                        Row(Modifier.fillMaxWidth().clickable { sizeFilter = value }, verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = sizeFilter == value, onClick = { sizeFilter = value }); Text(value)
+                        }
+                    }
+                    Text("Sort by", fontWeight = FontWeight.SemiBold)
+                    listOf("Newest", "Oldest", "Name A-Z", "Largest", "Smallest", "Type", "Extension").forEach { value ->
+                        Row(Modifier.fillMaxWidth().clickable { sortBy = value }, verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = sortBy == value, onClick = { sortBy = value }); Text(value)
+                        }
+                    }
+                }
             },
-            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-        ) {
-            Icon(Icons.Default.Refresh, null)
-            Spacer(Modifier.width(6.dp))
-            Text("Reset library filters and sorting")
-        }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-            items(listOf("All Media", "Video", "Audio", "Images", "Other Files", "Favorites")) { value ->
-                FilterChip(
-                    selected = filter == value,
-                    onClick = { filter = value },
-                    label = { Text(value) },
-                    modifier = Modifier.heightIn(min = 48.dp)
-                )
-            }
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Filter by file size", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-                items(listOf("Any size", "Under 10 MB", "10–100 MB", "Over 100 MB", "Unknown size")) { value ->
-                    FilterChip(
-                        selected = sizeFilter == value,
-                        onClick = { sizeFilter = value },
-                        label = { Text(value) },
-                        modifier = Modifier.heightIn(min = 48.dp)
-                    )
-                }
-            }
-        }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Sort by", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.width(8.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(listOf("Newest", "Oldest", "Name A-Z", "Largest", "Smallest", "Type", "Extension")) { value ->
-                    FilterChip(
-                        selected = sortBy == value,
-                        onClick = { sortBy = value },
-                        label = { Text(value) },
-                        modifier = Modifier.heightIn(min = 44.dp)
-                    )
-                }
-            }
-        }
+            confirmButton = { TextButton(onClick = { showLibraryFilters = false }) { Text("Apply") } },
+            dismissButton = { TextButton(onClick = { filter = "All Media"; sizeFilter = "Any size"; sortBy = "Newest"; searchQuery = ""; showLibraryFilters = false }) { Text("Reset all") } }
+        )
         if (visibleMedia.isEmpty()) {
             InfoCard(
                 if (searchQuery.isNotBlank()) "No matching media" else if (filter == "Favorites") "No favorites yet" else "Your library is empty",
