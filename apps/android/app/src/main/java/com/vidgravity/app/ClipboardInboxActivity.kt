@@ -14,6 +14,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -91,12 +93,27 @@ private fun ClipboardInboxScreen(onBack: () -> Unit) {
             } else {
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(urls, key = { it }) { url ->
+                        var displayTitle by remember(url) { mutableStateOf(ShareReceiverActivity.friendlyTitle(url)) }
+                        var titleLoading by remember(url) { mutableStateOf(true) }
+                        LaunchedEffect(url) {
+                            displayTitle = withContext(Dispatchers.IO) {
+                                runCatching { DownloadApi.analyzeSource(url).title }
+                                    .getOrNull()?.takeIf(String::isNotBlank)
+                                    ?: ShareReceiverActivity.friendlyTitle(url)
+                            }
+                            titleLoading = false
+                        }
                         Card {
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Checkbox(checked = url in selected, onCheckedChange = { checked ->
                                     selected = if (checked) selected + url else selected - url
                                 })
-                                Text(url, modifier = Modifier.weight(1f), maxLines = 3, style = MaterialTheme.typography.bodySmall)
+                                Column(Modifier.weight(1f)) {
+                                    Text(displayTitle, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold, maxLines = 2)
+                                    Text(if (titleLoading) url + " · loading title…" else url,
+                                        maxLines = 2, style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                                 IconButton(onClick = { persist(urls - url) }) { Icon(Icons.Default.Delete, "Remove link") }
                             }
                         }
