@@ -75,7 +75,15 @@ class ShareReceiverActivity : FragmentActivity(), FormatPickerBottomSheet.Listen
                 val ip = runCatching { InetAddress.getByName(host) }.getOrNull() ?: return null
                 if (ip.isAnyLocalAddress || ip.isLoopbackAddress || ip.isLinkLocalAddress || ip.isSiteLocalAddress || ip.isMulticastAddress) return null
             }
-            return uri.buildUpon().scheme("https").fragment(null).build().toString().takeIf { it.length <= 8192 }
+            val builder = uri.buildUpon().scheme("https").fragment(null)
+            if (host == "youtube.com" || host.endsWith(".youtube.com") || host == "youtu.be") {
+                // Tracking/share decoration is not needed for extraction and can confuse some providers.
+                builder.clearQuery()
+                uri.queryParameterNames
+                    .filterNot { it.lowercase(Locale.ROOT) in setOf("si", "feature") }
+                    .forEach { key -> uri.getQueryParameters(key).forEach { value -> builder.appendQueryParameter(key, value) } }
+            }
+            return builder.build().toString().takeIf { it.length <= 8192 }
         }
 
         fun friendlyTitle(url: String): String = Uri.parse(url).host?.removePrefix("www.")?.plus(" shared media") ?: "shared media"
