@@ -24,24 +24,38 @@ class ShareReceiverActivity : FragmentActivity(), FormatPickerBottomSheet.Listen
             finish()
             return
         }
-        val preferences = SecureDownloadPreferences.load(this)
         val uniqueUrls = urls.distinct()
-        var queued = 0
-        var rejected = 0
-        uniqueUrls.forEach { url ->
-            val title = friendlyTitle(url)
+        if (uniqueUrls.size > 1) {
+            // Multi-link shares go to a review queue so the user can choose exactly which
+            // links to download. Single-link shares keep the existing instant-download path.
+            val prefs = getSharedPreferences("vg_clipboard_inbox", MODE_PRIVATE)
+            val current = runCatching {
+                val json = org.json.JSONArray(prefs.getString("urls", "[]") ?: "[]")
+                (0 until json.length()).mapNotNull { json.optString(it).takeIf(String::isNotBlank) }
+            }.getOrDefault(emptyList())
+            val merged = (current + uniqueUrls).distinct().take(100)
+            prefs.edit().putString("urls", org.json.JSONArray(merged).toString()).apply()
             runCatching {
-                DownloadNotifications.ensureChannel(this)
-                DownloadNotifications.analyzing(this, title)
-                DownloadWorker.enqueue(this, url, preferences.preferredFormatSelector, title, preferences.unmeteredOnly)
-            }.onSuccess { queued++ }.onFailure { rejected++ }
+                startActivity(Intent(this, ClipboardInboxActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }.onFailure {
+                Toast.makeText(this, "Links were saved, but the selection screen could not be opened.", Toast.LENGTH_LONG).show()
+            }
+            finish()
+            return
         }
-        val message = when {
-            queued > 0 && rejected == 0 -> "Added $queued link(s) to VidGravity Downloads."
-            queued > 0 -> "Added $queued link(s); $rejected could not be queued."
-            else -> "Could not queue these links. Please try again."
+
+        val preferences = SecureDownloadPreferences.load(this)
+        val url = uniqueUrls.first()
+        val title = friendlyTitle(url)
+        runCatching {
+            DownloadNotifications.ensureChannel(this)
+            DownloadNotifications.analyzing(this, title)
+            DownloadWorker.enqueue(this, url, preferences.preferredFormatSelector, title, preferences.unmeteredOnly)
+        }.onSuccess {
+            Toast.makeText(this, "Added 1 link to VidGravity Downloads.", Toast.LENGTH_LONG).show()
+        }.onFailure {
+            Toast.makeText(this, "Could not queue this link. Please try again.", Toast.LENGTH_LONG).show()
         }
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
         finish()
     }
 
