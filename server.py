@@ -9,6 +9,13 @@ ALLOW_LOCAL=False
 SERVER_HOST=os.environ.get('HOST','127.0.0.1')
 
 
+def _youtube_android_fallback_args(url):
+    """Return a one-shot alternate client only for YouTube URLs; leave normal extraction unchanged."""
+    host=(urllib.parse.urlsplit(url).hostname or '').lower().rstrip('.')
+    if host == 'youtu.be' or host == 'youtube.com' or host.endswith('.youtube.com'):
+        return ['--extractor-args','youtube:player_client=android']
+    return []
+
 def _yt_dlp_command(*args):
     """Build yt-dlp commands; browser cookies are opt-in and local-only."""
     command=['yt-dlp', *args]
@@ -398,19 +405,33 @@ def _run_download_job(job_id,url,fmt,audio_only=False):
             # Normalize audio-only selections (including Opus/WebM) to a broadly playable M4A.
             download_args.extend(['-x','--audio-format','m4a','--audio-quality','0'])
         download_args.extend(['-o',out,'--restrict-filenames','--newline',url])
-        p=subprocess.Popen(_yt_dlp_command(*download_args),stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
-        with DOWNLOAD_JOB_LOCK: job['process']=p
-        for line in p.stdout:
-            line=line.strip()
-            m=re.search(r'(\d+(?:\.\d+)?)%',line)
-            if m: job["progress"]=max(1,min(99,int(float(m.group(1)))))
-            if line: job["message"]=line[-240:]
+
+        def run_attempt(args):
+            process=subprocess.Popen(_yt_dlp_command(*args),stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
+            with DOWNLOAD_JOB_LOCK: job['process']=process
+            for line in process.stdout:
+                line=line.strip()
+                match=re.search(r'(\d+(?:\.\d+)?)%',line)
+                if match: job["progress"]=max(1,min(99,int(float(match.group(1)))))
+                if line: job["message"]=line[-240:]
+                _job_changed(job)
+                if job.get("cancel_requested"):
+                    _stop_download_process(process)
+                    break
+            code=process.wait()
+            with DOWNLOAD_JOB_LOCK: job.pop("process",None)
+            return code
+
+        rc=run_attempt(download_args)
+        fallback_args=_youtube_android_fallback_args(url)
+        if rc!=0 and fallback_args and not job.get("cancel_requested"):
+            for leftover in DOWNLOAD_OUTPUT_DIR.glob(job_id+'.*'):
+                try: leftover.unlink()
+                except OSError: pass
+            with DOWNLOAD_JOB_LOCK:
+                job.update({"progress":0,"message":"Default YouTube extraction failed; retrying with Android player client"})
             _job_changed(job)
-            if job.get("cancel_requested"):
-                _stop_download_process(p)
-                break
-        rc=p.wait()
-        with DOWNLOAD_JOB_LOCK: job.pop("process",None)
+            rc=run_attempt([*fallback_args,*download_args])
         if job.get("cancel_requested"):
             for leftover in DOWNLOAD_OUTPUT_DIR.glob(job_id+'.*'):
                 try: leftover.unlink()
@@ -420,7 +441,7 @@ def _run_download_job(job_id,url,fmt,audio_only=False):
             for leftover in DOWNLOAD_OUTPUT_DIR.glob(job_id+'.*'):
                 try: leftover.unlink()
                 except OSError: pass
-            _job_transition(job,"failed",error=job.get("message") or "yt-dlp failed"); _job_changed(job); return
+            _job_transition(job,"failed",error=job.get('message') or "yt-dlp failed"); _job_changed(job); return
         files=[f for f in DOWNLOAD_OUTPUT_DIR.glob(job_id+'.*') if f.is_file()]
         if not files:
             _job_transition(job,"failed",error="No media file produced"); _job_changed(job); return
