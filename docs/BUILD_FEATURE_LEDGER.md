@@ -1,17 +1,16 @@
 # VidGravity Build & Feature Ledger
 
-Last audited: 2026-10-15 04:41 Asia/Calcutta
+Last audited: 2026-10-15 06:03 Asia/Calcutta
 
 ## Current candidate
 - Branch: `fix/audio-only-extraction-20261015`
-- Exact HEAD: `135ce35de817bdf20b1c83f8eef550db53937cd4`
-- Android CI/regression: passed at run 38643775578.
-- APK artifact: 11932045219, approximately 23.99 MB, expires 2026-10-28.
-- Artifact ZIP SHA-256: `0b122f5520fcc0560245fc9fc95c4e2eb107f49f3d8682e519a703630dfcf63d`. Raw APK SHA-256 is not yet published.
-- PR mismatch: open PR #32/#33 target a different branch/commit; no open PR points to this exact candidate.
-- Live probe run 38643775836 failed: homepage and /api/health both returned HTTP 502.
-- Render request logs recorded POST /api/media/export HTTP 404 twice. The phone screenshot also shows Story export HTTP 404.
-- Readiness: NOT READY. Debug APK exists and CI passed, but live backend/export and feature acceptance gates have not passed.
+- Exact HEAD at latest successful CI: `45c1434743855cffe2b224442e828244e471a04d` (commit message: docs: track current candidate readiness and blockers).
+- Android CI/regression: passed at run 38652807973; Android share pipeline and regression jobs both succeeded.
+- Matching APK artifact: [vidgravity-android-debug-apk](https://github.com/revanthbesty/VidGravity/actions/runs/38652807973/artifacts/11935062991), 23,992,962 bytes, expires 2026-10-28.
+- Artifact ZIP SHA-256: `e0a3cfc672e52d4ac058ea4f5a4d505155301ae502679cc8136f5a33983bd3fc`. Raw APK SHA-256 is still not recorded.
+- PR mismatch: open PR #33 head is `ad9a57f5ef34755ce083534041df99aae3b126ce`, not the exact current candidate; no open PR points to HEAD `45c1434743855cffe2b224442e828244e471a04d`.
+- Latest live probe run 38652807872 failed: `https://vidgravity.onrender.com` health check timed out and homepage returned HTTP 503. The Story export endpoint previously returned HTTP 404 in request logs and has not been shown passing since.
+- Readiness: NOT READY. The matching debug APK and CI pass exist, but live deployment/export, raw APK hash, and feature/device acceptance gates remain outstanding.
 
 ## Explicit issue matrix
 
@@ -45,3 +44,18 @@ Last audited: 2026-10-15 04:41 Asia/Calcutta
 4. Audio-only, YouTube, Status split and creator export produce playable saved files.
 5. Duplicate actions removed and navigation/UI changes are in the same candidate.
 6. Keep source/CI evidence separate from physical-device acceptance; do not claim device checks passed without evidence.
+
+
+## Fresh readiness audit — 2026-10-15 06:03 Asia/Calcutta
+
+Evidence refreshed from GitHub Actions:
+- CI run [38652807973](https://github.com/revanthbesty/VidGravity/actions/runs/38652807973) completed successfully at exact HEAD `45c1434743855cffe2b224442e828244e471a04d`. Jobs `Android share pipeline and social export` and `regression` passed.
+- Fresh matching debug APK artifact is [11935062991](https://github.com/revanthbesty/VidGravity/actions/runs/38652807973/artifacts/11935062991); ZIP SHA-256 is recorded above. This ZIP digest must not be presented as the raw APK digest.
+- Live probe [38652807872](https://github.com/revanthbesty/VidGravity/actions/runs/38652807872) remains failed: `P169 deployment probe: BLOCKED`, `health: TimeoutError`, `homepage: HTTP 503`. PWA-origin probe was skipped after the backend probe failed.
+- Current open PR #33 is still on head `ad9a57f5ef34755ce083534041df99aae3b126ce`; it does not match the latest candidate commit. Candidate/PR alignment remains a release blocker.
+- The latest ledger commit itself is the candidate HEAD, so the ledger is present on that branch but its recorded exact-head details were stale until this audit update.
+
+### Release gate decision
+**NOT READY.** Do not notify as ready until (1) live health/homepage and media export pass, (2) exact-head CI has a downloadable matching APK and a raw APK SHA-256 checksum file, (3) explicit user issues are verified with evidence, and (4) phone-only acceptance checks are either completed or clearly left pending for user testing.
+
+No new pass is inferred for Sound Only, YouTube live downloads, Status Split Cutter output, StudyTok removal, Grab Best Video removal, media tile metadata, Downloads/Library/Create UX, branding/accessibility, camera reachability, download recovery, Library playback/indexing, close/back behavior, checksum matching/mismatch, WhatsApp/Share Inbox, or camera gallery saving. Existing issue matrix remains the source of truth for each outstanding acceptance test.
