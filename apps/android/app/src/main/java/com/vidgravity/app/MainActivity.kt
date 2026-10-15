@@ -322,7 +322,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                         modifier = Modifier.fillMaxWidth().clickable {
                                             try {
                                                 val preferences = SecureDownloadPreferences.load(context)
-                                                DownloadWorker.enqueue(context, url.trim(), audio.selector, result.title + " — Audio", preferences.unmeteredOnly)
+                                                DownloadWorker.enqueue(context, url.trim(), audio.selector, result.title + " — Audio", preferences.unmeteredOnly, audioOnly = true)
                                                 analysis = null
                                                 selected = VgTab.Downloads
                                                 notice = "Audio download added to queue."
@@ -502,7 +502,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                                     if (audio == null) notify("No audio-only stream was found for this link.")
                                                     else {
                                                         val prefs = SecureDownloadPreferences.load(context)
-                                                        DownloadWorker.enqueue(context, url.trim(), audio.selector, result.title + " — Audio", prefs.unmeteredOnly)
+                                                        DownloadWorker.enqueue(context, url.trim(), audio.selector, result.title + " — Audio", prefs.unmeteredOnly, audioOnly = true)
                                                         notify("Audio download added to queue. Open Downloads to track progress.")
                                                     }
                                                 } catch (failure: Exception) {
@@ -836,7 +836,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                 ?: "Media download"
                             if (!sourceUrl.isNullOrBlank()) {
                                 runCatching {
-                                    DownloadWorker.enqueue(context, sourceUrl, selector, retryTitle, preferences.unmeteredOnly)
+                                    DownloadWorker.enqueue(context, sourceUrl, selector, retryTitle, preferences.unmeteredOnly, work.inputData.getBoolean(DownloadWorker.KEY_AUDIO_ONLY, false))
                                 }.onSuccess { queued++ }
                             }
                         }
@@ -1075,7 +1075,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                             ?: work.progress.getString("media_title") ?: title
                                         if (!sourceUrl.isNullOrBlank()) {
                                             val preferences = SecureDownloadPreferences.load(context)
-                                            DownloadWorker.enqueue(context, sourceUrl, selector ?: preferences.preferredFormatSelector, retryTitle, preferences.unmeteredOnly)
+                                            DownloadWorker.enqueue(context, sourceUrl, selector ?: preferences.preferredFormatSelector, retryTitle, preferences.unmeteredOnly, work.inputData.getBoolean(DownloadWorker.KEY_AUDIO_ONLY, false))
                                         } else {
                                             android.widget.Toast.makeText(context,
                                                 "Retry unavailable. Inspect the original link again from Home.",
