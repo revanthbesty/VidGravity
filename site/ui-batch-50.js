@@ -51,7 +51,7 @@
  // 60. Add a persistent return-to-top button for long workspaces.
  if(!$('#vg90Top')){const b=make('button','vg90-top','↑ Top');b.id='vg90Top';b.type='button';b.setAttribute('aria-label','Back to top');document.body.append(b);on(b,'click',()=>window.scrollTo({top:0,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth'}));on(window,'scroll',()=>b.classList.toggle('visible',window.scrollY>500),{passive:true})}
  // 61. Confirm destructive actions whose wording suggests permanent deletion.
- $$('button').forEach(b=>{if(b.dataset.vgConfirmBound||!/(delete all|delete selected|remove selected|clear history|clear all)/i.test(b.textContent))return;b.dataset.vgConfirmBound='1';on(b,'click',e=>{if(!window.confirm('This action may permanently remove selected items. Continue?')){e.stopImmediatePropagation();e.preventDefault()}})});
+ $$('button').forEach(b=>{if(b.dataset.vgConfirmBound||!/(delete all|delete selected|remove selected|clear history|clear all)/i.test(b.textContent))return;b.dataset.vgConfirmBound='1';b.addEventListener('click',e=>{if(!window.confirm('This action may permanently remove selected items. Continue?')){e.stopImmediatePropagation();e.preventDefault()}},true)});
  // 62. Avoid duplicate form submissions while a submit handler is running.
  $$('form').forEach(form=>on(form,'submit',()=>{const submit=$('button[type="submit"],input[type="submit"]',form);if(!submit)return;submit.dataset.vgOriginalLabel=submit.textContent;submit.setAttribute('aria-busy','true');setTimeout(()=>{submit.removeAttribute('aria-busy')},1800)}));
  // 63. Provide a clear-all filter action for common filter groups.
@@ -93,7 +93,7 @@
  // 81. Keep the current page's heading available to screen readers.
  const headingObserver=new MutationObserver(()=>{const page=$('.page.active')||$('main');if(page&&!page.hasAttribute('aria-label')){const h=$('h1,h2',page);if(h)page.setAttribute('aria-label',h.textContent.trim())}});headingObserver.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
  // 82. Show a gentle warning before leaving with an actively edited form.
- let dirty=false;on(document,'input',e=>{if(e.target.matches('input,textarea,select')&&!e.target.readOnly)dirty=true});on(document,'change',e=>{if(e.target.matches('input,textarea,select')&&!e.target.readOnly)dirty=true});on(window,'beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});on(document,'submit',()=>{dirty=false});
+ let dirtyForms=new WeakSet();$('form[data-warn-unsaved="true"]').forEach(form=>{on(form,'input',e=>{if(e.target.matches('input,textarea,select')&&!e.target.readOnly)dirtyForms.add(form)});on(form,'change',e=>{if(e.target.matches('input,textarea,select')&&!e.target.readOnly)dirtyForms.add(form)});on(form,'submit',()=>dirtyForms.delete(form));on(window,'beforeunload',e=>{if(dirtyForms.has(form)){e.preventDefault();e.returnValue=''}})});
  // 83. Ensure disabled controls visually communicate their state.
  $$('button:disabled,input:disabled,select:disabled,textarea:disabled').forEach(el=>el.classList.add('vg90-disabled'));
  // 84. Add a compact current-time-independent app version label for diagnostics.
