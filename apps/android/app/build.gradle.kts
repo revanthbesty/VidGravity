@@ -16,9 +16,25 @@ android {
         applicationId = "com.vidgravity.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 178
-        versionName = "1.0.8-p178"
+        versionCode = 180
+        versionName = "1.1.0-p180"
         buildConfigField("String", "VG_API_BASE_URL", "\"$safeApi\"")
+    }
+    signingConfigs {
+        create("release") {
+            // Supplied only by the protected release workflow or a developer's local environment.
+            val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+            if (!keystorePath.isNullOrBlank()) storeFile = file(keystorePath)
+            storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+            keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+        }
+    }
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+        }
     }
     buildFeatures { compose = true; buildConfig = true }
     compileOptions {

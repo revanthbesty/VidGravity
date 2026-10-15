@@ -42,6 +42,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Help Center documentation regression tests
+        run: python -m unittest -v test_help_center_docs.py
+      - name: Android production release gate regression tests
+        run: python -m unittest -v test_android_production_release_gate.py
       - name: Python regression suite
         run: python run_regression_p165.py
       - name: P169 deployment probe unit tests
@@ -151,6 +155,7 @@ jobs:
         run: |
           python -m unittest discover -s tests -p "test_media_export.py" -v
           python -m unittest -v test_p174_android_share_pipeline.py
+          python -m unittest discover -s tests -p "test_android_build_feature_ledger.py" -v
 
       - name: Upload Android debug APK for device testing
         if: success()

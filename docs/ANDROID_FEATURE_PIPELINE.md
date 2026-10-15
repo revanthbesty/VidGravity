@@ -1,11 +1,23 @@
 # VidGravity Android Feature Pipeline
 
 Scope: native Android APK first. Keep the PWA/web scope unchanged unless explicitly requested.
-Last updated: 2026-10-14
+Last updated: 2026-10-15
+
+Build and regression history is tracked in [BUILD_FEATURE_LEDGER.md](BUILD_FEATURE_LEDGER.md). Current candidate: p180 / 1.1.0-p180; its CI, artifact and device validation are pending.
 
 ## Priority policy
 
 Work in this order: release-blocking stability and user-reported defects first, core download/library workflows second, creator features third, AI and expansion features after the core acceptance gates pass. Do not mark a feature complete based on a code commit alone: require CI, APK artifact, and device validation where applicable.
+
+## Production APK gate — p179
+
+- Android app version is now `1.0.9-p179` (versionCode 179); this is a release candidate version, not proof of production readiness.
+- Standard CI continues to produce a debug APK for quick device testing.
+- A separate protected workflow, `.github/workflows/android-signed-release.yml`, builds a signed release APK and a SHA-256 checksum only when the signing secrets are configured.
+- Required GitHub Actions repository or environment secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`. Store the Base64-encoded keystore securely; never commit the keystore or expose the secret values in logs/chat.
+- Release workflow failure due to missing signing secrets is an intentional fail-closed gate. Do not distribute an unsigned APK as production.
+- The signing keystore must be the stable release key for this application. Back it up securely before first production distribution; losing it can prevent updating installations signed with that key.
+- Signing configuration and workflow are code-ready only after their own CI validation. A signed APK still needs installation/upgrade tests and the P0 on-device acceptance checklist.
 
 ## P0 — Release blockers / immediate
 
@@ -15,7 +27,9 @@ Work in this order: release-blocking stability and user-reported defects first, 
 - [ ] Verify quality picker options are deduplicated and show available resolutions (360p, 480p, 720p, 1080p, 1440p, 4K/8K when actually available), plus audio-only when supported.
 - [ ] Verify player fullscreen/landscape playback and Library Play/Share actions.
 - [ ] Validate Camera/Snap Studio shutter and settings produce real saved media, not placeholder output.
+- [ ] Re-test explicit flash on/off, visible video-quality control, photo capture, video recording, dual-camera fallback and gallery publication.
 - [ ] Check Downloads and Library layout on a physical Android device: no cramped horizontal controls, scroll works, actions are understandable.
+- [ ] Regression-test StudyTok and Share Inbox/WhatsApp handoff without requiring a media URL on Home.
 - Acceptance: CI green, APK artifact available, no crash in the critical path, on-device smoke test recorded.
 
 ## Master roadmap scope
@@ -51,7 +65,8 @@ The native Android APK is the active release target. Keep PWA/browser and deskto
 ## P2 — Creator media pipeline
 
 - [ ] Real 9:16 Story/Status export from source media.
-- [ ] Configurable WhatsApp Status splitting at 30/60/90/120 seconds.
+- [x] Configurable WhatsApp Status splitting at 30/60/90/120 seconds is present in source, with a warning that 120 seconds is a custom target and may not fit one standard WhatsApp Status item.
+- [ ] Regression-test all four WhatsApp Status split durations on the p180 APK; code presence is not device verification.
 - [ ] Audio-only Story Cards with waveform/cover and reliable audio export.
 - [ ] Animated WebP sticker creation and publication to the correct media collection.
 - [ ] Story templates, captions, thumbnails, and recoverable editing drafts.
