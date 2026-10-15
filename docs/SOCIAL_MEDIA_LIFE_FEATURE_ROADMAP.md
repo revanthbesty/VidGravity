@@ -24,6 +24,9 @@ All items below are **planned/backlog**. Reconcile IDs with the SRS and existing
 | VG-SM-004 | Create Once, Share Anywhere | P2 | Hand off user-owned/authorized exports via Android's native Sharesheet; do not claim a post succeeded just because the chooser opened. Test common MIME types and target-app behavior on-device. |
 | VG-SM-005 | Social Export Presets | P2 | Configurable presets for YouTube Shorts, Instagram Reels/Stories, Snapchat, Facebook Reels, WhatsApp Status and generic vertical/square/landscape sharing. Validate dimensions, codec, duration, size and real target-app playback/upload before claiming compatibility. |
 | VG-SM-006 | Quick Photo Studio | P2 | Local crop, rotate, resize, simple filters, collage, text/stickers, thumbnails and optional watermark. Test quality, metadata policy, large-image memory, cancel/undo and output integrity. |
+| VG-CAM-001 | Live Camera Filter Library | P2 — high user value after P0 | Offline-first live photo/video filter categories: natural, portrait, warm/cool, cinematic, vintage/film, monochrome, food, travel, night, vivid and playful. Add intensity control, Original/before-after, favorites and recent filters. Selected effects must be applied to saved output when requested, not preview-only. Test live preview, photo/video output, intensity/reset, camera flip, orientation, latency, heat and low-end fallback. |
+| VG-CAM-002 | Camera Templates & Shot Guides | P2 — high user value after P0 | Many reusable photo/video templates for selfies/portraits, couples/groups, travel, food, pets, products, cinematic clips, profile photos, festivals, collages, quote/story/status cards and vertical social framing. Guide framing/aspect ratio/overlays/text/shot order/timing; allow preview and edits. Test valid outputs, safe text areas, aspect ratios, cancel/undo and draft recovery. |
+| VG-CAM-003 | Filter & Template Packs | P2 — high user value after P0 | Categorized packs such as Portrait, Cinematic, Vintage, Nature/Travel, Food, Night, Monochrome, Fun, Festivals and Creator/Story. Ship a useful free offline starter pack; support browse/search/preview/favorites/reset and a metadata-driven way to add more licensed/free packs. Test offline first-run, manifest, persistence, asset-size budget, missing-pack behavior, accessibility and asset licensing/provenance. |
 | VG-SM-007 | Quick Video Studio | P2 | Local trim/split/merge where supported, speed, mute/audio selection, simple text/title cards, preview and draft recovery. Preserve originals. Test duration, codec, audio sync, cancellation and Library output. |
 | VG-SM-008 | Captions & Post Pack | P2 | Editable caption/title/hook/description/hashtag suggestions and one-tap copy. AI optional. Test Unicode/languages and copy/paste; no automatic posting. |
 | VG-SM-009 | Chat & Comment Draft Helper | P2 | User manually shares/pastes selected text to rewrite, shorten, translate or change tone, then copies the draft back. No auto-send, background DM reading, contact scraping or account login. |
@@ -43,9 +46,14 @@ All items below are **planned/backlog**. Reconcile IDs with the SRS and existing
 2. **Batch B — Save and find:** VG-SM-002 + basic VG-SM-003 local search/indexing.
 3. **Batch C — Share out:** VG-SM-004 + VG-SM-005; start with generic exports and validate WhatsApp Status / Instagram-style vertical outputs on-device.
 4. **Batch D — Local creation:** VG-SM-006 + VG-SM-007 + VG-SM-013; reuse Create Studio and Status Splitter.
-5. **Batch E — Text and privacy:** VG-SM-008 + VG-SM-009 + VG-SM-010, useful without online AI.
-6. **Batch F — Audio, viewing and localization:** VG-SM-011 + VG-SM-012 + VG-SM-014.
-7. **Batch G — Automation and optional AI:** VG-SM-015 + VG-SM-016 + VG-SM-017 only after free-service and privacy feasibility is demonstrated.
+5. **Batch D2 — Photo/video enthusiast camera:** VG-CAM-001 live filters, then VG-CAM-002 templates and VG-CAM-003 packs; prioritize a free offline starter set, and validate real saved outputs/performance on a physical device.
+6. **Batch E — Text and privacy:** VG-SM-008 + VG-SM-009 + VG-SM-010, useful without online AI.
+7. **Batch F — Audio, viewing and localization:** VG-SM-011 + VG-SM-012 + VG-SM-014.
+8. **Batch G — Automation and optional AI:** VG-SM-015 + VG-SM-016 + VG-SM-017 only after free-service and privacy feasibility is demonstrated.
+
+## Photo/video enthusiast experience
+
+The camera should feel like a compact creative studio, not just a capture button: keep shutter/record and camera-switch controls in the one-hand reach zone; show a horizontally browsable filter strip with readable names/thumbnails, intensity slider, favorites/recent, an obvious Original option and before/after comparison. Group templates by activity and output shape. Keep processing local/offline where practical, preserve originals by default, and never claim a filter is baked into the file unless the exported result proves it. Audit any GPU filter dependency for license, maintained build, device compatibility, APK size and performance before adopting it. Filter/template packs are planned, not implemented.
 
 ## Platform, privacy and budget guardrails
 
