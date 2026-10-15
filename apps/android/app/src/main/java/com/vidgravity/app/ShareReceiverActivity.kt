@@ -26,6 +26,35 @@ class ShareReceiverActivity : FragmentActivity(), FormatPickerBottomSheet.Listen
             return
         }
         val title = friendlyTitle(url)
+        val preferences = SecureDownloadPreferences.load(this)
+
+        // Instagram's Android share sheet delivers one URL per ACTION_SEND. When
+        // automatic share downloads are enabled, enqueue immediately and return to
+        // Instagram so the user can share the next Reel without opening/pasting links.
+        if (preferences.autoDownloadWithPreferredPreset) {
+            runCatching {
+                DownloadNotifications.ensureChannel(this)
+                DownloadNotifications.analyzing(this, title)
+                DownloadWorker.enqueue(
+                    this,
+                    url,
+                    preferences.preferredFormatSelector,
+                    title,
+                    preferences.unmeteredOnly
+                )
+            }.onSuccess {
+                Toast.makeText(
+                    this,
+                    "Added to VidGravity queue. Share the next video; downloads will run in the background.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }.onFailure {
+                Toast.makeText(this, "Could not queue this link: ${it.message ?: "please try again"}", Toast.LENGTH_LONG).show()
+            }
+            finish()
+            return
+        }
+
         runCatching { ShareInboxStore.add(this, url, title) }
             .onFailure {
                 Toast.makeText(this, "Could not save this link to the Share Inbox.", Toast.LENGTH_LONG).show()
