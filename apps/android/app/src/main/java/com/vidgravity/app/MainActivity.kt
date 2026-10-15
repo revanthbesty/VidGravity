@@ -813,28 +813,6 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
             }
         }
     }
-    if (showClearHistoryConfirm) {
-        AlertDialog(
-            onDismissRequest = { showClearHistoryConfirm = false },
-            title = { Text("Clear finished download history?") },
-            text = { Text("This hides completed, failed, and cancelled items from this screen. Active downloads are not cancelled, and downloaded media files remain in your Library.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    val finishedIds = works.filter {
-                        it.state == WorkInfo.State.SUCCEEDED || it.state == WorkInfo.State.FAILED || it.state == WorkInfo.State.CANCELLED
-                    }.map { it.id.toString() }.toSet()
-                    hiddenHistoryIds = hiddenHistoryIds + finishedIds
-                    historyPrefs.edit().putStringSet("hidden_finished_ids", hiddenHistoryIds.toSet()).apply()
-                    showClearHistoryConfirm = false
-                    android.widget.Toast.makeText(context, "Hidden ${finishedIds.size} finished item(s). Downloaded files are kept in Library.", android.widget.Toast.LENGTH_LONG).show()
-                }) { Text("Clear history") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearHistoryConfirm = false }) { Text("Keep history") }
-            }
-        )
-    }
-}
 
 @Composable
 private fun InfoCard(title: String, detail: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
