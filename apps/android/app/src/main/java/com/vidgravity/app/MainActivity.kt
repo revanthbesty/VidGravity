@@ -546,6 +546,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
     val clipboard = LocalClipboardManager.current
     var expandedErrors by remember { mutableStateOf(setOf<java.util.UUID>()) }
     var downloadFilter by remember { mutableStateOf("All") }
+    var showDownloadFilters by remember { mutableStateOf(false) }
     var showClearHistoryConfirm by remember { mutableStateOf(false) }
     var downloadSearch by remember { mutableStateOf("") }
     var downloadSort by remember { mutableStateOf("Newest") }
@@ -894,53 +895,61 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 onValueChange = { downloadSearch = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                label = { Text("Search download history") },
-                placeholder = { Text("Filename, source URL, error, or status") },
+                label = { Text("Search downloads") },
+                placeholder = { Text("Search title, source, or error") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                 trailingIcon = {
-                    if (downloadSearch.isNotBlank()) {
-                        IconButton(onClick = { downloadSearch = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear search")
-                        }
+                    if (downloadSearch.isNotBlank()) IconButton(onClick = { downloadSearch = "" }) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear search")
                     }
                 }
             )
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(listOf("Newest", "Oldest", "Name A–Z", "Progress", "Status", "Failed first")) { sort ->
-                    FilterChip(
-                        selected = downloadSort == sort,
-                        onClick = { downloadSort = sort },
-                        label = { Text("Sort: $sort") }
-                    )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = { showDownloadFilters = true }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                    Icon(Icons.Default.FilterList, null); Spacer(Modifier.width(6.dp))
+                    Text("Filters & sorting")
                 }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("${filteredWorks.size} matching download(s)", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${filteredWorks.size} shown", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 TextButton(
                     enabled = downloadSearch.isNotBlank() || downloadFilter != "All" || downloadSort != "Newest",
-                    onClick = {
-                        downloadSearch = ""
-                        downloadFilter = "All"
-                        downloadSort = "Newest"
-                    }
-                ) {
-                    Icon(Icons.Default.Close, contentDescription = null)
-                    Spacer(Modifier.width(4.dp))
-                    Text("Clear filters")
-                }
+                    onClick = { downloadSearch = ""; downloadFilter = "All"; downloadSort = "Newest" }
+                ) { Text("Reset") }
             }
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(listOf("All", "Active", "Completed", "Failed")) { filter ->
-                    val count = when (filter) {
-                        "Active" -> activeWorks.size
-                        "Completed" -> completedWorks.size
-                        "Failed" -> failedWorks.size
-                        else -> works.size
-                    }
-                    FilterChip(selected = downloadFilter == filter, onClick = { downloadFilter = filter },
-                        label = { Text("$filter ($count)") })
-                }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                FilterChip(selected = downloadFilter == "All", onClick = { downloadFilter = "All" }, label = { Text("All") })
+                FilterChip(selected = downloadFilter == "Active", onClick = { downloadFilter = "Active" }, label = { Text("Active") })
+                FilterChip(selected = downloadFilter == "Completed", onClick = { downloadFilter = "Completed" }, label = { Text("Done") })
+                FilterChip(selected = downloadFilter == "Failed", onClick = { downloadFilter = "Failed" }, label = { Text("Failed") })
+                Spacer(Modifier.weight(1f))
+                Text(downloadSort, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            if (showDownloadFilters) AlertDialog(
+                onDismissRequest = { showDownloadFilters = false },
+                title = { Text("Download filters") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Status", fontWeight = FontWeight.SemiBold)
+                        listOf("All", "Active", "Completed", "Failed").forEach { value ->
+                            Row(Modifier.fillMaxWidth().clickable { downloadFilter = value },
+                                verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(selected = downloadFilter == value, onClick = { downloadFilter = value })
+                                Text(value)
+                            }
+                        }
+                        Text("Sort by", fontWeight = FontWeight.SemiBold)
+                        listOf("Newest", "Oldest", "Name A–Z", "Progress", "Status", "Failed first").forEach { value ->
+                            Row(Modifier.fillMaxWidth().clickable { downloadSort = value },
+                                verticalAlignment = Alignment.CenterVertically) {
+                                RadioButton(selected = downloadSort == value, onClick = { downloadSort = value })
+                                Text(value)
+                            }
+                        }
+                    }
+                },
+                confirmButton = { TextButton(onClick = { showDownloadFilters = false }) { Text("Apply") } },
+                dismissButton = { TextButton(onClick = { downloadFilter = "All"; downloadSort = "Newest"; downloadSearch = ""; showDownloadFilters = false }) { Text("Reset all") } }
+            )
             if (filteredWorks.isEmpty()) {
                 InfoCard("No ${downloadFilter.lowercase()} downloads",
                     if (downloadFilter == "Active") "Your download queue is idle." else "Items will appear here when they match this filter.",
@@ -1201,6 +1210,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
     var filter by remember { mutableStateOf("All Media") }
     var sizeFilter by remember { mutableStateOf("Any size") }
     var sortBy by remember { mutableStateOf("Newest") }
+    var showLibraryFilters by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
     var renameTarget by remember { mutableStateOf<LibraryMedia?>(null) }
     var renameText by remember { mutableStateOf("") }
@@ -1535,60 +1545,54 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
             value = searchQuery, onValueChange = { searchQuery = it },
             modifier = Modifier.fillMaxWidth(), singleLine = true,
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            placeholder = { Text("Search your downloads") },
+            placeholder = { Text("Search your media") },
             shape = RoundedCornerShape(16.dp)
         )
-        OutlinedButton(
-            enabled = searchQuery.isNotBlank() || filter != "All Media" || sizeFilter != "Any size" || sortBy != "Newest",
-            onClick = {
-                searchQuery = ""
-                filter = "All Media"
-                sizeFilter = "Any size"
-                sortBy = "Newest"
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { showLibraryFilters = true }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
+                Icon(Icons.Default.FilterList, null); Spacer(Modifier.width(6.dp)); Text("Filters & sorting")
+            }
+            Text("${visibleMedia.size} shown", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            TextButton(
+                enabled = searchQuery.isNotBlank() || filter != "All Media" || sizeFilter != "Any size" || sortBy != "Newest",
+                onClick = { searchQuery = ""; filter = "All Media"; sizeFilter = "Any size"; sortBy = "Newest" }
+            ) { Text("Reset") }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            FilterChip(selected = filter == "All Media", onClick = { filter = "All Media" }, label = { Text("All") })
+            FilterChip(selected = filter == "Video", onClick = { filter = "Video" }, label = { Text("Video") })
+            FilterChip(selected = filter == "Audio", onClick = { filter = "Audio" }, label = { Text("Audio") })
+            FilterChip(selected = filter == "Images", onClick = { filter = "Images" }, label = { Text("Images") })
+        }
+        if (showLibraryFilters) AlertDialog(
+            onDismissRequest = { showLibraryFilters = false },
+            title = { Text("Library filters") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Media type", fontWeight = FontWeight.SemiBold)
+                    listOf("All Media", "Video", "Audio", "Images", "Other Files", "Favorites").forEach { value ->
+                        Row(Modifier.fillMaxWidth().clickable { filter = value }, verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = filter == value, onClick = { filter = value }); Text(value)
+                        }
+                    }
+                    Text("File size", fontWeight = FontWeight.SemiBold)
+                    listOf("Any size", "Under 10 MB", "10–100 MB", "Over 100 MB", "Unknown size").forEach { value ->
+                        Row(Modifier.fillMaxWidth().clickable { sizeFilter = value }, verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = sizeFilter == value, onClick = { sizeFilter = value }); Text(value)
+                        }
+                    }
+                    Text("Sort by", fontWeight = FontWeight.SemiBold)
+                    listOf("Newest", "Oldest", "Name A-Z", "Largest", "Smallest", "Type", "Extension").forEach { value ->
+                        Row(Modifier.fillMaxWidth().clickable { sortBy = value }, verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(selected = sortBy == value, onClick = { sortBy = value }); Text(value)
+                        }
+                    }
+                }
             },
-            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-        ) {
-            Icon(Icons.Default.Refresh, null)
-            Spacer(Modifier.width(6.dp))
-            Text("Reset library filters and sorting")
-        }
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-            items(listOf("All Media", "Video", "Audio", "Images", "Other Files", "Favorites")) { value ->
-                FilterChip(
-                    selected = filter == value,
-                    onClick = { filter = value },
-                    label = { Text(value) },
-                    modifier = Modifier.heightIn(min = 48.dp)
-                )
-            }
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Filter by file size", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-                items(listOf("Any size", "Under 10 MB", "10–100 MB", "Over 100 MB", "Unknown size")) { value ->
-                    FilterChip(
-                        selected = sizeFilter == value,
-                        onClick = { sizeFilter = value },
-                        label = { Text(value) },
-                        modifier = Modifier.heightIn(min = 48.dp)
-                    )
-                }
-            }
-        }
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Sort by", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.width(8.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(listOf("Newest", "Oldest", "Name A-Z", "Largest", "Smallest", "Type", "Extension")) { value ->
-                    FilterChip(
-                        selected = sortBy == value,
-                        onClick = { sortBy = value },
-                        label = { Text(value) },
-                        modifier = Modifier.heightIn(min = 44.dp)
-                    )
-                }
-            }
-        }
+            confirmButton = { TextButton(onClick = { showLibraryFilters = false }) { Text("Apply") } },
+            dismissButton = { TextButton(onClick = { filter = "All Media"; sizeFilter = "Any size"; sortBy = "Newest"; searchQuery = ""; showLibraryFilters = false }) { Text("Reset all") }
+        )
         if (visibleMedia.isEmpty()) {
             InfoCard(
                 if (searchQuery.isNotBlank()) "No matching media" else if (filter == "Favorites") "No favorites yet" else "Your library is empty",
