@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="VidGravity">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="styles.css?v=p177">
+<link rel="stylesheet" href="styles.css?v=ui2">
 <link rel="stylesheet" href="social-export.css?v=p176">
 <title>VidGravity</title>
 </head>
@@ -38,6 +38,7 @@
       <button class="nav active" data-page="home">⌂ <span>Home</span></button>
       <button class="nav" data-page="downloads">↓ <span>Downloads</span><em id="queueBadge">0</em></button>
       <button class="nav" data-page="library">▣ <span>Library</span></button>
+      <button class="nav" data-page="create">✦ <span>Create Studio</span></button>
       <button class="nav" data-page="ask">✦ <span>Ask My Media</span></button>
       <button class="nav" data-page="settings">⚙ <span>Settings</span></button>
     </nav>
@@ -96,6 +97,16 @@
     <div id="libraryGrid" class="mediaGrid"></div>
     </section>
 
+    <section id="create" class="page">
+      <div class="sectionTitle"><div><div class="eyebrow">CREATE STUDIO</div><h1>Make something new.</h1><p>Import media or capture a clip. Keep the tools simple and within reach.</p></div></div>
+      <div class="createStudioGrid">
+        <article class="createFeature card"><div class="createFeatureIcon">↥</div><div><h2>Import media</h2><p>Choose a video or audio file from this device to preview it before saving.</p></div><label class="createAction primary" for="vgLocalMediaInput">Choose files</label><input id="vgLocalMediaInput" type="file" accept="video/*,audio/*" multiple hidden><small id="vgImportStatus" role="status">Files stay on this device unless you choose to share them.</small></article>
+        <article class="createFeature card"><div class="createFeatureIcon">◉</div><div><h2>Camera studio</h2><p>Record a quick clip with your device camera. Camera access is requested only when you start.</p></div><div class="cameraPreviewWrap"><video id="vgCameraPreview" autoplay muted playsinline aria-label="Camera preview"></video><div id="vgCameraPlaceholder" class="cameraPlaceholder">Camera preview appears here</div></div><div class="createButtonRow"><button id="vgCameraStart" class="primary" type="button">Start camera</button><button id="vgCameraFlip" class="smallBtn" type="button" disabled>Flip camera</button><button id="vgRecordToggle" class="smallBtn" type="button" disabled>Record</button><button id="vgCameraStop" class="ghost" type="button" disabled>Stop</button></div><small id="vgCameraStatus" role="status">Camera is off.</small></article>
+        <article class="createFeature card"><div class="createFeatureIcon">✂</div><div><h2>Quick actions</h2><p>Jump to the right workspace instead of navigating through crowded menus.</p></div><div class="createQuickLinks"><button class="quickLink" data-page="downloads" type="button"><span>↓</span><span><b>Download manager</b><small>Queue, progress, and retries</small></span><span>→</span></button><button class="quickLink" data-page="library" type="button"><span>▣</span><span><b>Media library</b><small>Search and organize saved media</small></span><span>→</span></button><button class="quickLink" data-page="home" type="button"><span>↗</span><span><b>Inspect a link</b><small>Choose format and quality</small></span><span>→</span></button></div></article>
+      </div>
+      <div id="vgLocalPreview" class="card vgLocalPreview" hidden><div class="localPreviewHeader"><div><div class="eyebrow">LOCAL PREVIEW</div><h2 id="vgLocalPreviewName">Selected media</h2></div><button id="vgLocalPreviewClose" class="ghost" type="button">Close preview</button></div><div id="vgLocalPreviewStage"></div></div>
+    </section>
+
     <section id="ask" class="page">
       <div class="sectionTitle"><div><div class="eyebrow">MEDIA INTELLIGENCE</div><h1>Ask My Media</h1><p>Search your local media metadata and transcript-ready evidence.</p></div></div>
       <div class="ask card">
@@ -135,6 +146,7 @@
 <script src="player-refactor.js?v=p176"></script>
 <script src="quickflow.js?v=qf1" defer></script>
 <script src="ui-polish.js?v=ui1" defer></script>
+<script src="create-studio.js?v=1" defer></script>
 <script id="vgApiConfigRuntime">
 (() => {
  const DEFAULT_API="https://vidgravity.onrender.com";
