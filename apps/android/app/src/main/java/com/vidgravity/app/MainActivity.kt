@@ -1553,12 +1553,14 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
     var swipeFeedOpen by remember { mutableStateOf(false) }
     var showLibraryTools by remember { mutableStateOf(libraryUiPrefs.getBoolean("show_library_tools", false)) }
     var showBulkActions by remember { mutableStateOf(libraryUiPrefs.getBoolean("show_bulk_actions", false)) }
+    var showAdvancedFilters by remember { mutableStateOf(libraryUiPrefs.getBoolean("show_advanced_filters", false)) }
     var showStorageInsights by remember { mutableStateOf(libraryUiPrefs.getBoolean("show_storage_insights", false)) }
     var refreshingMedia by remember { mutableStateOf(false) }
-    LaunchedEffect(showLibraryTools, showBulkActions, showStorageInsights) {
+    LaunchedEffect(showLibraryTools, showBulkActions, showAdvancedFilters, showStorageInsights) {
         libraryUiPrefs.edit()
             .putBoolean("show_library_tools", showLibraryTools)
             .putBoolean("show_bulk_actions", showBulkActions)
+            .putBoolean("show_advanced_filters", showAdvancedFilters)
             .putBoolean("show_storage_insights", showStorageInsights)
             .apply()
     }
@@ -2013,6 +2015,15 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
             Spacer(Modifier.width(6.dp))
             Text("Reset library filters and sorting")
         }
+        OutlinedButton(
+            onClick = { showAdvancedFilters = !showAdvancedFilters },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+        ) {
+            Icon(if (showAdvancedFilters) Icons.Default.ExpandLess else Icons.Default.FilterList, null)
+            Spacer(Modifier.width(8.dp))
+            Text(if (showAdvancedFilters) "Hide filters & sorting" else "Filters & sorting")
+        }
+        if (showAdvancedFilters) {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
             items(listOf("All Media", "Video", "Audio", "Images", "Other Files", "Favorites", "Recent 7 days", "Large files")) { value ->
                 FilterChip(
@@ -2049,6 +2060,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                     )
                 }
             }
+        }
         }
         if (visibleMedia.isEmpty()) {
             InfoCard(
