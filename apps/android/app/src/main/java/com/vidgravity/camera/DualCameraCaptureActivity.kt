@@ -20,6 +20,7 @@ import androidx.camera.core.ConcurrentCamera
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
+import androidx.camera.core.TorchState
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.FileOutputOptions
 import androidx.camera.video.Quality
@@ -110,11 +111,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
         val flip = controlButton("Flip") { toggleFacing() }
         dualButton = controlButton("Dual off") { toggleDualMode() }
         val settings = controlButton("Settings") { showCameraSettings() }
-        listOf(close, flashButton, flip, dualButton, settings).forEach { button ->
-            top.addView(button, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
-                marginEnd = dp(4)
-            })
-        }
+        top.addView(close, LinearLayout.LayoutParams(dp(56), dp(48)))
         container.addView(top, FrameLayout.LayoutParams(-1, dp(64), Gravity.TOP))
 
         val bottom = LinearLayout(this).apply {
@@ -144,6 +141,17 @@ class DualCameraCaptureActivity : ComponentActivity() {
         controls.addView(modeButton, LinearLayout.LayoutParams(0, dp(58), 1f).apply { marginEnd = dp(12) })
         controls.addView(shutter, LinearLayout.LayoutParams(0, dp(58), 1.3f))
         bottom.addView(controls, LinearLayout.LayoutParams(-1, -2))
+        val utilityControls = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(0, dp(8), 0, 0)
+        }
+        listOf(flashButton, flip, dualButton, settings).forEach { button ->
+            utilityControls.addView(button, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                marginEnd = dp(4)
+            })
+        }
+        bottom.addView(utilityControls, LinearLayout.LayoutParams(-1, -2))
         val hint = TextView(this).apply {
             text = "Tap Capture for a photo. In Video mode, tap to start/stop recording."
             setTextColor(0xFFCBC7D5.toInt())
@@ -394,13 +402,14 @@ class DualCameraCaptureActivity : ComponentActivity() {
             Toast.makeText(this, "Flash is available only on a supported single rear camera.", Toast.LENGTH_SHORT).show()
             return
         }
-        val hasFlash = camera?.cameraInfo?.hasFlashUnit() == true
-        if (!hasFlash) {
+        val activeCamera = camera ?: return
+        if (!activeCamera.cameraInfo.hasFlashUnit()) {
             Toast.makeText(this, "This camera has no flash unit.", Toast.LENGTH_SHORT).show()
             return
         }
-        flashEnabled = !flashEnabled
-        camera?.cameraControl?.enableTorch(flashEnabled)
+        val targetState = activeCamera.cameraInfo.torchState.value != TorchState.ON
+        activeCamera.cameraControl.enableTorch(targetState)
+        flashEnabled = targetState
         updateFlashLabel()
     }
 
