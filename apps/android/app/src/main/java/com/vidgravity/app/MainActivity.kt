@@ -2021,6 +2021,9 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
             }
         }
         Text("DOWNLOADS", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+        OutlinedButton(onClick = { context.startActivity(Intent(context, ClipboardInboxActivity::class.java)) }, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) {
+            Icon(Icons.Default.ContentPaste, null); Spacer(Modifier.width(8.dp)); Text("Open Clipboard Inbox")
+        }
         Text("Default download quality", fontWeight = FontWeight.SemiBold)
         Text("Used by bulk queueing and automatic share downloads. You can still choose a different format when inspecting a link.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
