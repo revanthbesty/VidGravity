@@ -1591,7 +1591,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 }
             },
             confirmButton = { TextButton(onClick = { showLibraryFilters = false }) { Text("Apply") } },
-            dismissButton = { TextButton(onClick = { filter = "All Media"; sizeFilter = "Any size"; sortBy = "Newest"; searchQuery = ""; showLibraryFilters = false }) { Text("Reset all") }
+            dismissButton = { TextButton(onClick = { filter = "All Media"; sizeFilter = "Any size"; sortBy = "Newest"; searchQuery = ""; showLibraryFilters = false }) { Text("Reset all") } }
         )
         if (visibleMedia.isEmpty()) {
             InfoCard(
