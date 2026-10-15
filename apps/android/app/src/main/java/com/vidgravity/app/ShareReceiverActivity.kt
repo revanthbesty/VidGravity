@@ -25,9 +25,10 @@ class ShareReceiverActivity : FragmentActivity(), FormatPickerBottomSheet.Listen
             return
         }
         val uniqueUrls = urls.distinct()
-        if (uniqueUrls.size > 1) {
-            // Multi-link shares go to a review queue so the user can choose exactly which
-            // links to download. Single-link shares keep the existing instant-download path.
+        val preferences = SecureDownloadPreferences.load(this)
+        if (uniqueUrls.size > 1 || !preferences.instantDownloadSharedLinks) {
+            // Review & Select is the default for every share; multi-link shares always
+            // use it. Single-link shares can opt into instant download in Settings.
             val prefs = getSharedPreferences("vg_clipboard_inbox", MODE_PRIVATE)
             val current = runCatching {
                 val json = org.json.JSONArray(prefs.getString("urls", "[]") ?: "[]")
@@ -44,7 +45,6 @@ class ShareReceiverActivity : FragmentActivity(), FormatPickerBottomSheet.Listen
             return
         }
 
-        val preferences = SecureDownloadPreferences.load(this)
         val url = uniqueUrls.first()
         val title = friendlyTitle(url)
         runCatching {
