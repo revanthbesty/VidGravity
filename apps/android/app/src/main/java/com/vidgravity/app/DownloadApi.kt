@@ -162,6 +162,8 @@ object DownloadApi {
         require(id.matches(Regex("[A-Fa-f0-9-]{16,64}"))) { "Invalid task ID." }
         val offset = destination.takeIf { it.isFile }?.length() ?: 0L
         val connection = open("/api/download-jobs/" + id + "/result", "GET")
+        // Bound an idle read so a dead/stalled response fails into WorkManager's retry path.
+        connection.readTimeout = 20_000
         if (offset > 0L) connection.setRequestProperty("Range", "bytes=" + offset + "-")
         try {
             val code = connection.responseCode
@@ -224,7 +226,13 @@ object DownloadApi {
                             pauseNotified = false
                             onPauseState(false)
                         }
-                        val count = input.read(buffer)
+                        val count = try {
+                            input.read(buffer)
+                        } catch (timeout: java.net.SocketTimeoutException) {
+                            throw java.net.SocketTimeoutException(
+                                "Download stalled: no bytes arrived for 20 seconds. VidGravity will retry automatically."
+                            ).also { it.initCause(timeout) }
+                        }
                         if (count < 0) break
                         output.write(buffer, 0, count)
                         digest.update(buffer, 0, count)
