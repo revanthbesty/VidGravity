@@ -16,6 +16,51 @@ def _yt_dlp_command(*args):
     if browser and SERVER_HOST.strip('[]').lower() in ('127.0.0.1','localhost','::1'):
         command[1:1]=['--cookies-from-browser',browser]
     return command
+def _classify_extractor_error(message):
+    """Convert extractor output to actionable errors without bypassing provider protections."""
+    raw = (message or "").strip()
+    lowered = raw.lower()
+    if any(token in lowered for token in (
+        "sign in to confirm you", "login_required", "not a bot", "bot verification",
+        "confirm you’re not a bot", "confirm you're not a bot", "confirm you are not a bot"
+    )):
+        return {
+            "code": "provider_verification_required",
+            "message": (
+                "The provider is asking VidGravity's cloud server to verify access, so this URL "
+                "cannot be processed by the cloud downloader right now. Try a public, non-restricted "
+                "URL again later. If this is your own upload, use the provider's official download option."
+            ),
+        }
+    if any(token in lowered for token in (
+        "private video", "video is private", "members-only", "members only", "age-restricted",
+        "confirm your age", "sign in to view"
+    )):
+        return {
+            "code": "provider_access_restricted",
+            "message": (
+                "This media appears to require an account, membership, age confirmation, or other "
+                "permission that VidGravity's cloud downloader does not have. Use an authorized public "
+                "link or the provider's official download option."
+            ),
+        }
+    if any(token in lowered for token in (
+        "timed out", "temporary failure", "connection reset", "http error 429",
+        "too many requests", "service unavailable"
+    )):
+        return {
+            "code": "provider_temporarily_unavailable",
+            "message": "The provider is temporarily unavailable or rate-limiting requests. Wait a little and retry.",
+        }
+    return {
+        "code": "provider_extraction_failed",
+        "message": (
+            "VidGravity could not extract media from this provider. Check that the link is public and "
+            "supported, then retry. Use the provider's official download option where available."
+        ),
+    }
+
+
 # P162 security controls: bounded request bodies and per-client in-memory throttles.
 P162_SECURITY=True
 MAX_JSON_BODY_BYTES=1_048_576
@@ -389,17 +434,29 @@ def _run_download_job(job_id,url,fmt):
             _job_transition(job,"failed",error="yt-dlp is not installed",message="Provider unavailable")
             _job_changed(job); return
         out=str(DOWNLOAD_OUTPUT_DIR/(job_id+'.%(ext)s'))
+        import threading
         p=subprocess.Popen(_yt_dlp_command('--no-playlist','-f',fmt or 'bv*+ba/b','-o',out,'--restrict-filenames','--newline',url),stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
-        with DOWNLOAD_JOB_LOCK: job['process']=p
-        for line in p.stdout:
-            line=line.strip()
-            m=re.search(r'(\d+(?:\.\d+)?)%',line)
-            if m: job["progress"]=max(1,min(99,int(float(m.group(1)))))
-            if line: job["message"]=line[-240:]
-            _job_changed(job)
-            if job.get("cancel_requested"):
+        timed_out=threading.Event()
+        def stop_stalled_job():
+            if p.poll() is None:
+                timed_out.set()
                 _stop_download_process(p)
-                break
+        watchdog=threading.Timer(180,stop_stalled_job)
+        watchdog.daemon=True
+        watchdog.start()
+        with DOWNLOAD_JOB_LOCK: job['process']=p
+        try:
+            for line in p.stdout:
+                line=line.strip()
+                m=re.search(r'(\d+(?:\.\d+)?)%',line)
+                if m: job["progress"]=max(1,min(99,int(float(m.group(1)))))
+                if line: job["message"]=line[-240:]
+                _job_changed(job)
+                if job.get("cancel_requested"):
+                    _stop_download_process(p)
+                    break
+        finally:
+            watchdog.cancel()
         rc=p.wait()
         with DOWNLOAD_JOB_LOCK: job.pop("process",None)
         if job.get("cancel_requested"):
@@ -407,11 +464,20 @@ def _run_download_job(job_id,url,fmt):
                 try: leftover.unlink()
                 except OSError: pass
             _job_transition(job,"cancelled",message="Download cancelled"); _job_changed(job); return
+        if timed_out.is_set():
+            for leftover in DOWNLOAD_OUTPUT_DIR.glob(job_id+'.*'):
+                try: leftover.unlink()
+                except OSError: pass
+            _job_transition(job,"failed",error="Provider download timed out after 180 seconds without completing. The job was stopped and partial output removed.",message="Timed out — retry or use the provider's official download option")
+            _job_changed(job); return
         if rc!=0:
             for leftover in DOWNLOAD_OUTPUT_DIR.glob(job_id+'.*'):
                 try: leftover.unlink()
                 except OSError: pass
-            _job_transition(job,"failed",error=job.get("message") or "yt-dlp failed"); _job_changed(job); return
+            diagnostic=job.get("message") or "yt-dlp failed"
+            classified=_classify_extractor_error(diagnostic)
+            _job_transition(job,"failed",error=classified["message"],error_code=classified["code"],provider_diagnostic=diagnostic[-500:],message=classified["message"])
+            _job_changed(job); return
         files=[f for f in DOWNLOAD_OUTPUT_DIR.glob(job_id+'.*') if f.is_file()]
         if not files:
             _job_transition(job,"failed",error="No media file produced"); _job_changed(job); return
