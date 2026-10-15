@@ -55,6 +55,8 @@ class P175WpaFeatureBatchTests(unittest.TestCase):
         self.assertIn("deploy --config wrangler.jsonc", workflow)
         self.assertIn("Smoke-test deployed WPA assets", workflow)
         self.assertIn("VidGravity-Deploy-Smoke/1.0", workflow)
+        wrangler = (ROOT / "site" / "wrangler.jsonc").read_text(encoding="utf-8")
+        self.assertIn('"previews": {}', wrangler)
 
     def test_web_and_android_runtime_bundles_are_synchronized(self):
         for name in ("index.html", "app.js", "styles.css", "sw.js"):
