@@ -836,7 +836,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                 ?: "Media download"
                             if (!sourceUrl.isNullOrBlank()) {
                                 runCatching {
-                                    DownloadWorker.enqueue(context, sourceUrl, selector, retryTitle, preferences.unmeteredOnly, work.inputData.getBoolean(DownloadWorker.KEY_AUDIO_ONLY, false))
+                                    DownloadWorker.enqueue(context, sourceUrl, selector, retryTitle, preferences.unmeteredOnly, work.outputData.getBoolean(DownloadWorker.RETRY_AUDIO_ONLY, work.progress.getBoolean(DownloadWorker.KEY_AUDIO_ONLY, false)))
                                 }.onSuccess { queued++ }
                             }
                         }
@@ -1075,7 +1075,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                             ?: work.progress.getString("media_title") ?: title
                                         if (!sourceUrl.isNullOrBlank()) {
                                             val preferences = SecureDownloadPreferences.load(context)
-                                            DownloadWorker.enqueue(context, sourceUrl, selector ?: preferences.preferredFormatSelector, retryTitle, preferences.unmeteredOnly, work.inputData.getBoolean(DownloadWorker.KEY_AUDIO_ONLY, false))
+                                            DownloadWorker.enqueue(context, sourceUrl, selector ?: preferences.preferredFormatSelector, retryTitle, preferences.unmeteredOnly, work.outputData.getBoolean(DownloadWorker.RETRY_AUDIO_ONLY, work.progress.getBoolean(DownloadWorker.KEY_AUDIO_ONLY, false)))
                                         } else {
                                             android.widget.Toast.makeText(context,
                                                 "Retry unavailable. Inspect the original link again from Home.",
