@@ -3,6 +3,8 @@
 Scope: native Android APK first. Keep the PWA/web scope unchanged unless explicitly requested.
 Last updated: 2026-10-15
 
+Build and regression history is tracked in [BUILD_FEATURE_LEDGER.md](BUILD_FEATURE_LEDGER.md). Current candidate: p180 / 1.1.0-p180; its CI, artifact and device validation are pending.
+
 ## Priority policy
 
 Work in this order: release-blocking stability and user-reported defects first, core download/library workflows second, creator features third, AI and expansion features after the core acceptance gates pass. Do not mark a feature complete based on a code commit alone: require CI, APK artifact, and device validation where applicable.
@@ -25,7 +27,9 @@ Work in this order: release-blocking stability and user-reported defects first, 
 - [ ] Verify quality picker options are deduplicated and show available resolutions (360p, 480p, 720p, 1080p, 1440p, 4K/8K when actually available), plus audio-only when supported.
 - [ ] Verify player fullscreen/landscape playback and Library Play/Share actions.
 - [ ] Validate Camera/Snap Studio shutter and settings produce real saved media, not placeholder output.
+- [ ] Re-test explicit flash on/off, visible video-quality control, photo capture, video recording, dual-camera fallback and gallery publication.
 - [ ] Check Downloads and Library layout on a physical Android device: no cramped horizontal controls, scroll works, actions are understandable.
+- [ ] Regression-test StudyTok and Share Inbox/WhatsApp handoff without requiring a media URL on Home.
 - Acceptance: CI green, APK artifact available, no crash in the critical path, on-device smoke test recorded.
 
 ## Master roadmap scope
@@ -61,7 +65,8 @@ The native Android APK is the active release target. Keep PWA/browser and deskto
 ## P2 — Creator media pipeline
 
 - [ ] Real 9:16 Story/Status export from source media.
-- [ ] Configurable WhatsApp Status splitting at 30/60/90/120 seconds.
+- [x] Configurable WhatsApp Status splitting at 30/60/90/120 seconds is present in source, with a warning that 120 seconds is a custom target and may not fit one standard WhatsApp Status item.
+- [ ] Regression-test all four WhatsApp Status split durations on the p180 APK; code presence is not device verification.
 - [ ] Audio-only Story Cards with waveform/cover and reliable audio export.
 - [ ] Animated WebP sticker creation and publication to the correct media collection.
 - [ ] Story templates, captions, thumbnails, and recoverable editing drafts.

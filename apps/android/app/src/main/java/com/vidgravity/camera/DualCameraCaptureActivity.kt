@@ -4,6 +4,10 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Environment
+import android.content.ContentValues
+import android.net.Uri
+import android.provider.MediaStore
+import android.os.Build
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -48,6 +52,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private lateinit var modeButton: Button
     private lateinit var dualButton: Button
     private lateinit var flashButton: Button
+    private lateinit var qualityButton: Button
     private lateinit var executor: ExecutorService
 
     private var provider: ProcessCameraProvider? = null
@@ -136,13 +141,15 @@ class DualCameraCaptureActivity : ComponentActivity() {
             gravity = Gravity.CENTER
         }
         modeButton = controlButton("PHOTO  |  VIDEO") { toggleMode() }
+        qualityButton = controlButton("Quality: 1080p") { chooseVideoQuality() }
         shutter = controlButton("●  Capture") { onShutterPressed() }.apply {
             textSize = 17f
             setTextColor(0xFFFFFFFF.toInt())
             setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF7657D8.toInt()))
         }
-        controls.addView(modeButton, LinearLayout.LayoutParams(0, dp(58), 1f).apply { marginEnd = dp(12) })
-        controls.addView(shutter, LinearLayout.LayoutParams(0, dp(58), 1.3f))
+        controls.addView(modeButton, LinearLayout.LayoutParams(0, dp(58), 0.9f).apply { marginEnd = dp(6) })
+        controls.addView(qualityButton, LinearLayout.LayoutParams(0, dp(58), 1.0f).apply { marginEnd = dp(6) })
+        controls.addView(shutter, LinearLayout.LayoutParams(0, dp(58), 1.15f))
         bottom.addView(controls, LinearLayout.LayoutParams(-1, -2))
         val hint = TextView(this).apply {
             text = "Tap Capture for a photo. In Video mode, tap to start/stop recording."
@@ -187,6 +194,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private fun bindCameraSession() {
         val cameraProvider = provider ?: return
         val selector = if (frontFacing) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+        camera?.let { oldCamera -> runCatching { oldCamera.cameraControl.enableTorch(false) } }
         cameraProvider.unbindAll()
         camera = null
         imageCapture = null
@@ -296,9 +304,19 @@ class DualCameraCaptureActivity : ComponentActivity() {
             val target = File(directory, "vidgravity-${System.currentTimeMillis()}.jpg")
             val options = ImageCapture.OutputFileOptions.Builder(target).build()
             capture.takePicture(options, executor, object : ImageCapture.OnImageSavedCallback {
-                override fun onImageSaved(result: ImageCapture.OutputFileResults) = runOnUiThread {
-                    status.text = "Photo saved · ${target.name}"
-                    Toast.makeText(this@DualCameraCaptureActivity, "Photo saved to VidGravity: ${target.name}", Toast.LENGTH_LONG).show()
+                override fun onImageSaved(result: ImageCapture.OutputFileResults) {
+                    executor.execute {
+                        val publishResult = runCatching { publishCapture(target, "image/jpeg") }
+                        runOnUiThread {
+                            if (publishResult.isSuccess) {
+                                status.text = "Photo saved to Pictures/VidGravity"
+                                Toast.makeText(this@DualCameraCaptureActivity, "Photo saved to your gallery.", Toast.LENGTH_LONG).show()
+                            } else {
+                                status.text = "Photo captured · app storage"
+                                Toast.makeText(this@DualCameraCaptureActivity, "Photo captured but gallery save failed: ${publishResult.exceptionOrNull()?.message ?: "check storage"}", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    }
                 }
                 override fun onError(exception: ImageCaptureException) = runOnUiThread {
                     Toast.makeText(this@DualCameraCaptureActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
@@ -339,7 +357,8 @@ class DualCameraCaptureActivity : ComponentActivity() {
             when (event) {
                 is VideoRecordEvent.Start -> {
                     shutter.text = "■  Stop"
-                    status.text = "Recording video…"
+                    qualityButton.isEnabled = false
+                    status.text = "Recording video · ${videoQualityLabel(videoQuality)}"
                 }
                 is VideoRecordEvent.Status -> {
                     val seconds = event.recordingStats.recordedDurationNanos / 1_000_000_000L
@@ -348,13 +367,25 @@ class DualCameraCaptureActivity : ComponentActivity() {
                 is VideoRecordEvent.Finalize -> {
                     recording = null
                     shutter.isEnabled = true
+                    qualityButton.isEnabled = true
+                    qualityButton.text = "Quality: ${videoQualityLabel(videoQuality)}"
                     shutter.text = "●  Record"
                     if (event.hasError()) {
                         status.text = "Recording failed"
                         Toast.makeText(this, "Recording failed. Please retry.", Toast.LENGTH_LONG).show()
                     } else {
-                        status.text = "Video saved · ${target.name}"
-                        Toast.makeText(this, "Video saved to VidGravity: ${target.name}", Toast.LENGTH_LONG).show()
+                        executor.execute {
+                            val publishResult = runCatching { publishCapture(target, "video/mp4") }
+                            runOnUiThread {
+                                if (publishResult.isSuccess) {
+                                    status.text = "Video saved to Movies/VidGravity"
+                                    Toast.makeText(this@DualCameraCaptureActivity, "Video saved to your gallery.", Toast.LENGTH_LONG).show()
+                                } else {
+                                    status.text = "Video recorded · app storage"
+                                    Toast.makeText(this@DualCameraCaptureActivity, "Video recorded but gallery save failed: ${publishResult.exceptionOrNull()?.message ?: "check storage"}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -399,13 +430,27 @@ class DualCameraCaptureActivity : ComponentActivity() {
             Toast.makeText(this, "This camera has no flash unit.", Toast.LENGTH_SHORT).show()
             return
         }
-        flashEnabled = !flashEnabled
-        camera?.cameraControl?.enableTorch(flashEnabled)
-        updateFlashLabel()
+        val activeCamera = camera ?: return
+        val requestedState = !flashEnabled
+        val torchFuture = activeCamera.cameraControl.enableTorch(requestedState)
+        torchFuture.addListener({
+            val failure = runCatching { torchFuture.get() }.exceptionOrNull()
+            runOnUiThread {
+                if (failure == null) {
+                    flashEnabled = requestedState
+                    updateFlashLabel()
+                    status.text = if (flashEnabled) "Flash is on" else "Flash is off"
+                } else {
+                    flashEnabled = false
+                    updateFlashLabel()
+                    Toast.makeText(this, "Could not change flash state. Try again.", Toast.LENGTH_LONG).show()
+                }
+            }
+        }, ContextCompat.getMainExecutor(this))
     }
 
     private fun updateFlashLabel() {
-        flashButton.text = if (flashEnabled) "Flash on" else "Flash off"
+        flashButton.text = if (flashEnabled) "Flash ON · tap off" else "Flash OFF · tap on"
     }
 
     private fun showCameraSettings() {
@@ -443,9 +488,10 @@ class DualCameraCaptureActivity : ComponentActivity() {
                     2 -> Quality.FHD
                     else -> Quality.HIGHEST
                 }
+                qualityButton.text = "Quality: ${videoQualityLabel(videoQuality)}"
                 dialog.dismiss()
                 if (recording == null) bindCameraSession()
-                Toast.makeText(this, "Video quality: ${videoQualityLabel(videoQuality)}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Video quality set to ${videoQualityLabel(videoQuality)} for the next recording.", Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("Cancel", null)
             .show()
@@ -469,6 +515,33 @@ class DualCameraCaptureActivity : ComponentActivity() {
         Quality.HD -> "720p"
         Quality.FHD -> "1080p"
         else -> "Highest available"
+    }
+
+    private fun publishCapture(source: File, mimeType: String): Uri? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
+        val isVideo = mimeType.startsWith("video/")
+        val collection = if (isVideo) MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            else MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, source.name)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, if (isVideo) "Movies/VidGravity" else "Pictures/VidGravity")
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val uri = contentResolver.insert(collection, values)
+            ?: throw IllegalStateException("Android could not create a gallery item")
+        try {
+            val output = contentResolver.openOutputStream(uri, "w")
+                ?: throw IllegalStateException("Android could not write the captured media")
+            output.use { stream -> source.inputStream().use { input -> input.copyTo(stream) } }
+            contentResolver.update(uri, ContentValues().apply {
+                put(MediaStore.MediaColumns.IS_PENDING, 0)
+            }, null, null)
+            return uri
+        } catch (error: Exception) {
+            contentResolver.delete(uri, null, null)
+            throw error
+        }
     }
 
     private fun finishWithMessage(message: String) {

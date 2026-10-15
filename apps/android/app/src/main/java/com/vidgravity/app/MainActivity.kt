@@ -109,7 +109,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                 }
             }
         ) { padding ->
-            Column(Modifier.fillMaxSize().padding(padding)) {
+            Box(Modifier.fillMaxSize().padding(padding)) {
                 if (playingMedia != null) {
                     PlayerScreen(media = playingMedia!!, onBack = { playingMedia = null })
                 } else if (showStudyTok) {
@@ -526,33 +526,39 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(end = 4.dp)
                         ) {
-                            items(listOf("⚡ Grab Best Video", "♫ Sound Only", "✂ Status Clip Splitter", "✦ StudyTok AI")) { action ->
+                            items(listOf("♫ Sound Only", "✂ Status Clip Splitter")) { action ->
                                 Surface(
                                     color = MaterialTheme.colorScheme.surfaceVariant,
                                     shape = RoundedCornerShape(18.dp),
                                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                                     modifier = Modifier.width(220.dp).heightIn(min = 112.dp).clickable {
-                                        if (url.isBlank()) notify("Paste a media URL first, then choose " + action + ".")
-                                        else if (action.contains("Sound")) {
+                                        if (action.contains("Status Clip")) {
+                                            openCreate()
+                                            notify("Choose a local video in Create Studio, then use WhatsApp Status tools.")
+                                        } else if (url.isBlank()) {
+                                            notify("Paste a media URL first, then choose " + action + ".")
+                                        } else if (action.contains("Sound")) {
                                             scope.launch {
                                                 try {
                                                     val result = withContext(Dispatchers.IO) { DownloadApi.analyzeSource(url.trim()) }
+                                                    // Some extractors return only combined formats even when the provider
+                                                    // can resolve an audio-only selector. Prefer an explicit audio stream;
+                                                    // fall back to yt-dlp's best-audio selector instead of failing the action.
                                                     val audio = result.formats.firstOrNull { it.hasAudio && !it.hasVideo }
-                                                    if (audio == null) notify("No audio-only stream was found for this link.")
-                                                    else {
-                                                        val prefs = SecureDownloadPreferences.load(context)
-                                                        DownloadWorker.enqueue(context, url.trim(), audio.selector, result.title + " — Audio", prefs.unmeteredOnly)
-                                                        notify("Audio download added to queue. Open Downloads to track progress.")
-                                                    }
+                                                    val selector = audio?.selector ?: "bestaudio"
+                                                    val prefs = SecureDownloadPreferences.load(context)
+                                                    DownloadWorker.enqueue(
+                                                        context, url.trim(), selector,
+                                                        result.title + " — Audio", prefs.unmeteredOnly
+                                                    )
+                                                    notify(
+                                                        if (audio != null) "Audio download added to queue. Open Downloads to track progress."
+                                                        else "No separate audio stream was listed; queued best-audio extraction. Check Downloads for the result."
+                                                    )
                                                 } catch (failure: Exception) {
                                                     notify("Could not prepare audio: " + (failure.message ?: "Please try again."))
                                                 }
                                             }
-                                        } else if (action.contains("Status Clip")) {
-                                            openCreate()
-                                            notify("In Create Studio, choose a local video and select a 30, 60, 90, or 120-second clip target.")
-                                        } else if (action.contains("StudyTok")) {
-                                            openStudyTok()
                                         } else inspect()
                                     }
                                 ) {
@@ -1659,28 +1665,6 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                     Text(message, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                 }
                 OutlinedButton(
-                    onClick = {
-                        val report = buildString {
-                            appendLine("VidGravity media library")
-                            appendLine("Visible: ${visibleMedia.size} | Total indexed: ${media.size} | Favorites: ${favoriteCount}")
-                            appendLine("Visible size: ${String.format("%.1f MB", visibleBytes / 1_000_000.0)}")
-                            appendLine()
-                            visibleMedia.forEachIndexed { index, item ->
-                                appendLine("${index + 1}. ${item.displayName}")
-                                appendLine("   Type: ${item.mimeType} | Size: ${if (item.sizeBytes > 0) String.format("%.1f MB", item.sizeBytes / 1_000_000.0) else "Unknown"}")
-                            }
-                        }
-                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
-                        android.widget.Toast.makeText(context, "Library report copied.", android.widget.Toast.LENGTH_SHORT).show()
-                    },
-                    enabled = visibleMedia.isNotEmpty(),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-                ) {
-                    Icon(Icons.Default.ContentCopy, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Copy visible library report")
-                }
-                OutlinedButton(
                     onClick = { showStorageInsights = !showStorageInsights },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 42.dp)
                 ) {
@@ -2745,8 +2729,27 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             Text("Open POV camera")
         }
         Text("More creator tools", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        InfoCard("Animated stickers", "Next pipeline batch: render short source clips as animated WebP with size and duration limits.", Icons.Default.AutoAwesome, Modifier.fillMaxWidth())
-        InfoCard("WhatsApp Status segments", "Next pipeline batch: create multiple bounded segments and verify every output before sharing.", Icons.Default.ContentCut, Modifier.fillMaxWidth())
+        OutlinedButton(
+            onClick = { picker.launch(arrayOf("video/*")) },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+        ) {
+            Icon(Icons.Default.VideoLibrary, null)
+            Spacer(Modifier.width(8.dp))
+            Text("Choose video for animated sticker")
+        }
+        OutlinedButton(
+            onClick = { picker.launch(arrayOf("video/*")) },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)
+        ) {
+            Icon(Icons.Default.ContentCut, null)
+            Spacer(Modifier.width(8.dp))
+            Text("Choose video for WhatsApp Status")
+        }
+        Text(
+            "After selecting a video, use the export and split controls above. These actions open the system media picker; they do not require a download URL.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp
+        )
     }
 }
 
