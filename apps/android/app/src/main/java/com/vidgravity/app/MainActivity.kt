@@ -595,7 +595,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                         work.state.name.contains(searchTerm, ignoreCase = true)
                 }
             }
-            val filteredWorks = when (downloadSort) {
+            val sortedMatchedWorks = when (downloadSort) {
                 "Newest" -> matchedWorks
                 "Oldest" -> matchedWorks.reversed()
                 "Name A–Z" -> matchedWorks.sortedBy { work ->
@@ -631,6 +631,13 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     }
                 )
                 else -> matchedWorks
+            }
+            // Keep active downloads pinned first regardless of the selected secondary sort.
+            // Apply the selected sort inside each group so completed/failed history stays useful.
+            val filteredWorks = sortedMatchedWorks.filter { work ->
+                work.state == WorkInfo.State.RUNNING || work.state == WorkInfo.State.ENQUEUED || work.state == WorkInfo.State.BLOCKED
+            } + sortedMatchedWorks.filterNot { work ->
+                work.state == WorkInfo.State.RUNNING || work.state == WorkInfo.State.ENQUEUED || work.state == WorkInfo.State.BLOCKED
             }
             val retryableFilteredWorks = filteredWorks.filter { work ->
                 (work.state == WorkInfo.State.FAILED || work.state == WorkInfo.State.CANCELLED) &&
