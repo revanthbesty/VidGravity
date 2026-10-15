@@ -1209,24 +1209,26 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
         return
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        OutlinedButton(onClick = openInbox, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
-            Icon(Icons.Default.Inbox, null)
-            Spacer(Modifier.width(8.dp))
-            Text("Share Inbox · Watch / Learn Later")
-        }
-        Text("Create studio", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Choose local video, preview it, or create a share-ready 9:16 derivative. Originals remain unchanged.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
-            Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
-                Text("Start with your own media", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text("Select a video from this device. Rendering uses the configured VidGravity companion and never overwrites the selected source.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                Button(onClick = { picker.launch(arrayOf("video/*", "audio/*")) }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("Choose media")
-                }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(
+                onClick = { picker.launch(arrayOf("video/*", "audio/*", "image/*")) },
+                modifier = Modifier.weight(1f).heightIn(min = 58.dp)
+            ) {
+                Icon(Icons.Default.FolderOpen, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Media")
+            }
+            Button(
+                onClick = {
+                    runCatching {
+                        context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
+                    }.onFailure { notify("Could not open camera: ${it.message ?: "try again"}") }
+                },
+                modifier = Modifier.weight(1f).heightIn(min = 58.dp)
+            ) {
+                Icon(Icons.Default.PhotoCamera, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Camera")
             }
         }
         selectedMedia?.let { media ->
@@ -1446,22 +1448,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                 }
             }
         }
-        Text("Capture", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        OutlinedButton(
-            onClick = {
-                runCatching {
-                    context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
-                }.onFailure { notify("Could not open camera capture: ${it.message ?: "try again"}") }
-            },
-            modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp)
-        ) {
-            Icon(Icons.Default.PhotoCamera, null)
-            Spacer(Modifier.width(8.dp))
-            Text("Open POV camera")
-        }
-        Text("More creator tools", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        InfoCard("Animated stickers", "Next pipeline batch: render short source clips as animated WebP with size and duration limits.", Icons.Default.AutoAwesome, Modifier.fillMaxWidth())
-        InfoCard("WhatsApp Status segments", "Next pipeline batch: create multiple bounded segments and verify every output before sharing.", Icons.Default.ContentCut, Modifier.fillMaxWidth())
+
     }
 }
 
