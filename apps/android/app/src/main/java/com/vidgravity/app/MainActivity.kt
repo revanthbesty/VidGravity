@@ -59,7 +59,6 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     var dark by remember { mutableStateOf(prefs.getBoolean("dark", true)) }
     var selected by remember { mutableStateOf(VgTab.Home) }
     var showInbox by remember { mutableStateOf(openInboxInitially) }
-    var showStudyTok by remember { mutableStateOf(false) }
     var creatorInitialMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var playingMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var url by remember { mutableStateOf("") }
@@ -105,11 +104,6 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
             Column(Modifier.fillMaxSize().padding(padding)) {
                 if (playingMedia != null) {
                     PlayerScreen(media = playingMedia!!, onBack = { playingMedia = null })
-                } else if (showStudyTok) {
-                    StudyTokScreen(
-                        onBack = { showStudyTok = false },
-                        notify = { notice = it }
-                    )
                 } else if (showInbox) {
                     ShareInboxContent(
                         onBack = { showInbox = false },
@@ -130,7 +124,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create }, { showStudyTok = true })
+                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     VgTab.Library -> LibraryContent(
                         onPlay = { playingMedia = it },
@@ -373,7 +367,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
 }
 
 @Composable
-private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, openStudyTok: () -> Unit) {
+private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -493,7 +487,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(end = 4.dp)
                         ) {
-                            items(listOf("⚡ Grab Best Video", "♫ Sound Only", "✂ Status Clip Splitter", "✦ StudyTok AI")) { action ->
+                            items(listOf("♫ Sound Only", "✂ Status Clip Splitter")) { action ->
                                 Surface(
                                     color = MaterialTheme.colorScheme.surfaceVariant,
                                     shape = RoundedCornerShape(18.dp),
@@ -518,8 +512,6 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                         } else if (action.contains("Status Clip")) {
                                             openCreate()
                                             notify("In Create Studio, choose a local video and select a 30, 60, 90, or 120-second clip target.")
-                                        } else if (action.contains("StudyTok")) {
-                                            openStudyTok()
                                         } else inspect()
                                     }
                                 ) {
