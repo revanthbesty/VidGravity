@@ -13,17 +13,13 @@
     live.textContent=message;
   };
 
-  // 1. Persisted theme preference, while respecting the existing theme button.
-  const themeButton=$('#themeToggle');
-  const applyTheme = mode => {
-    document.documentElement.dataset.vgTheme=mode;
-    document.documentElement.classList.toggle('vg-light', mode==='light');
-    safeStore.set('vg-ui-theme',mode);
-    if(themeButton){ themeButton.setAttribute('aria-pressed',String(mode==='light')); themeButton.title='Current theme: '+mode+'. Activate to switch.'; }
+  // 1. Synchronize the existing app theme controller; do not register a competing toggle.
+  const syncTheme = () => {
+    const resolved=document.documentElement.dataset.theme || 'dark';
+    document.documentElement.classList.toggle('vg-light',resolved==='light');
   };
-  const savedTheme=safeStore.get('vg-ui-theme');
-  if(savedTheme==='light'||savedTheme==='dark') applyTheme(savedTheme);
-  themeButton?.addEventListener('click',()=>applyTheme(document.documentElement.dataset.vgTheme==='light'?'dark':'light'));
+  syncTheme();
+  new MutationObserver(syncTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
 
   // 2. Scroll progress indicator.
   const progress=document.createElement('div'); progress.className='vg-scroll-progress'; progress.setAttribute('aria-hidden','true'); document.body.append(progress);
@@ -69,7 +65,7 @@
     if(e.key==='Escape'&&!palette.hidden){closePalette();return;}
     if(!typing&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&/^[1-6]$/.test(e.key)){navButtons[Number(e.key)-1]?.click();return;}
     if(!typing&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&e.key==='Home'){scrollTo({top:0,behavior:'smooth'});}
-    if(!typing&&e.key==='/'&&!palette.hidden===false){e.preventDefault();openPalette();}
+    if(!typing&&e.key==='/'&&palette.hidden){e.preventDefault();openPalette();}
   });
   // 11. Add a discoverable quick-action trigger to the top bar.
   const topActions=$('.topbarActions');
@@ -81,7 +77,7 @@
   document.addEventListener('keydown',e=>{if(e.key==='Tab')document.documentElement.classList.add('vg-keyboard-user');});
   document.addEventListener('pointerdown',()=>document.documentElement.classList.remove('vg-keyboard-user'),{passive:true});
   // 14. Add clear empty-state helper text to blank lists without changing app logic.
-  const emptyObserver=new MutationObserver(()=>{$$('.list,.mediaGrid').forEach(el=>{if(!el.children.length&&!el.querySelector('.vg-empty-hint')){const hint=document.createElement('div');hint.className='vg-empty-hint';hint.textContent=el.classList.contains('mediaGrid')?'Your library is ready for media. Add or download a file to see it here.':'No active items yet. New activity will appear here.';el.append(hint);}});});
+  const emptyObserver=new MutationObserver(()=>{$('.list,.mediaGrid').forEach(el=>{const hint=el.querySelector('.vg-empty-hint');const realChildren=[...el.children].filter(child=>!child.classList.contains('vg-empty-hint'));if(realChildren.length&&hint)hint.remove();else if(!realChildren.length&&!hint){const note=document.createElement('div');note.className='vg-empty-hint';note.textContent=el.classList.contains('mediaGrid')?'Your library is ready for media. Add or download a file to see it here.':'No active items yet. New activity will appear here.';el.append(note);}});});
   const workspace=$('.app');if(workspace)emptyObserver.observe(workspace,{childList:true,subtree:true});
   // 15. Respect reduced motion in JS-triggered scrolls.
   const motion='matchMedia' in window&&matchMedia('(prefers-reduced-motion: reduce)').matches;
