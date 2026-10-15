@@ -221,3 +221,18 @@ This section records the user's requirements in their own terms. These are persi
 - A Render manual deploy was attempted through the connected integration, but Render's deploy API returned HTTP 503 (`deploys is currently unavailable`). No new deployment was triggered and no successful redeploy is claimed.
 - Next action: retry Render deployment when the deployment API is available, preferably using the latest verified `main` commit `135ce35de817bdf20b1c83f8eef550db53937cd4`; then inspect startup logs, run the empty-body export route probe (expect application-level validation, not 404), and run a real export with output/playability and SHA-256 verification. YouTube bot-verification restrictions remain a separate provider limitation.
 - Release status: **NOT READY FOR FINAL TESTING** until the live route and actual export are verified. Do not treat CI success or corrected source alone as runtime proof.
+
+
+## Latest status update — 2026-10-15 10:00 IST
+- Latest passing CI run: https://github.com/revanthbesty/VidGravity/actions/runs/38634567691
+- Exact tested commit: `ad9a57f5ef34755ce083534d97357bd6a44e5950`
+- All four CI jobs passed: regression, Android share pipeline/social export (including debug APK build and artifact upload), PWA AI Studio, Cloud AI API.
+- Debug APK artifact: https://github.com/revanthbesty/VidGravity/actions/runs/38634567691/artifacts/11926858425
+- Artifact digest: `sha256:207acc14eccd1b39f81342ae1206090907e2c5f57d701b0e12f0d4b7c247b553`
+- This is a debug APK and is not a signed production release. Physical device verification remains pending.
+- Current Home quick actions in tested commit contain Sound Only and Status Clip Splitter; the redundant Grab Best Video action and StudyTok Home quick action are removed.
+- User screenshots show a Story export error: `Export HTTP 404: {"error":"Not found"}`. This is a separate P0 backend route/API mismatch to investigate; Story export is not working.
+- User screenshots also show Library empty while Downloads has an active Instagram job at 0.0 MB and 0.00 MB/s; must verify whether the job is stalled or the provider is slow, and explain that Library only lists completed/published media.
+- Outstanding P0: Sound Only, Status Splitter export, Story export 404, YouTube URL cloud service unavailable/format inspection/download path.
+- Outstanding P1: Download/Library organization and media metadata tiles, Create workflow organization, brand logo and color system, reachable camera controls.
+- Do not mark any user-reported feature fixed until a fresh test of its actual workflow succeeds.
