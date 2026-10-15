@@ -5,5 +5,6 @@
   "assets": {
     "directory": "./site"
   },
-  "previews": {}
+  "previews": {},
+  "preview_urls": true
 }
