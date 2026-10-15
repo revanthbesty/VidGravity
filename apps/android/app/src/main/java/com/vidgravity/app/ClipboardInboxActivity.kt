@@ -1,6 +1,5 @@
 package com.vidgravity.app
 
-import android.content.ClipboardManager
 import android.content.Context
 import android.os.Bundle
 import android.widget.Toast
@@ -11,7 +10,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.*
@@ -72,21 +70,8 @@ private fun ClipboardInboxScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text("Review links before downloading", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text("Import the current clipboard or paste several links. Select only the URLs you want; unselected links stay in the inbox.",
+            Text("Paste several links together, then select only the URLs you want. Unselected links stay in the inbox. Automatic clipboard monitoring is not used.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            OutlinedButton(
-                onClick = {
-                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    val clip = clipboard.primaryClip
-                    val text = if (clip == null) "" else (0 until clip.itemCount)
-                        .mapNotNull { index -> clip.getItemAt(index).coerceToText(context)?.toString() }
-                        .joinToString("\n")
-                    importText(text)
-                },
-                modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)
-            ) {
-                Icon(Icons.Default.ContentPaste, null); Spacer(Modifier.width(8.dp)); Text("Import current clipboard")
-            }
             OutlinedTextField(
                 value = pasteText, onValueChange = { pasteText = it.take(8192) },
                 modifier = Modifier.fillMaxWidth(),
@@ -101,7 +86,7 @@ private fun ClipboardInboxScreen(onBack: () -> Unit) {
                 TextButton(onClick = { selected = emptySet() }, enabled = selected.isNotEmpty()) { Text("Clear") }
             }
             if (urls.isEmpty()) {
-                Text("Your inbox is empty. Import the current clipboard or paste links above.",
+                Text("Your inbox is empty. Paste one or more links above.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -122,13 +107,14 @@ private fun ClipboardInboxScreen(onBack: () -> Unit) {
                         val chosen = urls.filter { it in selected }
                         val preferences = SecureDownloadPreferences.load(context)
                         var queued = 0
+                        val queuedUrls = mutableListOf<String>()
                         chosen.forEach { url ->
                             runCatching {
                                 DownloadWorker.enqueue(context, url, preferences.preferredFormatSelector,
                                     ShareReceiverActivity.friendlyTitle(url), preferences.unmeteredOnly)
-                            }.onSuccess { queued++ }
+                            }.onSuccess { queued++; queuedUrls.add(url) }
                         }
-                        val remaining = urls.filterNot { it in chosen }
+                        val remaining = urls.filterNot { it in queuedUrls }
                         persist(remaining)
                         selected = selected.intersect(remaining.toSet())
                         Toast.makeText(context, "Queued $queued of ${chosen.size} selected link(s). Unselected links remain in the inbox.", Toast.LENGTH_LONG).show()
