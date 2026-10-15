@@ -588,10 +588,20 @@ class Handler(SimpleHTTPRequestHandler):
             if shutil.which('yt-dlp') is None:
                 return self._json(200,{'source':'direct','formats':[],'message':'yt-dlp is not installed'})
             try:
-                p=subprocess.run(_yt_dlp_command('--no-playlist','-J','--skip-download','--no-warnings',url),capture_output=True,text=True,timeout=45)
+                p=subprocess.run(_yt_dlp_command('--no-playlist','-J','--skip-download','--no-warnings',url),capture_output=True,text=True,timeout=30)
             except subprocess.TimeoutExpired:
-                return self._json(504,{'error':'Format inspection timed out while contacting the provider'})
-            if p.returncode!=0:return self._json(502,{'error':p.stderr[-1200:] or 'format inspection failed'})
+                return self._json(504,{'error':'Format inspection timed out while contacting the provider. Try a single video URL rather than a playlist, then retry.'})
+            fallback_args=_youtube_android_fallback_args(url)
+            if p.returncode!=0 and fallback_args:
+                try:
+                    p=subprocess.run(_yt_dlp_command(*fallback_args,'--no-playlist','-J','--skip-download','--no-warnings',url),capture_output=True,text=True,timeout=20)
+                except subprocess.TimeoutExpired:
+                    return self._json(504,{'error':'YouTube format inspection timed out on both supported extraction attempts. Try again later or check whether the video is publicly accessible.'})
+            if p.returncode!=0:
+                detail=(p.stderr or p.stdout or 'format inspection failed')[-1200:]
+                if 'sign in to confirm you' in detail.lower() or 'login_required' in detail.lower() or ('bot' in detail.lower() and 'verification' in detail.lower()):
+                    return self._json(422,{'error':'YouTube requires verification that this hosted cloud server cannot complete. This video is unavailable through the cloud backend right now.','source':'youtube','details':detail})
+                return self._json(502,{'error':detail})
             try:
                 d=json.loads(p.stdout); rows=[]
                 for f in d.get('formats',[]):
