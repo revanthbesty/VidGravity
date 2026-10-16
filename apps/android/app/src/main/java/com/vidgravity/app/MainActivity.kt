@@ -833,6 +833,14 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
             }
             filteredWorks.forEach { work ->
                     val progress = work.progress.getInt("progress", 0).coerceIn(0, 100)
+                    val statusAccent = when (work.state) {
+                        WorkInfo.State.SUCCEEDED -> VidGravityPalette.mint
+                        WorkInfo.State.FAILED -> VidGravityPalette.coral
+                        WorkInfo.State.RUNNING -> VidGravityPalette.oceanCyan
+                        WorkInfo.State.ENQUEUED -> VidGravityPalette.warmAmber
+                        WorkInfo.State.CANCELLED -> VidGravityPalette.silverBlue
+                        else -> MaterialTheme.colorScheme.primary
+                    }
                     val paused = DownloadActionReceiver.isPaused(context, work.id)
                     val title = work.outputData.getString("display_name") ?: work.outputData.getString("filename") ?: work.progress.getString("media_title") ?: "Media download"
                     val downloaded = work.progress.getLong("bytes_downloaded", 0L).coerceAtLeast(0L)
@@ -853,7 +861,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(work.state.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        color = statusAccent)
                                     if (sourceUrl.isNotBlank()) {
                                         IconButton(onClick = {
                                             clipboard.setText(androidx.compose.ui.text.AnnotatedString(sourceUrl))
@@ -919,7 +927,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                     }
                                 }
                             }
-                            LinearProgressIndicator(progress = { progress / 100f }, modifier = Modifier.fillMaxWidth())
+                            LinearProgressIndicator(progress = { progress / 100f }, color = statusAccent, trackColor = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth())
                             if (work.state == WorkInfo.State.RUNNING || work.state == WorkInfo.State.ENQUEUED) {
                                 Text(String.format("%.1f MB", downloaded / 1_000_000.0) +
                                     (if (total > 0L) " / " + String.format("%.1f MB", total / 1_000_000.0) else " downloaded"),
