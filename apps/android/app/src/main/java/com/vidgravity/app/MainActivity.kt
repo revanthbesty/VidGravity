@@ -513,7 +513,11 @@ private fun VgPrimaryButton(
 ) {
     val shape = RoundedCornerShape(16.dp)
     val brush = if (enabled) Brush.linearGradient(
-        colors = listOf(Color(0xFF38B8B2), Color(0xFF35C6B0), Color(0xFF7D5CFF))
+        colors = listOf(
+            MaterialTheme.colorScheme.secondary,
+            MaterialTheme.colorScheme.tertiary,
+            MaterialTheme.colorScheme.primary
+        )
     ) else Brush.linearGradient(
         colors = listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant)
     )
@@ -528,12 +532,12 @@ private fun VgPrimaryButton(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (icon != null) {
-            Icon(icon, contentDescription = null, tint = if (enabled) Color(0xFF102725) else MaterialTheme.colorScheme.onSurfaceVariant)
+            Icon(icon, contentDescription = null, tint = if (enabled) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.width(8.dp))
         }
         Text(
             text = text,
-            color = if (enabled) Color(0xFF102725) else MaterialTheme.colorScheme.onSurfaceVariant,
+            color = if (enabled) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.onSurfaceVariant,
             fontWeight = FontWeight.Bold
         )
     }
