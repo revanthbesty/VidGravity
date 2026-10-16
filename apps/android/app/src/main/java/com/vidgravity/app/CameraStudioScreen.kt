@@ -453,7 +453,19 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                     Spacer(Modifier.weight(1f))
                     Text((if (exposure >= 0) "+" else "") + "%.1f EV".format(exposure), style = MaterialTheme.typography.labelMedium)
                 }
-                Slider(value = exposure.coerceIn(exposureRange.start, exposureRange.endInclusive), onValueChange = { exposure = it; prefs.edit().putFloat("exposure", it).apply() }, valueRange = exposureRange, enabled = exposureRange.start < exposureRange.endInclusive)
+                Slider(
+                    value = exposure.coerceIn(exposureRange.start, exposureRange.endInclusive),
+                    onValueChange = { exposure = it; prefs.edit().putFloat("exposure", it).apply() },
+                    valueRange = exposureRange,
+                    enabled = exposureRange.start < exposureRange.endInclusive,
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant,
+                        activeTickColor = MaterialTheme.colorScheme.primary,
+                        inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
+                    )
+                )
                 if (zoomRange.endInclusive > zoomRange.start) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Zoom", style = MaterialTheme.typography.labelMedium)
@@ -461,7 +473,18 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                         Text("%.1fx".format(zoomRatio), style = MaterialTheme.typography.labelMedium)
                         TextButton(onClick = { zoomRatio = 1f.coerceIn(zoomRange.start, zoomRange.endInclusive); prefs.edit().putFloat("zoom-ratio", zoomRatio).apply() }) { Text("1×") }
                     }
-                    Slider(value = zoomRatio.coerceIn(zoomRange.start, zoomRange.endInclusive), onValueChange = { zoomRatio = it; prefs.edit().putFloat("zoom-ratio", it).apply() }, valueRange = zoomRange)
+                    Slider(
+                        value = zoomRatio.coerceIn(zoomRange.start, zoomRange.endInclusive),
+                        onValueChange = { zoomRatio = it; prefs.edit().putFloat("zoom-ratio", it).apply() },
+                        valueRange = zoomRange,
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.colorScheme.primary,
+                            activeTrackColor = MaterialTheme.colorScheme.primary,
+                            inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant,
+                            activeTickColor = MaterialTheme.colorScheme.primary,
+                            inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
+                        )
+                    )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(1f, 2f, 3f).filter { it >= zoomRange.start && it <= zoomRange.endInclusive }.forEach { quickZoom ->
                             FilterChip(selected = kotlin.math.abs(zoomRatio - quickZoom) < 0.08f, onClick = { zoomRatio = quickZoom; prefs.edit().putFloat("zoom-ratio", quickZoom).apply() }, label = { Text(quickZoom.toInt().toString() + "×") })
@@ -518,7 +541,18 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                     Spacer(Modifier.weight(1f))
                     Text((styleIntensity * 100).toInt().toString() + "%", style = MaterialTheme.typography.labelMedium)
                 }
-                Slider(value = styleIntensity, onValueChange = { styleIntensity = it; prefs.edit().putFloat("style-intensity", it).apply() }, valueRange = 0f..1f)
+                Slider(
+                    value = styleIntensity,
+                    onValueChange = { styleIntensity = it; prefs.edit().putFloat("style-intensity", it).apply() },
+                    valueRange = 0f..1f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant,
+                        activeTickColor = MaterialTheme.colorScheme.primary,
+                        inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
+                    )
+                )
                 Text("Tap to focus; long-press to lock focus and metering, then tap again to release. Exposure range follows the selected camera hardware. Styles are applied to saved photos; live preview remains ungraded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Self-timer", style = MaterialTheme.typography.labelMedium)
