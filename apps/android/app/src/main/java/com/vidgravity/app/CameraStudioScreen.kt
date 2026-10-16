@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FlashAuto
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
@@ -386,6 +387,11 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                         TextButton(onClick = { zoomRatio = 1f.coerceIn(zoomRange.start, zoomRange.endInclusive); prefs.edit().putFloat("zoom-ratio", zoomRatio).apply() }) { Text("1×") }
                     }
                     Slider(value = zoomRatio.coerceIn(zoomRange.start, zoomRange.endInclusive), onValueChange = { zoomRatio = it; prefs.edit().putFloat("zoom-ratio", it).apply() }, valueRange = zoomRange)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(1f, 2f, 3f).filter { it >= zoomRange.start && it <= zoomRange.endInclusive }.forEach { quickZoom ->
+                            FilterChip(selected = kotlin.math.abs(zoomRatio - quickZoom) < 0.08f, onClick = { zoomRatio = quickZoom; prefs.edit().putFloat("zoom-ratio", quickZoom).apply() }, label = { Text(quickZoom.toInt().toString() + "×") })
+                        }
+                    }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.weight(1f)) {
@@ -411,7 +417,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                                 framingGuide = preset.framing
                                 prefs.edit().putInt("style", style).putFloat("style-intensity", styleIntensity).putString("framing-guide", framingGuide).apply()
                                 onNotice("Applied creator preset: " + preset.name)
-                            }, label = { Text(preset.name) }, trailingIcon = { IconButton(onClick = { creatorPresets.remove(preset); prefs.edit().putString("creator-presets", writeCreatorPresets(creatorPresets)).apply() }) { Icon(Icons.Default.ArrowBack, contentDescription = "Delete " + preset.name, modifier = Modifier.size(16.dp)) } })
+                            }, label = { Text(preset.name) }, trailingIcon = { IconButton(onClick = { creatorPresets.remove(preset); prefs.edit().putString("creator-presets", writeCreatorPresets(creatorPresets)).apply() }) { Icon(Icons.Default.DeleteOutline, contentDescription = "Delete " + preset.name, modifier = Modifier.size(16.dp)) } })
                         }
                     }
                 }
