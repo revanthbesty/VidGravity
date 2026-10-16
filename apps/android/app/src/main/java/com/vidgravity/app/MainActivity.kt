@@ -90,20 +90,24 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     ) else lightColorScheme(
         primary = Color(0xFF286B66),
         onPrimary = Color.White,
-        primaryContainer = Color(0xFFDDEDE9),
+        primaryContainer = Color(0xFFDDEBE7),
         onPrimaryContainer = Color(0xFF205A56),
-        secondary = Color(0xFF35A99D),
+        secondary = Color(0xFF35C6B0),
         onSecondary = Color(0xFF102725),
+        secondaryContainer = Color(0xFFDDEBE7),
+        onSecondaryContainer = Color(0xFF205A56),
         tertiary = Color(0xFF6845DB),
         onTertiary = Color.White,
-        background = Color(0xFFEAF0F0),
+        tertiaryContainer = Color(0xFFEAE7F3),
+        onTertiaryContainer = Color(0xFF30205E),
+        background = Color(0xFFE8EEED),
         surface = Color(0xFFF1F5F4),
-        surfaceVariant = Color(0xFFDDE7E7),
+        surfaceVariant = Color(0xFFDDE6E4),
         onBackground = Color(0xFF26363B),
         onSurface = Color(0xFF26363B),
-        onSurfaceVariant = Color(0xFF53666B),
-        outline = Color(0xFFC7D6D8),
-        outlineVariant = Color(0xFFC7D6D8)
+        onSurfaceVariant = Color(0xFF58696D),
+        outline = Color(0xFFCCDAD7),
+        outlineVariant = Color(0xFFD7E2DF)
     )
     val vgShapes = Shapes(
         extraSmall = RoundedCornerShape(8.dp),
@@ -129,10 +133,29 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                 }
             },
             bottomBar = {
-                NavigationBar(modifier = Modifier.navigationBarsPadding(), containerColor = MaterialTheme.colorScheme.surface) {
+                NavigationBar(
+                    modifier = Modifier.navigationBarsPadding().border(
+                        width = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)
+                    ),
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 2.dp
+                ) {
                     VgTab.values().forEach { tab ->
-                        NavigationBarItem(selected = selected == tab, onClick = { selected = tab },
-                            icon = { Icon(tab.icon, contentDescription = tab.title) }, label = { Text(tab.title, maxLines = 1) })
+                        NavigationBarItem(
+                            selected = selected == tab,
+                            onClick = { selected = tab },
+                            colors = NavigationBarItemDefaults.colors(
+                                indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                                selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                            ),
+                            icon = { Icon(tab.icon, contentDescription = tab.title) },
+                            label = { Text(tab.title, maxLines = 1) }
+                        )
                     }
                 }
             }
