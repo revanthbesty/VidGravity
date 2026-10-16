@@ -5,6 +5,8 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Environment
 import android.view.Gravity
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.view.View
 import android.widget.Button
 import android.widget.FrameLayout
@@ -44,6 +46,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private lateinit var container: FrameLayout
     private lateinit var rearPreview: PreviewView
     private lateinit var frontPreview: PreviewView
+    private lateinit var gridOverlay: View
     private lateinit var status: TextView
     private lateinit var shutter: Button
     private lateinit var modeButton: Button
@@ -69,6 +72,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private var supportedVideoQualities: List<Quality> = emptyList()
     private var timerSeconds = 0
     private var pendingPhoto = false
+    private var gridEnabled = false
 
     private val permissionRequest = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
         if (result[Manifest.permission.CAMERA] == true) startCameras()
@@ -104,6 +108,24 @@ class DualCameraCaptureActivity : ComponentActivity() {
             marginEnd = dp(16)
         }
         container.addView(frontPreview, pip)
+        gridOverlay = object : View(this) {
+            private val gridPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = 0x99FFFFFF.toInt()
+                strokeWidth = dp(1).toFloat()
+                style = Paint.Style.STROKE
+            }
+            override fun onDraw(canvas: Canvas) {
+                super.onDraw(canvas)
+                if (!gridEnabled) return
+                val thirdW = width / 3f
+                val thirdH = height / 3f
+                for (i in 1..2) {
+                    canvas.drawLine(thirdW * i, 0f, thirdW * i, height.toFloat(), gridPaint)
+                    canvas.drawLine(0f, thirdH * i, width.toFloat(), thirdH * i, gridPaint)
+                }
+            }
+        }.apply { isClickable = false; visibility = View.GONE }
+        container.addView(gridOverlay, FrameLayout.LayoutParams(-1, -1))
 
         val top = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -506,6 +528,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
         val items = arrayOf(
             "Video quality: ${videoQualityLabel(videoQuality)}",
             "Photo timer: ${if (timerSeconds == 0) "Off" else "${timerSeconds}s"}",
+            "Composition grid: ${if (gridEnabled) "On" else "Off"}",
             "Dual-camera mode: ${if (dualSupported) "Supported" else "Not supported by device"}"
         )
         AlertDialog.Builder(this)
@@ -514,7 +537,14 @@ class DualCameraCaptureActivity : ComponentActivity() {
                 when (which) {
                     0 -> chooseVideoQuality()
                     1 -> chooseTimer()
-                    2 -> Toast.makeText(this, if (dualSupported) "Use Dual on to enable front/rear preview. Video recording uses single-camera mode." else "This phone does not expose a supported front/rear concurrent camera pair.", Toast.LENGTH_LONG).show()
+                    2 -> {
+                        gridEnabled = !gridEnabled
+                        gridOverlay.visibility = if (gridEnabled) View.VISIBLE else View.GONE
+                        gridOverlay.invalidate()
+                        Toast.makeText(this, "Composition grid: ${if (gridEnabled) "On" else "Off"}", Toast.LENGTH_SHORT).show()
+                        showCameraSettings()
+                    }
+                    3 -> Toast.makeText(this, if (dualSupported) "Use Dual on to enable front/rear preview. Video recording uses single-camera mode." else "This phone does not expose a supported front/rear concurrent camera pair.", Toast.LENGTH_LONG).show()
                 }
             }
             .setNegativeButton("Close", null)
