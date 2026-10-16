@@ -59,6 +59,15 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private data class PhotoEditState(
+    val filter: String,
+    val intensity: Float,
+    val brightness: Float,
+    val contrast: Float,
+    val rotation: Int,
+    val crop: String
+)
+
 private enum class VgTab(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Home("Home", Icons.Default.Home), Downloads("Downloads", Icons.Default.Download),
     Library("Library", Icons.Default.VideoLibrary), Create("Create", Icons.Default.AutoAwesome),
@@ -1296,6 +1305,22 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     var photoCrop by remember { mutableStateOf("Original") }
     var photoPreview by remember { mutableStateOf<Bitmap?>(null) }
     var photoExporting by remember { mutableStateOf(false) }
+    val photoUndo = remember { mutableStateListOf<PhotoEditState>() }
+    val photoRedo = remember { mutableStateListOf<PhotoEditState>() }
+    fun currentPhotoEdit() = PhotoEditState(photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation, photoCrop)
+    fun rememberPhotoEdit() {
+        photoUndo.add(currentPhotoEdit())
+        if (photoUndo.size > 30) photoUndo.removeAt(0)
+        photoRedo.clear()
+    }
+    fun restorePhotoEdit(state: PhotoEditState) {
+        photoFilter = state.filter
+        photoIntensity = state.intensity
+        photoBrightness = state.brightness
+        photoContrast = state.contrast
+        photoRotation = state.rotation
+        photoCrop = state.crop
+    }
     val photoFilters = listOf("Original", "Mono", "Warm", "Cool", "Vintage", "Dramatic", "Fade", "Sepia", "Teal", "Punch")
     LaunchedEffect(selectedMedia?.uri, photoEditorOpen, photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation, photoCrop) {
         val media = selectedMedia
@@ -1354,26 +1379,53 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                     else CircularProgressIndicator()
                 }
             }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    if (photoUndo.isNotEmpty()) {
+                        photoRedo.add(currentPhotoEdit())
+                        val previous = photoUndo.removeAt(photoUndo.lastIndex)
+                        restorePhotoEdit(previous)
+                    }
+                }, enabled = photoUndo.isNotEmpty() && !photoExporting, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.Undo, null); Spacer(Modifier.width(6.dp)); Text("Undo")
+                }
+                OutlinedButton(onClick = {
+                    if (photoRedo.isNotEmpty()) {
+                        photoUndo.add(currentPhotoEdit())
+                        val next = photoRedo.removeAt(photoRedo.lastIndex)
+                        restorePhotoEdit(next)
+                    }
+                }, enabled = photoRedo.isNotEmpty() && !photoExporting, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.Redo, null); Spacer(Modifier.width(6.dp)); Text("Redo")
+                }
+                OutlinedButton(onClick = {
+                    rememberPhotoEdit()
+                    restorePhotoEdit(PhotoEditState("Original", 0.65f, 0f, 0f, 0, "Original"))
+                }, enabled = !photoExporting, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.RestartAlt, null); Spacer(Modifier.width(6.dp)); Text("Reset")
+                }
+            }
+            Text("Undo history · " + photoUndo.size + "/30", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("FILTER PRESET", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(photoFilters) { preset -> FilterChip(selected = photoFilter == preset, onClick = { photoFilter = preset }, label = { Text(preset) }) }
+                items(photoFilters) { preset -> FilterChip(selected = photoFilter == preset, onClick = { if (photoFilter != preset) { rememberPhotoEdit(); photoFilter = preset } }, label = { Text(preset) }) }
             }
             Text("Filter intensity · " + (photoIntensity * 100).toInt() + "%", fontWeight = FontWeight.SemiBold)
-            Slider(value = photoIntensity, onValueChange = { photoIntensity = it }, valueRange = 0f..1f, enabled = photoFilter != "Original")
+            Slider(value = photoIntensity, onValueChange = { if (photoIntensity != it) { rememberPhotoEdit(); photoIntensity = it } }, valueRange = 0f..1f, enabled = photoFilter != "Original")
             Text("Intensity changes the strength of the selected look. Export creates a separate copy.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("Brightness · " + (photoBrightness * 100).toInt(), fontWeight = FontWeight.SemiBold)
-            Slider(value = photoBrightness, onValueChange = { photoBrightness = it }, valueRange = -1f..1f)
+            Slider(value = photoBrightness, onValueChange = { if (photoBrightness != it) { rememberPhotoEdit(); photoBrightness = it } }, valueRange = -1f..1f)
             Text("Contrast · " + (photoContrast * 100).toInt(), fontWeight = FontWeight.SemiBold)
-            Slider(value = photoContrast, onValueChange = { photoContrast = it }, valueRange = -1f..1f)
+            Slider(value = photoContrast, onValueChange = { if (photoContrast != it) { rememberPhotoEdit(); photoContrast = it } }, valueRange = -1f..1f)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = { photoRotation = (photoRotation + 270) % 360 }) { Icon(Icons.Default.RotateLeft, null); Spacer(Modifier.width(4.dp)); Text("Rotate left") }
-                OutlinedButton(onClick = { photoRotation = (photoRotation + 90) % 360 }) { Icon(Icons.Default.RotateRight, null); Spacer(Modifier.width(4.dp)); Text("Rotate right") }
+                OutlinedButton(onClick = { rememberPhotoEdit(); photoRotation = (photoRotation + 270) % 360 }) { Icon(Icons.Default.RotateLeft, null); Spacer(Modifier.width(4.dp)); Text("Rotate left") }
+                OutlinedButton(onClick = { rememberPhotoEdit(); photoRotation = (photoRotation + 90) % 360 }) { Icon(Icons.Default.RotateRight, null); Spacer(Modifier.width(4.dp)); Text("Rotate right") }
                 Text(photoRotation.toString() + "°", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text("Crop aspect ratio", fontWeight = FontWeight.SemiBold)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(listOf("Original", "1:1", "4:5", "16:9")) { ratio ->
-                    FilterChip(selected = photoCrop == ratio, onClick = { photoCrop = ratio }, label = { Text(ratio) })
+                    FilterChip(selected = photoCrop == ratio, onClick = { if (photoCrop != ratio) { rememberPhotoEdit(); photoCrop = ratio } }, label = { Text(ratio) })
                 }
             }
             Button(onClick = {
