@@ -80,6 +80,8 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("vg-ui", 0) }
     var dark by remember { mutableStateOf(prefs.getBoolean("dark", true)) }
+    var accentPreset by remember { mutableStateOf(VgAccentPreset.fromStored(prefs.getString("accent_preset", VgAccentPreset.VidGravity.name))) }
+    val accentPalette = accentPreset
     var selected by remember { mutableStateOf(VgTab.Home) }
     var showInbox by remember { mutableStateOf(openInboxInitially) }
     var creatorInitialMedia by remember { mutableStateOf<LibraryMedia?>(null) }
@@ -96,9 +98,9 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
         onPrimary = Color(0xFF171F23),
         primaryContainer = Color(0xFF304842),
         onPrimaryContainer = Color(0xFFE6EEF0),
-        secondary = Color(0xFF38B8B2),
-        onSecondary = Color(0xFF102725),
-        tertiary = Color(0xFF967BFF),
+        secondary = accentPalette.secondary,
+        onSecondary = VidGravityPalette.darkText,
+        tertiary = accentPalette.tertiary,
         onTertiary = Color(0xFF17102F),
         background = Color(0xFF171F23),
         surface = Color(0xFF202B30),
@@ -113,11 +115,11 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
         onPrimary = Color.White,
         primaryContainer = Color(0xFFDDEBE7),
         onPrimaryContainer = Color(0xFF205A56),
-        secondary = Color(0xFF35C6B0),
-        onSecondary = Color(0xFF102725),
+        secondary = accentPalette.secondary,
+        onSecondary = VidGravityPalette.darkText,
         secondaryContainer = Color(0xFFDDEBE7),
         onSecondaryContainer = Color(0xFF205A56),
-        tertiary = Color(0xFF6845DB),
+        tertiary = accentPalette.tertiary,
         onTertiary = Color.White,
         tertiaryContainer = Color(0xFFEAE7F3),
         onTertiaryContainer = Color(0xFF30205E),
@@ -223,7 +225,12 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                         onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true },
                         initialMedia = creatorInitialMedia, onOpenCamera = { cameraStudioOpen = true }
                     )
-                    VgTab.Settings -> SettingsContent(dark, { dark = it; prefs.edit().putBoolean("dark", it).apply() })
+                    VgTab.Settings -> SettingsContent(
+                        dark = dark,
+                        onDark = { dark = it; prefs.edit().putBoolean("dark", it).apply() },
+                        accentPreset = accentPreset,
+                        onAccentPreset = { preset -> accentPreset = preset; prefs.edit().putString("accent_preset", preset.name).apply() }
+                    )
                 }
             }
         }
@@ -1850,7 +1857,7 @@ private fun SimpleCollectionScreen(title: String, subtitle: String, icon: androi
 }
 
 @Composable
-private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
+private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit, accentPreset: VgAccentPreset, onAccentPreset: (VgAccentPreset) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboard = LocalClipboardManager.current
     val deviceId = remember {
@@ -1887,6 +1894,24 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                     Text(if (dark) "Dark theme enabled" else "Light theme enabled", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Switch(checked = dark, onCheckedChange = onDark)
+            }
+        }
+        Text("ACCENT THEME", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+        Text("Choose a coordinated accent palette. Your light/dark foundation and existing settings stay unchanged.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            VgAccentPreset.entries.chunked(2).forEach { rowPresets ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    rowPresets.forEach { preset ->
+                        FilterChip(
+                            selected = accentPreset == preset,
+                            onClick = { onAccentPreset(preset) },
+                            label = { Text(preset.title, maxLines = 1) },
+                            leadingIcon = { Surface(Modifier.size(14.dp), shape = RoundedCornerShape(50), color = preset.secondary) { } },
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                        )
+                    }
+                    if (rowPresets.size == 1) Spacer(Modifier.weight(1f))
+                }
             }
         }
         Text("DOWNLOADS", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
