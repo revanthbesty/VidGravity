@@ -141,42 +141,49 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
-                Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("VidGravity", fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
-                        Text("Your media, in one place", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                    }
-                    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant) {
-                        IconButton(onClick = { dark = !dark; prefs.edit().putBoolean("dark", dark).apply() }) {
-                            Icon(if (dark) Icons.Default.LightMode else Icons.Default.DarkMode, "Toggle theme")
+                // Camera Studio is a focused capture workspace: hide the app branding bar
+                // so it cannot consume preview space or duplicate the Studio header.
+                if (!cameraStudioOpen) {
+                    Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("VidGravity", fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
+                            Text("Your media, in one place", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                        }
+                        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant) {
+                            IconButton(onClick = { dark = !dark; prefs.edit().putBoolean("dark", dark).apply() }) {
+                                Icon(if (dark) Icons.Default.LightMode else Icons.Default.DarkMode, "Toggle theme")
+                            }
                         }
                     }
                 }
             },
             bottomBar = {
-                NavigationBar(
-                    modifier = Modifier.navigationBarsPadding().border(
-                        width = 0.5.dp,
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                        shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)
-                    ),
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 2.dp
-                ) {
-                    VgTab.values().forEach { tab ->
-                        NavigationBarItem(
-                            selected = selected == tab,
-                            onClick = { selected = tab },
-                            colors = NavigationBarItemDefaults.colors(
-                                indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
-                                selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                selectedTextColor = MaterialTheme.colorScheme.onSurface,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            icon = { Icon(tab.icon, contentDescription = tab.title) },
-                            label = { Text(tab.title, maxLines = 1) }
-                        )
+                // Keep the shutter and final controls unobstructed while Camera Studio is open.
+                if (!cameraStudioOpen) {
+                    NavigationBar(
+                        modifier = Modifier.navigationBarsPadding().border(
+                            width = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                            shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)
+                        ),
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 2.dp
+                    ) {
+                        VgTab.values().forEach { tab ->
+                            NavigationBarItem(
+                                selected = selected == tab,
+                                onClick = { selected = tab },
+                                colors = NavigationBarItemDefaults.colors(
+                                    indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                icon = { Icon(tab.icon, contentDescription = tab.title) },
+                                label = { Text(tab.title, maxLines = 1) }
+                            )
+                        }
                     }
                 }
             }
