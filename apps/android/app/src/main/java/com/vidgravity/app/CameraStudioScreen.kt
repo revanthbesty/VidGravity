@@ -129,7 +129,8 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     var flash by remember { mutableIntStateOf(prefs.getInt("flash", ImageCapture.FLASH_MODE_OFF)) }
     var style by remember { mutableIntStateOf(prefs.getInt("style", 0).coerceIn(0, cameraStyles.lastIndex)) }
     var styleIntensity by remember { mutableFloatStateOf(prefs.getFloat("style-intensity", 0.75f).coerceIn(0f, 1f)) }
-    var exposure by remember { mutableFloatStateOf(0f) }
+    var exposure by remember { mutableFloatStateOf(prefs.getFloat("exposure", 0f).coerceIn(-2f, 2f)) }
+    var activeCamera by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var settings by remember { mutableStateOf(false) }
@@ -148,7 +149,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     DisposableEffect(Unit) {
         onDispose { runCatching { providerFuture.get().unbindAll() }; executor.shutdown() }
     }
-    LaunchedEffect(permitted, front, flash, exposure) {
+    LaunchedEffect(permitted, front, flash) {
         if (!permitted) return@LaunchedEffect
         try {
             val provider = withContext(Dispatchers.IO) { providerFuture.get() }
@@ -158,12 +159,19 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
             imageCapture.flashMode = flash
             provider.unbindAll()
             val camera = provider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture)
-            val range = camera.cameraInfo.exposureState.exposureCompensationRange
-            val step = camera.cameraInfo.exposureState.exposureCompensationStep.toFloat()
-            val index = if (step > 0f) (exposure / step).toInt().coerceIn(range.lower, range.upper) else 0
-            runCatching { camera.cameraControl.setExposureCompensationIndex(index) }
+            activeCamera = camera
             error = null
         } catch (t: Exception) { error = "Camera startup failed: " + (t.message ?: "unknown error") }
+    }
+
+    LaunchedEffect(activeCamera, exposure, permitted) {
+        val camera = activeCamera ?: return@LaunchedEffect
+        if (!permitted) return@LaunchedEffect
+        val state = camera.cameraInfo.exposureState
+        val range = state.exposureCompensationRange
+        val step = state.exposureCompensationStep.toFloat()
+        val index = if (step > 0f) (exposure / step).toInt().coerceIn(range.lower, range.upper) else 0
+        runCatching { camera.cameraControl.setExposureCompensationIndex(index) }
     }
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -212,7 +220,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                     Spacer(Modifier.weight(1f))
                     Text((if (exposure >= 0) "+" else "") + "%.1f EV".format(exposure), style = MaterialTheme.typography.labelMedium)
                 }
-                Slider(value = exposure, onValueChange = { exposure = it }, valueRange = -2f..2f)
+                Slider(value = exposure, onValueChange = { exposure = it; prefs.edit().putFloat("exposure", it).apply() }, valueRange = -2f..2f)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     OutlinedButton(onClick = { style = (style - 1 + cameraStyles.size) % cameraStyles.size; prefs.edit().putInt("style", style).apply() }) { Text("‹ Style") }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -266,6 +274,6 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
         title = { Text("Camera preferences") },
         text = { Text("Front/rear camera, flash, exposure, composition grid, photographic style and style intensity are remembered on this device. Styles are applied to exported photos; the live preview is not color-graded.") },
         confirmButton = { TextButton(onClick = { settings = false }) { Text("Done") } },
-        dismissButton = { TextButton(onClick = { front = false; grid = true; flash = ImageCapture.FLASH_MODE_OFF; style = 0; styleIntensity = 0.75f; exposure = 0f; prefs.edit().clear().apply(); settings = false }) { Text("Reset defaults") } }
+        dismissButton = { TextButton(onClick = { front = false; grid = true; flash = ImageCapture.FLASH_MODE_OFF; style = 0; styleIntensity = 0.75f; exposure = 0f; activeCamera = null; prefs.edit().clear().apply(); settings = false }) { Text("Reset defaults") } }
     )
 }
