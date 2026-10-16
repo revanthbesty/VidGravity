@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Environment
 import android.view.Gravity
+import android.view.MotionEvent
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.view.View
@@ -22,6 +23,7 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.ConcurrentCamera
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.Preview
 import androidx.camera.core.TorchState
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -37,6 +39,7 @@ import androidx.core.content.ContextCompat
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /**
  * Camera capture UI with visible controls. Concurrent front/rear preview is enabled only
@@ -104,6 +107,13 @@ class DualCameraCaptureActivity : ComponentActivity() {
             elevation = dp(8).toFloat()
         }
         container.addView(rearPreview, FrameLayout.LayoutParams(-1, -1))
+        rearPreview.setOnTouchListener { view, event ->
+            if (event.action == MotionEvent.ACTION_UP) {
+                focusAt(event.x, event.y)
+                view.performClick()
+                true
+            } else true
+        }
         val pip = FrameLayout.LayoutParams(dp(118), dp(164), Gravity.TOP or Gravity.END).apply {
             topMargin = dp(76)
             marginEnd = dp(16)
@@ -202,7 +212,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
         controls.addView(shutter, LinearLayout.LayoutParams(0, dp(58), 1.3f))
         bottom.addView(controls, LinearLayout.LayoutParams(-1, -2))
         val hint = TextView(this).apply {
-            text = "Tap Capture for a photo. In Video mode, tap to start/stop recording."
+            text = "Tap preview to focus · Tap Capture for a photo. In Video mode, tap to start/stop recording."
             setTextColor(0xFFCBC7D5.toInt())
             textSize = 11f
             gravity = Gravity.CENTER
@@ -334,6 +344,23 @@ class DualCameraCaptureActivity : ComponentActivity() {
         status.text = if (frontFacing) "Front camera · ${if (videoMode) "Video" else "Photo"} mode"
             else "Rear camera · ${if (videoMode) "Video" else "Photo"} mode"
         shutter.text = if (videoMode) "●  Record" else "●  Capture"
+    }
+
+    /** Tap the preview to meter focus and exposure at the tapped point. CameraX reports the result. */
+    private fun focusAt(x: Float, y: Float) {
+        val activeCamera = camera
+        if (dualMode || activeCamera == null || rearPreview.width <= 0 || rearPreview.height <= 0) return
+        val point = rearPreview.meteringPointFactory.createPoint(x, y)
+        val action = FocusMeteringAction.Builder(
+            point,
+            FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE
+        ).setAutoCancelDuration(3, TimeUnit.SECONDS).build()
+        activeCamera.cameraControl.startFocusAndMetering(action)
+            .addListener({
+                runOnUiThread {
+                    status.text = if (dualMode) "Dual-camera preview · Photo mode" else "Focus and exposure updated"
+                }
+            }, ContextCompat.getMainExecutor(this))
     }
 
     private fun toggleMode() {
