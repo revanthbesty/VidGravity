@@ -1717,9 +1717,10 @@ private fun applyVidGravityPhotoFilter(source: Bitmap, preset: String, intensity
     matrix.postConcat(ColorMatrix(floatArrayOf(contrastScale,0f,0f,0f,offset, 0f,contrastScale,0f,0f,offset, 0f,0f,contrastScale,0f,offset, 0f,0f,0f,1f,0f)))
     val filtered = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
     Canvas(filtered).drawBitmap(source, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG).apply { colorFilter = ColorMatrixColorFilter(matrix) })
-    if (rotationDegrees % 360 == 0) return filtered
-    val rotation = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
-    val rotated = if (rotationDegrees % 360 == 0) filtered else Bitmap.createBitmap(filtered, 0, 0, filtered.width, filtered.height, rotation, true)
+    val rotated = if (rotationDegrees % 360 == 0) filtered else {
+        val rotation = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+        Bitmap.createBitmap(filtered, 0, 0, filtered.width, filtered.height, rotation, true)
+    }
     if (rotated !== filtered) filtered.recycle()
     if (cropAspect == "Original") return rotated
     val targetRatio = when (cropAspect) { "1:1" -> 1f; "4:5" -> 4f / 5f; "16:9" -> 16f / 9f; else -> return rotated }
