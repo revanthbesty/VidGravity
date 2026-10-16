@@ -37,6 +37,7 @@ import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import java.io.File
+import java.security.MessageDigest
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -397,8 +398,17 @@ class DualCameraCaptureActivity : ComponentActivity() {
             val options = ImageCapture.OutputFileOptions.Builder(target).build()
             capture.takePicture(options, executor, object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(result: ImageCapture.OutputFileResults) = runOnUiThread {
-                    status.text = "Photo saved · ${target.name}"
-                    Toast.makeText(this@DualCameraCaptureActivity, "Photo saved to VidGravity: ${target.name}", Toast.LENGTH_LONG).show()
+                    try {
+                        val published = com.vidgravity.app.MediaLibraryIndexer.publish(
+                            this@DualCameraCaptureActivity, target, target.name, sha256(target)
+                        )
+                        target.delete()
+                        status.text = "Photo saved to Library · ${published.displayName}"
+                        Toast.makeText(this@DualCameraCaptureActivity, "Photo added to VidGravity Library", Toast.LENGTH_LONG).show()
+                    } catch (error: Exception) {
+                        status.text = "Photo captured · Library import failed"
+                        Toast.makeText(this@DualCameraCaptureActivity, "Photo captured but could not be added to Library: ${error.message}", Toast.LENGTH_LONG).show()
+                    }
                 }
                 override fun onError(exception: ImageCaptureException) = runOnUiThread {
                     Toast.makeText(this@DualCameraCaptureActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
@@ -723,6 +733,19 @@ class DualCameraCaptureActivity : ComponentActivity() {
         Quality.HD -> "720p"
         Quality.FHD -> "1080p"
         else -> "Highest available"
+    }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        file.inputStream().buffered(128 * 1024).use { input ->
+            val buffer = ByteArray(128 * 1024)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
     private fun finishWithMessage(message: String) {
