@@ -117,9 +117,38 @@ class DualCameraCaptureActivity : ComponentActivity() {
         val settings = controlButton("Settings") { showCameraSettings() }
         val previewSize = controlButton("PiP size") { chooseDualPreviewSize() }
         top.addView(close, LinearLayout.LayoutParams(dp(48), dp(48)))
-        top.addView(flashButton, LinearLayout.LayoutParams(0, dp(48), 1f))
-        top.addView(settings, LinearLayout.LayoutParams(0, dp(48), 1f))
+        val topSpacer = View(this)
+        top.addView(topSpacer, LinearLayout.LayoutParams(0, dp(48), 1f))
         container.addView(top, FrameLayout.LayoutParams(-1, dp(64), Gravity.TOP))
+
+        // Reachable right-side camera toolbar. The top bar now contains navigation only.
+        val sideTools = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(5), dp(8), dp(5), dp(8))
+            background = android.graphics.drawable.GradientDrawable().apply {
+                setColor(0xAA172126.toInt())
+                cornerRadius = dp(24).toFloat()
+                setStroke(dp(1), 0x667D9A9D)
+            }
+            elevation = dp(6).toFloat()
+        }
+        listOf(flashButton, flip, dualButton, previewSize, settings).forEach { button ->
+            button.textSize = 10f
+            button.contentDescription = when (button) {
+                flashButton -> "Flashlight mode"
+                flip -> "Switch front and rear camera"
+                dualButton -> "Toggle dual camera preview"
+                previewSize -> "Adjust secondary preview size"
+                else -> "Camera settings"
+            }
+            sideTools.addView(button, LinearLayout.LayoutParams(dp(52), dp(52)).apply {
+                bottomMargin = dp(7)
+            })
+        }
+        container.addView(sideTools, FrameLayout.LayoutParams(dp(64), -2, Gravity.END or Gravity.CENTER_VERTICAL).apply {
+            marginEnd = dp(8)
+        })
 
         val bottom = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -148,17 +177,6 @@ class DualCameraCaptureActivity : ComponentActivity() {
         controls.addView(modeButton, LinearLayout.LayoutParams(0, dp(58), 1f).apply { marginEnd = dp(12) })
         controls.addView(shutter, LinearLayout.LayoutParams(0, dp(58), 1.3f))
         bottom.addView(controls, LinearLayout.LayoutParams(-1, -2))
-        val utilityControls = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-            setPadding(0, dp(8), 0, 0)
-        }
-        listOf(flip, dualButton, previewSize).forEach { button ->
-            utilityControls.addView(button, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
-                marginEnd = dp(4)
-            })
-        }
-        bottom.addView(utilityControls, LinearLayout.LayoutParams(-1, -2))
         val hint = TextView(this).apply {
             text = "Tap Capture for a photo. In Video mode, tap to start/stop recording."
             setTextColor(0xFFCBC7D5.toInt())
