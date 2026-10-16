@@ -183,6 +183,8 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     var presetName by remember { mutableStateOf("") }
     var styleIntensity by remember { mutableFloatStateOf(prefs.getFloat("style-intensity", 0.75f).coerceIn(0f, 1f)) }
     var exposure by remember { mutableFloatStateOf(prefs.getFloat("exposure", 0f).coerceIn(-2f, 2f)) }
+    var zoomRatio by remember { mutableFloatStateOf(prefs.getFloat("zoom-ratio", 1f).coerceAtLeast(1f)) }
+    var zoomRange by remember { mutableStateOf(1f..1f) }
     var activeCamera by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
     var exposureRange by remember { mutableStateOf(-2f..2f) }
     var busy by remember { mutableStateOf(false) }
@@ -235,6 +237,9 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
             provider.unbindAll()
             val camera = provider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture)
             activeCamera = camera
+            val zoomState = camera.cameraInfo.zoomState.value
+            zoomRange = if (zoomState != null && zoomState.maxZoomRatio > zoomState.minZoomRatio) zoomState.minZoomRatio..zoomState.maxZoomRatio else 1f..1f
+            zoomRatio = zoomRatio.coerceIn(zoomRange.start, zoomRange.endInclusive)
             val exposureState = camera.cameraInfo.exposureState
             val stepEv = exposureState.exposureCompensationStep.toFloat()
             val supportedRange = exposureState.exposureCompensationRange
@@ -281,6 +286,13 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                 Handler(Looper.getMainLooper()).post { busy = false; onNotice("Capture failed: " + (exception.message ?: "please retry")) }
             }
         })
+    }
+
+    LaunchedEffect(activeCamera, zoomRatio, permitted) {
+        val camera = activeCamera ?: return@LaunchedEffect
+        if (!permitted) return@LaunchedEffect
+        val target = zoomRatio.coerceIn(zoomRange.start, zoomRange.endInclusive)
+        runCatching { camera.cameraControl.setZoomRatio(target) }
     }
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -366,6 +378,15 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                     Text((if (exposure >= 0) "+" else "") + "%.1f EV".format(exposure), style = MaterialTheme.typography.labelMedium)
                 }
                 Slider(value = exposure.coerceIn(exposureRange.start, exposureRange.endInclusive), onValueChange = { exposure = it; prefs.edit().putFloat("exposure", it).apply() }, valueRange = exposureRange, enabled = exposureRange.start < exposureRange.endInclusive)
+                if (zoomRange.endInclusive > zoomRange.start) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Zoom", style = MaterialTheme.typography.labelMedium)
+                        Spacer(Modifier.weight(1f))
+                        Text("%.1fx".format(zoomRatio), style = MaterialTheme.typography.labelMedium)
+                        TextButton(onClick = { zoomRatio = 1f.coerceIn(zoomRange.start, zoomRange.endInclusive); prefs.edit().putFloat("zoom-ratio", zoomRatio).apply() }) { Text("1×") }
+                    }
+                    Slider(value = zoomRatio.coerceIn(zoomRange.start, zoomRange.endInclusive), onValueChange = { zoomRatio = it; prefs.edit().putFloat("zoom-ratio", it).apply() }, valueRange = zoomRange)
+                }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.weight(1f)) {
                         Text("Level / horizon guide", style = MaterialTheme.typography.labelMedium)
@@ -475,6 +496,6 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
         title = { Text("Camera preferences") },
         text = { Text("Front/rear camera, flash, exposure, composition grid, photographic style and style intensity are remembered on this device. Styles are applied to exported photos; the live preview is not color-graded.") },
         confirmButton = { TextButton(onClick = { settings = false }) { Text("Done") } },
-        dismissButton = { TextButton(onClick = { front = false; grid = true; framingGuide = "Off"; flash = ImageCapture.FLASH_MODE_OFF; style = 0; favoriteStyles = emptySet(); favoritesOnly = false; creatorPresets.clear(); savePresetDialog = false; presetName = ""; styleIntensity = 0.75f; exposure = 0f; activeCamera = null; prefs.edit().clear().apply(); settings = false }) { Text("Reset defaults") } }
+        dismissButton = { TextButton(onClick = { front = false; grid = true; framingGuide = "Off"; flash = ImageCapture.FLASH_MODE_OFF; style = 0; favoriteStyles = emptySet(); favoritesOnly = false; creatorPresets.clear(); savePresetDialog = false; presetName = ""; styleIntensity = 0.75f; exposure = 0f; zoomRatio = 1f; zoomRange = 1f..1f; activeCamera = null; prefs.edit().clear().apply(); settings = false }) { Text("Reset defaults") } }
     )
 }
