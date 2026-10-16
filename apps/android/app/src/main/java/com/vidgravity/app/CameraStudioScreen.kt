@@ -243,10 +243,15 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
             val provider = withContext(Dispatchers.IO) { providerFuture.get() }
             val selector = if (front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
             if (!provider.hasCamera(selector)) { error = "Selected camera is unavailable on this device."; return@LaunchedEffect }
-            val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+            // Re-attach the surface provider immediately before binding. PreviewView may not
+            // have created its surface when the screen first enters composition.
+            val preview = Preview.Builder().build()
+            preview.setSurfaceProvider(previewView.surfaceProvider)
             imageCapture.flashMode = flash
             provider.unbindAll()
             val camera = provider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture)
+            previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+            previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
             activeCamera = camera
             val zoomState = camera.cameraInfo.zoomState.value
             zoomRange = if (zoomState != null && zoomState.maxZoomRatio > zoomState.minZoomRatio) zoomState.minZoomRatio..zoomState.maxZoomRatio else 1f..1f
@@ -257,7 +262,10 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
             exposureRange = if (stepEv > 0f) (supportedRange.lower * stepEv)..(supportedRange.upper * stepEv) else 0f..0f
             exposure = exposure.coerceIn(exposureRange.start, exposureRange.endInclusive)
             error = null
-        } catch (t: Exception) { error = "Camera startup failed: " + (t.message ?: "unknown error") }
+        } catch (t: Exception) {
+            activeCamera = null
+            error = "Camera startup failed: " + (t.message ?: t.javaClass.simpleName)
+        }
     }
 
     LaunchedEffect(activeCamera, exposure, permitted) {
