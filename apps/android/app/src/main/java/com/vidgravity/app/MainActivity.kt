@@ -1296,7 +1296,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     var photoCrop by remember { mutableStateOf("Original") }
     var photoPreview by remember { mutableStateOf<Bitmap?>(null) }
     var photoExporting by remember { mutableStateOf(false) }
-    val photoFilters = listOf("Original", "Mono", "Warm", "Cool", "Vintage")
+    val photoFilters = listOf("Original", "Mono", "Warm", "Cool", "Vintage", "Dramatic", "Fade", "Sepia", "Teal", "Punch")
     LaunchedEffect(selectedMedia?.uri, photoEditorOpen, photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation, photoCrop) {
         val media = selectedMedia
         if (photoEditorOpen && media != null && media.mimeType.startsWith("image/")) {
@@ -1703,12 +1703,22 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
 
 private fun applyVidGravityPhotoFilter(source: Bitmap, preset: String, intensity: Float, brightness: Float = 0f, contrast: Float = 0f, rotationDegrees: Int = 0, cropAspect: String = "Original"): Bitmap {
     val amount = intensity.coerceIn(0f, 1f)
-    val saturation = when (preset) { "Mono" -> 1f - amount; "Vintage" -> 1f - amount * 0.35f; else -> 1f }
+    val saturation = when (preset) {
+        "Mono" -> 1f - amount
+        "Vintage", "Fade" -> 1f - amount * 0.35f
+        "Dramatic", "Punch" -> 1f + amount * 0.45f
+        else -> 1f
+    }
     val matrix = ColorMatrix().apply { setSaturation(saturation) }
     val values = when (preset) {
         "Warm" -> floatArrayOf(1f + .10f * amount,0f,0f,0f,18f*amount, 0f,1f+.015f*amount,0f,0f,3f*amount, 0f,0f,1f-.10f*amount,0f,-8f*amount, 0f,0f,0f,1f,0f)
         "Cool" -> floatArrayOf(1f-.04f*amount,0f,0f,0f,-3f*amount, 0f,1f+.02f*amount,0f,0f,2f*amount, 0f,0f,1f+.12f*amount,0f,12f*amount, 0f,0f,0f,1f,0f)
         "Vintage" -> floatArrayOf(1f-.10f*amount,0f,0f,0f,14f*amount, 0f,1f-.06f*amount,0f,0f,8f*amount, 0f,0f,1f-.15f*amount,0f,-4f*amount, 0f,0f,0f,1f,0f)
+        "Dramatic" -> floatArrayOf(1f+.25f*amount,0f,0f,0f,-18f*amount, 0f,1f+.25f*amount,0f,0f,-18f*amount, 0f,0f,1f+.25f*amount,0f,-18f*amount, 0f,0f,0f,1f,0f)
+        "Fade" -> floatArrayOf(1f-.12f*amount,0f,0f,0f,18f*amount, 0f,1f-.12f*amount,0f,0f,18f*amount, 0f,0f,1f-.12f*amount,0f,18f*amount, 0f,0f,0f,1f,0f)
+        "Sepia" -> floatArrayOf(0.393f*amount+(1f-amount),0.769f*amount,0.189f*amount,0f,0f, 0.349f*amount,0.686f*amount+(1f-amount),0.168f*amount,0f,0f, 0.272f*amount,0.534f*amount,0.131f*amount+(1f-amount),0f,0f, 0f,0f,0f,1f,0f)
+        "Teal" -> floatArrayOf(1f-.04f*amount,0f,0f,0f,0f, 0f,1f+.08f*amount,0f,0f,8f*amount, 0f,0f,1f+.10f*amount,0f,12f*amount, 0f,0f,0f,1f,0f)
+        "Punch" -> floatArrayOf(1f+.22f*amount,0f,0f,0f,-12f*amount, 0f,1f+.22f*amount,0f,0f,-12f*amount, 0f,0f,1f+.22f*amount,0f,-12f*amount, 0f,0f,0f,1f,0f)
         else -> null
     }
     if (values != null) matrix.postConcat(ColorMatrix(values))
