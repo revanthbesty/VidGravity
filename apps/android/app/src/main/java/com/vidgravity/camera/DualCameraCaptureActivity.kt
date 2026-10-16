@@ -784,11 +784,11 @@ class DualCameraCaptureActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        // Ask CameraX to finalize an active recording before releasing its camera session.
-        // Keep the executor alive for already queued capture/finalize callbacks, then stop
-        // accepting new work. CameraX lifecycle binding is explicitly released as well.
+        // Request finalization if the screen is closed during recording. Do not call
+        // ProcessCameraProvider.unbindAll() here: the Activity lifecycle owns these use cases,
+        // and forcing an immediate unbind can interrupt CameraX's recording Finalize event.
+        // shutdown() allows already queued photo callbacks to finish.
         runCatching { recording?.stop() }
-        runCatching { provider?.unbindAll() }
         runCatching { executor.shutdown() }
         super.onDestroy()
     }
