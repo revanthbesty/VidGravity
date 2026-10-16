@@ -2,6 +2,7 @@ package com.vidgravity.app
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -325,6 +326,14 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                 Text("Camera Studio", style = MaterialTheme.typography.titleLarge)
                 Text("Smart photo capture · " + cameraStyles[style], style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
+                    }.onFailure { onNotice("Could not open video camera: " + (it.message ?: "please retry")) }
+                },
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+            ) { Text("Video", color = MaterialTheme.colorScheme.primary) }
             IconButton(onClick = { settings = true }) { Icon(Icons.Default.Settings, "Camera preferences") }
         }
         if (!permitted) {
