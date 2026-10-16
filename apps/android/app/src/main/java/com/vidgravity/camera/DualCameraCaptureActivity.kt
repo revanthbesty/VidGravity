@@ -207,6 +207,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
         imageCapture = null
         videoCapture = null
         flashEnabled = false
+        flashMode = FlashMode.OFF
         updateFlashLabel()
 
         val rearUseCase = Preview.Builder().build().also { it.setSurfaceProvider(rearPreview.surfaceProvider) }
