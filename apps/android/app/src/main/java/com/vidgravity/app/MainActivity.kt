@@ -454,7 +454,8 @@ private fun VgPrimaryButton(
     Row(
         modifier = modifier
             .background(brush, shape)
-            .border(1.dp, Color.White.copy(alpha = if (enabled) 0.24f else 0.08f), shape)
+            .border(1.dp, Color.White.copy(alpha = if (enabled) 0.28f else 0.08f), shape)
+            .then(if (enabled) Modifier.padding(top = 1.dp) else Modifier)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 18.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.Center,
@@ -591,49 +592,72 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                     Text("QUICK ACTIONS", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     LazyRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            contentPadding = PaddingValues(end = 4.dp)
-                        ) {
-                            items(listOf("♫ Sound Only", "✂ Status Clip Splitter")) { action ->
-                                Surface(
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
-                                    shape = RoundedCornerShape(18.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                                    modifier = Modifier.width(220.dp).heightIn(min = 112.dp).clickable {
-                                        if (url.isBlank()) notify("Paste a media URL first, then choose " + action + ".")
-                                        else if (action.contains("Sound")) {
-                                            scope.launch {
-                                                try {
-                                                    val result = withContext(Dispatchers.IO) { DownloadApi.analyzeSource(url.trim()) }
-                                                    // Some providers omit or mislabel the audio-only format metadata.
-                                                    // Ask yt-dlp for its best audio stream as a reliable fallback.
-                                                    val audio = result.formats.firstOrNull { it.hasAudio && !it.hasVideo }
-                                                    val selector = audio?.selector?.takeIf { it.isNotBlank() } ?: "bestaudio/best"
-                                                    val prefs = SecureDownloadPreferences.load(context)
-                                                    DownloadWorker.enqueue(
-                                                        context, url.trim(), selector, result.title + " — Audio",
-                                                        prefs.unmeteredOnly, audioOnly = true
-                                                    )
-                                                    notify("Sound Only queued. Audio will be converted to M4A when supported; check Downloads for status.")
-                                                } catch (failure: Exception) {
-                                                    notify("Could not prepare audio: " + (failure.message ?: "Please try again."))
-                                                }
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(end = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        items(listOf("♫ Sound Only", "✂ Status Clip Splitter")) { action ->
+                            val isSound = action.contains("Sound")
+                            Surface(
+                                color = MaterialTheme.colorScheme.surface,
+                                shape = RoundedCornerShape(18.dp),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.75f)
+                                ),
+                                shadowElevation = 3.dp,
+                                modifier = Modifier.width(196.dp).heightIn(min = 116.dp).clickable {
+                                    if (url.isBlank()) notify("Paste a media URL first, then choose " + action + ".")
+                                    else if (isSound) {
+                                        scope.launch {
+                                            try {
+                                                val result = withContext(Dispatchers.IO) { DownloadApi.analyzeSource(url.trim()) }
+                                                // Preserve existing audio selection and queue behavior.
+                                                val audio = result.formats.firstOrNull { it.hasAudio && !it.hasVideo }
+                                                val selector = audio?.selector?.takeIf { it.isNotBlank() } ?: "bestaudio/best"
+                                                val prefs = SecureDownloadPreferences.load(context)
+                                                DownloadWorker.enqueue(
+                                                    context, url.trim(), selector, result.title + " — Audio",
+                                                    prefs.unmeteredOnly, audioOnly = true
+                                                )
+                                                notify("Sound Only queued. Audio will be converted to M4A when supported; check Downloads for status.")
+                                            } catch (failure: Exception) {
+                                                notify("Could not prepare audio: " + (failure.message ?: "Please try again."))
                                             }
-                                        } else if (action.contains("Status Clip")) {
-                                            openCreate()
-                                            notify("In Create Studio, choose a local video and select a 30, 60, 90, or 120-second clip target.")
-                                        } else inspect()
+                                        }
+                                    } else {
+                                        openCreate()
+                                        notify("In Create Studio, choose a local video and select a 30, 60, 90, or 120-second clip target.")
                                     }
+                                }
+                            ) {
+                                Column(
+                                    Modifier.fillMaxWidth().padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text(action.substringBefore(" "), fontSize = 24.sp)
-                                        Text(action.substringAfter(" "), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                        Text("Tap to start", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Surface(
+                                        color = if (isSound) MaterialTheme.colorScheme.primaryContainer
+                                            else MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Icon(
+                                            if (isSound) Icons.Default.MusicNote else Icons.Default.ContentCut,
+                                            contentDescription = null,
+                                            tint = if (isSound) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary,
+                                            modifier = Modifier.padding(8.dp).size(22.dp)
+                                        )
                                     }
+                                    Text(
+                                        action.substringAfter(" "),
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text("Tap to start", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
+                    }
                     }
                 }
             }
