@@ -66,6 +66,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private enum class DualPreviewSize { SMALL, MEDIUM, LARGE }
     private var dualPreviewSize = DualPreviewSize.MEDIUM
     private var videoQuality = Quality.FHD
+    private var supportedVideoQualities: List<Quality> = emptyList()
     private var timerSeconds = 0
     private var pendingPhoto = false
 
@@ -217,9 +218,19 @@ class DualCameraCaptureActivity : ComponentActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
+    @OptIn(androidx.camera.video.ExperimentalVideo::class)
     private fun bindCameraSession() {
         val cameraProvider = provider ?: return
         val selector = if (frontFacing) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+        val cameraInfo = runCatching { cameraProvider.getCameraInfo(selector) }.getOrNull()
+        supportedVideoQualities = cameraInfo?.let { info ->
+            runCatching { QualitySelector.getSupportedQualities(info) }.getOrNull()
+        }.orEmpty()
+        if (supportedVideoQualities.isNotEmpty() && videoQuality !in supportedVideoQualities) {
+            videoQuality = supportedVideoQualities.firstOrNull { it == Quality.FHD }
+                ?: supportedVideoQualities.firstOrNull { it == Quality.HD }
+                ?: supportedVideoQualities.first()
+        }
         cameraProvider.unbindAll()
         camera = null
         imageCapture = null
@@ -233,6 +244,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
             val frontUseCase = Preview.Builder().build().also { it.setSurfaceProvider(frontPreview.surfaceProvider) }
             val stillCapture = ImageCapture.Builder()
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                .setFlashMode(ImageCapture.FLASH_MODE_OFF)
                 .build()
             try {
                 val concurrent = cameraProvider.bindToLifecycle(listOf(
@@ -273,8 +285,11 @@ class DualCameraCaptureActivity : ComponentActivity() {
         frontPreview.visibility = View.GONE
         val stillCapture = ImageCapture.Builder()
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+            .setFlashMode(if (flashMode == FlashMode.AUTO) ImageCapture.FLASH_MODE_AUTO else ImageCapture.FLASH_MODE_OFF)
             .build()
-        val recorder = Recorder.Builder().setQualitySelector(QualitySelector.from(videoQuality)).build()
+        val recorder = Recorder.Builder().setQualitySelector(
+            QualitySelector.from(videoQuality, androidx.camera.video.FallbackStrategy.lowerQualityOrHigherThan(Quality.SD))
+        ).build()
         val video = VideoCapture.withOutput(recorder)
         try {
             camera = cameraProvider.bindToLifecycle(this, selector, rearUseCase, stillCapture, video)
@@ -427,26 +442,24 @@ class DualCameraCaptureActivity : ComponentActivity() {
 
     private fun chooseFlashMode() {
         val activeCamera = camera
-        if (dualMode || frontFacing || activeCamera == null || !activeCamera.cameraInfo.hasFlashUnit()) {
-            Toast.makeText(this, "Torch control is available only on a supported single rear camera. Auto flash for still photos is not exposed by this camera UI.", Toast.LENGTH_LONG).show()
+        if (dualMode || activeCamera == null || !activeCamera.cameraInfo.hasFlashUnit()) {
+            Toast.makeText(this, "Flash is not available in this camera configuration.", Toast.LENGTH_LONG).show()
             return
         }
-        val choices = arrayOf("Auto (not supported here)", "On", "Off")
+        val choices = arrayOf("Auto (photo only)", "On (torch)", "Off")
         val checked = when (flashMode) { FlashMode.AUTO -> 0; FlashMode.ON -> 1; FlashMode.OFF -> 2 }
         AlertDialog.Builder(this)
-            .setTitle("Flashlight")
+            .setTitle("Flash")
             .setSingleChoiceItems(choices, checked) { dialog, which ->
                 flashMode = when (which) { 0 -> FlashMode.AUTO; 1 -> FlashMode.ON; else -> FlashMode.OFF }
-                if (flashMode == FlashMode.AUTO) {
-                    // CameraX torch is a continuous light, not a still-photo auto-flash API.
-                    flashMode = FlashMode.OFF
-                    activeCamera.cameraControl.enableTorch(false)
-                    Toast.makeText(this, "Auto flash is not available in this torch control. Flash set to Off.", Toast.LENGTH_LONG).show()
-                } else {
-                    activeCamera.cameraControl.enableTorch(flashMode == FlashMode.ON)
-                }
+                val autoPhotoFlash = flashMode == FlashMode.AUTO && !videoMode
+                imageCapture?.flashMode = if (autoPhotoFlash) ImageCapture.FLASH_MODE_AUTO else ImageCapture.FLASH_MODE_OFF
+                activeCamera.cameraControl.enableTorch(flashMode == FlashMode.ON)
                 flashEnabled = flashMode == FlashMode.ON
                 updateFlashLabel()
+                if (flashMode == FlashMode.AUTO && videoMode) {
+                    Toast.makeText(this, "Auto flash applies to photos only. Video light remains off.", Toast.LENGTH_SHORT).show()
+                }
                 dialog.dismiss()
             }
             .setNegativeButton("Cancel", null)
@@ -509,22 +522,27 @@ class DualCameraCaptureActivity : ComponentActivity() {
             .show()
     }
 
+    @OptIn(androidx.camera.video.ExperimentalVideo::class)
     private fun chooseVideoQuality() {
-        val qualities = arrayOf("SD · 480p", "HD · 720p", "Full HD · 1080p", "Highest available")
+        val cameraInfo = provider?.let {
+            runCatching {
+                it.getCameraInfo(if (frontFacing) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA)
+            }.getOrNull()
+        }
+        val supported = cameraInfo?.let { info ->
+            runCatching { QualitySelector.getSupportedQualities(info) }.getOrNull()
+        }.orEmpty()
+        if (supported.isEmpty()) {
+            Toast.makeText(this, "This camera does not report selectable video quality profiles yet.", Toast.LENGTH_LONG).show()
+            return
+        }
+        supportedVideoQualities = supported
+        val choices = supported.map { videoQualityLabel(it) }.toTypedArray()
+        val checked = supported.indexOf(videoQuality).coerceAtLeast(0)
         AlertDialog.Builder(this)
-            .setTitle("Video quality")
-            .setSingleChoiceItems(qualities, when (videoQuality) {
-                Quality.SD -> 0
-                Quality.HD -> 1
-                Quality.FHD -> 2
-                else -> 3
-            }) { dialog, which ->
-                videoQuality = when (which) {
-                    0 -> Quality.SD
-                    1 -> Quality.HD
-                    2 -> Quality.FHD
-                    else -> Quality.HIGHEST
-                }
+            .setTitle("Supported video quality")
+            .setSingleChoiceItems(choices, checked) { dialog, which ->
+                videoQuality = supported[which]
                 dialog.dismiss()
                 if (recording == null) bindCameraSession()
                 Toast.makeText(this, "Video quality: ${videoQualityLabel(videoQuality)}", Toast.LENGTH_SHORT).show()
