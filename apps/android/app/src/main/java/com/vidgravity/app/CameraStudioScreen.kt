@@ -167,7 +167,8 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     var permitted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) }
     var denied by remember { mutableStateOf(false) }
     var front by remember { mutableStateOf(prefs.getBoolean("front", false)) }
-    var grid by remember { mutableStateOf(prefs.getBoolean("grid", true)) }
+    var gridMode by remember { mutableIntStateOf(prefs.getInt("grid-mode", if (prefs.getBoolean("grid", true)) 1 else 0).coerceIn(0, 2)) }
+    val grid = gridMode != 0
     var levelEnabled by remember { mutableStateOf(prefs.getBoolean("level-enabled", true)) }
     var horizonAngle by remember { mutableFloatStateOf(0f) }
     var focusPoint by remember { mutableStateOf<Offset?>(null) }
@@ -377,9 +378,10 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                 if (grid || framingGuide != "Off") Canvas(Modifier.fillMaxSize()) {
                     val guideColor = ComposeColor.White.copy(alpha = .82f)
                     if (grid) {
-                        for (n in 1..2) {
-                            drawLine(guideColor.copy(alpha = .55f), Offset(size.width * n / 3f, 0f), Offset(size.width * n / 3f, size.height), 1.dp.toPx())
-                            drawLine(guideColor.copy(alpha = .55f), Offset(0f, size.height * n / 3f), Offset(size.width, size.height * n / 3f), 1.dp.toPx())
+                        val divisions = if (gridMode == 2) 4 else 3
+                        for (n in 1 until divisions) {
+                            drawLine(guideColor.copy(alpha = .55f), Offset(size.width * n / divisions, 0f), Offset(size.width * n / divisions, size.height), 1.dp.toPx())
+                            drawLine(guideColor.copy(alpha = .55f), Offset(0f, size.height * n / divisions), Offset(size.width, size.height * n / divisions), 1.dp.toPx())
                         }
                     }
                     if (framingGuide != "Off") {
@@ -391,7 +393,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                 }
                 Column(Modifier.align(Alignment.CenterEnd).padding(6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Surface(shape = CircleShape, color = ComposeColor.Black.copy(alpha = .58f)) {
-                        IconButton(onClick = { grid = !grid; prefs.edit().putBoolean("grid", grid).apply() }) { Icon(Icons.Default.GridOn, "Toggle grid", tint = ComposeColor.White) }
+                        IconButton(onClick = { gridMode = (gridMode + 1) % 3; prefs.edit().putInt("grid-mode", gridMode).putBoolean("grid", gridMode != 0).apply(); onNotice("Composition grid: " + listOf("Off", "Thirds", "4×4")[gridMode]) }) { Icon(Icons.Default.GridOn, "Composition grid: " + listOf("Off", "Thirds", "4 by 4")[gridMode], tint = ComposeColor.White) }
                     }
                     Surface(shape = CircleShape, color = ComposeColor.Black.copy(alpha = .58f)) {
                         IconButton(onClick = { flash = when (flash) { ImageCapture.FLASH_MODE_OFF -> ImageCapture.FLASH_MODE_AUTO; ImageCapture.FLASH_MODE_AUTO -> ImageCapture.FLASH_MODE_ON; else -> ImageCapture.FLASH_MODE_OFF }; prefs.edit().putInt("flash", flash).apply() }) {
@@ -534,6 +536,6 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
         title = { Text("Camera preferences") },
         text = { Text("Front/rear camera, flash, exposure, composition grid, photographic style and style intensity are remembered on this device. Styles are applied to exported photos; the live preview is not color-graded.") },
         confirmButton = { TextButton(onClick = { settings = false }) { Text("Done") } },
-        dismissButton = { TextButton(onClick = { front = false; grid = true; framingGuide = "Off"; flash = ImageCapture.FLASH_MODE_OFF; style = 0; favoriteStyles = emptySet(); favoritesOnly = false; creatorPresets.clear(); savePresetDialog = false; presetName = ""; styleIntensity = 0.75f; exposure = 0f; zoomRatio = 1f; zoomRange = 1f..1f; activeCamera = null; prefs.edit().clear().apply(); settings = false }) { Text("Reset defaults") } }
+        dismissButton = { TextButton(onClick = { front = false; gridMode = 1; framingGuide = "Off"; flash = ImageCapture.FLASH_MODE_OFF; style = 0; favoriteStyles = emptySet(); favoritesOnly = false; creatorPresets.clear(); savePresetDialog = false; presetName = ""; styleIntensity = 0.75f; exposure = 0f; zoomRatio = 1f; zoomRange = 1f..1f; activeCamera = null; prefs.edit().clear().apply(); settings = false }) { Text("Reset defaults") } }
     )
 }
