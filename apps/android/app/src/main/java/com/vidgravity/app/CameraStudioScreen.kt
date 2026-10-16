@@ -2,7 +2,14 @@ package com.vidgravity.app
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.media.ExifInterface
 import android.os.Handler
 import android.os.Looper
 import android.view.ViewGroup
@@ -46,6 +53,70 @@ import java.util.concurrent.Executors
 
 private val cameraStyles = listOf("Natural", "Rich Contrast", "Warm", "Cool", "Vibrant", "Soft", "Cinematic", "Monochrome")
 
+private fun renderCameraStyle(sourceFile: File, outputFile: File, style: String, intensity: Float) {
+    if (style == "Natural" || intensity <= 0.001f) {
+        sourceFile.copyTo(outputFile, overwrite = true)
+        return
+    }
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(sourceFile.absolutePath, bounds)
+    require(bounds.outWidth > 0 && bounds.outHeight > 0) { "Captured photo could not be decoded." }
+    var sample = 1
+    while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 2560) sample *= 2
+    val options = BitmapFactory.Options().apply { inSampleSize = sample; inPreferredConfig = Bitmap.Config.ARGB_8888 }
+    var decoded = BitmapFactory.decodeFile(sourceFile.absolutePath, options) ?: error("Captured photo could not be decoded.")
+    val orientation = runCatching { ExifInterface(sourceFile.absolutePath).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+    val rotation = when (orientation) {
+        ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+        else -> 0f
+    }
+    if (rotation != 0f) {
+        val matrix = Matrix().apply { postRotate(rotation) }
+        val rotated = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
+        if (rotated !== decoded) decoded.recycle()
+        decoded = rotated
+    }
+    val a = intensity.coerceIn(0f, 1f)
+    val saturation = when (style) {
+        "Monochrome" -> 1f - a
+        "Vibrant" -> 1f + .32f * a
+        "Soft" -> 1f - .12f * a
+        "Cinematic" -> 1f - .08f * a
+        else -> 1f
+    }
+    val contrast = when (style) {
+        "Rich Contrast" -> 1f + .24f * a
+        "Cinematic" -> 1f + .15f * a
+        "Soft" -> 1f - .10f * a
+        else -> 1f
+    }
+    val warm = when (style) {
+        "Warm" -> a
+        "Cool" -> -a
+        "Vibrant" -> .12f * a
+        "Cinematic" -> -.10f * a
+        else -> 0f
+    }
+    val matrix = ColorMatrix().apply { setSaturation(saturation) }
+    val offset = 128f * (1f - contrast)
+    matrix.postConcat(ColorMatrix(floatArrayOf(
+        contrast,0f,0f,0f,offset + 22f * warm,
+        0f,contrast,0f,0f,offset + 3f * warm,
+        0f,0f,contrast,0f,offset - 22f * warm,
+        0f,0f,0f,1f,0f
+    )))
+    val result = Bitmap.createBitmap(decoded.width, decoded.height, Bitmap.Config.ARGB_8888)
+    try {
+        Canvas(result).drawBitmap(decoded, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG).apply { colorFilter = ColorMatrixColorFilter(matrix) })
+        outputFile.outputStream().buffered().use { out -> check(result.compress(Bitmap.CompressFormat.JPEG, 94, out)) { "Styled photo encoding failed." } }
+    } finally {
+        result.recycle()
+        decoded.recycle()
+    }
+}
+
 @Composable
 internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit) {
     val context = LocalContext.current
@@ -57,6 +128,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     var grid by remember { mutableStateOf(prefs.getBoolean("grid", true)) }
     var flash by remember { mutableIntStateOf(prefs.getInt("flash", ImageCapture.FLASH_MODE_OFF)) }
     var style by remember { mutableIntStateOf(prefs.getInt("style", 0).coerceIn(0, cameraStyles.lastIndex)) }
+    var styleIntensity by remember { mutableFloatStateOf(prefs.getFloat("style-intensity", 0.75f).coerceIn(0f, 1f)) }
     var exposure by remember { mutableFloatStateOf(0f) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -149,7 +221,13 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                     }
                     OutlinedButton(onClick = { style = (style + 1) % cameraStyles.size; prefs.edit().putInt("style", style).apply() }) { Text("Style ›") }
                 }
-                Text("Photographic styles are saved selections; live color grading is not yet applied to the preview.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Style intensity", style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.weight(1f))
+                    Text((styleIntensity * 100).toInt().toString() + "%", style = MaterialTheme.typography.labelMedium)
+                }
+                Slider(value = styleIntensity, onValueChange = { styleIntensity = it; prefs.edit().putFloat("style-intensity", it).apply() }, valueRange = 0f..1f)
+                Text("Selected style is applied to the saved photo. The live preview remains ungraded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Button(onClick = {
                     if (busy || error != null) return@Button
                     busy = true
@@ -157,10 +235,14 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                     imageCapture.takePicture(ImageCapture.OutputFileOptions.Builder(file).build(), executor, object : ImageCapture.OnImageSavedCallback {
                         override fun onImageSaved(result: ImageCapture.OutputFileResults) {
                             try {
-                                val digest = MessageDigest.getInstance("SHA-256").digest(file.readBytes()).joinToString("") { "%02x".format(it) }
-                                val saved = MediaLibraryIndexer.publish(context, file, "vidgravity-camera-" + System.currentTimeMillis() + ".jpg", digest)
-                                file.delete()
-                                Handler(Looper.getMainLooper()).post { busy = false; onNotice("Photo saved to Library: " + saved.displayName) }
+                                val output = File(context.cacheDir, "vg-camera-styled-" + System.currentTimeMillis() + ".jpg")
+                                try {
+                                    renderCameraStyle(file, output, cameraStyles[style], styleIntensity)
+                                    val digest = MessageDigest.getInstance("SHA-256").digest(output.readBytes()).joinToString("") { "%02x".format(it) }
+                                    val suffix = if (cameraStyles[style] == "Natural" || styleIntensity <= 0.001f) "" else "-" + cameraStyles[style].lowercase().replace(" ", "-")
+                                    val saved = MediaLibraryIndexer.publish(context, output, "vidgravity-camera-" + System.currentTimeMillis() + suffix + ".jpg", digest)
+                                    Handler(Looper.getMainLooper()).post { busy = false; onNotice("Photo saved to Library: " + saved.displayName) }
+                                } finally { file.delete(); output.delete() }
                             } catch (t: Exception) {
                                 file.delete()
                                 Handler(Looper.getMainLooper()).post { busy = false; onNotice("Photo save failed: " + (t.message ?: "unknown error")) }
@@ -182,8 +264,8 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     if (settings) AlertDialog(
         onDismissRequest = { settings = false },
         title = { Text("Camera preferences") },
-        text = { Text("Front/rear camera, flash, exposure, composition grid and photographic style are remembered on this device. Reset defaults clears these camera preferences. Styles currently label the saved look; styled rendering is a later phase.") },
+        text = { Text("Front/rear camera, flash, exposure, composition grid, photographic style and style intensity are remembered on this device. Styles are applied to exported photos; the live preview is not color-graded.") },
         confirmButton = { TextButton(onClick = { settings = false }) { Text("Done") } },
-        dismissButton = { TextButton(onClick = { front = false; grid = true; flash = ImageCapture.FLASH_MODE_OFF; style = 0; exposure = 0f; prefs.edit().clear().apply(); settings = false }) { Text("Reset defaults") } }
+        dismissButton = { TextButton(onClick = { front = false; grid = true; flash = ImageCapture.FLASH_MODE_OFF; style = 0; styleIntensity = 0.75f; exposure = 0f; prefs.edit().clear().apply(); settings = false }) { Text("Reset defaults") } }
     )
 }
