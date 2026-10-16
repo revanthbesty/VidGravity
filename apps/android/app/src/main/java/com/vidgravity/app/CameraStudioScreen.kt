@@ -56,6 +56,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.security.MessageDigest
@@ -171,6 +174,10 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     var activeCamera by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
     var exposureRange by remember { mutableStateOf(-2f..2f) }
     var busy by remember { mutableStateOf(false) }
+    var timerSeconds by remember { mutableIntStateOf(prefs.getInt("timer-seconds", 0).coerceIn(0, 10)) }
+    var countdownRemaining by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
+    var countdownJob by remember { mutableStateOf<Job?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var settings by remember { mutableStateOf(false) }
     val permissionRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> permitted = granted; denied = !granted }
@@ -216,6 +223,35 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
         val step = state.exposureCompensationStep.toFloat()
         val index = if (step > 0f) (exposure / step).toInt().coerceIn(range.lower, range.upper) else 0
         runCatching { camera.cameraControl.setExposureCompensationIndex(index) }
+    }
+
+    fun capturePhoto() {
+        if (busy || error != null) return
+        busy = true
+        val capturedStyle = cameraStyles[style]
+        val capturedIntensity = styleIntensity
+        val file = File(context.cacheDir, "vg-camera-" + System.currentTimeMillis() + ".jpg")
+        imageCapture.takePicture(ImageCapture.OutputFileOptions.Builder(file).build(), executor, object : ImageCapture.OnImageSavedCallback {
+            override fun onImageSaved(result: ImageCapture.OutputFileResults) {
+                try {
+                    val output = File(context.cacheDir, "vg-camera-styled-" + System.currentTimeMillis() + ".jpg")
+                    try {
+                        renderCameraStyle(file, output, capturedStyle, capturedIntensity)
+                        val digest = MessageDigest.getInstance("SHA-256").digest(output.readBytes()).joinToString("") { "%02x".format(it) }
+                        val suffix = if (capturedStyle == "Natural" || capturedIntensity <= 0.001f) "" else "-" + capturedStyle.lowercase().replace(" ", "-")
+                        val saved = MediaLibraryIndexer.publish(context, output, "vidgravity-camera-" + System.currentTimeMillis() + suffix + ".jpg", digest)
+                        Handler(Looper.getMainLooper()).post { busy = false; onNotice("Photo saved to Library: " + saved.displayName) }
+                    } finally { file.delete(); output.delete() }
+                } catch (t: Exception) {
+                    file.delete()
+                    Handler(Looper.getMainLooper()).post { busy = false; onNotice("Photo save failed: " + (t.message ?: "unknown error")) }
+                }
+            }
+            override fun onError(exception: ImageCaptureException) {
+                file.delete()
+                Handler(Looper.getMainLooper()).post { busy = false; onNotice("Capture failed: " + (exception.message ?: "please retry")) }
+            }
+        })
     }
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -319,35 +355,34 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                 }
                 Slider(value = styleIntensity, onValueChange = { styleIntensity = it; prefs.edit().putFloat("style-intensity", it).apply() }, valueRange = 0f..1f)
                 Text("Tap the preview to focus. Exposure range follows the selected camera hardware. Styles are applied to saved photos; live preview remains ungraded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Self-timer", style = MaterialTheme.typography.labelMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(0, 3, 5, 10).forEach { seconds ->
+                            FilterChip(selected = timerSeconds == seconds, onClick = { timerSeconds = seconds; prefs.edit().putInt("timer-seconds", seconds).apply() }, label = { Text(if (seconds == 0) "Off" else seconds.toString() + "s") }, enabled = !busy && countdownRemaining == 0)
+                        }
+                    }
+                }
                 Button(onClick = {
-                    if (busy || error != null) return@Button
-                    busy = true
-                    val file = File(context.cacheDir, "vg-camera-" + System.currentTimeMillis() + ".jpg")
-                    imageCapture.takePicture(ImageCapture.OutputFileOptions.Builder(file).build(), executor, object : ImageCapture.OnImageSavedCallback {
-                        override fun onImageSaved(result: ImageCapture.OutputFileResults) {
-                            try {
-                                val output = File(context.cacheDir, "vg-camera-styled-" + System.currentTimeMillis() + ".jpg")
-                                try {
-                                    renderCameraStyle(file, output, cameraStyles[style], styleIntensity)
-                                    val digest = MessageDigest.getInstance("SHA-256").digest(output.readBytes()).joinToString("") { "%02x".format(it) }
-                                    val suffix = if (cameraStyles[style] == "Natural" || styleIntensity <= 0.001f) "" else "-" + cameraStyles[style].lowercase().replace(" ", "-")
-                                    val saved = MediaLibraryIndexer.publish(context, output, "vidgravity-camera-" + System.currentTimeMillis() + suffix + ".jpg", digest)
-                                    Handler(Looper.getMainLooper()).post { busy = false; onNotice("Photo saved to Library: " + saved.displayName) }
-                                } finally { file.delete(); output.delete() }
-                            } catch (t: Exception) {
-                                file.delete()
-                                Handler(Looper.getMainLooper()).post { busy = false; onNotice("Photo save failed: " + (t.message ?: "unknown error")) }
+                    if (busy || error != null || countdownRemaining > 0) return@Button
+                    if (timerSeconds == 0) capturePhoto()
+                    else {
+                        countdownJob?.cancel()
+                        countdownJob = scope.launch {
+                            for (remaining in timerSeconds downTo 1) {
+                                countdownRemaining = remaining
+                                delay(1000)
                             }
+                            countdownRemaining = 0
+                            capturePhoto()
                         }
-                        override fun onError(exception: ImageCaptureException) {
-                            file.delete()
-                            Handler(Looper.getMainLooper()).post { busy = false; onNotice("Capture failed: " + (exception.message ?: "please retry")) }
-                        }
-                    })
+                    }
                 }, enabled = !busy && error == null, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(18.dp)) {
-                    if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else Icon(Icons.Default.PhotoCamera, null)
+                    if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                    else if (countdownRemaining > 0) Text(countdownRemaining.toString(), style = MaterialTheme.typography.headlineSmall)
+                    else Icon(Icons.Default.PhotoCamera, null)
                     Spacer(Modifier.width(10.dp))
-                    Text(if (busy) "Saving photo…" else "Capture photo")
+                    Text(if (busy) "Saving photo…" else if (countdownRemaining > 0) "Get ready…" else if (timerSeconds > 0) "Start " + timerSeconds + "s timer" else "Capture photo")
                 }
             }
         }
