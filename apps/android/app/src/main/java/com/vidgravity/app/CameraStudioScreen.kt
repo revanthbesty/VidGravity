@@ -324,8 +324,15 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
             }
         } else {
             // Keep the live camera preview visible even when the controls exceed the screen height.
-            Box(Modifier.fillMaxWidth().height(250.dp).padding(horizontal = 10.dp)) {
-                AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize().pointerInput(activeCamera, zoomRange, zoomRatio, focusLocked) { detectTapGestures(
+            Box(
+                Modifier.fillMaxWidth().heightIn(min = 240.dp).height(250.dp)
+                    .padding(horizontal = 10.dp).background(ComposeColor.Black, RoundedCornerShape(16.dp))
+            ) {
+                AndroidView(
+                    factory = { previewView },
+                    modifier = Modifier.fillMaxSize()
+                        .background(ComposeColor.Black, RoundedCornerShape(16.dp))
+                        .pointerInput(activeCamera, zoomRange, zoomRatio, focusLocked) { detectTapGestures(
                     onTap = { tap ->
                         if (focusLocked) {
                             runCatching { activeCamera?.cameraControl?.cancelFocusAndMetering() }
@@ -363,7 +370,14 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                             prefs.edit().putFloat("zoom-ratio", next).apply()
                         }
                     }
-                ) })
+                ) }
+                if (activeCamera == null && error == null) {
+                    Text(
+                        "Starting camera…",
+                        color = ComposeColor.White,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
                 focusPoint?.let { point ->
                     Canvas(Modifier.fillMaxSize()) {
                         drawCircle(color = ComposeColor(0xFF55E0C0), radius = 24.dp.toPx(), center = point, style = Stroke(width = 2.dp.toPx()))
