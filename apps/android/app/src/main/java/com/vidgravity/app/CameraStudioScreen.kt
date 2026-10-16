@@ -171,6 +171,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     var levelEnabled by remember { mutableStateOf(prefs.getBoolean("level-enabled", true)) }
     var horizonAngle by remember { mutableFloatStateOf(0f) }
     var focusPoint by remember { mutableStateOf<Offset?>(null) }
+    var focusLocked by remember { mutableStateOf(false) }
     var focusIndicatorJob by remember { mutableStateOf<Job?>(null) }
     var levelSensorAvailable by remember { mutableStateOf(false) }
     val framingGuides = listOf("Off", "1:1", "4:5", "16:9")
@@ -314,14 +315,35 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
             }
         } else {
             Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 10.dp)) {
-                AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize().pointerInput(activeCamera, zoomRange, zoomRatio) { detectTapGestures(
+                AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize().pointerInput(activeCamera, zoomRange, zoomRatio, focusLocked) { detectTapGestures(
                     onTap = { tap ->
+                        if (focusLocked) {
+                            runCatching { activeCamera?.cameraControl?.cancelFocusAndMetering() }
+                            focusLocked = false
+                            focusPoint = null
+                            focusIndicatorJob?.cancel()
+                            onNotice("Focus and metering lock released.")
+                        } else {
+                            focusPoint = tap
+                            focusIndicatorJob?.cancel()
+                            focusIndicatorJob = scope.launch { delay(1200); focusPoint = null }
+                            val point = previewView.meteringPointFactory.createPoint(tap.x, tap.y)
+                            val action = FocusMeteringAction.Builder(point).setAutoCancelDuration(3, java.util.concurrent.TimeUnit.SECONDS).build()
+                            runCatching { activeCamera?.cameraControl?.startFocusAndMetering(action) }
+                        }
+                    },
+                    onLongPress = { tap ->
                         focusPoint = tap
                         focusIndicatorJob?.cancel()
-                        focusIndicatorJob = scope.launch { delay(1200); focusPoint = null }
                         val point = previewView.meteringPointFactory.createPoint(tap.x, tap.y)
-                        val action = FocusMeteringAction.Builder(point).setAutoCancelDuration(3, java.util.concurrent.TimeUnit.SECONDS).build()
-                        runCatching { activeCamera?.cameraControl?.startFocusAndMetering(action) }
+                        val action = FocusMeteringAction.Builder(point).disableAutoCancel().build()
+                        val control = activeCamera?.cameraControl
+                        if (control != null) {
+                            control.startFocusAndMetering(action).addListener({
+                                focusLocked = true
+                                onNotice("Focus and metering locked. Tap preview to release.")
+                            }, ContextCompat.getMainExecutor(context))
+                        }
                     },
                     onDoubleTap = {
                         val targets = listOf(1f, 2f, 3f).filter { it >= zoomRange.start && it <= zoomRange.endInclusive }
@@ -454,7 +476,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                     Text((styleIntensity * 100).toInt().toString() + "%", style = MaterialTheme.typography.labelMedium)
                 }
                 Slider(value = styleIntensity, onValueChange = { styleIntensity = it; prefs.edit().putFloat("style-intensity", it).apply() }, valueRange = 0f..1f)
-                Text("Tap the preview to focus. Exposure range follows the selected camera hardware. Styles are applied to saved photos; live preview remains ungraded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Tap to focus; long-press to lock focus and metering, then tap again to release. Exposure range follows the selected camera hardware. Styles are applied to saved photos; live preview remains ungraded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Self-timer", style = MaterialTheme.typography.labelMedium)
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
