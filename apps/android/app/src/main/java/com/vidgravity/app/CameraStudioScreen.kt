@@ -55,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
@@ -197,6 +198,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     var zoomRatio by remember { mutableFloatStateOf(prefs.getFloat("zoom-ratio", 1f).coerceAtLeast(1f)) }
     var zoomRange by remember { mutableStateOf(1f..1f) }
     var activeCamera by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
+    var previewReady by remember { mutableStateOf(false) }
     var exposureRange by remember { mutableStateOf(-2f..2f) }
     var busy by remember { mutableStateOf(false) }
     var timerSeconds by remember { mutableIntStateOf(prefs.getInt("timer-seconds", 0).coerceIn(0, 10)) }
@@ -206,7 +208,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     var error by remember { mutableStateOf<String?>(null) }
     var settings by remember { mutableStateOf(false) }
     val permissionRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> permitted = granted; denied = !granted }
-    val providerFuture = remember { ProcessCameraProvider.getInstance(context) }
+    val providerFuture = remember { ProcessCameraProvider.getInstance(context.applicationContext) }
     val executor = remember { Executors.newSingleThreadExecutor() }
     val previewView = remember {
         PreviewView(context).apply {
@@ -237,8 +239,10 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     DisposableEffect(Unit) {
         onDispose { runCatching { providerFuture.get().unbindAll() }; executor.shutdown() }
     }
-    LaunchedEffect(permitted, front, flash) {
-        if (!permitted) return@LaunchedEffect
+    LaunchedEffect(permitted, front, flash, previewReady) {
+        // Wait until Compose has attached and measured PreviewView before binding CameraX.
+        // This avoids binding to a surface that does not exist yet on first entry.
+        if (!permitted || !previewReady) return@LaunchedEffect
         try {
             val provider = withContext(Dispatchers.IO) { providerFuture.get() }
             val selector = if (front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
@@ -339,6 +343,9 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                 AndroidView(
                     factory = { previewView },
                     modifier = Modifier.fillMaxSize()
+                        .onGloballyPositioned { coordinates ->
+                            if (!previewReady && coordinates.size.width > 0 && coordinates.size.height > 0) previewReady = true
+                        }
                         .background(ComposeColor.Black, RoundedCornerShape(16.dp))
                         .pointerInput(activeCamera, zoomRange, zoomRatio, focusLocked) { detectTapGestures(
                     onTap = { tap ->
