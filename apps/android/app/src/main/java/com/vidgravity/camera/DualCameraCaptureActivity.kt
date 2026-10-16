@@ -463,8 +463,17 @@ class DualCameraCaptureActivity : ComponentActivity() {
                         status.text = "Recording failed"
                         Toast.makeText(this, "Recording failed. Please retry.", Toast.LENGTH_LONG).show()
                     } else {
-                        status.text = "Video saved · ${target.name}"
-                        Toast.makeText(this, "Video saved to VidGravity: ${target.name}", Toast.LENGTH_LONG).show()
+                        try {
+                            val published = com.vidgravity.app.MediaLibraryIndexer.publish(
+                                this@DualCameraCaptureActivity, target, target.name, sha256(target)
+                            )
+                            target.delete()
+                            status.text = "Video saved to Library · ${published.displayName}"
+                            Toast.makeText(this, "Video added to VidGravity Library", Toast.LENGTH_LONG).show()
+                        } catch (error: Exception) {
+                            status.text = "Video recorded · Library import failed"
+                            Toast.makeText(this, "Video recorded but could not be added to Library: ${error.message}", Toast.LENGTH_LONG).show()
+                        }
                     }
                 }
             }
