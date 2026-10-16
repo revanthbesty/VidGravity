@@ -106,7 +106,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     private fun buildCameraUi() {
-        container = FrameLayout(this).apply { setBackgroundColor(0xFF08080B.toInt()) }
+        container = FrameLayout(this).apply { setBackgroundColor(0xFF121E21.toInt()) }
         rearPreview = PreviewView(this).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
         frontPreview = PreviewView(this).apply {
             scaleType = PreviewView.ScaleType.FILL_CENTER
@@ -150,7 +150,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(8), dp(10), dp(8))
-            setBackgroundColor(0xAA101014.toInt())
+            setBackgroundColor(0xE61A272B.toInt())
         }
         val close = controlButton("✕") { finish() }
         flashButton = controlButton("⚡ Off") { chooseFlashMode() }
@@ -169,9 +169,9 @@ class DualCameraCaptureActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(dp(5), dp(8), dp(5), dp(8))
             background = android.graphics.drawable.GradientDrawable().apply {
-                setColor(0xAA172126.toInt())
+                setColor(0xE61B2B30.toInt())
                 cornerRadius = dp(24).toFloat()
-                setStroke(dp(1), 0x667D9A9D)
+                setStroke(dp(1), 0x667ECABD)
             }
             elevation = dp(6).toFloat()
         }
@@ -196,7 +196,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(dp(16), dp(12), dp(16), dp(24))
-            setBackgroundColor(0xCC101014.toInt())
+            setBackgroundColor(0xE61A272B.toInt())
         }
         status = TextView(this).apply {
             text = "Preparing camera…"
@@ -213,15 +213,15 @@ class DualCameraCaptureActivity : ComponentActivity() {
         modeButton = controlButton("PHOTO ✓") { toggleMode() }
         shutter = controlButton("●  Capture") { onShutterPressed() }.apply {
             textSize = 17f
-            setTextColor(0xFFFFFFFF.toInt())
-            setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF7657D8.toInt()))
+            setTextColor(0xFF102124.toInt())
+            setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF80CDBF.toInt()))
         }
         controls.addView(modeButton, LinearLayout.LayoutParams(0, dp(58), 1f).apply { marginEnd = dp(12) })
         controls.addView(shutter, LinearLayout.LayoutParams(0, dp(58), 1.3f))
         bottom.addView(controls, LinearLayout.LayoutParams(-1, -2))
         val hint = TextView(this).apply {
             text = "Tap preview to focus · Tap Capture for a photo. In Video mode, tap to start/stop recording."
-            setTextColor(0xFFCBC7D5.toInt())
+            setTextColor(0xFFB8C9C8.toInt())
             textSize = 11f
             gravity = Gravity.CENTER
             setPadding(0, dp(10), 0, 0)
@@ -237,7 +237,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
             textSize = 11f
             isAllCaps = false
             setTextColor(0xFFFFFFFF.toInt())
-            setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xCC2A2832.toInt()))
+            setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF2D4146.toInt()))
             setOnClickListener { action() }
         }
 
@@ -383,7 +383,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
         if (!videoMode) activateVideoMode(audioGranted = true) else {
             videoMode = false
             modeButton.text = "PHOTO ✓ · tap for VIDEO"
-            modeButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF34464B.toInt()))
+            modeButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF2D4146.toInt()))
             bindCameraSession()
         }
     }
@@ -391,7 +391,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private fun activateVideoMode(audioGranted: Boolean) {
         videoMode = true
         modeButton.text = "VIDEO ✓ · tap for PHOTO"
-        modeButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF286B66.toInt()))
+        modeButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF80CDBF.toInt()))
         if (dualMode) {
             dualMode = false
             bindCameraSession()
