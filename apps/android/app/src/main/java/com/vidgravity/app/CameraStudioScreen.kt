@@ -370,7 +370,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                             prefs.edit().putFloat("zoom-ratio", next).apply()
                         }
                     }
-                ) }
+                ) })
                 if (activeCamera == null && error == null) {
                     Text(
                         "Starting camera…",
