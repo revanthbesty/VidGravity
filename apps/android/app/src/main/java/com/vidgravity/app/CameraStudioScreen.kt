@@ -36,6 +36,8 @@ import androidx.compose.material.icons.filled.FlashOn
 import androidx.compose.material.icons.filled.GridOn
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.SwitchCamera
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -131,6 +133,8 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     var grid by remember { mutableStateOf(prefs.getBoolean("grid", true)) }
     var flash by remember { mutableIntStateOf(prefs.getInt("flash", ImageCapture.FLASH_MODE_OFF)) }
     var style by remember { mutableIntStateOf(prefs.getInt("style", 0).coerceIn(0, cameraStyles.lastIndex)) }
+    var favoriteStyles by remember { mutableStateOf(prefs.getStringSet("favorite-styles", emptySet()).orEmpty().toSet()) }
+    var favoritesOnly by remember { mutableStateOf(false) }
     var styleIntensity by remember { mutableFloatStateOf(prefs.getFloat("style-intensity", 0.75f).coerceIn(0f, 1f)) }
     var exposure by remember { mutableFloatStateOf(prefs.getFloat("exposure", 0f).coerceIn(-2f, 2f)) }
     var activeCamera by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
@@ -231,12 +235,21 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                 }
                 Slider(value = exposure.coerceIn(exposureRange.start, exposureRange.endInclusive), onValueChange = { exposure = it; prefs.edit().putFloat("exposure", it).apply() }, valueRange = exposureRange, enabled = exposureRange.start < exposureRange.endInclusive)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(onClick = { style = (style - 1 + cameraStyles.size) % cameraStyles.size; prefs.edit().putInt("style", style).apply() }) { Text("‹ Style") }
+                    OutlinedButton(onClick = { val candidates = if (favoritesOnly && favoriteStyles.isNotEmpty()) cameraStyles.indices.filter { cameraStyles[it] in favoriteStyles } else cameraStyles.indices.toList(); val currentPosition = candidates.indexOf(style).let { if (it < 0) 0 else it }; style = candidates[(currentPosition - 1 + candidates.size) % candidates.size]; prefs.edit().putInt("style", style).apply() }) { Text("‹ Style") }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(cameraStyles[style], style = MaterialTheme.typography.labelLarge)
-                        Text("Saved preference", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(if (cameraStyles[style] in favoriteStyles) "★ Favorite" else "Photographic style", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    OutlinedButton(onClick = { style = (style + 1) % cameraStyles.size; prefs.edit().putInt("style", style).apply() }) { Text("Style ›") }
+                    IconButton(onClick = { favoriteStyles = if (cameraStyles[style] in favoriteStyles) favoriteStyles - cameraStyles[style] else favoriteStyles + cameraStyles[style]; prefs.edit().putStringSet("favorite-styles", favoriteStyles).apply() }) {
+                        Icon(if (cameraStyles[style] in favoriteStyles) Icons.Default.Star else Icons.Default.StarBorder, contentDescription = "Toggle favorite style", tint = if (cameraStyles[style] in favoriteStyles) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    OutlinedButton(onClick = { val candidates = if (favoritesOnly && favoriteStyles.isNotEmpty()) cameraStyles.indices.filter { cameraStyles[it] in favoriteStyles } else cameraStyles.indices.toList(); val currentPosition = candidates.indexOf(style).let { if (it < 0) 0 else it }; style = candidates[(currentPosition + 1) % candidates.size]; prefs.edit().putInt("style", style).apply() }) { Text("Style ›") }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Text("Style favorites", style = MaterialTheme.typography.labelMedium)
+                    TextButton(onClick = { favoritesOnly = !favoritesOnly; if (favoritesOnly && favoriteStyles.isNotEmpty() && cameraStyles[style] !in favoriteStyles) { style = cameraStyles.indexOfFirst { it in favoriteStyles }.coerceAtLeast(0); prefs.edit().putInt("style", style).apply() } }) {
+                        Text(if (favoritesOnly) "Show all" else "Favorites only (" + favoriteStyles.size + ")")
+                    }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Style intensity", style = MaterialTheme.typography.labelMedium)
@@ -283,6 +296,6 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
         title = { Text("Camera preferences") },
         text = { Text("Front/rear camera, flash, exposure, composition grid, photographic style and style intensity are remembered on this device. Styles are applied to exported photos; the live preview is not color-graded.") },
         confirmButton = { TextButton(onClick = { settings = false }) { Text("Done") } },
-        dismissButton = { TextButton(onClick = { front = false; grid = true; flash = ImageCapture.FLASH_MODE_OFF; style = 0; styleIntensity = 0.75f; exposure = 0f; activeCamera = null; prefs.edit().clear().apply(); settings = false }) { Text("Reset defaults") } }
+        dismissButton = { TextButton(onClick = { front = false; grid = true; flash = ImageCapture.FLASH_MODE_OFF; style = 0; favoriteStyles = emptySet(); favoritesOnly = false; styleIntensity = 0.75f; exposure = 0f; activeCamera = null; prefs.edit().clear().apply(); settings = false }) { Text("Reset defaults") } }
     )
 }
