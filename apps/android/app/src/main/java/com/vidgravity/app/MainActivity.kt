@@ -177,7 +177,13 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 onClick = { selected = tab },
                                 colors = NavigationBarItemDefaults.colors(
                                     indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
-                                    selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    selectedIconColor = when (tab) {
+                                        VgTab.Home -> VidGravityPalette.mint
+                                        VgTab.Downloads -> VidGravityPalette.softBlue
+                                        VgTab.Library -> VidGravityPalette.oceanCyan
+                                        VgTab.Create -> VidGravityPalette.lavender
+                                        VgTab.Settings -> VidGravityPalette.champagneGold
+                                    },
                                     selectedTextColor = MaterialTheme.colorScheme.onSurface,
                                     unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                                     unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
