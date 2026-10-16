@@ -1,0 +1,189 @@
+package com.vidgravity.app
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
+import android.os.Handler
+import android.os.Looper
+import android.view.ViewGroup
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.FlashAuto
+import androidx.compose.material.icons.filled.FlashOff
+import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.GridOn
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SwitchCamera
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.security.MessageDigest
+import java.util.concurrent.Executors
+
+private val cameraStyles = listOf("Natural", "Rich Contrast", "Warm", "Cool", "Vibrant", "Soft", "Cinematic", "Monochrome")
+
+@Composable
+internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit) {
+    val context = LocalContext.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val prefs = remember { context.getSharedPreferences("vg-camera-studio", 0) }
+    var permitted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) }
+    var denied by remember { mutableStateOf(false) }
+    var front by remember { mutableStateOf(prefs.getBoolean("front", false)) }
+    var grid by remember { mutableStateOf(prefs.getBoolean("grid", true)) }
+    var flash by remember { mutableIntStateOf(prefs.getInt("flash", ImageCapture.FLASH_MODE_OFF)) }
+    var style by remember { mutableIntStateOf(prefs.getInt("style", 0).coerceIn(0, cameraStyles.lastIndex)) }
+    var exposure by remember { mutableFloatStateOf(0f) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var settings by remember { mutableStateOf(false) }
+    val permissionRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> permitted = granted; denied = !granted }
+    val providerFuture = remember { ProcessCameraProvider.getInstance(context) }
+    val executor = remember { Executors.newSingleThreadExecutor() }
+    val previewView = remember {
+        PreviewView(context).apply {
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+            layoutParams = ViewGroup.LayoutParams(-1, -1)
+        }
+    }
+    val imageCapture = remember { ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build() }
+
+    DisposableEffect(Unit) {
+        onDispose { runCatching { providerFuture.get().unbindAll() }; executor.shutdown() }
+    }
+    LaunchedEffect(permitted, front, flash, exposure) {
+        if (!permitted) return@LaunchedEffect
+        try {
+            val provider = withContext(Dispatchers.IO) { providerFuture.get() }
+            val selector = if (front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+            if (!provider.hasCamera(selector)) { error = "Selected camera is unavailable on this device."; return@LaunchedEffect }
+            val preview = Preview.Builder().build().also { it.setSurfaceProvider(previewView.surfaceProvider) }
+            imageCapture.flashMode = flash
+            provider.unbindAll()
+            val camera = provider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture)
+            val range = camera.cameraInfo.exposureState.exposureCompensationRange
+            val step = camera.cameraInfo.exposureState.exposureCompensationStep.toFloat()
+            val index = if (step > 0f) (exposure / step).toInt().coerceIn(range.lower, range.upper) else 0
+            runCatching { camera.cameraControl.setExposureCompensationIndex(index) }
+            error = null
+        } catch (t: Exception) { error = "Camera startup failed: " + (t.message ?: "unknown error") }
+    }
+
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onClose) { Icon(Icons.Default.ArrowBack, "Close camera") }
+            Column(Modifier.weight(1f)) {
+                Text("Camera Studio", style = MaterialTheme.typography.titleLarge)
+                Text("Smart photo capture · " + cameraStyles[style], style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            IconButton(onClick = { settings = true }) { Icon(Icons.Default.Settings, "Camera preferences") }
+        }
+        if (!permitted) {
+            Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.PhotoCamera, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+                Text("Camera permission is required to take photos.", modifier = Modifier.padding(16.dp))
+                Button(onClick = { permissionRequest.launch(Manifest.permission.CAMERA) }) { Text("Allow camera") }
+                if (denied) Text("Enable camera access in Android Settings to continue.", color = MaterialTheme.colorScheme.error)
+            }
+        } else {
+            Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 10.dp)) {
+                AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+                if (grid) Canvas(Modifier.fillMaxSize()) {
+                    for (n in 1..2) {
+                        drawLine(ComposeColor.White.copy(alpha = .55f), Offset(size.width * n / 3f, 0f), Offset(size.width * n / 3f, size.height), 1.dp.toPx())
+                        drawLine(ComposeColor.White.copy(alpha = .55f), Offset(0f, size.height * n / 3f), Offset(size.width, size.height * n / 3f), 1.dp.toPx())
+                    }
+                }
+                Column(Modifier.align(Alignment.CenterEnd).padding(6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(shape = CircleShape, color = ComposeColor.Black.copy(alpha = .58f)) {
+                        IconButton(onClick = { grid = !grid; prefs.edit().putBoolean("grid", grid).apply() }) { Icon(Icons.Default.GridOn, "Toggle grid", tint = ComposeColor.White) }
+                    }
+                    Surface(shape = CircleShape, color = ComposeColor.Black.copy(alpha = .58f)) {
+                        IconButton(onClick = { flash = when (flash) { ImageCapture.FLASH_MODE_OFF -> ImageCapture.FLASH_MODE_AUTO; ImageCapture.FLASH_MODE_AUTO -> ImageCapture.FLASH_MODE_ON; else -> ImageCapture.FLASH_MODE_OFF }; prefs.edit().putInt("flash", flash).apply() }) {
+                            Icon(when (flash) { ImageCapture.FLASH_MODE_AUTO -> Icons.Default.FlashAuto; ImageCapture.FLASH_MODE_ON -> Icons.Default.FlashOn; else -> Icons.Default.FlashOff }, "Cycle flash", tint = ComposeColor.White)
+                        }
+                    }
+                    Surface(shape = CircleShape, color = ComposeColor.Black.copy(alpha = .58f)) {
+                        IconButton(onClick = { front = !front; prefs.edit().putBoolean("front", front).apply() }) { Icon(Icons.Default.SwitchCamera, "Switch camera", tint = ComposeColor.White) }
+                    }
+                }
+                error?.let { Surface(Modifier.align(Alignment.BottomCenter).padding(8.dp), color = ComposeColor.Black.copy(alpha = .78f), shape = RoundedCornerShape(12.dp)) { Text(it, color = ComposeColor.White, modifier = Modifier.padding(10.dp)) } }
+            }
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Exposure compensation", style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.weight(1f))
+                    Text((if (exposure >= 0) "+" else "") + "%.1f EV".format(exposure), style = MaterialTheme.typography.labelMedium)
+                }
+                Slider(value = exposure, onValueChange = { exposure = it }, valueRange = -2f..2f)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = { style = (style - 1 + cameraStyles.size) % cameraStyles.size; prefs.edit().putInt("style", style).apply() }) { Text("‹ Style") }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(cameraStyles[style], style = MaterialTheme.typography.labelLarge)
+                        Text("Saved preference", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    OutlinedButton(onClick = { style = (style + 1) % cameraStyles.size; prefs.edit().putInt("style", style).apply() }) { Text("Style ›") }
+                }
+                Text("Photographic styles are saved selections; live color grading is not yet applied to the preview.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Button(onClick = {
+                    if (busy || error != null) return@Button
+                    busy = true
+                    val file = File(context.cacheDir, "vg-camera-" + System.currentTimeMillis() + ".jpg")
+                    imageCapture.takePicture(ImageCapture.OutputFileOptions.Builder(file).build(), executor, object : ImageCapture.OnImageSavedCallback {
+                        override fun onImageSaved(result: ImageCapture.OutputFileResults) {
+                            try {
+                                val digest = MessageDigest.getInstance("SHA-256").digest(file.readBytes()).joinToString("") { "%02x".format(it) }
+                                val saved = MediaLibraryIndexer.publish(context, file, "vidgravity-camera-" + System.currentTimeMillis() + ".jpg", digest)
+                                file.delete()
+                                Handler(Looper.getMainLooper()).post { busy = false; onNotice("Photo saved to Library: " + saved.displayName) }
+                            } catch (t: Exception) {
+                                file.delete()
+                                Handler(Looper.getMainLooper()).post { busy = false; onNotice("Photo save failed: " + (t.message ?: "unknown error")) }
+                            }
+                        }
+                        override fun onError(exception: ImageCaptureException) {
+                            file.delete()
+                            Handler(Looper.getMainLooper()).post { busy = false; onNotice("Capture failed: " + (exception.message ?: "please retry")) }
+                        }
+                    })
+                }, enabled = !busy && error == null, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(18.dp)) {
+                    if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) else Icon(Icons.Default.PhotoCamera, null)
+                    Spacer(Modifier.width(10.dp))
+                    Text(if (busy) "Saving photo…" else "Capture photo")
+                }
+            }
+        }
+    }
+    if (settings) AlertDialog(
+        onDismissRequest = { settings = false },
+        title = { Text("Camera preferences") },
+        text = { Text("Front/rear camera, flash, exposure, composition grid and photographic style are remembered on this device. Reset defaults clears these camera preferences. Styles currently label the saved look; styled rendering is a later phase.") },
+        confirmButton = { TextButton(onClick = { settings = false }) { Text("Done") } },
+        dismissButton = { TextButton(onClick = { front = false; grid = true; flash = ImageCapture.FLASH_MODE_OFF; style = 0; exposure = 0f; prefs.edit().clear().apply(); settings = false }) { Text("Reset defaults") } }
+    )
+}
