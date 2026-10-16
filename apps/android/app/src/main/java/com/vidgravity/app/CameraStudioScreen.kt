@@ -247,7 +247,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     Text("Style favorites", style = MaterialTheme.typography.labelMedium)
-                    TextButton(onClick = { favoritesOnly = !favoritesOnly; if (favoritesOnly && favoriteStyles.isNotEmpty() && cameraStyles[style] !in favoriteStyles) { style = cameraStyles.indexOfFirst { it in favoriteStyles }.coerceAtLeast(0); prefs.edit().putInt("style", style).apply() } }) {
+                    TextButton(onClick = { if (!favoritesOnly && favoriteStyles.isEmpty()) onNotice("Mark a style as favorite first."); else { favoritesOnly = !favoritesOnly; if (favoritesOnly && cameraStyles[style] !in favoriteStyles) { style = cameraStyles.indexOfFirst { it in favoriteStyles }.coerceAtLeast(0); prefs.edit().putInt("style", style).apply() } } }) {
                         Text(if (favoritesOnly) "Show all" else "Favorites only (" + favoriteStyles.size + ")")
                     }
                 }
