@@ -83,6 +83,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     var selected by remember { mutableStateOf(VgTab.Home) }
     var showInbox by remember { mutableStateOf(openInboxInitially) }
     var creatorInitialMedia by remember { mutableStateOf<LibraryMedia?>(null) }
+    var cameraStudioOpen by remember { mutableStateOf(false) }
     var playingMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var url by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf<String?>(null) }
@@ -181,7 +182,9 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
             }
         ) { padding ->
             Column(Modifier.fillMaxSize().padding(padding)) {
-                if (playingMedia != null) {
+                if (cameraStudioOpen) {
+                    CameraStudioScreen(onClose = { cameraStudioOpen = false }, onNotice = { notice = it })
+                } else if (playingMedia != null) {
                     PlayerScreen(media = playingMedia!!, onBack = { playingMedia = null })
                 } else if (showInbox) {
                     ShareInboxContent(
@@ -211,7 +214,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                     )
                     VgTab.Create -> CreateStudioContent(
                         onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true },
-                        initialMedia = creatorInitialMedia
+                        initialMedia = creatorInitialMedia, onOpenCamera = { cameraStudioOpen = true }
                     )
                     VgTab.Settings -> SettingsContent(dark, { dark = it; prefs.edit().putBoolean("dark", it).apply() })
                 }
@@ -1285,7 +1288,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
 }
 
 @Composable
-private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, initialMedia: LibraryMedia? = null) {
+private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, initialMedia: LibraryMedia? = null, onOpenCamera: () -> Unit = {}) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var selectedMedia by remember(initialMedia) { mutableStateOf(initialMedia) }
@@ -1508,6 +1511,12 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
         return
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        VgPrimaryButton(
+            text = "Open Camera Studio",
+            icon = Icons.Default.PhotoCamera,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp),
+            onClick = onOpenCamera
+        )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             VgPrimaryButton(
                 text = "Media",
