@@ -7,6 +7,7 @@ import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
+import android.graphics.Matrix
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -1289,17 +1290,20 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     var photoEditorOpen by remember { mutableStateOf(false) }
     var photoFilter by remember { mutableStateOf("Original") }
     var photoIntensity by remember { mutableFloatStateOf(0.65f) }
+    var photoBrightness by remember { mutableFloatStateOf(0f) }
+    var photoContrast by remember { mutableFloatStateOf(0f) }
+    var photoRotation by remember { mutableIntStateOf(0) }
     var photoPreview by remember { mutableStateOf<Bitmap?>(null) }
     var photoExporting by remember { mutableStateOf(false) }
     val photoFilters = listOf("Original", "Mono", "Warm", "Cool", "Vintage")
-    LaunchedEffect(selectedMedia?.uri, photoEditorOpen, photoFilter, photoIntensity) {
+    LaunchedEffect(selectedMedia?.uri, photoEditorOpen, photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation) {
         val media = selectedMedia
         if (photoEditorOpen && media != null && media.mimeType.startsWith("image/")) {
             photoPreview = withContext(Dispatchers.IO) {
                 runCatching {
                     val source = context.contentResolver.openInputStream(media.uri)?.use { BitmapFactory.decodeStream(it) }
                         ?: error("Unable to open image")
-                    try { applyVidGravityPhotoFilter(source, photoFilter, photoIntensity) } finally { source.recycle() }
+                    try { applyVidGravityPhotoFilter(source, photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation) } finally { source.recycle() }
                 }.getOrNull()
             }
         }
@@ -1353,13 +1357,22 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             Text("Filter intensity · " + (photoIntensity * 100).toInt() + "%", fontWeight = FontWeight.SemiBold)
             Slider(value = photoIntensity, onValueChange = { photoIntensity = it }, valueRange = 0f..1f, enabled = photoFilter != "Original")
             Text("Intensity changes the strength of the selected look. Export creates a separate copy.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Brightness · " + (photoBrightness * 100).toInt(), fontWeight = FontWeight.SemiBold)
+            Slider(value = photoBrightness, onValueChange = { photoBrightness = it }, valueRange = -1f..1f)
+            Text("Contrast · " + (photoContrast * 100).toInt(), fontWeight = FontWeight.SemiBold)
+            Slider(value = photoContrast, onValueChange = { photoContrast = it }, valueRange = -1f..1f)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = { photoRotation = (photoRotation + 270) % 360 }) { Icon(Icons.Default.RotateLeft, null); Spacer(Modifier.width(4.dp)); Text("Rotate left") }
+                OutlinedButton(onClick = { photoRotation = (photoRotation + 90) % 360 }) { Icon(Icons.Default.RotateRight, null); Spacer(Modifier.width(4.dp)); Text("Rotate right") }
+                Text(photoRotation.toString() + "°", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Button(onClick = {
                 if (!photoExporting) scope.launch {
                     photoExporting = true
                     try {
                         val saved = withContext(Dispatchers.IO) {
                             val original = context.contentResolver.openInputStream(media.uri)?.use { BitmapFactory.decodeStream(it) } ?: error("Could not decode the selected image.")
-                            val edited = try { applyVidGravityPhotoFilter(original, photoFilter, photoIntensity) } finally { original.recycle() }
+                            val edited = try { applyVidGravityPhotoFilter(original, photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation) } finally { original.recycle() }
                             val temp = File(context.cacheDir, "vg-edit-" + System.currentTimeMillis() + ".jpg")
                             try {
                                 temp.outputStream().use { output -> if (!edited.compress(Bitmap.CompressFormat.JPEG, 95, output)) error("Image encoding failed.") }
@@ -1681,7 +1694,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     }
 }
 
-private fun applyVidGravityPhotoFilter(source: Bitmap, preset: String, intensity: Float): Bitmap {
+private fun applyVidGravityPhotoFilter(source: Bitmap, preset: String, intensity: Float, brightness: Float = 0f, contrast: Float = 0f, rotationDegrees: Int = 0): Bitmap {
     val amount = intensity.coerceIn(0f, 1f)
     val saturation = when (preset) { "Mono" -> 1f - amount; "Vintage" -> 1f - amount * 0.35f; else -> 1f }
     val matrix = ColorMatrix().apply { setSaturation(saturation) }
@@ -1692,9 +1705,16 @@ private fun applyVidGravityPhotoFilter(source: Bitmap, preset: String, intensity
         else -> null
     }
     if (values != null) matrix.postConcat(ColorMatrix(values))
-    val output = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
-    Canvas(output).drawBitmap(source, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG).apply { colorFilter = ColorMatrixColorFilter(matrix) })
-    return output
+    val contrastScale = (1f + contrast.coerceIn(-1f, 1f)).coerceIn(0f, 2f)
+    val offset = 128f * (1f - contrastScale) + brightness.coerceIn(-1f, 1f) * 255f
+    matrix.postConcat(ColorMatrix(floatArrayOf(contrastScale,0f,0f,0f,offset, 0f,contrastScale,0f,0f,offset, 0f,0f,contrastScale,0f,offset, 0f,0f,0f,1f,0f)))
+    val filtered = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+    Canvas(filtered).drawBitmap(source, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG).apply { colorFilter = ColorMatrixColorFilter(matrix) })
+    if (rotationDegrees % 360 == 0) return filtered
+    val rotation = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+    val rotated = Bitmap.createBitmap(filtered, 0, 0, filtered.width, filtered.height, rotation, true)
+    if (rotated !== filtered) filtered.recycle()
+    return rotated
 }
 
 private fun sha256FileForPhoto(file: File): String {
