@@ -218,7 +218,6 @@ class DualCameraCaptureActivity : ComponentActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    @OptIn(androidx.camera.video.ExperimentalVideo::class)
     private fun bindCameraSession() {
         val cameraProvider = provider ?: return
         val selector = if (frontFacing) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
@@ -522,7 +521,6 @@ class DualCameraCaptureActivity : ComponentActivity() {
             .show()
     }
 
-    @OptIn(androidx.camera.video.ExperimentalVideo::class)
     private fun chooseVideoQuality() {
         val cameraInfo = provider?.let {
             runCatching {
