@@ -1300,13 +1300,16 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     LaunchedEffect(selectedMedia?.uri, photoEditorOpen, photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation, photoCrop) {
         val media = selectedMedia
         if (photoEditorOpen && media != null && media.mimeType.startsWith("image/")) {
-            photoPreview = withContext(Dispatchers.IO) {
+            val nextPreview = withContext(Dispatchers.IO) {
                 runCatching {
-                    val source = context.contentResolver.openInputStream(media.uri)?.use { BitmapFactory.decodeStream(it) }
-                        ?: error("Unable to open image")
+                    // Preview decode is deliberately bounded to keep high-resolution phone photos
+                    // from allocating multiple full-size bitmaps on every slider movement.
+                    val source = decodePhotoBitmap(context, media.uri, 1440)
+                        ?: error("Unable to decode image preview")
                     try { applyVidGravityPhotoFilter(source, photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation, photoCrop) } finally { source.recycle() }
                 }.getOrNull()
             }
+            photoPreview = nextPreview
         }
     }
     val picker = rememberLauncherForActivityResult(
@@ -1378,7 +1381,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                     photoExporting = true
                     try {
                         val saved = withContext(Dispatchers.IO) {
-                            val original = context.contentResolver.openInputStream(media.uri)?.use { BitmapFactory.decodeStream(it) } ?: error("Could not decode the selected image.")
+                            val original = decodePhotoBitmap(context, media.uri, 4096) ?: error("Could not decode the selected image. Try a smaller image if your device has limited memory.")
                             val edited = try { applyVidGravityPhotoFilter(original, photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation, photoCrop) } finally { original.recycle() }
                             val temp = File(context.cacheDir, "vg-edit-" + System.currentTimeMillis() + ".jpg")
                             try {
@@ -1699,6 +1702,21 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
         }
 
     }
+}
+
+private fun decodePhotoBitmap(context: android.content.Context, uri: Uri, maxDimension: Int): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    var sample = 1
+    while (maxOf(bounds.outWidth / sample, bounds.outHeight / sample) > maxDimension && sample <= (1 shl 14)) {
+        sample *= 2
+    }
+    val options = BitmapFactory.Options().apply {
+        inSampleSize = sample
+        inPreferredConfig = Bitmap.Config.ARGB_8888
+    }
+    return context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
 }
 
 private fun applyVidGravityPhotoFilter(source: Bitmap, preset: String, intensity: Float, brightness: Float = 0f, contrast: Float = 0f, rotationDegrees: Int = 0, cropAspect: String = "Original"): Bitmap {
