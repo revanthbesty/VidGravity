@@ -322,7 +322,8 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                 if (denied) Text("Enable camera access in Android Settings to continue.", color = MaterialTheme.colorScheme.error)
             }
         } else {
-            Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 10.dp)) {
+            // Keep the live camera preview visible even when the controls exceed the screen height.
+            Box(Modifier.fillMaxWidth().height(250.dp).padding(horizontal = 10.dp)) {
                 AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize().pointerInput(activeCamera, zoomRange, zoomRatio, focusLocked) { detectTapGestures(
                     onTap = { tap ->
                         if (focusLocked) {
@@ -413,7 +414,10 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                 }
                 error?.let { Surface(Modifier.align(Alignment.BottomCenter).padding(8.dp), color = ComposeColor.Black.copy(alpha = .78f), shape = RoundedCornerShape(12.dp)) { Text(it, color = ComposeColor.White, modifier = Modifier.padding(10.dp)) } }
             }
-            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(
+                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Exposure compensation", style = MaterialTheme.typography.labelMedium)
                     Spacer(Modifier.weight(1f))
