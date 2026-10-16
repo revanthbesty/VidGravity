@@ -169,6 +169,8 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     var grid by remember { mutableStateOf(prefs.getBoolean("grid", true)) }
     var levelEnabled by remember { mutableStateOf(prefs.getBoolean("level-enabled", true)) }
     var horizonAngle by remember { mutableFloatStateOf(0f) }
+    var focusPoint by remember { mutableStateOf<Offset?>(null) }
+    var focusIndicatorJob by remember { mutableStateOf<Job?>(null) }
     var levelSensorAvailable by remember { mutableStateOf(false) }
     val framingGuides = listOf("Off", "1:1", "4:5", "16:9")
     var framingGuide by remember { mutableStateOf(prefs.getString("framing-guide", "Off")?.takeIf { it in framingGuides } ?: "Off") }
@@ -299,7 +301,23 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
             }
         } else {
             Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 10.dp)) {
-                AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize().pointerInput(activeCamera) { detectTapGestures { tap -> val point = previewView.meteringPointFactory.createPoint(tap.x, tap.y); val action = FocusMeteringAction.Builder(point).setAutoCancelDuration(3, java.util.concurrent.TimeUnit.SECONDS).build(); runCatching { activeCamera?.cameraControl?.startFocusAndMetering(action) } } })
+                AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize().pointerInput(activeCamera) { detectTapGestures { tap ->
+                    focusPoint = tap
+                    focusIndicatorJob?.cancel()
+                    focusIndicatorJob = scope.launch { delay(1200); focusPoint = null }
+                    val point = previewView.meteringPointFactory.createPoint(tap.x, tap.y)
+                    val action = FocusMeteringAction.Builder(point).setAutoCancelDuration(3, java.util.concurrent.TimeUnit.SECONDS).build()
+                    runCatching { activeCamera?.cameraControl?.startFocusAndMetering(action) }
+                } })
+                focusPoint?.let { point ->
+                    Canvas(Modifier.fillMaxSize()) {
+                        drawCircle(color = ComposeColor(0xFF55E0C0), radius = 24.dp.toPx(), center = point, style = Stroke(width = 2.dp.toPx()))
+                        drawLine(ComposeColor(0xFF55E0C0), Offset(point.x - 31.dp.toPx(), point.y), Offset(point.x - 18.dp.toPx(), point.y), strokeWidth = 2.dp.toPx())
+                        drawLine(ComposeColor(0xFF55E0C0), Offset(point.x + 18.dp.toPx(), point.y), Offset(point.x + 31.dp.toPx(), point.y), strokeWidth = 2.dp.toPx())
+                        drawLine(ComposeColor(0xFF55E0C0), Offset(point.x, point.y - 31.dp.toPx()), Offset(point.x, point.y - 18.dp.toPx()), strokeWidth = 2.dp.toPx())
+                        drawLine(ComposeColor(0xFF55E0C0), Offset(point.x, point.y + 18.dp.toPx()), Offset(point.x, point.y + 31.dp.toPx()), strokeWidth = 2.dp.toPx())
+                    }
+                }
                 if (levelEnabled && levelSensorAvailable) Canvas(Modifier.fillMaxSize()) {
                     val centerX = size.width / 2f
                     val centerY = size.height / 2f
