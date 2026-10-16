@@ -109,16 +109,23 @@ private fun renderCameraStyle(sourceFile: File, outputFile: File, style: String,
     var decoded = BitmapFactory.decodeFile(sourceFile.absolutePath, options) ?: error("Captured photo could not be decoded.")
     val orientation = runCatching { ExifInterface(sourceFile.absolutePath).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
     val rotation = when (orientation) {
-        ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+        ExifInterface.ORIENTATION_ROTATE_90, ExifInterface.ORIENTATION_TRANSPOSE -> 90f
         ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-        ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+        ExifInterface.ORIENTATION_ROTATE_270, ExifInterface.ORIENTATION_TRANSVERSE -> 270f
         else -> 0f
     }
-    if (rotation != 0f) {
-        val matrix = Matrix().apply { postRotate(rotation) }
-        val rotated = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
-        if (rotated !== decoded) decoded.recycle()
-        decoded = rotated
+    val mirrorX = orientation == ExifInterface.ORIENTATION_FLIP_HORIZONTAL ||
+        orientation == ExifInterface.ORIENTATION_TRANSPOSE ||
+        orientation == ExifInterface.ORIENTATION_TRANSVERSE
+    val mirrorY = orientation == ExifInterface.ORIENTATION_FLIP_VERTICAL
+    if (rotation != 0f || mirrorX || mirrorY) {
+        val matrix = Matrix().apply {
+            if (rotation != 0f) postRotate(rotation)
+            if (mirrorX || mirrorY) postScale(if (mirrorX) -1f else 1f, if (mirrorY) -1f else 1f)
+        }
+        val oriented = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
+        if (oriented !== decoded) decoded.recycle()
+        decoded = oriented
     }
     val a = intensity.coerceIn(0f, 1f)
     val saturation = when (style) {
