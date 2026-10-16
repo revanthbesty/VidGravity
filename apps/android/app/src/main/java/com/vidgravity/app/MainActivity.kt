@@ -1,6 +1,16 @@
 package com.vidgravity.app
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import java.io.File
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -1276,6 +1286,24 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     var statusClipSeconds by remember { mutableStateOf(90) }
     var exportedUri by remember { mutableStateOf<Uri?>(null) }
     var stickerUri by remember { mutableStateOf<Uri?>(null) }
+    var photoEditorOpen by remember { mutableStateOf(false) }
+    var photoFilter by remember { mutableStateOf("Original") }
+    var photoIntensity by remember { mutableFloatStateOf(0.65f) }
+    var photoPreview by remember { mutableStateOf<Bitmap?>(null) }
+    var photoExporting by remember { mutableStateOf(false) }
+    val photoFilters = listOf("Original", "Mono", "Warm", "Cool", "Vintage")
+    LaunchedEffect(selectedMedia?.uri, photoEditorOpen, photoFilter, photoIntensity) {
+        val media = selectedMedia
+        if (photoEditorOpen && media != null && media.mimeType.startsWith("image/")) {
+            photoPreview = withContext(Dispatchers.IO) {
+                runCatching {
+                    val source = context.contentResolver.openInputStream(media.uri)?.use { BitmapFactory.decodeStream(it) }
+                        ?: error("Unable to open image")
+                    try { applyVidGravityPhotoFilter(source, photoFilter, photoIntensity) } finally { source.recycle() }
+                }.getOrNull()
+            }
+        }
+    }
     val picker = rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -1300,6 +1328,57 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             stickerUri = null
             notify("Media selected. Preview, share, or create a 9:16 story or animated sticker.")
         }
+    }
+    if (photoEditorOpen && selectedMedia != null && selectedMedia!!.mimeType.startsWith("image/")) {
+        val media = selectedMedia!!
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { photoEditorOpen = false; photoPreview = null }) { Icon(Icons.Default.ArrowBack, "Back") }
+                Column(Modifier.weight(1f)) {
+                    Text("Photo Filters", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text("Original image stays unchanged", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+                Box(Modifier.fillMaxWidth().heightIn(min = 240.dp, max = 420.dp), contentAlignment = Alignment.Center) {
+                    val bitmap = photoPreview
+                    if (bitmap != null) Image(bitmap.asImageBitmap(), contentDescription = "Edited photo preview", modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp), contentScale = ContentScale.Fit)
+                    else CircularProgressIndicator()
+                }
+            }
+            Text("FILTER PRESET", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(photoFilters) { preset -> FilterChip(selected = photoFilter == preset, onClick = { photoFilter = preset }, label = { Text(preset) }) }
+            }
+            Text("Filter intensity · " + (photoIntensity * 100).toInt() + "%", fontWeight = FontWeight.SemiBold)
+            Slider(value = photoIntensity, onValueChange = { photoIntensity = it }, valueRange = 0f..1f, enabled = photoFilter != "Original")
+            Text("Intensity changes the strength of the selected look. Export creates a separate copy.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Button(onClick = {
+                if (!photoExporting) scope.launch {
+                    photoExporting = true
+                    try {
+                        val saved = withContext(Dispatchers.IO) {
+                            val original = context.contentResolver.openInputStream(media.uri)?.use { BitmapFactory.decodeStream(it) } ?: error("Could not decode the selected image.")
+                            val edited = try { applyVidGravityPhotoFilter(original, photoFilter, photoIntensity) } finally { original.recycle() }
+                            val temp = File(context.cacheDir, "vg-edit-" + System.currentTimeMillis() + ".jpg")
+                            try {
+                                temp.outputStream().use { output -> if (!edited.compress(Bitmap.CompressFormat.JPEG, 95, output)) error("Image encoding failed.") }
+                                com.vidgravity.app.MediaLibraryIndexer.publish(context, temp, "vidgravity-edited-" + System.currentTimeMillis() + ".jpg", sha256FileForPhoto(temp))
+                            } finally { edited.recycle(); temp.delete() }
+                        }
+                        notify("Edited copy saved to VidGravity Library: " + saved.displayName)
+                        photoEditorOpen = false
+                        photoPreview = null
+                    } catch (failure: Exception) { notify(("Photo export failed: " + (failure.message ?: "Please try again.")).take(240)) }
+                    finally { photoExporting = false }
+                }
+            }, modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp), enabled = !photoExporting && photoPreview != null) {
+                if (photoExporting) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Icon(Icons.Default.SaveAlt, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (photoExporting) "Exporting edited copy…" else "Export edited copy to Library")
+            }
+        }
+        return
     }
     if (storyEditorOpen && selectedMedia != null) {
         StoryCardScreen(
@@ -1392,6 +1471,11 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                             }.onFailure { notify("Could not open Android sharing: ${it.message ?: "try again"}") }
                         }, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Default.Share, null); Spacer(Modifier.width(5.dp)); Text("Share original")
+                        }
+                    }
+                    if (media.mimeType.startsWith("image/")) {
+                        OutlinedButton(onClick = { photoFilter = "Original"; photoIntensity = 0.65f; photoEditorOpen = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) {
+                            Icon(Icons.Default.AutoFixHigh, null); Spacer(Modifier.width(8.dp)); Text("Edit photo · Filters")
                         }
                     }
                     VgPrimaryButton(
@@ -1595,6 +1679,31 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
         }
 
     }
+}
+
+private fun applyVidGravityPhotoFilter(source: Bitmap, preset: String, intensity: Float): Bitmap {
+    val amount = intensity.coerceIn(0f, 1f)
+    val saturation = when (preset) { "Mono" -> 1f - amount; "Vintage" -> 1f - amount * 0.35f; else -> 1f }
+    val matrix = ColorMatrix().apply { setSaturation(saturation) }
+    val values = when (preset) {
+        "Warm" -> floatArrayOf(1f + .10f * amount,0f,0f,0f,18f*amount, 0f,1f+.015f*amount,0f,0f,3f*amount, 0f,0f,1f-.10f*amount,0f,-8f*amount, 0f,0f,0f,1f,0f)
+        "Cool" -> floatArrayOf(1f-.04f*amount,0f,0f,0f,-3f*amount, 0f,1f+.02f*amount,0f,0f,2f*amount, 0f,0f,1f+.12f*amount,0f,12f*amount, 0f,0f,0f,1f,0f)
+        "Vintage" -> floatArrayOf(1f-.10f*amount,0f,0f,0f,14f*amount, 0f,1f-.06f*amount,0f,0f,8f*amount, 0f,0f,1f-.15f*amount,0f,-4f*amount, 0f,0f,0f,1f,0f)
+        else -> null
+    }
+    if (values != null) matrix.postConcat(ColorMatrix(values))
+    val output = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+    Canvas(output).drawBitmap(source, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG).apply { colorFilter = ColorMatrixColorFilter(matrix) })
+    return output
+}
+
+private fun sha256FileForPhoto(file: File): String {
+    val digest = java.security.MessageDigest.getInstance("SHA-256")
+    file.inputStream().buffered(64 * 1024).use { input ->
+        val buffer = ByteArray(64 * 1024)
+        while (true) { val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count) }
+    }
+    return digest.digest().joinToString("") { "%02x".format(it) }
 }
 
 @Composable
