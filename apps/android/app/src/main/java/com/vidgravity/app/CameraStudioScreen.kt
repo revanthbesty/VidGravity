@@ -75,7 +75,7 @@ import java.util.concurrent.Executors
 import kotlin.math.PI
 import kotlin.math.atan2
 
-private val cameraStyles = listOf("Natural", "Rich Contrast", "Warm", "Cool", "Vibrant", "Soft", "Cinematic", "Monochrome")
+private val cameraStyles = listOf("Natural", "Rich Contrast", "Warm", "Cool", "Vibrant", "Soft", "Cinematic", "Monochrome", "Golden Hour", "Matte", "Rose", "Teal")
 private data class CameraCreatorPreset(val name: String, val style: Int, val intensity: Float, val framing: String)
 
 private fun readCreatorPresets(raw: String?): List<CameraCreatorPreset> = runCatching {
@@ -136,12 +136,20 @@ private fun renderCameraStyle(sourceFile: File, outputFile: File, style: String,
         "Vibrant" -> 1f + .32f * a
         "Soft" -> 1f - .12f * a
         "Cinematic" -> 1f - .08f * a
+        "Golden Hour" -> 1f + .10f * a
+        "Matte" -> 1f - .08f * a
+        "Rose" -> 1f + .08f * a
+        "Teal" -> 1f + .16f * a
         else -> 1f
     }
     val contrast = when (style) {
         "Rich Contrast" -> 1f + .24f * a
         "Cinematic" -> 1f + .15f * a
         "Soft" -> 1f - .10f * a
+        "Golden Hour" -> 1f + .04f * a
+        "Matte" -> 1f - .16f * a
+        "Rose" -> 1f + .04f * a
+        "Teal" -> 1f + .08f * a
         else -> 1f
     }
     val warm = when (style) {
@@ -149,6 +157,10 @@ private fun renderCameraStyle(sourceFile: File, outputFile: File, style: String,
         "Cool" -> -a
         "Vibrant" -> .12f * a
         "Cinematic" -> -.10f * a
+        "Golden Hour" -> 1.25f * a
+        "Matte" -> .06f * a
+        "Rose" -> .62f * a
+        "Teal" -> -.55f * a
         else -> 0f
     }
     val matrix = ColorMatrix().apply { setSaturation(saturation) }
