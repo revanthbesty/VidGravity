@@ -1293,17 +1293,18 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     var photoBrightness by remember { mutableFloatStateOf(0f) }
     var photoContrast by remember { mutableFloatStateOf(0f) }
     var photoRotation by remember { mutableIntStateOf(0) }
+    var photoCrop by remember { mutableStateOf("Original") }
     var photoPreview by remember { mutableStateOf<Bitmap?>(null) }
     var photoExporting by remember { mutableStateOf(false) }
     val photoFilters = listOf("Original", "Mono", "Warm", "Cool", "Vintage")
-    LaunchedEffect(selectedMedia?.uri, photoEditorOpen, photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation) {
+    LaunchedEffect(selectedMedia?.uri, photoEditorOpen, photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation, photoCrop) {
         val media = selectedMedia
         if (photoEditorOpen && media != null && media.mimeType.startsWith("image/")) {
             photoPreview = withContext(Dispatchers.IO) {
                 runCatching {
                     val source = context.contentResolver.openInputStream(media.uri)?.use { BitmapFactory.decodeStream(it) }
                         ?: error("Unable to open image")
-                    try { applyVidGravityPhotoFilter(source, photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation) } finally { source.recycle() }
+                    try { applyVidGravityPhotoFilter(source, photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation, photoCrop) } finally { source.recycle() }
                 }.getOrNull()
             }
         }
@@ -1366,13 +1367,19 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                 OutlinedButton(onClick = { photoRotation = (photoRotation + 90) % 360 }) { Icon(Icons.Default.RotateRight, null); Spacer(Modifier.width(4.dp)); Text("Rotate right") }
                 Text(photoRotation.toString() + "°", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            Text("Crop aspect ratio", fontWeight = FontWeight.SemiBold)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(listOf("Original", "1:1", "4:5", "16:9")) { ratio ->
+                    FilterChip(selected = photoCrop == ratio, onClick = { photoCrop = ratio }, label = { Text(ratio) })
+                }
+            }
             Button(onClick = {
                 if (!photoExporting) scope.launch {
                     photoExporting = true
                     try {
                         val saved = withContext(Dispatchers.IO) {
                             val original = context.contentResolver.openInputStream(media.uri)?.use { BitmapFactory.decodeStream(it) } ?: error("Could not decode the selected image.")
-                            val edited = try { applyVidGravityPhotoFilter(original, photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation) } finally { original.recycle() }
+                            val edited = try { applyVidGravityPhotoFilter(original, photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation, photoCrop) } finally { original.recycle() }
                             val temp = File(context.cacheDir, "vg-edit-" + System.currentTimeMillis() + ".jpg")
                             try {
                                 temp.outputStream().use { output -> if (!edited.compress(Bitmap.CompressFormat.JPEG, 95, output)) error("Image encoding failed.") }
@@ -1694,7 +1701,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     }
 }
 
-private fun applyVidGravityPhotoFilter(source: Bitmap, preset: String, intensity: Float, brightness: Float = 0f, contrast: Float = 0f, rotationDegrees: Int = 0): Bitmap {
+private fun applyVidGravityPhotoFilter(source: Bitmap, preset: String, intensity: Float, brightness: Float = 0f, contrast: Float = 0f, rotationDegrees: Int = 0, cropAspect: String = "Original"): Bitmap {
     val amount = intensity.coerceIn(0f, 1f)
     val saturation = when (preset) { "Mono" -> 1f - amount; "Vintage" -> 1f - amount * 0.35f; else -> 1f }
     val matrix = ColorMatrix().apply { setSaturation(saturation) }
@@ -1712,9 +1719,23 @@ private fun applyVidGravityPhotoFilter(source: Bitmap, preset: String, intensity
     Canvas(filtered).drawBitmap(source, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG).apply { colorFilter = ColorMatrixColorFilter(matrix) })
     if (rotationDegrees % 360 == 0) return filtered
     val rotation = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
-    val rotated = Bitmap.createBitmap(filtered, 0, 0, filtered.width, filtered.height, rotation, true)
+    val rotated = if (rotationDegrees % 360 == 0) filtered else Bitmap.createBitmap(filtered, 0, 0, filtered.width, filtered.height, rotation, true)
     if (rotated !== filtered) filtered.recycle()
-    return rotated
+    if (cropAspect == "Original") return rotated
+    val targetRatio = when (cropAspect) { "1:1" -> 1f; "4:5" -> 4f / 5f; "16:9" -> 16f / 9f; else -> return rotated }
+    val sourceRatio = rotated.width.toFloat() / rotated.height.toFloat()
+    val cropWidth: Int
+    val cropHeight: Int
+    if (sourceRatio > targetRatio) {
+        cropHeight = rotated.height
+        cropWidth = (cropHeight * targetRatio).toInt().coerceIn(1, rotated.width)
+    } else {
+        cropWidth = rotated.width
+        cropHeight = (cropWidth / targetRatio).toInt().coerceIn(1, rotated.height)
+    }
+    val cropped = Bitmap.createBitmap(rotated, (rotated.width - cropWidth) / 2, (rotated.height - cropHeight) / 2, cropWidth, cropHeight)
+    if (cropped !== rotated) rotated.recycle()
+    return cropped
 }
 
 private fun sha256FileForPhoto(file: File): String {
