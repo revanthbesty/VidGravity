@@ -414,6 +414,16 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
+                Surface(
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                    shape = CircleShape,
+                    color = ComposeColor.Black.copy(alpha = .72f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, ComposeColor.White.copy(alpha = .35f))
+                ) {
+                    IconButton(onClick = onClose, modifier = Modifier.size(44.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close Camera Studio", tint = ComposeColor.White)
+                    }
+                }
                 focusPoint?.let { point ->
                     Canvas(Modifier.fillMaxSize()) {
                         drawCircle(color = ComposeColor(0xFF55E0C0), radius = 24.dp.toPx(), center = point, style = Stroke(width = 2.dp.toPx()))
@@ -583,32 +593,47 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                         }
                     }
                 }
-                Button(onClick = {
-                    if (countdownRemaining > 0) {
-                        countdownJob?.cancel()
-                        countdownRemaining = 0
-                        onNotice("Self-timer cancelled.")
-                        return@Button
-                    }
-                    if (busy || error != null) return@Button
-                    if (timerSeconds == 0) capturePhoto()
-                    else {
-                        countdownJob?.cancel()
-                        countdownJob = scope.launch {
-                            for (remaining in timerSeconds downTo 1) {
-                                countdownRemaining = remaining
-                                delay(1000)
-                            }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(onClick = {
+                        if (countdownRemaining > 0) {
+                            countdownJob?.cancel()
                             countdownRemaining = 0
-                            capturePhoto()
+                            onNotice("Self-timer cancelled.")
+                            return@Button
                         }
+                        if (busy || error != null) return@Button
+                        if (timerSeconds == 0) capturePhoto()
+                        else {
+                            countdownJob?.cancel()
+                            countdownJob = scope.launch {
+                                for (remaining in timerSeconds downTo 1) {
+                                    countdownRemaining = remaining
+                                    delay(1000)
+                                }
+                                countdownRemaining = 0
+                                capturePhoto()
+                            }
+                        }
+                    }, enabled = !busy && error == null, modifier = Modifier.weight(1f).height(56.dp), shape = RoundedCornerShape(18.dp)) {
+                        if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        else if (countdownRemaining > 0) Text(countdownRemaining.toString(), style = MaterialTheme.typography.headlineSmall)
+                        else Icon(Icons.Default.PhotoCamera, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (busy) "Saving…" else if (countdownRemaining > 0) "Cancel timer" else if (timerSeconds > 0) "Start " + timerSeconds + "s" else "Photo")
                     }
-                }, enabled = !busy && error == null, modifier = Modifier.fillMaxWidth().height(56.dp), shape = RoundedCornerShape(18.dp)) {
-                    if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                    else if (countdownRemaining > 0) Text(countdownRemaining.toString(), style = MaterialTheme.typography.headlineSmall)
-                    else Icon(Icons.Default.PhotoCamera, null)
-                    Spacer(Modifier.width(10.dp))
-                    Text(if (busy) "Saving photo…" else if (countdownRemaining > 0) "Cancel countdown" else if (timerSeconds > 0) "Start " + timerSeconds + "s timer" else "Capture photo")
+                    OutlinedButton(
+                        onClick = {
+                            runCatching {
+                                context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
+                            }.onFailure { onNotice("Could not open video camera: " + (it.message ?: "please retry")) }
+                        },
+                        modifier = Modifier.weight(1f).height(56.dp),
+                        shape = RoundedCornerShape(18.dp)
+                    ) {
+                        Icon(Icons.Default.Videocam, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Video")
+                    }
                 }
             }
         }
