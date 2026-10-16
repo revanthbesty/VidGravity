@@ -314,14 +314,24 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
             }
         } else {
             Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 10.dp)) {
-                AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize().pointerInput(activeCamera) { detectTapGestures { tap ->
-                    focusPoint = tap
-                    focusIndicatorJob?.cancel()
-                    focusIndicatorJob = scope.launch { delay(1200); focusPoint = null }
-                    val point = previewView.meteringPointFactory.createPoint(tap.x, tap.y)
-                    val action = FocusMeteringAction.Builder(point).setAutoCancelDuration(3, java.util.concurrent.TimeUnit.SECONDS).build()
-                    runCatching { activeCamera?.cameraControl?.startFocusAndMetering(action) }
-                } })
+                AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize().pointerInput(activeCamera, zoomRange, zoomRatio) { detectTapGestures(
+                    onTap = { tap ->
+                        focusPoint = tap
+                        focusIndicatorJob?.cancel()
+                        focusIndicatorJob = scope.launch { delay(1200); focusPoint = null }
+                        val point = previewView.meteringPointFactory.createPoint(tap.x, tap.y)
+                        val action = FocusMeteringAction.Builder(point).setAutoCancelDuration(3, java.util.concurrent.TimeUnit.SECONDS).build()
+                        runCatching { activeCamera?.cameraControl?.startFocusAndMetering(action) }
+                    },
+                    onDoubleTap = {
+                        val targets = listOf(1f, 2f, 3f).filter { it >= zoomRange.start && it <= zoomRange.endInclusive }
+                        if (targets.isNotEmpty()) {
+                            val next = targets.firstOrNull { it > zoomRatio + 0.08f } ?: targets.first()
+                            zoomRatio = next
+                            prefs.edit().putFloat("zoom-ratio", next).apply()
+                        }
+                    }
+                ) })
                 focusPoint?.let { point ->
                     Canvas(Modifier.fillMaxSize()) {
                         drawCircle(color = ComposeColor(0xFF55E0C0), radius = 24.dp.toPx(), center = point, style = Stroke(width = 2.dp.toPx()))
