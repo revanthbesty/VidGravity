@@ -61,6 +61,10 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private var videoMode = false
     private var frontFacing = false
     private var flashEnabled = false
+    private enum class FlashMode { AUTO, ON, OFF }
+    private var flashMode = FlashMode.OFF
+    private enum class DualPreviewSize { SMALL, MEDIUM, LARGE }
+    private var dualPreviewSize = DualPreviewSize.MEDIUM
     private var videoQuality = Quality.FHD
     private var timerSeconds = 0
     private var pendingPhoto = false
@@ -107,11 +111,14 @@ class DualCameraCaptureActivity : ComponentActivity() {
             setBackgroundColor(0xAA101014.toInt())
         }
         val close = controlButton("✕") { finish() }
-        flashButton = controlButton("Flash off") { toggleFlash() }
+        flashButton = controlButton("⚡ Off") { chooseFlashMode() }
         val flip = controlButton("Flip") { toggleFacing() }
         dualButton = controlButton("Dual off") { toggleDualMode() }
         val settings = controlButton("Settings") { showCameraSettings() }
-        top.addView(close, LinearLayout.LayoutParams(dp(56), dp(48)))
+        val previewSize = controlButton("PiP size") { chooseDualPreviewSize() }
+        top.addView(close, LinearLayout.LayoutParams(dp(48), dp(48)))
+        top.addView(flashButton, LinearLayout.LayoutParams(0, dp(48), 1f))
+        top.addView(settings, LinearLayout.LayoutParams(0, dp(48), 1f))
         container.addView(top, FrameLayout.LayoutParams(-1, dp(64), Gravity.TOP))
 
         val bottom = LinearLayout(this).apply {
@@ -132,7 +139,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
         }
-        modeButton = controlButton("PHOTO  |  VIDEO") { toggleMode() }
+        modeButton = controlButton("PHOTO ✓") { toggleMode() }
         shutter = controlButton("●  Capture") { onShutterPressed() }.apply {
             textSize = 17f
             setTextColor(0xFFFFFFFF.toInt())
@@ -146,7 +153,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(0, dp(8), 0, 0)
         }
-        listOf(flashButton, flip, dualButton, settings).forEach { button ->
+        listOf(flip, dualButton, previewSize).forEach { button ->
             utilityControls.addView(button, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
                 marginEnd = dp(4)
             })
@@ -228,6 +235,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
                 dualMode = true
                 dualButton.text = "Dual on"
                 frontPreview.visibility = View.VISIBLE
+                applyDualPreviewSize()
                 status.text = "Dual-camera preview · Photo mode"
                 flashButton.isEnabled = false
                 flashButton.text = "Flash n/a"
@@ -278,7 +286,8 @@ class DualCameraCaptureActivity : ComponentActivity() {
             return
         }
         videoMode = !videoMode
-        modeButton.text = if (videoMode) "VIDEO  |  PHOTO" else "PHOTO  |  VIDEO"
+        modeButton.text = if (videoMode) "VIDEO ✓ · tap for PHOTO" else "PHOTO ✓ · tap for VIDEO"
+        modeButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(if (videoMode) 0xFF286B66.toInt() else 0xFF34464B.toInt()))
         if (videoMode && dualMode) {
             dualMode = false
             bindCameraSession()
@@ -397,24 +406,69 @@ class DualCameraCaptureActivity : ComponentActivity() {
         bindCameraSession()
     }
 
-    private fun toggleFlash() {
-        if (dualMode || frontFacing || camera == null) {
-            Toast.makeText(this, "Flash is available only on a supported single rear camera.", Toast.LENGTH_SHORT).show()
+    private fun chooseFlashMode() {
+        val activeCamera = camera
+        if (dualMode || frontFacing || activeCamera == null || !activeCamera.cameraInfo.hasFlashUnit()) {
+            Toast.makeText(this, "Torch control is available only on a supported single rear camera. Auto flash for still photos is not exposed by this camera UI.", Toast.LENGTH_LONG).show()
             return
         }
-        val activeCamera = camera ?: return
-        if (!activeCamera.cameraInfo.hasFlashUnit()) {
-            Toast.makeText(this, "This camera has no flash unit.", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val targetState = activeCamera.cameraInfo.torchState.value != TorchState.ON
-        activeCamera.cameraControl.enableTorch(targetState)
-        flashEnabled = targetState
-        updateFlashLabel()
+        val choices = arrayOf("Auto (not supported here)", "On", "Off")
+        val checked = when (flashMode) { FlashMode.AUTO -> 0; FlashMode.ON -> 1; FlashMode.OFF -> 2 }
+        AlertDialog.Builder(this)
+            .setTitle("Flashlight")
+            .setSingleChoiceItems(choices, checked) { dialog, which ->
+                flashMode = when (which) { 0 -> FlashMode.AUTO; 1 -> FlashMode.ON; else -> FlashMode.OFF }
+                if (flashMode == FlashMode.AUTO) {
+                    // CameraX torch is a continuous light, not a still-photo auto-flash API.
+                    flashMode = FlashMode.OFF
+                    activeCamera.cameraControl.enableTorch(false)
+                    Toast.makeText(this, "Auto flash is not available in this torch control. Flash set to Off.", Toast.LENGTH_LONG).show()
+                } else {
+                    activeCamera.cameraControl.enableTorch(flashMode == FlashMode.ON)
+                }
+                flashEnabled = flashMode == FlashMode.ON
+                updateFlashLabel()
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun updateFlashLabel() {
-        flashButton.text = if (flashEnabled) "Flash on" else "Flash off"
+        flashButton.text = when (flashMode) {
+            FlashMode.AUTO -> "⚡ Auto"
+            FlashMode.ON -> "⚡ On"
+            FlashMode.OFF -> "⚡ Off"
+        }
+    }
+
+    private fun chooseDualPreviewSize() {
+        if (!dualSupported) {
+            Toast.makeText(this, "Picture-in-picture size is available when dual preview is supported.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val choices = arrayOf("Small", "Medium", "Large")
+        AlertDialog.Builder(this)
+            .setTitle("Secondary preview size")
+            .setSingleChoiceItems(choices, dualPreviewSize.ordinal) { dialog, which ->
+                dualPreviewSize = DualPreviewSize.values()[which]
+                applyDualPreviewSize()
+                dialog.dismiss()
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun applyDualPreviewSize() {
+        val params = frontPreview.layoutParams as? FrameLayout.LayoutParams ?: return
+        val (width, height) = when (dualPreviewSize) {
+            DualPreviewSize.SMALL -> dp(88) to dp(124)
+            DualPreviewSize.MEDIUM -> dp(118) to dp(164)
+            DualPreviewSize.LARGE -> dp(148) to dp(204)
+        }
+        params.width = width
+        params.height = height
+        frontPreview.layoutParams = params
     }
 
     private fun showCameraSettings() {
