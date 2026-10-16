@@ -16,6 +16,7 @@ import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
@@ -24,6 +25,7 @@ import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -41,6 +43,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -131,6 +134,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     var styleIntensity by remember { mutableFloatStateOf(prefs.getFloat("style-intensity", 0.75f).coerceIn(0f, 1f)) }
     var exposure by remember { mutableFloatStateOf(prefs.getFloat("exposure", 0f).coerceIn(-2f, 2f)) }
     var activeCamera by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
+    var exposureRange by remember { mutableStateOf(-2f..2f) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var settings by remember { mutableStateOf(false) }
@@ -160,6 +164,11 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
             provider.unbindAll()
             val camera = provider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture)
             activeCamera = camera
+            val exposureState = camera.cameraInfo.exposureState
+            val stepEv = exposureState.exposureCompensationStep.toFloat()
+            val supportedRange = exposureState.exposureCompensationRange
+            exposureRange = if (stepEv > 0f) (supportedRange.lower * stepEv)..(supportedRange.upper * stepEv) else 0f..0f
+            exposure = exposure.coerceIn(exposureRange.start, exposureRange.endInclusive)
             error = null
         } catch (t: Exception) { error = "Camera startup failed: " + (t.message ?: "unknown error") }
     }
@@ -192,7 +201,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
             }
         } else {
             Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 10.dp)) {
-                AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+                AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize().pointerInput(activeCamera) { detectTapGestures { tap -> val point = previewView.meteringPointFactory.createPoint(tap.x, tap.y); val action = FocusMeteringAction.Builder(point).setAutoCancelDuration(3, java.util.concurrent.TimeUnit.SECONDS).build(); runCatching { activeCamera?.cameraControl?.startFocusAndMetering(action) } } })
                 if (grid) Canvas(Modifier.fillMaxSize()) {
                     for (n in 1..2) {
                         drawLine(ComposeColor.White.copy(alpha = .55f), Offset(size.width * n / 3f, 0f), Offset(size.width * n / 3f, size.height), 1.dp.toPx())
@@ -220,7 +229,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                     Spacer(Modifier.weight(1f))
                     Text((if (exposure >= 0) "+" else "") + "%.1f EV".format(exposure), style = MaterialTheme.typography.labelMedium)
                 }
-                Slider(value = exposure, onValueChange = { exposure = it; prefs.edit().putFloat("exposure", it).apply() }, valueRange = -2f..2f)
+                Slider(value = exposure.coerceIn(exposureRange.start, exposureRange.endInclusive), onValueChange = { exposure = it; prefs.edit().putFloat("exposure", it).apply() }, valueRange = exposureRange, enabled = exposureRange.start < exposureRange.endInclusive)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     OutlinedButton(onClick = { style = (style - 1 + cameraStyles.size) % cameraStyles.size; prefs.edit().putInt("style", style).apply() }) { Text("‹ Style") }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -235,7 +244,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                     Text((styleIntensity * 100).toInt().toString() + "%", style = MaterialTheme.typography.labelMedium)
                 }
                 Slider(value = styleIntensity, onValueChange = { styleIntensity = it; prefs.edit().putFloat("style-intensity", it).apply() }, valueRange = 0f..1f)
-                Text("Selected style is applied to the saved photo. The live preview remains ungraded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Tap the preview to focus. Exposure range follows the selected camera hardware. Styles are applied to saved photos; live preview remains ungraded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Button(onClick = {
                     if (busy || error != null) return@Button
                     busy = true
