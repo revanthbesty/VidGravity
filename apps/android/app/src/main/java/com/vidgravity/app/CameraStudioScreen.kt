@@ -14,6 +14,10 @@ import android.os.Handler
 import org.json.JSONArray
 import org.json.JSONObject
 import android.os.Looper
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -49,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -63,6 +68,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.Executors
+import kotlin.math.PI
+import kotlin.math.atan2
 
 private val cameraStyles = listOf("Natural", "Rich Contrast", "Warm", "Cool", "Vibrant", "Soft", "Cinematic", "Monochrome")
 private data class CameraCreatorPreset(val name: String, val style: Int, val intensity: Float, val framing: String)
@@ -160,6 +167,9 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     var denied by remember { mutableStateOf(false) }
     var front by remember { mutableStateOf(prefs.getBoolean("front", false)) }
     var grid by remember { mutableStateOf(prefs.getBoolean("grid", true)) }
+    var levelEnabled by remember { mutableStateOf(prefs.getBoolean("level-enabled", true)) }
+    var horizonAngle by remember { mutableFloatStateOf(0f) }
+    var levelSensorAvailable by remember { mutableStateOf(false) }
     val framingGuides = listOf("Off", "1:1", "4:5", "16:9")
     var framingGuide by remember { mutableStateOf(prefs.getString("framing-guide", "Off")?.takeIf { it in framingGuides } ?: "Off") }
     var flash by remember { mutableIntStateOf(prefs.getInt("flash", ImageCapture.FLASH_MODE_OFF)) }
@@ -191,6 +201,23 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
         }
     }
     val imageCapture = remember { ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build() }
+
+    DisposableEffect(levelEnabled) {
+        val sensorManager = context.getSystemService(android.content.Context.SENSOR_SERVICE) as SensorManager
+        val sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        levelSensorAvailable = sensor != null
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                if (event.values.size >= 2) {
+                    val degrees = (atan2(event.values[0].toDouble(), event.values[1].toDouble()) * 180.0 / PI).toFloat()
+                    horizonAngle = if (degrees > 90f) degrees - 180f else if (degrees < -90f) degrees + 180f else degrees
+                }
+            }
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+        }
+        if (levelEnabled && sensor != null) sensorManager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_UI)
+        onDispose { sensorManager.unregisterListener(listener) }
+    }
 
     DisposableEffect(Unit) {
         onDispose { runCatching { providerFuture.get().unbindAll() }; executor.shutdown() }
@@ -273,6 +300,17 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
         } else {
             Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 10.dp)) {
                 AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize().pointerInput(activeCamera) { detectTapGestures { tap -> val point = previewView.meteringPointFactory.createPoint(tap.x, tap.y); val action = FocusMeteringAction.Builder(point).setAutoCancelDuration(3, java.util.concurrent.TimeUnit.SECONDS).build(); runCatching { activeCamera?.cameraControl?.startFocusAndMetering(action) } } })
+                if (levelEnabled && levelSensorAvailable) Canvas(Modifier.fillMaxSize()) {
+                    val centerX = size.width / 2f
+                    val centerY = size.height / 2f
+                    val lineHalfWidth = size.width * .12f
+                    val isLevel = kotlin.math.abs(horizonAngle) <= 2.0f
+                    val levelColor = if (isLevel) ComposeColor(0xFF55E0C0) else ComposeColor.White.copy(alpha = .92f)
+                    rotate(-horizonAngle, pivot = Offset(centerX, centerY)) {
+                        drawLine(levelColor, Offset(centerX - lineHalfWidth, centerY), Offset(centerX + lineHalfWidth, centerY), strokeWidth = 3.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                        drawCircle(levelColor, radius = 4.dp.toPx(), center = Offset(centerX, centerY))
+                    }
+                }
                 if (grid || framingGuide != "Off") Canvas(Modifier.fillMaxSize()) {
                     val guideColor = ComposeColor.White.copy(alpha = .82f)
                     if (grid) {
@@ -310,6 +348,13 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                     Text((if (exposure >= 0) "+" else "") + "%.1f EV".format(exposure), style = MaterialTheme.typography.labelMedium)
                 }
                 Slider(value = exposure.coerceIn(exposureRange.start, exposureRange.endInclusive), onValueChange = { exposure = it; prefs.edit().putFloat("exposure", it).apply() }, valueRange = exposureRange, enabled = exposureRange.start < exposureRange.endInclusive)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Level / horizon guide", style = MaterialTheme.typography.labelMedium)
+                        Text(if (levelSensorAvailable) "Turns teal when level (±2°)" else "Accelerometer unavailable", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(checked = levelEnabled, onCheckedChange = { levelEnabled = it; prefs.edit().putBoolean("level-enabled", it).apply() }, enabled = levelSensorAvailable)
+                }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     Text("Social framing guide", style = MaterialTheme.typography.labelMedium)
                     OutlinedButton(onClick = { val next = (framingGuides.indexOf(framingGuide) + 1) % framingGuides.size; framingGuide = framingGuides[next]; prefs.edit().putString("framing-guide", framingGuide).apply() }) { Text(framingGuide) }
