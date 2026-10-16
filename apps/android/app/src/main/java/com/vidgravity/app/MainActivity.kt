@@ -1517,24 +1517,12 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp),
             onClick = onOpenCamera
         )
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            VgPrimaryButton(
-                text = "Media",
-                icon = Icons.Default.FolderOpen,
-                modifier = Modifier.weight(1f).heightIn(min = 58.dp),
-                onClick = { picker.launch(arrayOf("video/*", "audio/*", "image/*")) }
-            )
-            VgPrimaryButton(
-                text = "Camera",
-                icon = Icons.Default.PhotoCamera,
-                modifier = Modifier.weight(1f).heightIn(min = 58.dp),
-                onClick = {
-                    runCatching {
-                        context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
-                    }.onFailure { notify("Could not open camera: ${it.message ?: "try again"}") }
-                }
-            )
-        }
+        VgPrimaryButton(
+            text = "Media",
+            icon = Icons.Default.FolderOpen,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp),
+            onClick = { picker.launch(arrayOf("video/*", "audio/*", "image/*")) }
+        )
         selectedMedia?.let { media ->
             Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(18.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
