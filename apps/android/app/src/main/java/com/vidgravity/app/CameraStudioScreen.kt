@@ -488,7 +488,13 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                     }
                 }
                 Button(onClick = {
-                    if (busy || error != null || countdownRemaining > 0) return@Button
+                    if (countdownRemaining > 0) {
+                        countdownJob?.cancel()
+                        countdownRemaining = 0
+                        onNotice("Self-timer cancelled.")
+                        return@Button
+                    }
+                    if (busy || error != null) return@Button
                     if (timerSeconds == 0) capturePhoto()
                     else {
                         countdownJob?.cancel()
@@ -506,7 +512,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                     else if (countdownRemaining > 0) Text(countdownRemaining.toString(), style = MaterialTheme.typography.headlineSmall)
                     else Icon(Icons.Default.PhotoCamera, null)
                     Spacer(Modifier.width(10.dp))
-                    Text(if (busy) "Saving photo…" else if (countdownRemaining > 0) "Get ready…" else if (timerSeconds > 0) "Start " + timerSeconds + "s timer" else "Capture photo")
+                    Text(if (busy) "Saving photo…" else if (countdownRemaining > 0) "Cancel countdown" else if (timerSeconds > 0) "Start " + timerSeconds + "s timer" else "Capture photo")
                 }
             }
         }
