@@ -79,6 +79,9 @@ object DownloadApi {
         val normalizedUrl = ShareReceiverActivity.normalizeSharedUrl(url)
             ?: throw IllegalArgumentException("Enter a complete public media URL.")
         val connection = open("/api/formats?url=" + URLEncoder.encode(normalizedUrl, "UTF-8"), "GET")
+        // Format inspection can require extra provider round-trips; allow the server's
+        // primary and fallback extraction attempts to finish before Android times out.
+        connection.readTimeout = 135_000
         try {
             val json = readJson(connection)
             val formats = json.optJSONArray("formats") ?: JSONArray()
