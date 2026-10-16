@@ -344,8 +344,13 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                         context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
                     }.onFailure { onNotice("Could not open video camera: " + (it.message ?: "please retry")) }
                 },
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
-            ) { Text("Video", color = MaterialTheme.colorScheme.primary) }
+                modifier = Modifier.heightIn(min = 48.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Video", color = MaterialTheme.colorScheme.primary)
+            }
             IconButton(onClick = { settings = true }) { Icon(Icons.Default.Settings, "Camera preferences") }
         }
         if (!permitted) {
@@ -420,8 +425,8 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                     color = ComposeColor.Black.copy(alpha = .72f),
                     border = androidx.compose.foundation.BorderStroke(1.dp, ComposeColor.White.copy(alpha = .35f))
                 ) {
-                    IconButton(onClick = onClose, modifier = Modifier.size(44.dp)) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Close Camera Studio", tint = ComposeColor.White)
+                    IconButton(onClick = onClose, modifier = Modifier.size(48.dp)) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back and close Camera Studio", tint = ComposeColor.White)
                     }
                 }
                 focusPoint?.let { point ->
@@ -627,12 +632,12 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                                 context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
                             }.onFailure { onNotice("Could not open video camera: " + (it.message ?: "please retry")) }
                         },
-                        modifier = Modifier.weight(1f).height(56.dp),
+                        modifier = Modifier.weight(1f).heightIn(min = 56.dp),
                         shape = RoundedCornerShape(18.dp)
                     ) {
                         Icon(Icons.Default.PhotoCamera, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Video")
+                        Text("Record video")
                     }
                 }
             }
