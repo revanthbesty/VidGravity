@@ -20,6 +20,7 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.view.ViewGroup
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -220,6 +221,11 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     var countdownJob by remember { mutableStateOf<Job?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var settings by remember { mutableStateOf(false) }
+
+    // Camera Studio is an in-screen workspace, so Android Back must return to VidGravity
+    // instead of finishing the host Activity. Let open dialogs handle Back themselves.
+    BackHandler(enabled = !settings && !savePresetDialog) { onClose() }
+
     val permissionRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> permitted = granted; denied = !granted }
     val providerFuture = remember { ProcessCameraProvider.getInstance(context.applicationContext) }
     val executor = remember { Executors.newSingleThreadExecutor() }
