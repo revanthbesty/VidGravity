@@ -11,6 +11,8 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.media.ExifInterface
 import android.os.Handler
+import org.json.JSONArray
+import org.json.JSONObject
 import android.os.Looper
 import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -26,6 +28,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -58,6 +62,27 @@ import java.security.MessageDigest
 import java.util.concurrent.Executors
 
 private val cameraStyles = listOf("Natural", "Rich Contrast", "Warm", "Cool", "Vibrant", "Soft", "Cinematic", "Monochrome")
+private data class CameraCreatorPreset(val name: String, val style: Int, val intensity: Float, val framing: String)
+
+private fun readCreatorPresets(raw: String?): List<CameraCreatorPreset> = runCatching {
+    val json = JSONArray(raw ?: "[]")
+    (0 until json.length()).mapNotNull { index ->
+        val item = json.optJSONObject(index) ?: return@mapNotNull null
+        val name = item.optString("name").trim()
+        val style = item.optInt("style", 0)
+        val intensity = item.optDouble("intensity", 0.75).toFloat()
+        val framing = item.optString("framing", "Off")
+        if (name.isBlank() || style !in cameraStyles.indices || framing !in listOf("Off", "1:1", "4:5", "16:9")) null
+        else CameraCreatorPreset(name.take(32), style, intensity.coerceIn(0f, 1f), framing)
+    }
+}.getOrDefault(emptyList())
+
+private fun writeCreatorPresets(presets: List<CameraCreatorPreset>): String {
+    val json = JSONArray()
+    presets.forEach { preset -> json.put(JSONObject().put("name", preset.name).put("style", preset.style).put("intensity", preset.intensity.toDouble()).put("framing", preset.framing)) }
+    return json.toString()
+}
+
 
 private fun renderCameraStyle(sourceFile: File, outputFile: File, style: String, intensity: Float) {
     if (style == "Natural" || intensity <= 0.001f) {
@@ -138,6 +163,9 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     var style by remember { mutableIntStateOf(prefs.getInt("style", 0).coerceIn(0, cameraStyles.lastIndex)) }
     var favoriteStyles by remember { mutableStateOf(prefs.getStringSet("favorite-styles", emptySet()).orEmpty().toSet()) }
     var favoritesOnly by remember { mutableStateOf(false) }
+    val creatorPresets = remember { mutableStateListOf<CameraCreatorPreset>().apply { addAll(readCreatorPresets(prefs.getString("creator-presets", "[]"))) } }
+    var savePresetDialog by remember { mutableStateOf(false) }
+    var presetName by remember { mutableStateOf("") }
     var styleIntensity by remember { mutableFloatStateOf(prefs.getFloat("style-intensity", 0.75f).coerceIn(0f, 1f)) }
     var exposure by remember { mutableFloatStateOf(prefs.getFloat("exposure", 0f).coerceIn(-2f, 2f)) }
     var activeCamera by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
@@ -251,6 +279,23 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                     OutlinedButton(onClick = { val next = (framingGuides.indexOf(framingGuide) + 1) % framingGuides.size; framingGuide = framingGuides[next]; prefs.edit().putString("framing-guide", framingGuide).apply() }) { Text(framingGuide) }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Text("Creator presets", style = MaterialTheme.typography.labelMedium)
+                    OutlinedButton(onClick = { presetName = ""; savePresetDialog = true }, enabled = creatorPresets.size < 12) { Text("Save current") }
+                }
+                if (creatorPresets.isNotEmpty()) {
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        creatorPresets.forEach { preset ->
+                            AssistChip(onClick = {
+                                style = preset.style
+                                styleIntensity = preset.intensity
+                                framingGuide = preset.framing
+                                prefs.edit().putInt("style", style).putFloat("style-intensity", styleIntensity).putString("framing-guide", framingGuide).apply()
+                                onNotice("Applied creator preset: " + preset.name)
+                            }, label = { Text(preset.name) }, trailingIcon = { IconButton(onClick = { creatorPresets.remove(preset); prefs.edit().putString("creator-presets", writeCreatorPresets(creatorPresets)).apply() }) { Icon(Icons.Default.ArrowBack, contentDescription = "Delete " + preset.name, modifier = Modifier.size(16.dp)) } })
+                        }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     OutlinedButton(onClick = { val candidates = if (favoritesOnly && favoriteStyles.isNotEmpty()) cameraStyles.indices.filter { cameraStyles[it] in favoriteStyles } else cameraStyles.indices.toList(); val currentPosition = candidates.indexOf(style).let { if (it < 0) 0 else it }; style = candidates[(currentPosition - 1 + candidates.size) % candidates.size]; prefs.edit().putInt("style", style).apply() }) { Text("‹ Style") }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(cameraStyles[style], style = MaterialTheme.typography.labelLarge)
@@ -307,11 +352,31 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
             }
         }
     }
+
+    if (savePresetDialog) AlertDialog(
+        onDismissRequest = { savePresetDialog = false },
+        title = { Text("Save creator preset") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Save the current photographic style, intensity and framing guide for quick reuse.")
+            OutlinedTextField(value = presetName, onValueChange = { presetName = it.take(32) }, label = { Text("Preset name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Text(creatorPresets.size.toString() + " of 12 presets saved", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } },
+        confirmButton = { TextButton(onClick = {
+            val name = presetName.trim()
+            if (name.isNotEmpty() && creatorPresets.size < 12 && creatorPresets.none { it.name.equals(name, ignoreCase = true) }) {
+                creatorPresets.add(CameraCreatorPreset(name, style, styleIntensity, framingGuide))
+                prefs.edit().putString("creator-presets", writeCreatorPresets(creatorPresets)).apply()
+                savePresetDialog = false
+                onNotice("Saved creator preset: " + name)
+            } else onNotice(if (name.isEmpty()) "Enter a preset name." else if (creatorPresets.size >= 12) "Preset limit reached." else "That preset name already exists.")
+        }) { Text("Save preset") } },
+        dismissButton = { TextButton(onClick = { savePresetDialog = false }) { Text("Cancel") } }
+    )
     if (settings) AlertDialog(
         onDismissRequest = { settings = false },
         title = { Text("Camera preferences") },
         text = { Text("Front/rear camera, flash, exposure, composition grid, photographic style and style intensity are remembered on this device. Styles are applied to exported photos; the live preview is not color-graded.") },
         confirmButton = { TextButton(onClick = { settings = false }) { Text("Done") } },
-        dismissButton = { TextButton(onClick = { front = false; grid = true; framingGuide = "Off"; flash = ImageCapture.FLASH_MODE_OFF; style = 0; favoriteStyles = emptySet(); favoritesOnly = false; styleIntensity = 0.75f; exposure = 0f; activeCamera = null; prefs.edit().clear().apply(); settings = false }) { Text("Reset defaults") } }
+        dismissButton = { TextButton(onClick = { front = false; grid = true; framingGuide = "Off"; flash = ImageCapture.FLASH_MODE_OFF; style = 0; favoriteStyles = emptySet(); favoritesOnly = false; creatorPresets.clear(); savePresetDialog = false; presetName = ""; styleIntensity = 0.75f; exposure = 0f; activeCamera = null; prefs.edit().clear().apply(); settings = false }) { Text("Reset defaults") } }
     )
 }
