@@ -421,7 +421,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                     border = androidx.compose.foundation.BorderStroke(1.dp, ComposeColor.White.copy(alpha = .35f))
                 ) {
                     IconButton(onClick = onClose, modifier = Modifier.size(44.dp)) {
-                        Icon(Icons.Default.Close, contentDescription = "Close Camera Studio", tint = ComposeColor.White)
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Close Camera Studio", tint = ComposeColor.White)
                     }
                 }
                 focusPoint?.let { point ->
@@ -630,7 +630,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                         modifier = Modifier.weight(1f).height(56.dp),
                         shape = RoundedCornerShape(18.dp)
                     ) {
-                        Icon(Icons.Default.Videocam, contentDescription = null)
+                        Icon(Icons.Default.PhotoCamera, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
                         Text("Video")
                     }
