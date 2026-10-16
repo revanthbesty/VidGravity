@@ -44,6 +44,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -131,6 +132,8 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     var denied by remember { mutableStateOf(false) }
     var front by remember { mutableStateOf(prefs.getBoolean("front", false)) }
     var grid by remember { mutableStateOf(prefs.getBoolean("grid", true)) }
+    val framingGuides = listOf("Off", "1:1", "4:5", "16:9")
+    var framingGuide by remember { mutableStateOf(prefs.getString("framing-guide", "Off")?.takeIf { it in framingGuides } ?: "Off") }
     var flash by remember { mutableIntStateOf(prefs.getInt("flash", ImageCapture.FLASH_MODE_OFF)) }
     var style by remember { mutableIntStateOf(prefs.getInt("style", 0).coerceIn(0, cameraStyles.lastIndex)) }
     var favoriteStyles by remember { mutableStateOf(prefs.getStringSet("favorite-styles", emptySet()).orEmpty().toSet()) }
@@ -206,10 +209,19 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
         } else {
             Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 10.dp)) {
                 AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize().pointerInput(activeCamera) { detectTapGestures { tap -> val point = previewView.meteringPointFactory.createPoint(tap.x, tap.y); val action = FocusMeteringAction.Builder(point).setAutoCancelDuration(3, java.util.concurrent.TimeUnit.SECONDS).build(); runCatching { activeCamera?.cameraControl?.startFocusAndMetering(action) } } })
-                if (grid) Canvas(Modifier.fillMaxSize()) {
-                    for (n in 1..2) {
-                        drawLine(ComposeColor.White.copy(alpha = .55f), Offset(size.width * n / 3f, 0f), Offset(size.width * n / 3f, size.height), 1.dp.toPx())
-                        drawLine(ComposeColor.White.copy(alpha = .55f), Offset(0f, size.height * n / 3f), Offset(size.width, size.height * n / 3f), 1.dp.toPx())
+                if (grid || framingGuide != "Off") Canvas(Modifier.fillMaxSize()) {
+                    val guideColor = ComposeColor.White.copy(alpha = .82f)
+                    if (grid) {
+                        for (n in 1..2) {
+                            drawLine(guideColor.copy(alpha = .55f), Offset(size.width * n / 3f, 0f), Offset(size.width * n / 3f, size.height), 1.dp.toPx())
+                            drawLine(guideColor.copy(alpha = .55f), Offset(0f, size.height * n / 3f), Offset(size.width, size.height * n / 3f), 1.dp.toPx())
+                        }
+                    }
+                    if (framingGuide != "Off") {
+                        val ratio = when (framingGuide) { "1:1" -> 1f; "4:5" -> 4f / 5f; else -> 16f / 9f }
+                        val frameWidth = minOf(size.width, size.height * ratio)
+                        val frameHeight = frameWidth / ratio
+                        drawRect(guideColor, Offset((size.width - frameWidth) / 2f, (size.height - frameHeight) / 2f), androidx.compose.ui.geometry.Size(frameWidth, frameHeight), style = Stroke(2.dp.toPx()))
                     }
                 }
                 Column(Modifier.align(Alignment.CenterEnd).padding(6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -234,6 +246,10 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                     Text((if (exposure >= 0) "+" else "") + "%.1f EV".format(exposure), style = MaterialTheme.typography.labelMedium)
                 }
                 Slider(value = exposure.coerceIn(exposureRange.start, exposureRange.endInclusive), onValueChange = { exposure = it; prefs.edit().putFloat("exposure", it).apply() }, valueRange = exposureRange, enabled = exposureRange.start < exposureRange.endInclusive)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Text("Social framing guide", style = MaterialTheme.typography.labelMedium)
+                    OutlinedButton(onClick = { val next = (framingGuides.indexOf(framingGuide) + 1) % framingGuides.size; framingGuide = framingGuides[next]; prefs.edit().putString("framing-guide", framingGuide).apply() }) { Text(framingGuide) }
+                }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     OutlinedButton(onClick = { val candidates = if (favoritesOnly && favoriteStyles.isNotEmpty()) cameraStyles.indices.filter { cameraStyles[it] in favoriteStyles } else cameraStyles.indices.toList(); val currentPosition = candidates.indexOf(style).let { if (it < 0) 0 else it }; style = candidates[(currentPosition - 1 + candidates.size) % candidates.size]; prefs.edit().putInt("style", style).apply() }) { Text("‹ Style") }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -296,6 +312,6 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
         title = { Text("Camera preferences") },
         text = { Text("Front/rear camera, flash, exposure, composition grid, photographic style and style intensity are remembered on this device. Styles are applied to exported photos; the live preview is not color-graded.") },
         confirmButton = { TextButton(onClick = { settings = false }) { Text("Done") } },
-        dismissButton = { TextButton(onClick = { front = false; grid = true; flash = ImageCapture.FLASH_MODE_OFF; style = 0; favoriteStyles = emptySet(); favoritesOnly = false; styleIntensity = 0.75f; exposure = 0f; activeCamera = null; prefs.edit().clear().apply(); settings = false }) { Text("Reset defaults") } }
+        dismissButton = { TextButton(onClick = { front = false; grid = true; framingGuide = "Off"; flash = ImageCapture.FLASH_MODE_OFF; style = 0; favoriteStyles = emptySet(); favoritesOnly = false; styleIntensity = 0.75f; exposure = 0f; activeCamera = null; prefs.edit().clear().apply(); settings = false }) { Text("Reset defaults") } }
     )
 }
