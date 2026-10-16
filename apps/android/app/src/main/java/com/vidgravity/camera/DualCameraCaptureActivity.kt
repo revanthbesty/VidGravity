@@ -11,6 +11,7 @@ import android.view.View
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -529,6 +530,8 @@ class DualCameraCaptureActivity : ComponentActivity() {
             "Video quality: ${videoQualityLabel(videoQuality)}",
             "Photo timer: ${if (timerSeconds == 0) "Off" else "${timerSeconds}s"}",
             "Composition grid: ${if (gridEnabled) "On" else "Off"}",
+            "Zoom control",
+            "Exposure compensation",
             "Dual-camera mode: ${if (dualSupported) "Supported" else "Not supported by device"}"
         )
         AlertDialog.Builder(this)
@@ -544,10 +547,106 @@ class DualCameraCaptureActivity : ComponentActivity() {
                         Toast.makeText(this, "Composition grid: ${if (gridEnabled) "On" else "Off"}", Toast.LENGTH_SHORT).show()
                         showCameraSettings()
                     }
-                    3 -> Toast.makeText(this, if (dualSupported) "Use Dual on to enable front/rear preview. Video recording uses single-camera mode." else "This phone does not expose a supported front/rear concurrent camera pair.", Toast.LENGTH_LONG).show()
+                    3 -> chooseZoom()
+                    4 -> chooseExposure()
+                    5 -> Toast.makeText(this, if (dualSupported) "Use Dual on to enable front/rear preview. Video recording uses single-camera mode." else "This phone does not expose a supported front/rear concurrent camera pair.", Toast.LENGTH_LONG).show()
                 }
             }
             .setNegativeButton("Close", null)
+            .show()
+    }
+
+    private fun chooseZoom() {
+        val activeCamera = camera
+        if (dualMode || activeCamera == null) {
+            Toast.makeText(this, "Zoom control is unavailable in dual-camera mode.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val zoomState = activeCamera.cameraInfo.zoomState.value
+        if (zoomState == null || zoomState.maxZoomRatio <= zoomState.minZoomRatio) {
+            Toast.makeText(this, "This camera does not expose adjustable zoom.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val minZoom = zoomState.minZoomRatio
+        val maxZoom = zoomState.maxZoomRatio
+        val seek = SeekBar(this).apply {
+            max = 100
+            progress = (((zoomState.zoomRatio - minZoom) / (maxZoom - minZoom)) * 100f).toInt().coerceIn(0, 100)
+        }
+        val label = TextView(this).apply {
+            setTextColor(0xFFFFFFFF.toInt())
+            textSize = 14f
+            gravity = Gravity.CENTER
+            text = String.format(java.util.Locale.US, "%.1fx", zoomState.zoomRatio)
+            setPadding(0, dp(8), 0, dp(8))
+        }
+        seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val ratio = minZoom + (maxZoom - minZoom) * (progress / 100f)
+                label.text = String.format(java.util.Locale.US, "%.1fx", ratio)
+                activeCamera.cameraControl.setZoomRatio(ratio)
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), dp(8))
+            addView(label, LinearLayout.LayoutParams(-1, -2))
+            addView(seek, LinearLayout.LayoutParams(-1, -2))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Zoom · ${String.format(java.util.Locale.US, "%.1f", minZoom)}×–${String.format(java.util.Locale.US, "%.1f", maxZoom)}×")
+            .setView(panel)
+            .setPositiveButton("Done", null)
+            .setNeutralButton("Reset") { _, _ -> activeCamera.cameraControl.setZoomRatio(minZoom) }
+            .show()
+    }
+
+    private fun chooseExposure() {
+        val activeCamera = camera
+        if (dualMode || activeCamera == null) {
+            Toast.makeText(this, "Exposure control is unavailable in dual-camera mode.", Toast.LENGTH_LONG).show()
+            return
+        }
+        val exposureState = activeCamera.cameraInfo.exposureState
+        val range = exposureState.exposureCompensationRange
+        if (range.lower >= range.upper) {
+            Toast.makeText(this, "This camera does not expose adjustable exposure compensation.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val currentIndex = exposureState.exposureCompensationIndex.coerceIn(range.lower, range.upper)
+        val seek = SeekBar(this).apply {
+            max = range.upper - range.lower
+            progress = currentIndex - range.lower
+        }
+        val label = TextView(this).apply {
+            setTextColor(0xFFFFFFFF.toInt())
+            textSize = 14f
+            gravity = Gravity.CENTER
+            text = "Exposure index: $currentIndex"
+            setPadding(0, dp(8), 0, dp(8))
+        }
+        seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                val index = range.lower + progress
+                label.text = "Exposure index: $index"
+                activeCamera.cameraControl.setExposureCompensationIndex(index)
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+        })
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), dp(8))
+            addView(label, LinearLayout.LayoutParams(-1, -2))
+            addView(seek, LinearLayout.LayoutParams(-1, -2))
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Exposure compensation")
+            .setView(panel)
+            .setPositiveButton("Done", null)
+            .setNeutralButton("Reset") { _, _ -> activeCamera.cameraControl.setExposureCompensationIndex(0.coerceIn(range.lower, range.upper)) }
             .show()
     }
 
