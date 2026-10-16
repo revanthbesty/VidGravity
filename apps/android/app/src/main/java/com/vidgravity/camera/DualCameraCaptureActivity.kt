@@ -84,6 +84,13 @@ class DualCameraCaptureActivity : ComponentActivity() {
         else finishWithMessage("Camera permission is required to capture media.")
     }
 
+    private val audioPermissionRequest = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        activateVideoMode(audioGranted = granted)
+        if (!granted) {
+            Toast.makeText(this, "Microphone permission denied. Video will record without audio.", Toast.LENGTH_LONG).show()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         executor = Executors.newSingleThreadExecutor()
@@ -369,16 +376,30 @@ class DualCameraCaptureActivity : ComponentActivity() {
             Toast.makeText(this, "Stop the current recording before changing mode.", Toast.LENGTH_SHORT).show()
             return
         }
-        videoMode = !videoMode
-        modeButton.text = if (videoMode) "VIDEO ✓ · tap for PHOTO" else "PHOTO ✓ · tap for VIDEO"
-        modeButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(if (videoMode) 0xFF286B66.toInt() else 0xFF34464B.toInt()))
-        if (videoMode && dualMode) {
+        if (!videoMode && ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            audioPermissionRequest.launch(Manifest.permission.RECORD_AUDIO)
+            return
+        }
+        if (!videoMode) activateVideoMode(audioGranted = true) else {
+            videoMode = false
+            modeButton.text = "PHOTO ✓ · tap for VIDEO"
+            modeButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF34464B.toInt()))
+            bindCameraSession()
+        }
+    }
+
+    private fun activateVideoMode(audioGranted: Boolean) {
+        videoMode = true
+        modeButton.text = "VIDEO ✓ · tap for PHOTO"
+        modeButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF286B66.toInt()))
+        if (dualMode) {
             dualMode = false
             bindCameraSession()
             Toast.makeText(this, "Switched to single-camera video recording.", Toast.LENGTH_SHORT).show()
         } else {
             bindCameraSession()
         }
+        if (!audioGranted) status.text = "Video mode · recording without microphone audio"
     }
 
     private fun onShutterPressed() {
