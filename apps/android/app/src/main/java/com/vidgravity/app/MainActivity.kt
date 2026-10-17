@@ -175,9 +175,9 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
-                // Camera Studio is a focused capture workspace: hide the app branding bar
-                // so it cannot consume preview space or duplicate the Studio header.
-                if (!cameraStudioOpen) {
+                // Hide global branding on focused destinations; Player and Share Inbox
+                // provide their own screen headers and back controls.
+                if (!cameraStudioOpen && playingMedia == null && !showInbox) {
                     Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text("VidGravity", fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
