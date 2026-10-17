@@ -234,9 +234,9 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                     val selector = if (option.hasAudio) option.selector else option.selector + "+bestaudio/best"
                     Triple(resolution, selector, option)
                 }
-            val videoChoices = listOf(
-                Triple("Best available", "bv*+ba/b", videoFormats.maxByOrNull { qualityHeight(it) } ?: usable.firstOrNull())
-            ).filter { it.third != null } + standardVideo
+            // Only offer qualities returned by source analysis. A generic "best" selector
+            // may resolve to a different stream than the format preview suggests.
+            val videoChoices = standardVideo
             var rememberQuality by remember(result.title) { mutableStateOf(false) }
             var qualityTab by remember(result.title) { mutableStateOf("Video & Audio") }
             ModalBottomSheet(
@@ -287,7 +287,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                     modifier = Modifier.fillMaxWidth().clickable {
                                         try {
                                             val preferences = SecureDownloadPreferences.load(context)
-                                            if (rememberQuality && choice.first != "Highest available") {
+                                            if (rememberQuality) {
                                                 SecureDownloadPreferences.save(context, preferences.copy(
                                                     autoDownloadWithPreferredPreset = true,
                                                     preferredFormatSelector = choice.second
@@ -315,8 +315,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                             val hdrLabel = option?.dynamicRange?.takeIf { it.isNotBlank() && !it.equals("SDR", true) }?.let { "HDR" }
                                             val safeContainer = option?.container?.uppercase()
                                                 ?.takeIf { it.matches(Regex("[A-Z0-9]{2,5}")) } ?: "MEDIA"
-                                            Text(if (choice.first == "Highest available") "Best compatible quality for this source"
-                                                else listOfNotNull(safeContainer, fpsLabel, hdrLabel, sizeLabel).joinToString(" • "),
+                                            Text(listOfNotNull(safeContainer, fpsLabel, hdrLabel, sizeLabel).joinToString(" • "),
                                                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
                                         Icon(Icons.Default.ChevronRight, null)
