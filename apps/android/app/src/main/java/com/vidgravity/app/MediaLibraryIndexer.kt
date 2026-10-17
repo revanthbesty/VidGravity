@@ -43,6 +43,8 @@ object MediaLibraryIndexer {
         val sources = listOf(
             MediaStore.Video.Media.EXTERNAL_CONTENT_URI to "Movies/VidGravity/",
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI to "Music/VidGravity/",
+            // Photos taken in VidGravity's camera are public MediaStore images.
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI to "Pictures/VidGravity/",
             // Creator exports use the Images collection and this dedicated folder.
             // Reconcile it too so verified animated stickers survive process restarts
             // and appear in Library's Images filter.
