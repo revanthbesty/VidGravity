@@ -4,7 +4,6 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -43,10 +42,31 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
+    private lateinit var startup: StartupHost
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        android.util.Log.i(StartupHost.TAG, "onCreate.begin sdk=${android.os.Build.VERSION.SDK_INT} target=${applicationInfo.targetSdkVersion}")
         super.onCreate(savedInstanceState)
+        startup = StartupHost(this)
+        setContentView(startup)
         val openInbox = intent?.getBooleanExtra(ShareReceiverActivity.EXTRA_OPEN_INBOX, false) == true
-        setContent { VidGravityApp(openInboxInitially = openInbox) }
+        startup.start { VidGravityApp(openInboxInitially = openInbox) }
+        android.util.Log.i(StartupHost.TAG, "onCreate.end")
+    }
+
+    override fun onResume() {
+        super.onResume()
+        android.util.Log.i(StartupHost.TAG, "onResume")
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        android.util.Log.i(StartupHost.TAG, "window.focus=$hasFocus")
+    }
+
+    override fun onDestroy() {
+        if (::startup.isInitialized) startup.close()
+        super.onDestroy()
     }
 }
 
@@ -60,8 +80,24 @@ private enum class VgTab(val title: String, val icon: androidx.compose.ui.graphi
 @Composable
 private fun VidGravityApp(openInboxInitially: Boolean = false) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val prefs = remember { context.getSharedPreferences("vg-ui", 0) }
-    var dark by remember { mutableStateOf(prefs.getBoolean("dark", true)) }
+    var prefs by remember { mutableStateOf<android.content.SharedPreferences?>(null) }
+    var dark by remember { mutableStateOf(true) }
+    // SharedPreferences may wait for disk loading. Never hold the first frame on it.
+    LaunchedEffect(context) {
+        val loaded = withContext(Dispatchers.IO) {
+            try {
+                val loadedPrefs = context.getSharedPreferences("vg-ui", 0)
+                loadedPrefs to loadedPrefs.getBoolean("dark", true)
+            }
+            catch (failure: RuntimeException) {
+                android.util.Log.w(StartupHost.TAG, "theme.preference.failed type=${failure.javaClass.simpleName}")
+                null to true
+            }
+        }
+        prefs = loaded.first
+        dark = loaded.second
+        android.util.Log.i(StartupHost.TAG, "theme.preference.loaded")
+    }
     var selected by remember { mutableStateOf(VgTab.Home) }
     var showInbox by remember { mutableStateOf(openInboxInitially) }
     var showStudyTok by remember { mutableStateOf(false) }
@@ -114,7 +150,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                     Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant) {
-                        IconButton(onClick = { dark = !dark; prefs.edit().putBoolean("dark", dark).apply() }) {
+                        IconButton(onClick = { dark = !dark; prefs?.edit()?.putBoolean("dark", dark)?.apply() }) {
                             Icon(if (dark) Icons.Default.LightMode else Icons.Default.DarkMode, "Toggle theme")
                         }
                     }
@@ -178,7 +214,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                         onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true },
                         initialMedia = creatorInitialMedia
                     )
-                    VgTab.Settings -> SettingsContent(dark, { dark = it; prefs.edit().putBoolean("dark", it).apply() })
+                    VgTab.Settings -> SettingsContent(dark, { dark = it; prefs?.edit()?.putBoolean("dark", it)?.apply() })
                 }
             }
         }
@@ -440,11 +476,20 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
             ?.takeIf { it.length <= 4096 && (it.contains("://youtu") || it.contains("instagram.com") || it.contains("tiktok.com") || it.contains("facebook.com") || it.contains("twitter.com") || it.contains("x.com") || it.contains("vimeo.com") || it.contains("soundcloud.com") || it.contains("youtube.com") || it.contains("youtu.be")) }
         clipboardSuggestion = candidate?.takeIf { it != url }
     }
-    DisposableEffect(activity) {
+    // Clipboard binder access is optional: defer it until after a rendered frame.
+    LaunchedEffect(activity) {
+        withFrameNanos { }
+        withFrameNanos { }
         detectClipboardUrl()
+    }
+    DisposableEffect(activity) {
         val lifecycle = activity?.lifecycle
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) detectClipboardUrl()
+            if (event == Lifecycle.Event.ON_RESUME) scope.launch {
+                withFrameNanos { }
+                withFrameNanos { }
+                detectClipboardUrl()
+            }
         }
         lifecycle?.addObserver(observer)
         onDispose { lifecycle?.removeObserver(observer) }
