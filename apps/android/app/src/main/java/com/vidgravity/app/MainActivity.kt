@@ -254,7 +254,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create }, { selected = it }, { playingMedia = it })
+                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create }, { cameraStudioOpen = true }, { selected = it }, { playingMedia = it })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     VgTab.Library -> LibraryContent(
                         onPlay = { playingMedia = it },
@@ -577,7 +577,7 @@ private fun VgPrimaryButton(
 }
 
 @Composable
-private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, onTab: (VgTab) -> Unit, onPlay: (LibraryMedia) -> Unit) {
+private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, onOpenCamera: () -> Unit, onTab: (VgTab) -> Unit, onPlay: (LibraryMedia) -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -830,7 +830,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                             }
                             Surface(
                                 modifier = Modifier.weight(1f).heightIn(min = 124.dp).clickable {
-                                    if (index == 0) openCreate() else onTab(destination)
+                                    if (index == 0) onOpenCamera() else onTab(destination)
                                 },
                                 shape = RoundedCornerShape(20.dp),
                                 color = Color.Transparent,
@@ -929,7 +929,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                     ).forEachIndexed { index, action ->
                         Surface(
                             modifier = Modifier.weight(1f).heightIn(min = 76.dp).clickable {
-                                when (index) { 0 -> onTab(VgTab.Downloads); 1 -> openCreate(); else -> onTab(VgTab.Library) }
+                                when (index) { 0 -> onTab(VgTab.Downloads); 1 -> onOpenCamera(); else -> onTab(VgTab.Library) }
                             },
                             shape = RoundedCornerShape(16.dp),
                             color = action.third.copy(alpha = 0.12f),
