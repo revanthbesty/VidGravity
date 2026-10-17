@@ -483,6 +483,19 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                         letterSpacing = (-0.8).sp)
                     Text("All your video and audio tools in one powerful app.",
                         fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("CAPTURE", "CREATE", "SHARE").forEach { label ->
+                            Surface(shape = RoundedCornerShape(50),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))) {
+                                Text(label, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.8.sp,
+                                    color = MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp),
                         modifier = Modifier.fillMaxWidth()) {
                         Surface(modifier = Modifier.weight(1f).height(112.dp)
