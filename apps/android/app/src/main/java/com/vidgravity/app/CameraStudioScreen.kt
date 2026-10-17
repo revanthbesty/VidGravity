@@ -213,6 +213,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     var zoomRange by remember { mutableStateOf(1f..1f) }
     var activeCamera by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
     var previewReady by remember { mutableStateOf(false) }
+    var cameraRetryToken by remember { mutableIntStateOf(0) }
     var exposureRange by remember { mutableStateOf(-2f..2f) }
     var busy by remember { mutableStateOf(false) }
     var timerSeconds by remember { mutableIntStateOf(prefs.getInt("timer-seconds", 0).coerceIn(0, 10)) }
@@ -258,7 +259,7 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
     DisposableEffect(Unit) {
         onDispose { runCatching { providerFuture.get().unbindAll() }; executor.shutdown() }
     }
-    LaunchedEffect(permitted, front, flash, previewReady) {
+    LaunchedEffect(permitted, front, flash, previewReady, cameraRetryToken) {
         // Wait until Compose has attached and measured PreviewView before binding CameraX.
         // This avoids binding to a surface that does not exist yet on first entry.
         if (!permitted || !previewReady) return@LaunchedEffect
@@ -484,7 +485,30 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                         IconButton(onClick = { front = !front; prefs.edit().putBoolean("front", front).apply() }) { Icon(Icons.Default.SwitchCamera, "Switch camera", tint = ComposeColor.White) }
                     }
                 }
-                error?.let { Surface(Modifier.align(Alignment.BottomCenter).padding(8.dp), color = ComposeColor.Black.copy(alpha = .78f), shape = RoundedCornerShape(12.dp)) { Text(it, color = ComposeColor.White, modifier = Modifier.padding(10.dp)) } }
+                error?.let { message ->
+                    Surface(
+                        Modifier.align(Alignment.BottomCenter).padding(8.dp).fillMaxWidth(),
+                        color = ComposeColor.Black.copy(alpha = .84f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ComposeColor.White.copy(alpha = .22f))
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(message, color = ComposeColor.White, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                            TextButton(
+                                onClick = {
+                                    runCatching { providerFuture.get().unbindAll() }
+                                    activeCamera = null
+                                    error = null
+                                    cameraRetryToken++
+                                },
+                                modifier = Modifier.heightIn(min = 48.dp)
+                            ) { Text("Retry", color = ComposeColor.White) }
+                        }
+                    }
+                }
             }
             Column(
                 Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
