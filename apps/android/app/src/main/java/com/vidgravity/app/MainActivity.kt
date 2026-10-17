@@ -1228,11 +1228,21 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
             }
         }
         if (visibleMedia.isEmpty()) {
-            InfoCard(
-                if (searchQuery.isNotBlank()) "No matching media" else if (filter == "Favorites") "No favorites yet" else "Your library is empty",
-                if (searchQuery.isNotBlank()) "Try another title or clear the search." else "Completed downloads saved by VidGravity will appear here. Use Downloads to check failed transfers.",
-                Icons.Default.VideoLibrary, Modifier.fillMaxWidth()
-            )
+            val libraryEmptyTitle = when {
+                media.isEmpty() -> "Your library is empty"
+                searchQuery.isNotBlank() -> "No matching media"
+                filter == "Favorites" && favoriteCount == 0 -> "No favorites yet"
+                filter != "All Media" || sizeFilter != "Any size" -> "No media matches these filters"
+                else -> "No matching media"
+            }
+            val libraryEmptyMessage = when {
+                media.isEmpty() -> "Completed downloads and captured media saved by VidGravity will appear here. Use Downloads to check failed transfers."
+                searchQuery.isNotBlank() -> "Try another title or clear the search."
+                filter == "Favorites" && favoriteCount == 0 -> "Mark an item as a favorite to find it here."
+                filter != "All Media" || sizeFilter != "Any size" -> "Change or reset the filters to see more of your library."
+                else -> "Try changing your search or filter."
+            }
+            InfoCard(libraryEmptyTitle, libraryEmptyMessage, Icons.Default.VideoLibrary, Modifier.fillMaxWidth())
         } else {
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(visibleMedia, key = { it.uri.toString() }) { item ->
