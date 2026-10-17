@@ -1,6 +1,9 @@
 package com.vidgravity.camera
 
 import android.Manifest
+import android.content.ContentValues
+import android.os.Build
+import android.provider.MediaStore
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Environment
@@ -291,14 +294,29 @@ class DualCameraCaptureActivity : ComponentActivity() {
             return
         }
         val captureNow = {
-            val directory = getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: filesDir
-            if (!directory.exists()) directory.mkdirs()
-            val target = File(directory, "vidgravity-${System.currentTimeMillis()}.jpg")
-            val options = ImageCapture.OutputFileOptions.Builder(target).build()
+            val fileName = "vidgravity-${System.currentTimeMillis()}.jpg"
+            // Publish photos to the same MediaStore folder the library indexes.
+            // Preserve app-specific storage on Android 8–9.
+            val options = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/VidGravity/")
+                }
+                ImageCapture.OutputFileOptions.Builder(
+                    contentResolver, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values
+                ).build()
+            } else {
+                val directory = getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: filesDir
+                if (!directory.exists()) directory.mkdirs()
+                ImageCapture.OutputFileOptions.Builder(
+                    File(directory, fileName)
+                ).build()
+            }
             capture.takePicture(options, executor, object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(result: ImageCapture.OutputFileResults) = runOnUiThread {
-                    status.text = "Photo saved · ${target.name}"
-                    Toast.makeText(this@DualCameraCaptureActivity, "Photo saved to VidGravity: ${target.name}", Toast.LENGTH_LONG).show()
+                    status.text = "Photo saved · ${fileName}"
+                    Toast.makeText(this@DualCameraCaptureActivity, "Photo saved to VidGravity: ${fileName}", Toast.LENGTH_LONG).show()
                 }
                 override fun onError(exception: ImageCaptureException) = runOnUiThread {
                     Toast.makeText(this@DualCameraCaptureActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
