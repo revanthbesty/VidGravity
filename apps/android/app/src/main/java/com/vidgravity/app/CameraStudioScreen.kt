@@ -132,44 +132,47 @@ private fun renderCameraStyle(sourceFile: File, outputFile: File, style: String,
         decoded = oriented
     }
     val a = intensity.coerceIn(0f, 1f)
+    // Effects are deliberately stronger than subtle preview-only color tweaks so
+    // each named style is visible in the exported photo at ordinary intensities.
     val saturation = when (style) {
         "Monochrome" -> 1f - a
-        "Vibrant" -> 1f + .32f * a
-        "Soft" -> 1f - .12f * a
-        "Cinematic" -> 1f - .08f * a
-        "Golden Hour" -> 1f + .10f * a
-        "Matte" -> 1f - .08f * a
-        "Rose" -> 1f + .08f * a
-        "Teal" -> 1f + .16f * a
+        "Vibrant" -> 1f + .65f * a
+        "Soft" -> 1f - .18f * a
+        "Cinematic" -> 1f - .12f * a
+        "Golden Hour" -> 1f + .18f * a
+        "Matte" -> 1f - .14f * a
+        "Rose" -> 1f + .18f * a
+        "Teal" -> 1f + .24f * a
         else -> 1f
     }
     val contrast = when (style) {
-        "Rich Contrast" -> 1f + .24f * a
-        "Cinematic" -> 1f + .15f * a
-        "Soft" -> 1f - .10f * a
-        "Golden Hour" -> 1f + .04f * a
-        "Matte" -> 1f - .16f * a
-        "Rose" -> 1f + .04f * a
-        "Teal" -> 1f + .08f * a
+        "Rich Contrast" -> 1f + .42f * a
+        "Cinematic" -> 1f + .22f * a
+        "Soft" -> 1f - .18f * a
+        "Golden Hour" -> 1f + .08f * a
+        "Matte" -> 1f - .24f * a
+        "Rose" -> 1f + .08f * a
+        "Teal" -> 1f + .12f * a
+        "Vibrant" -> 1f + .12f * a
         else -> 1f
     }
     val warm = when (style) {
-        "Warm" -> a
-        "Cool" -> -a
-        "Vibrant" -> .12f * a
-        "Cinematic" -> -.10f * a
-        "Golden Hour" -> 1.25f * a
-        "Matte" -> .06f * a
-        "Rose" -> .62f * a
-        "Teal" -> -.55f * a
+        "Warm" -> 1.35f * a
+        "Cool" -> -1.25f * a
+        "Vibrant" -> .20f * a
+        "Cinematic" -> -.24f * a
+        "Golden Hour" -> 2.2f * a
+        "Matte" -> .14f * a
+        "Rose" -> 1.35f * a
+        "Teal" -> -1.2f * a
         else -> 0f
     }
     val matrix = ColorMatrix().apply { setSaturation(saturation) }
     val offset = 128f * (1f - contrast)
     matrix.postConcat(ColorMatrix(floatArrayOf(
-        contrast,0f,0f,0f,offset + 22f * warm,
-        0f,contrast,0f,0f,offset + 3f * warm,
-        0f,0f,contrast,0f,offset - 22f * warm,
+        contrast,0f,0f,0f,offset + 30f * warm,
+        0f,contrast,0f,0f,offset + 4f * warm,
+        0f,0f,contrast,0f,offset - 30f * warm,
         0f,0f,0f,1f,0f
     )))
     val result = Bitmap.createBitmap(decoded.width, decoded.height, Bitmap.Config.ARGB_8888)
