@@ -2043,6 +2043,15 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             }
         }
 
+        // Keep Share Inbox reachable from Create Studio without adding another top-level action.
+        TextButton(
+            onClick = openInbox,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+        ) {
+            Icon(Icons.Default.Inbox, null)
+            Spacer(Modifier.width(8.dp))
+            Text("Open Share Inbox")
+        }
     }
 }
 
