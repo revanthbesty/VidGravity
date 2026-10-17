@@ -153,7 +153,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Studio }, { context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java)) }, { playingMedia = it }, { showStudyTok = true })
+                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Studio }, { context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java)) }, { playingMedia = it }, { creatorInitialMedia = it; selected = VgTab.Studio }, { showStudyTok = true })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     // Camera opens a dedicated Activity from its navigation item.
                     // This branch keeps the enum dispatch exhaustive.
@@ -396,7 +396,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
 }
 
 @Composable
-private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, openCamera: () -> Unit, onPlayRecent: (LibraryMedia) -> Unit, openStudyTok: () -> Unit) {
+private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, openCamera: () -> Unit, onPlayRecent: (LibraryMedia) -> Unit, onEditRecent: (LibraryMedia) -> Unit, openStudyTok: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -645,7 +645,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                         Surface(modifier = Modifier.width(164.dp).clickable {
                             if (media.mimeType.startsWith("video/") || media.mimeType.startsWith("audio/"))
                                 onPlayRecent(media)
-                            else openCreate()
+                            else onEditRecent(media)
                         }, shape = RoundedCornerShape(18.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant) {
                             var thumbnail by remember(media.uri) {
