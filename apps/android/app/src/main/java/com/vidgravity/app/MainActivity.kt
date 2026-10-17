@@ -504,15 +504,17 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                     }
                     Text("EXPLORE TOOLS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        listOf(
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(end = 4.dp)) {
+                        items(listOf(
                             Triple("Download", Icons.Default.Download, { notify("Paste a link below to download authorized media.") }),
                             Triple("Camera", Icons.Default.PhotoCamera, openCamera),
                             Triple("Edit Video", Icons.Default.ContentCut, openCreate),
                             Triple("Audio", Icons.Default.MusicNote, openCreate),
-                            Triple("Templates", Icons.Default.AutoAwesome, openCreate)
-                        ).forEach { (label, icon, action) ->
-                            Column(Modifier.width(62.dp).clickable(onClick = action),
+                            Triple("Templates", Icons.Default.AutoAwesome, openCreate),
+                            Triple("My Library", Icons.Default.VideoLibrary, openLibrary)
+                        )) { (label, icon, action) ->
+                            Column(Modifier.width(70.dp).clickable(onClick = action),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Surface(shape = RoundedCornerShape(16.dp),
