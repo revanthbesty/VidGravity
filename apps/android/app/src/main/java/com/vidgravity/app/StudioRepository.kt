@@ -5,6 +5,8 @@ import android.util.AtomicFile
 import org.json.JSONObject
 import java.io.File
 
+data class StudioProjectListing(val projects: List<StudioProject>, val unreadableCount: Int)
+
 data class StudioExportRecord(val workId: String, val fingerprint: String, val uri: String? = null,
     val width: Int = 0, val height: Int = 0)
 
@@ -17,10 +19,18 @@ class StudioRepository(context: Context) {
     }
     @Synchronized fun save(project: StudioProject) = write(file(project.id), StudioProjectCodec.encode(project))
     @Synchronized fun load(id: String): StudioProject = StudioProjectCodec.decode(read(file(id)))
-    @Synchronized fun list(): List<StudioProject> = root.listFiles().orEmpty()
-        .map { File(root, it.name.removeSuffix(".bak")) }.distinctBy { it.name }
-        .filter { it.name.endsWith(".json") && !it.name.endsWith(".export.json") && !it.name.endsWith(".request.json") }
-        .map { StudioProjectCodec.decode(read(it)) }.sortedByDescending { it.updatedAt }
+    @Synchronized fun list(): List<StudioProject> = scan().projects
+    @Synchronized fun scan(): StudioProjectListing {
+        var unreadable = 0
+        val projects = root.listFiles().orEmpty()
+            .map { File(root, it.name.removeSuffix(".bak")) }.distinctBy { it.name }
+            .filter { it.name.endsWith(".json") && !it.name.endsWith(".export.json") && !it.name.endsWith(".request.json") }
+            .mapNotNull { file ->
+                try { StudioProjectCodec.decode(read(file)) }
+                catch (failure: Exception) { unreadable++; null }
+            }.sortedByDescending { it.updatedAt }
+        return StudioProjectListing(projects, unreadable)
+    }
     @Synchronized fun delete(id: String) {
         AtomicFile(file(id)).delete()
         AtomicFile(file(id, ".export.json")).delete()

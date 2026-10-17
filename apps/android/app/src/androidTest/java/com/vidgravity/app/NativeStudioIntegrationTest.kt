@@ -17,6 +17,25 @@ internal fun studioFixture(name: String): File {
 }
 
 class NativeStudioIntegrationTest {
+    @Test fun atomicBackupRecoversAndCorruptProjectsDoNotHideValidOnes() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val repository = StudioRepository(context)
+        val project = StudioProject(title = "Recovery test", clips = listOf(
+            StudioClip(uri = "content://test/video/1", name = "test.mp4", sourceDurationMs = 2000)))
+        val target = File(context.filesDir, "studio-projects/${project.id}.json")
+        val corrupt = File(context.filesDir, "studio-projects/${UUID.randomUUID()}.json")
+        try {
+            repository.save(project)
+            assertTrue(target.renameTo(File(target.path + ".bak")))
+            corrupt.writeText("not valid JSON")
+            val listing = repository.scan()
+            assertTrue(listing.projects.any { it == project })
+            assertTrue(listing.unreadableCount >= 1)
+            assertTrue(corrupt.exists())
+            assertEquals(project, repository.load(project.id))
+        } finally { repository.delete(project.id); corrupt.delete() }
+    }
+
     @Test fun realEncoderRendersTrimmedTimelineEffectsAndMixedAudio() = runBlocking {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val source = studioFixture("native-source.mp4")

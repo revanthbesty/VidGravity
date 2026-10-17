@@ -65,7 +65,11 @@ internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> 
     var message by remember { mutableStateOf<String?>(null) }
     suspend fun reload() {
         loading = true
-        try { projects = withContext(Dispatchers.IO) { repository.list() } }
+        try {
+            val listing = withContext(Dispatchers.IO) { repository.scan() }
+            projects = listing.projects
+            message = if (listing.unreadableCount > 0) "${listing.unreadableCount} project file(s) could not be opened. Their files were preserved." else null
+        }
         catch (failure: Exception) { if (failure is CancellationException) throw failure; message = "Projects could not be read. Existing files were preserved." }
         finally { loading = false }
     }
