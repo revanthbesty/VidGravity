@@ -31,7 +31,7 @@ class AndroidWorkflowBatchTests(unittest.TestCase):
     def test_changed_story_settings_invalidate_derivative(self):
         source = (APP / "StoryCardScreen.kt").read_text()
         self.assertIn("LaunchedEffect(media.uri, start, length, title, artist, layout)", source)
-        self.assertIn("hasDerivative && !isRendering", source)
+        self.assertIn("renderedSettings == currentSettings", source)
         self.assertIn("onEdit = { exportedUri = null }", (APP / "MainActivity.kt").read_text())
 
 

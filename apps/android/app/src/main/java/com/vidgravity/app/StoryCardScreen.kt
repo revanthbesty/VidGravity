@@ -66,6 +66,9 @@ fun StoryCardScreen(
     }
     val maxLength = minOf(duration, 120f).coerceAtLeast(1f)
     val end = (start + length).coerceAtMost(duration)
+    val currentSettings = StoryEditSettings(media.uri.toString(), start, end, title, artist, layout)
+    var renderedSettings by remember(media.uri) { mutableStateOf<StoryEditSettings?>(null) }
+    val canShare = hasDerivative && !isRendering && renderedSettings == currentSettings
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Story Card", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
@@ -160,14 +163,14 @@ fun StoryCardScreen(
                 )
             }
         }
-        Button(enabled = !isRendering, onClick = { onRenderStory(media, start, end, title, artist, layout); status = "Story render requested." },
+        Button(enabled = !isRendering, onClick = { renderedSettings = currentSettings; onRenderStory(media, start, end, title, artist, layout); status = "Story render requested." },
             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
             if (isRendering) { CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)); Text("Rendering story…") }
             else Text("Render 9:16 Story")
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(enabled = hasDerivative && !isRendering, onClick = { onShareDerivative("instagram") }, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) { Text("Instagram Story") }
-            OutlinedButton(enabled = hasDerivative && !isRendering, onClick = { onShareDerivative("whatsapp") }, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) { Text("WhatsApp Status") }
+            OutlinedButton(enabled = canShare, onClick = { onShareDerivative("instagram") }, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) { Text("Instagram Story") }
+            OutlinedButton(enabled = canShare, onClick = { onShareDerivative("whatsapp") }, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) { Text("WhatsApp Status") }
         }
         if (status.isNotBlank()) Text(status, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
