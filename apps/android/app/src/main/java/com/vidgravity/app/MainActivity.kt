@@ -946,6 +946,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
 @Composable
 private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val queueTimestampPrefs = remember { context.getSharedPreferences("vg-download-queue-times", 0) }
     val clipboard = LocalClipboardManager.current
     var expandedErrors by remember { mutableStateOf(setOf<java.util.UUID>()) }
     var downloadFilter by remember { mutableStateOf("All") }
