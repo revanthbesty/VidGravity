@@ -458,10 +458,27 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                 letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.primary)
                         }
                     }
-                    Text("Your media, all in one place.", fontSize = 28.sp, lineHeight = 33.sp,
+                    Text("Make something worth sharing.", fontSize = 28.sp, lineHeight = 33.sp,
                         fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp)
-                    Text("Paste a public video or audio link. Inspect available quality, then choose exactly what to save.",
+                    Text("Capture. Create. Remix. Share.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Surface(color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.10f),
+                        shape = RoundedCornerShape(18.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("START CREATING", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp, color = MaterialTheme.colorScheme.secondary)
+                            Button(onClick = openCreate, modifier = Modifier.fillMaxWidth().height(50.dp),
+                                shape = RoundedCornerShape(14.dp)) {
+                                Icon(Icons.Default.AutoAwesome, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Open Creator Studio")
+                            }
+                            Text("Edit a video, build a Reel, or prepare a Story from your media.",
+                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Text("DOWNLOAD FROM A LINK", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedTextField(value = url, onValueChange = onUrl, modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("Paste one link or multiple links (one per line)") }, leadingIcon = { Icon(Icons.Default.Link, null) },
                         trailingIcon = { IconButton(onClick = { clipboard.getText()?.text?.let(onUrl) }) { Icon(Icons.Default.ContentPaste, "Paste") } },
