@@ -7,7 +7,7 @@ import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withText
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
+import androidx.compose.ui.graphics.asAndroidBitmap
 import org.hamcrest.Matchers.not
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -27,11 +27,11 @@ class StartupNavigationTest {
         compose.waitForIdle()
         onView(withText("Retry startup")).check(matches(not(isDisplayed())))
 
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val captured = instrumentation.uiAutomation.takeScreenshot()
-        val screenshot = captured?.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
-        captured?.recycle()
-        assertTrue("System screenshot unavailable", screenshot != null)
+        // PixelCopy-backed window capture avoids opening a separate UiAutomation connection.
+        val captured = compose.onRoot(useUnmergedTree = true).captureToImage().asAndroidBitmap()
+        val screenshot = captured.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+        captured.recycle()
+        assertTrue("Window pixel capture unavailable", screenshot != null)
         screenshot?.let { bitmap ->
             val directory = File(compose.activity.getExternalFilesDir(null), "smoke-evidence").apply { mkdirs() }
             File(directory, "startup.png").outputStream().use {
@@ -64,11 +64,15 @@ class StartupNavigationTest {
             // Preserve action/categories while changing the inbox extra for singleTop delivery.
             activity.startActivity(android.content.Intent(activity.intent).apply {
                 putExtra(ShareReceiverActivity.EXTRA_OPEN_INBOX, true)
-                addFlags(android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                flags = android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
             })
         }
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Share Inbox").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Share Inbox").assertIsDisplayed()
+        compose.activityRule.scenario.onActivity { activity ->
+            assertTrue("Inbox request must reach the existing Activity",
+                activity.intent.getBooleanExtra(ShareReceiverActivity.EXTRA_OPEN_INBOX, false))
+        }
         android.util.Log.i("VGSmoke", "singleTop.inbox.passed")
         compose.onNodeWithTag("nav_Home").performClick()
         compose.onNodeWithText("YOUR CREATOR UNIVERSE").assertIsDisplayed()
