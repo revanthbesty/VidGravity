@@ -1318,10 +1318,19 @@ private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, o
                             Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             Text(item.url, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = { onInspect(item.url) }) { Text("Inspect") }
-                                OutlinedButton(onClick = { onOpen(item.url) }) { Text("Open source") }
-                                IconButton(onClick = { ShareInboxStore.remove(context, item.id); items = ShareInboxStore.list(context) }) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Button(
+                                    onClick = { onInspect(item.url) },
+                                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                                ) { Text("Inspect", maxLines = 1) }
+                                OutlinedButton(
+                                    onClick = { onOpen(item.url) },
+                                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                                ) { Text("Open source", maxLines = 1) }
+                                IconButton(
+                                    onClick = { ShareInboxStore.remove(context, item.id); items = ShareInboxStore.list(context) },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
                                     Icon(Icons.Default.DeleteOutline, "Remove saved link")
                                 }
                             }
