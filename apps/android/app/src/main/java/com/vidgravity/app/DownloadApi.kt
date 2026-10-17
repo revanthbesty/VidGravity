@@ -319,7 +319,14 @@ object DownloadApi {
                 val code = connection.responseCode
                 if (code !in 200..299) {
                     val detail = connection.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                    throw IllegalStateException("Export HTTP $code: ${detail.take(300)}")
+                    val explanation = when (code) {
+                        502, 503, 504 -> "The VidGravity export service is temporarily unavailable (HTTP $code). Your original file is safe. Please try again later."
+                        413 -> "The export service rejected the file size (HTTP 413). Try a shorter or smaller video."
+                        408, 429 -> "The export service is busy (HTTP $code). Please wait and retry."
+                        400, 415, 422 -> "The export service could not process this media or layout (HTTP $code). Try a short MP4 with Fit / Letterbox."
+                        else -> "Export failed (HTTP $code): ${detail.take(200).ifBlank { "No details were returned by the service." }}"
+                    }
+                    throw IllegalStateException(explanation)
                 }
                 val expected = connection.getHeaderField("X-Content-SHA256")?.trim()?.takeIf { it.matches(Regex("[a-fA-F0-9]{64}")) }
                     ?: throw java.io.IOException("The renderer did not provide a valid SHA-256 checksum.")
