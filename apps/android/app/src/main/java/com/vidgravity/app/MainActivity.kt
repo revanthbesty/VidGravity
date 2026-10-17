@@ -1506,13 +1506,41 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         return
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Your library", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-                Text("Downloaded media saved by VidGravity", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            FilledTonalButton(onClick = { swipeFeedOpen = true }, modifier = Modifier.heightIn(min = 48.dp)) {
-                Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Swipe Feed")
+        Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("My Library", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("Captures, downloads and creator exports",
+                            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    FilledTonalButton(onClick = { swipeFeedOpen = true },
+                        modifier = Modifier.heightIn(min = 48.dp)) {
+                        Icon(Icons.Default.PlayArrow, null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Swipe Feed")
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        Triple("VIDEOS", media.count { it.mimeType.startsWith("video/") }, Icons.Default.Movie),
+                        Triple("PHOTOS", media.count { it.mimeType.startsWith("image/") }, Icons.Default.Image),
+                        Triple("AUDIO", media.count { it.mimeType.startsWith("audio/") }, Icons.Default.MusicNote)
+                    ).forEach { (label, count, icon) ->
+                        Surface(modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant) {
+                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Icon(icon, null, tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp))
+                                Text(count.toString(), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                Text(label, fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
             }
         }
         Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(16.dp)) {
