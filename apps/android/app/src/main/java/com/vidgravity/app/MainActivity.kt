@@ -15,6 +15,7 @@ import java.io.File
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.lifecycle.Lifecycle
@@ -158,6 +159,19 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
         extraLarge = RoundedCornerShape(26.dp)
     )
     MaterialTheme(colorScheme = scheme, shapes = vgShapes) {
+        // Keep Android system Back inside the current VidGravity destination before
+        // leaving the app: close transient screens/sheets first, then return to Home.
+        BackHandler(
+            enabled = cameraStudioOpen || playingMedia != null || showInbox || analysis != null || selected != VgTab.Home
+        ) {
+            when {
+                cameraStudioOpen -> cameraStudioOpen = false
+                playingMedia != null -> playingMedia = null
+                showInbox -> showInbox = false
+                analysis != null -> analysis = null
+                selected != VgTab.Home -> selected = VgTab.Home
+            }
+        }
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
