@@ -301,8 +301,8 @@ class DualCameraCaptureActivity : ComponentActivity() {
             val options = ImageCapture.OutputFileOptions.Builder(target).build()
             capture.takePicture(options, executor, object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(result: ImageCapture.OutputFileResults) = runOnUiThread {
-                    status.text = "Photo saved · ${fileName}"
-                    Toast.makeText(this@DualCameraCaptureActivity, "Photo saved to VidGravity: ${fileName}", Toast.LENGTH_LONG).show()
+                    status.text = "Photo saved · ${target.name}"
+                    Toast.makeText(this@DualCameraCaptureActivity, "Photo saved to VidGravity: ${target.name}", Toast.LENGTH_LONG).show()
                 }
                 override fun onError(exception: ImageCaptureException) = runOnUiThread {
                     Toast.makeText(this@DualCameraCaptureActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
