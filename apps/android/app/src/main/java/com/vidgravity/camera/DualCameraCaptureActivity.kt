@@ -161,7 +161,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
         dualButton = controlButton("Dual off") { toggleDualMode() }
         val settings = controlButton("Settings") { showCameraSettings() }
         val previewSize = controlButton("PiP size") { chooseDualPreviewSize() }
-        top.addView(close, LinearLayout.LayoutParams(dp(48), dp(48)))
+        // Close is placed in the lower control zone for one-handed reachability.
         val topSpacer = View(this)
         top.addView(topSpacer, LinearLayout.LayoutParams(0, dp(48), 1f))
         container.addView(top, FrameLayout.LayoutParams(-1, dp(64), Gravity.TOP))
@@ -220,6 +220,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
             setTextColor(0xFF102124.toInt())
             setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF80CDBF.toInt()))
         }
+        controls.addView(close, LinearLayout.LayoutParams(0, dp(56), 0.52f).apply { marginEnd = dp(6) })
         controls.addView(photoButton, LinearLayout.LayoutParams(0, dp(56), 1f).apply { marginEnd = dp(6) })
         controls.addView(videoButton, LinearLayout.LayoutParams(0, dp(56), 1f).apply { marginEnd = dp(6) })
         controls.addView(shutter, LinearLayout.LayoutParams(0, dp(56), 0.72f))
@@ -356,7 +357,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
         updateFlashLabel()
         status.text = if (frontFacing) "Front camera · ${if (videoMode) "Video" else "Photo"} mode"
             else "Rear camera · ${if (videoMode) "Video" else "Photo"} mode"
-        shutter.text = if (videoMode) "●  Record" else "●  Capture"
+        shutter.text = "●"
     }
 
     /** Tap the preview to meter focus and exposure at the tapped point. CameraX reports the result. */
@@ -488,7 +489,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
         recording = pending.start(ContextCompat.getMainExecutor(this)) { event ->
             when (event) {
                 is VideoRecordEvent.Start -> {
-                    shutter.text = "■  Stop"
+                    shutter.text = "■"
                     status.text = "Recording video…"
                 }
                 is VideoRecordEvent.Status -> {
@@ -498,7 +499,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
                 is VideoRecordEvent.Finalize -> {
                     recording = null
                     shutter.isEnabled = true
-                    shutter.text = "●  Record"
+                    shutter.text = "●"
                     if (event.hasError()) {
                         status.text = "Recording failed"
                         Toast.makeText(this, "Recording failed. Please retry.", Toast.LENGTH_LONG).show()
