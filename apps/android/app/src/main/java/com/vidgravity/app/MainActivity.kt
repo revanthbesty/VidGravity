@@ -192,8 +192,9 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                 }
             },
             bottomBar = {
-                // Keep the shutter and final controls unobstructed while Camera Studio is open.
-                if (!cameraStudioOpen) {
+                // Hide tab navigation for full-screen destinations so taps cannot silently change
+                // the tab underneath Player, Share Inbox, or Camera Studio.
+                if (!cameraStudioOpen && playingMedia == null && !showInbox) {
                     NavigationBar(
                         modifier = Modifier.navigationBarsPadding().border(
                             width = 0.5.dp,
