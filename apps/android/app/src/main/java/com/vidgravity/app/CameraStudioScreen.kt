@@ -326,7 +326,12 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
             }
             override fun onError(exception: ImageCaptureException) {
                 file.delete()
-                Handler(Looper.getMainLooper()).post { busy = false; onNotice("Capture failed: " + (exception.message ?: "please retry")) }
+                // CameraX invokes this callback on the supplied executor. Compose state and
+                // UI notices must be updated on the main thread, including failure paths.
+                Handler(Looper.getMainLooper()).post {
+                    busy = false
+                    onNotice("Capture failed: " + (exception.message ?: "please retry"))
+                }
             }
         })
     }
