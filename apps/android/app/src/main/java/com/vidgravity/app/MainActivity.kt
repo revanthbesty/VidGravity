@@ -760,8 +760,43 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
             work.id.toString() in hiddenHistoryIds
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Downloads", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Track active and completed transfers on this device.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.Default.Download, null, tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp))
+                    Text("Downloads", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
+                }
+                Text("Your download queue, history and saved transfers in one place.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val activeCount = works.count { it.state == WorkInfo.State.RUNNING ||
+                        it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
+                    val completedCount = works.count { it.state == WorkInfo.State.SUCCEEDED }
+                    val failedCount = works.count { it.state == WorkInfo.State.FAILED ||
+                        it.state == WorkInfo.State.CANCELLED }
+                    listOf(Triple("ACTIVE", activeCount, MaterialTheme.colorScheme.primary),
+                        Triple("SAVED", completedCount, MaterialTheme.colorScheme.secondary),
+                        Triple("ISSUES", failedCount, MaterialTheme.colorScheme.error))
+                        .forEach { (label, count, accent) ->
+                            Surface(modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant) {
+                                Column(Modifier.padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(count.toString(), fontSize = 21.sp,
+                                        fontWeight = FontWeight.Bold, color = accent)
+                                    Text(label, fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                }
+            }
+        }
         if (works.isEmpty()) {
             InfoCard("Nothing downloading yet", "Inspect a public link from Home to get started.", Icons.Default.Download, Modifier.fillMaxWidth())
         } else {
