@@ -11,7 +11,7 @@ import org.junit.Test
 import java.io.File
 
 class NativeStudioWorkerTest {
-    @Test fun foregroundExportPublishesVerifiedFileAndKeepsEditedProjectStale() = runBlocking(Dispatchers.IO) {
+    @Test fun foregroundExportPublishesVerifiedFileAndKeepsEditedProjectStale(): Unit = runBlocking(Dispatchers.IO) {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val source = studioFixture("native-source.mp4")
         val clip = StudioMediaImports.video(context, MediaLibraryIndexer.localUri(context, source))
