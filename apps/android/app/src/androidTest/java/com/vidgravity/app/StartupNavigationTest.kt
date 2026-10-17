@@ -46,11 +46,13 @@ class StartupNavigationTest {
             }
             assertTrue("Launch image is almost entirely black", colored > samples / 20)
             bitmap.recycle()
+            android.util.Log.i("VGSmoke", "startup.nonblack-screenshot.passed")
         }
 
         for (tab in listOf("Downloads", "Library", "Studio", "Home")) {
             compose.onNodeWithTag("nav_$tab").performClick()
             compose.onNodeWithTag("nav_$tab").assertIsSelected()
+            android.util.Log.i("VGSmoke", "navigation.$tab.passed")
         }
         compose.onNodeWithText("YOUR CREATOR UNIVERSE").assertIsDisplayed()
         compose.onNodeWithTag("nav_Studio").performClick()
@@ -58,14 +60,18 @@ class StartupNavigationTest {
         compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
         compose.onNodeWithTag("nav_Home").assertIsSelected()
         compose.activityRule.scenario.onActivity { activity ->
-            activity.startActivity(android.content.Intent(activity, MainActivity::class.java).apply {
+            // ActivityScenario matches lifecycle events against the original Intent filter.
+            // Preserve action/categories while changing the inbox extra for singleTop delivery.
+            activity.startActivity(android.content.Intent(activity.intent).apply {
                 putExtra(ShareReceiverActivity.EXTRA_OPEN_INBOX, true)
                 addFlags(android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
             })
         }
         compose.waitUntil(5_000) { compose.onAllNodesWithText("Share Inbox").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Share Inbox").assertIsDisplayed()
+        android.util.Log.i("VGSmoke", "singleTop.inbox.passed")
         compose.onNodeWithTag("nav_Home").performClick()
         compose.onNodeWithText("YOUR CREATOR UNIVERSE").assertIsDisplayed()
+        android.util.Log.i("VGSmoke", "startup.navigation.body.completed")
     }
 }
