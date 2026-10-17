@@ -1591,6 +1591,16 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     var photoExporting by remember { mutableStateOf(false) }
     val photoUndo = remember { mutableStateListOf<PhotoEditState>() }
     val photoRedo = remember { mutableStateListOf<PhotoEditState>() }
+    // Nested creator workspaces consume system Back before the app-level tab handler.
+    BackHandler(enabled = photoEditorOpen || storyEditorOpen) {
+        when {
+            photoEditorOpen -> {
+                photoEditorOpen = false
+                photoPreview = null
+            }
+            storyEditorOpen -> storyEditorOpen = false
+        }
+    }
     fun currentPhotoEdit() = PhotoEditState(photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation, photoCrop)
     fun rememberPhotoEdit() {
         photoUndo.add(currentPhotoEdit())
