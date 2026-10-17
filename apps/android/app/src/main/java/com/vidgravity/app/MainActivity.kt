@@ -59,7 +59,6 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     var dark by remember { mutableStateOf(prefs.getBoolean("dark", true)) }
     var selected by remember { mutableStateOf(VgTab.Home) }
     var showInbox by remember { mutableStateOf(openInboxInitially) }
-    var showStudyTok by remember { mutableStateOf(false) }
     var creatorInitialMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var playingMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var url by remember { mutableStateOf("") }
@@ -112,11 +111,6 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
             Column(Modifier.fillMaxSize().padding(padding)) {
                 if (playingMedia != null) {
                     PlayerScreen(media = playingMedia!!, onBack = { playingMedia = null })
-                } else if (showStudyTok) {
-                    StudyTokScreen(
-                        onBack = { showStudyTok = false },
-                        notify = { notice = it }
-                    )
                 } else if (showInbox) {
                     ShareInboxContent(
                         onBack = { showInbox = false },
@@ -137,7 +131,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create }, { showStudyTok = true })
+                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     VgTab.Library -> LibraryContent(
                         onPlay = { playingMedia = it },
@@ -335,7 +329,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                         modifier = Modifier.fillMaxWidth().clickable {
                                             try {
                                                 val preferences = SecureDownloadPreferences.load(context)
-                                                DownloadWorker.enqueue(context, url.trim(), audio.selector, result.title + " — Audio", preferences.unmeteredOnly)
+                                                DownloadWorker.enqueue(context, url.trim(), audio.selector, result.title + " — Audio", preferences.unmeteredOnly, audioOnly = true)
                                                 analysis = null
                                                 selected = VgTab.Downloads
                                                 notice = "Audio download added to queue."
@@ -380,7 +374,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
 }
 
 @Composable
-private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, openStudyTok: () -> Unit) {
+private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -500,7 +494,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                             horizontalArrangement = Arrangement.spacedBy(12.dp),
                             contentPadding = PaddingValues(end = 4.dp)
                         ) {
-                            items(listOf("⚡ Grab Best Video", "♫ Sound Only", "✂ Status Clip Splitter", "✦ StudyTok AI")) { action ->
+                            items(listOf("♫ Sound Only", "✂ Status Clip Splitter")) { action ->
                                 Surface(
                                     color = MaterialTheme.colorScheme.surfaceVariant,
                                     shape = RoundedCornerShape(18.dp),
@@ -515,7 +509,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                                     if (audio == null) notify("No audio-only stream was found for this link.")
                                                     else {
                                                         val prefs = SecureDownloadPreferences.load(context)
-                                                        DownloadWorker.enqueue(context, url.trim(), audio.selector, result.title + " — Audio", prefs.unmeteredOnly)
+                                                        DownloadWorker.enqueue(context, url.trim(), audio.selector, result.title + " — Audio", prefs.unmeteredOnly, audioOnly = true)
                                                         notify("Audio download added to queue. Open Downloads to track progress.")
                                                     }
                                                 } catch (failure: Exception) {
@@ -525,8 +519,6 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                         } else if (action.contains("Status Clip")) {
                                             openCreate()
                                             notify("In Create Studio, choose a local video and select a 30, 60, 90, or 120-second clip target.")
-                                        } else if (action.contains("StudyTok")) {
-                                            openStudyTok()
                                         } else inspect()
                                     }
                                 ) {
@@ -851,7 +843,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                 ?: "Media download"
                             if (!sourceUrl.isNullOrBlank()) {
                                 runCatching {
-                                    DownloadWorker.enqueue(context, sourceUrl, selector, retryTitle, preferences.unmeteredOnly)
+                                    DownloadWorker.enqueue(context, sourceUrl, selector, retryTitle, preferences.unmeteredOnly, work.outputData.getBoolean(DownloadWorker.RETRY_AUDIO_ONLY, work.progress.getBoolean(DownloadWorker.KEY_AUDIO_ONLY, false)))
                                 }.onSuccess { queued++ }
                             }
                         }
@@ -1090,7 +1082,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                             ?: work.progress.getString("media_title") ?: title
                                         if (!sourceUrl.isNullOrBlank()) {
                                             val preferences = SecureDownloadPreferences.load(context)
-                                            DownloadWorker.enqueue(context, sourceUrl, selector ?: preferences.preferredFormatSelector, retryTitle, preferences.unmeteredOnly)
+                                            DownloadWorker.enqueue(context, sourceUrl, selector ?: preferences.preferredFormatSelector, retryTitle, preferences.unmeteredOnly, work.outputData.getBoolean(DownloadWorker.RETRY_AUDIO_ONLY, work.progress.getBoolean(DownloadWorker.KEY_AUDIO_ONLY, false)))
                                         } else {
                                             android.widget.Toast.makeText(context,
                                                 "Retry unavailable. Inspect the original link again from Home.",
@@ -1892,14 +1884,52 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                                             val startSeconds = index * clipTargetSeconds
                                             val clipSeconds = (durationSeconds - startSeconds).coerceAtMost(clipTargetSeconds)
                                             segmentProgress = "Rendering ${statusClipSeconds}s clip ${index + 1} of $count…"
-                                            withContext(Dispatchers.IO) {
-                                                DownloadApi.exportMedia(
-                                                    context, media.uri, "whatsapp-status", "fit-letterbox",
-                                                    startSeconds, clipSeconds
-                                                )
+                                            val cloudExport = runCatching {
+                                                withContext(Dispatchers.IO) {
+                                                    DownloadApi.exportMedia(
+                                                        context, media.uri, "whatsapp-status", "fit-letterbox",
+                                                        startSeconds, clipSeconds
+                                                    )
+                                                }
                                             }
-                                            completed++
-                                            if (index < count - 1) kotlinx.coroutines.delay(21_000L)
+                                            if (cloudExport.isSuccess) {
+                                                completed++
+                                                if (index < count - 1) kotlinx.coroutines.delay(21_000L)
+                                            } else {
+                                                val cloudFailure = cloudExport.exceptionOrNull()
+                                                segmentProgress = "Cloud export unavailable; switching to on-device splitting…"
+                                                val localFiles = LocalStatusSplitter.split(
+                                                    context = context,
+                                                    sourceUri = media.uri,
+                                                    splitSeconds = statusClipSeconds,
+                                                    durationSeconds = durationSeconds,
+                                                    startIndex = index,
+                                                    onProgress = { current, total ->
+                                                        segmentProgress = "Splitting locally: clip $current of $total…"
+                                                    }
+                                                )
+                                                try {
+                                                    localFiles.forEachIndexed { localIndex, file ->
+                                                        withContext(Dispatchers.IO) {
+                                                            MediaLibraryIndexer.publish(
+                                                                context,
+                                                                file,
+                                                                "VidGravity_Status_${String.format(java.util.Locale.US, "%02d", index + localIndex + 1)}.mp4",
+                                                                DownloadApi.sha256(file)
+                                                            )
+                                                        }
+                                                        completed++
+                                                    }
+                                                } finally {
+                                                    localFiles.forEach { it.delete() }
+                                                }
+                                                if (localFiles.isEmpty()) {
+                                                    throw IllegalStateException(
+                                                        "Cloud export failed and local splitting returned no clips: ${cloudFailure?.message ?: "retry the source"}"
+                                                    )
+                                                }
+                                                break
+                                            }
                                         }
                                         notify("Created $completed WhatsApp Status clips. Verified clips are saved in Movies/VidGravity.")
                                     } catch (cancelled: kotlinx.coroutines.CancellationException) {

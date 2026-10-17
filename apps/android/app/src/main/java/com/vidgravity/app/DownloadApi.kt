@@ -76,7 +76,9 @@ object DownloadApi {
     }
 
     fun analyzeSource(url: String): SourceAnalysisResult {
-        val connection = open("/api/formats?url=" + URLEncoder.encode(url, "UTF-8"), "GET")
+        val normalizedUrl = ShareReceiverActivity.normalizeSharedUrl(url)
+            ?: throw IllegalArgumentException("Enter a complete public media URL.")
+        val connection = open("/api/formats?url=" + URLEncoder.encode(normalizedUrl, "UTF-8"), "GET")
         try {
             val json = readJson(connection)
             val formats = json.optJSONArray("formats") ?: JSONArray()
@@ -111,7 +113,7 @@ object DownloadApi {
         } finally { connection.disconnect() }
     }
 
-    fun createJob(url: String, selector: String): String {
+    fun createJob(url: String, selector: String, audioOnly: Boolean = false): String {
         require(selector.isNotBlank() && selector.length <= 200 && selector.matches(Regex("[A-Za-z0-9_*+./,\\[\\]()-]+"))) {
             "Invalid format selector."
         }
@@ -119,7 +121,7 @@ object DownloadApi {
         connection.doOutput = true
         try {
             connection.outputStream.use {
-                it.write(JSONObject().put("url", url).put("format", selector).toString().toByteArray(Charsets.UTF_8))
+                it.write(JSONObject().put("url", url).put("format", selector).put("audio_only", audioOnly).toString().toByteArray(Charsets.UTF_8))
             }
             val id = readJson(connection).optString("id")
             require(id.matches(Regex("[A-Fa-f0-9-]{16,64}"))) { "Companion returned an invalid task ID." }
@@ -162,6 +164,8 @@ object DownloadApi {
         require(id.matches(Regex("[A-Fa-f0-9-]{16,64}"))) { "Invalid task ID." }
         val offset = destination.takeIf { it.isFile }?.length() ?: 0L
         val connection = open("/api/download-jobs/" + id + "/result", "GET")
+        // Bound an idle read so a dead/stalled response fails into WorkManager's retry path.
+        connection.readTimeout = 20_000
         if (offset > 0L) connection.setRequestProperty("Range", "bytes=" + offset + "-")
         try {
             val code = connection.responseCode
@@ -224,7 +228,13 @@ object DownloadApi {
                             pauseNotified = false
                             onPauseState(false)
                         }
-                        val count = input.read(buffer)
+                        val count = try {
+                            input.read(buffer)
+                        } catch (timeout: java.net.SocketTimeoutException) {
+                            throw java.net.SocketTimeoutException(
+                                "Download stalled: no bytes arrived for 20 seconds. VidGravity will retry automatically."
+                            ).also { it.initCause(timeout) }
+                        }
                         if (count < 0) break
                         output.write(buffer, 0, count)
                         digest.update(buffer, 0, count)
