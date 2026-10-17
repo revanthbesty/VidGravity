@@ -9,6 +9,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -24,6 +26,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,8 +52,8 @@ class MainActivity : ComponentActivity() {
 
 private enum class VgTab(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Home("Home", Icons.Default.Home), Downloads("Downloads", Icons.Default.Download),
-    Library("Library", Icons.Default.VideoLibrary), Create("Create", Icons.Default.AutoAwesome),
-    Settings("Settings", Icons.Default.Settings)
+    Camera("Camera", Icons.Default.PhotoCamera), Studio("Studio", Icons.Default.AutoAwesome),
+    Library("Library", Icons.Default.VideoLibrary), Settings("Settings", Icons.Default.Settings)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -69,19 +74,19 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     val scope = rememberCoroutineScope()
     // Premium cinematic palette: low-glare navy/slate with teal, violet and amber accents.
     val scheme = if (dark) darkColorScheme(
-        primary = Color(0xFF27DCE5), onPrimary = Color(0xFF002F35),
-        secondary = Color(0xFFB46BFF), onSecondary = Color(0xFF260047),
-        tertiary = Color(0xFFFFB45E), onTertiary = Color(0xFF402000),
-        background = Color(0xFF050D1B), surface = Color(0xFF0B1729),
-        surfaceVariant = Color(0xFF17263B), onBackground = Color(0xFFEAF2FC),
-        onSurface = Color(0xFFEAF2FC), onSurfaceVariant = Color(0xFFB2C1D5),
+        primary = Color(0xFF43D8CA), onPrimary = Color(0xFF141A2B),
+        secondary = Color(0xFFA28AFF), onSecondary = Color(0xFF260047),
+        tertiary = Color(0xFFFFC66B), onTertiary = Color(0xFF402000),
+        background = Color(0xFF141A2B), surface = Color(0xFF222C43),
+        surfaceVariant = Color(0xFF2B3751), onBackground = Color(0xFFF7F8FC),
+        onSurface = Color(0xFFF7F8FC), onSurfaceVariant = Color(0xFFB6C1D4),
         outline = Color(0xFF354861)
     ) else lightColorScheme(
-        primary = Color(0xFF087F8C), onPrimary = Color.White,
-        secondary = Color(0xFF7041B8), onSecondary = Color.White,
+        primary = Color(0xFF147A73), onPrimary = Color.White,
+        secondary = Color(0xFF6853B5), onSecondary = Color.White,
         tertiary = Color(0xFF985300), onTertiary = Color.White,
-        background = Color(0xFFF3F6FA), surface = Color(0xFFFFFFFF),
-        surfaceVariant = Color(0xFFE5ECF4), onSurfaceVariant = Color(0xFF4A5C70),
+        background = Color(0xFFF6F8FC), surface = Color(0xFFFFFFFF),
+        surfaceVariant = Color(0xFFE9EDF5), onSurfaceVariant = Color(0xFF4A5C70),
         outline = Color(0xFFB9C7D8)
     )
     MaterialTheme(colorScheme = scheme) {
@@ -89,9 +94,24 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
                 Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("VidGravity", fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
-                        Text("Capture • Download • Edit • Play • Share", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Surface(shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(9.dp).size(23.dp))
+                        }
+                        Column {
+                            Text("VidGravity", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = (-0.4).sp)
+                            Text("YOUR CREATOR UNIVERSE", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 9.sp, letterSpacing = 1.sp,
+                                fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    IconButton(onClick = { selected = VgTab.Settings }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                     Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant) {
                         IconButton(onClick = { dark = !dark; prefs.edit().putBoolean("dark", dark).apply() }) {
@@ -102,8 +122,16 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
             },
             bottomBar = {
                 NavigationBar(modifier = Modifier.navigationBarsPadding(), containerColor = MaterialTheme.colorScheme.surface) {
-                    VgTab.values().forEach { tab ->
-                        NavigationBarItem(selected = selected == tab, onClick = { selected = tab },
+                    VgTab.values().filter { it != VgTab.Settings }.forEach { tab ->
+                        NavigationBarItem(selected = selected == tab, onClick = {
+                            if (tab == VgTab.Camera) {
+                                runCatching {
+                                    context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
+                                }.onFailure { notice = "Could not open camera: ${it.message ?: "try again"}" }
+                            } else {
+                                selected = tab
+                            }
+                        },
                             icon = { Icon(tab.icon, contentDescription = tab.title) }, label = { Text(tab.title, maxLines = 1) })
                     }
                 }
@@ -137,13 +165,16 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create }, { showStudyTok = true })
+                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Studio }, { runCatching { context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java)) }.onFailure { notice = "Could not open camera: ${it.message ?: "try again"}" } }, { playingMedia = it }, { creatorInitialMedia = it; selected = VgTab.Studio }, { selected = VgTab.Library }, { showStudyTok = true })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
+                    // Camera opens a dedicated Activity from its navigation item.
+                    // This branch keeps the enum dispatch exhaustive.
+                    VgTab.Camera -> Unit
                     VgTab.Library -> LibraryContent(
                         onPlay = { playingMedia = it },
-                        onCreateWithMedia = { media -> creatorInitialMedia = media; selected = VgTab.Create }
+                        onCreateWithMedia = { media -> creatorInitialMedia = media; selected = VgTab.Studio }
                     )
-                    VgTab.Create -> CreateStudioContent(
+                    VgTab.Studio -> CreateStudioContent(
                         onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true },
                         initialMedia = creatorInitialMedia
                     )
@@ -234,9 +265,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                     val selector = if (option.hasAudio) option.selector else option.selector + "+bestaudio/best"
                     Triple(resolution, selector, option)
                 }
-            val videoChoices = listOf(
-                Triple("Best available", "bv*+ba/b", videoFormats.maxByOrNull { qualityHeight(it) } ?: usable.firstOrNull())
-            ).filter { it.third != null } + standardVideo
+            val videoChoices = standardVideo
             var rememberQuality by remember(result.title) { mutableStateOf(false) }
             var qualityTab by remember(result.title) { mutableStateOf("Video & Audio") }
             ModalBottomSheet(
@@ -287,7 +316,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                     modifier = Modifier.fillMaxWidth().clickable {
                                         try {
                                             val preferences = SecureDownloadPreferences.load(context)
-                                            if (rememberQuality && choice.first != "Highest available") {
+                                            if (rememberQuality) {
                                                 SecureDownloadPreferences.save(context, preferences.copy(
                                                     autoDownloadWithPreferredPreset = true,
                                                     preferredFormatSelector = choice.second
@@ -315,8 +344,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                             val hdrLabel = option?.dynamicRange?.takeIf { it.isNotBlank() && !it.equals("SDR", true) }?.let { "HDR" }
                                             val safeContainer = option?.container?.uppercase()
                                                 ?.takeIf { it.matches(Regex("[A-Z0-9]{2,5}")) } ?: "MEDIA"
-                                            Text(if (choice.first == "Highest available") "Best compatible quality for this source"
-                                                else listOfNotNull(safeContainer, fpsLabel, hdrLabel, sizeLabel).joinToString(" • "),
+                                            Text(listOfNotNull(safeContainer, fpsLabel, hdrLabel, sizeLabel).joinToString(" • "),
                                                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
                                         Icon(Icons.Default.ChevronRight, null)
@@ -380,11 +408,26 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
 }
 
 @Composable
-private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, openStudyTok: () -> Unit) {
+private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, openCamera: () -> Unit, onPlayRecent: (LibraryMedia) -> Unit, onEditRecent: (LibraryMedia) -> Unit, openLibrary: () -> Unit, openStudyTok: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val activity = context as? ComponentActivity
+    var recentMedia by remember { mutableStateOf(emptyList<LibraryMedia>()) }
+    suspend fun refreshRecentMedia() {
+        recentMedia = withContext(Dispatchers.IO) {
+            runCatching { MediaLibraryIndexer.list(context).take(8) }.getOrDefault(emptyList())
+        }
+    }
+    LaunchedEffect(Unit) { refreshRecentMedia() }
+    val recentLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(recentLifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) scope.launch { refreshRecentMedia() }
+        }
+        recentLifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { recentLifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     var clipboardSuggestion by remember { mutableStateOf<String?>(null) }
     fun detectClipboardUrl() {
         val raw = runCatching {
@@ -432,24 +475,85 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
         item {
             Surface(shape = RoundedCornerShape(26.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        shape = RoundedCornerShape(50)
-                    ) {
-                        Row(
-                            Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(7.dp)
-                        ) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
-                            Text("YOUR MEDIA WORKSPACE", fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.primary)
+                    Text("VIDGRAVITY  /  CREATE ANYTHING", fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp,
+                        color = MaterialTheme.colorScheme.primary)
+                    Text("Create. Download.\nEdit. Share.", fontSize = 36.sp,
+                        lineHeight = 40.sp, fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = (-0.8).sp)
+                    Text("All your video and audio tools in one powerful app.",
+                        fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("CAPTURE", "CREATE", "SHARE").forEach { label ->
+                            Surface(shape = RoundedCornerShape(50),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))) {
+                                Text(label, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                    fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.8.sp,
+                                    color = MaterialTheme.colorScheme.onSurface)
+                            }
                         }
                     }
-                    Text("Your media, all in one place.", fontSize = 28.sp, lineHeight = 33.sp,
-                        fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp)
-                    Text("Paste a public video or audio link. Inspect available quality, then choose exactly what to save.",
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()) {
+                        Surface(modifier = Modifier.weight(1f).height(112.dp)
+                            .clickable(onClick = openCreate),
+                            shape = RoundedCornerShape(18.dp),
+                            color = Color.Transparent) {
+                            Column(Modifier.fillMaxSize().background(Brush.horizontalGradient(
+                                listOf(Color(0xFFD728C0), Color(0xFF6559FF)))).padding(14.dp),
+                                verticalArrangement = Arrangement.SpaceBetween) {
+                                Icon(Icons.Default.ContentCut, null, tint = Color.White)
+                                Text("Creator Studio", color = Color.White,
+                                    fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text("Edit videos & reels", color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 11.sp)
+                            }
+                        }
+                        Surface(modifier = Modifier.weight(1f).height(112.dp)
+                            .clickable(onClick = openCamera),
+                            shape = RoundedCornerShape(18.dp),
+                            color = Color.Transparent) {
+                            Column(Modifier.fillMaxSize().background(Brush.horizontalGradient(
+                                listOf(Color(0xFF366BFA), Color(0xFF00A6EA)))).padding(14.dp),
+                                verticalArrangement = Arrangement.SpaceBetween) {
+                                Icon(Icons.Default.PhotoCamera, null, tint = Color.White)
+                                Text("Pro Camera", color = Color.White,
+                                    fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text("Capture your story", color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 11.sp)
+                            }
+                        }
+                    }
+                    Text("EXPLORE TOOLS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(end = 4.dp)) {
+                        items(listOf(
+                            Triple("Download", Icons.Default.Download, { notify("Paste a link below to download authorized media.") }),
+                            Triple("Camera", Icons.Default.PhotoCamera, openCamera),
+                            Triple("Edit Video", Icons.Default.ContentCut, openCreate),
+                            Triple("Audio", Icons.Default.MusicNote, openCreate),
+                            Triple("Stories", Icons.Default.AutoAwesome, openCreate),
+                            Triple("My Library", Icons.Default.VideoLibrary, openLibrary)
+                        )) { (label, icon, action) ->
+                            Column(Modifier.width(70.dp).clickable(onClick = action),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Surface(shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant) {
+                                    Icon(icon, null, modifier = Modifier.padding(14.dp).size(24.dp),
+                                        tint = MaterialTheme.colorScheme.secondary)
+                                }
+                                Text(label, fontSize = 10.sp, maxLines = 1,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    Text("DOWNLOAD FROM A LINK", fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedTextField(value = url, onValueChange = onUrl, modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("Paste one link or multiple links (one per line)") }, leadingIcon = { Icon(Icons.Default.Link, null) },
@@ -493,7 +597,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                         modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
                         Icon(Icons.Default.Search, null); Spacer(Modifier.width(8.dp)); Text("Inspect link")
                     }
-                    Text("QUICK ACTIONS", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
+                    Text("QUICK ACTIONS  ·  DOWNLOAD & CREATE", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     LazyRow(
                             modifier = Modifier.fillMaxWidth(),
@@ -504,10 +608,19 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                 Surface(
                                     color = MaterialTheme.colorScheme.surfaceVariant,
                                     shape = RoundedCornerShape(18.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                                    modifier = Modifier.width(220.dp).heightIn(min = 112.dp).clickable {
-                                        if (url.isBlank()) notify("Paste a media URL first, then choose " + action + ".")
-                                        else if (action.contains("Sound")) {
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.32f)),
+                                    modifier = Modifier.width(170.dp).heightIn(min = 116.dp).clickable {
+                                        if (action.contains("Status Clip")) {
+                                            openCreate()
+                                            notify("In Creator Studio, choose a local video and select a 30, 60, 90, or 120-second clip target.")
+                                        } else if (action.contains("StudyTok")) {
+                                            openStudyTok()
+                                        } else if (url.isBlank()) {
+                                            notify("Paste a media URL first, then choose " + action + ".")
+                                        } else if (!url.trim().startsWith("https://", ignoreCase = true) &&
+                                            !url.trim().startsWith("http://", ignoreCase = true)) {
+                                            notify("Enter a complete public URL starting with https:// before downloading.")
+                                        } else if (action.contains("Sound")) {
                                             scope.launch {
                                                 try {
                                                     val result = withContext(Dispatchers.IO) { DownloadApi.analyzeSource(url.trim()) }
@@ -522,11 +635,6 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                                     notify("Could not prepare audio: " + (failure.message ?: "Please try again."))
                                                 }
                                             }
-                                        } else if (action.contains("Status Clip")) {
-                                            openCreate()
-                                            notify("In Create Studio, choose a local video and select a 30, 60, 90, or 120-second clip target.")
-                                        } else if (action.contains("StudyTok")) {
-                                            openStudyTok()
                                         } else inspect()
                                     }
                                 ) {
@@ -542,15 +650,121 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                 }
             }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                InfoCard("Downloads", "Real transfer status", Icons.Default.Download, Modifier.weight(1f))
-                InfoCard("On this device", "Your media library", Icons.Default.PhoneAndroid, Modifier.weight(1f))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("MY RECENT MEDIA", modifier = Modifier.weight(1f), fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                androidx.compose.material3.TextButton(onClick = openLibrary) { Text("See all") }
+            }
+            Text("Real captures and exports from your VidGravity Library",
+                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(10.dp))
+            if (recentMedia.isEmpty()) {
+                Surface(modifier = Modifier.fillMaxWidth().clickable(onClick = openCamera),
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Default.PhotoCamera, null,
+                            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Your first creation starts here", fontWeight = FontWeight.Bold)
+                            Text("Capture a photo or video to populate your Library",
+                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Icon(Icons.Default.ChevronRight, null)
+                    }
+                }
+            } else {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(recentMedia) { media ->
+                        Surface(modifier = Modifier.width(164.dp).clickable {
+                            if (media.mimeType.startsWith("video/") || media.mimeType.startsWith("audio/"))
+                                onPlayRecent(media)
+                            else onEditRecent(media)
+                        }, shape = RoundedCornerShape(18.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant) {
+                            var thumbnail by remember(media.uri) {
+                                mutableStateOf<android.graphics.Bitmap?>(null)
+                            }
+                            LaunchedEffect(media.uri) {
+                                thumbnail = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                                            context.contentResolver.loadThumbnail(
+                                                media.uri, android.util.Size(320, 200), null
+                                            )
+                                        } else if (media.mimeType.startsWith("image/")) {
+                                            context.contentResolver.openInputStream(media.uri)?.use { stream ->
+                                                android.graphics.BitmapFactory.decodeStream(stream)
+                                            }
+                                        } else null
+                                    }.getOrNull()
+                                }
+                            }
+                            Column(Modifier.padding(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (thumbnail != null) {
+                                    Image(bitmap = thumbnail!!.asImageBitmap(),
+                                        contentDescription = "Preview of " + media.displayName,
+                                        modifier = Modifier.fillMaxWidth().height(92.dp),
+                                        contentScale = ContentScale.Crop)
+                                } else {
+                                    Icon(if (media.mimeType.startsWith("video/")) Icons.Default.Movie
+                                        else if (media.mimeType.startsWith("audio/")) Icons.Default.MusicNote
+                                        else Icons.Default.Image, null,
+                                        modifier = Modifier.size(34.dp),
+                                        tint = MaterialTheme.colorScheme.primary)
+                                }
+                                Text(media.displayName, maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text(if (media.mimeType.startsWith("image/")) "Open Studio"
+                                    else "Tap to play", fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
             }
         }
         item {
-            Text("Getting started", fontSize = 19.sp, fontWeight = FontWeight.Bold)
-            Text("1. Paste a public link · 2. Inspect formats · 3. Choose and download",
-                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+            Surface(shape = RoundedCornerShape(20.dp),
+                color = Color(0xFF352066),
+                modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.WorkspacePremium, null, tint = Color(0xFFFFC66B),
+                        modifier = Modifier.size(36.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("VidGravity Pro", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Premium creator tools are coming soon",
+                            fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
+                    }
+                }
+            }
+        }
+        item {
+            Text("CREATE IN THREE STEPS", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp)
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    Triple("01", "Capture", "Camera"),
+                    Triple("02", "Edit", "Studio"),
+                    Triple("03", "Share", "Export")
+                ).forEach { (number, label, detail) ->
+                    Surface(modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant) {
+                        Column(Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(number, fontSize = 18.sp, fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.primary)
+                            Text(label, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text(detail, fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -575,8 +789,43 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
             work.id.toString() in hiddenHistoryIds
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Downloads", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Track active and completed transfers on this device.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.Default.Download, null, tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp))
+                    Text("Downloads", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
+                }
+                Text("Your download queue, history and saved transfers in one place.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val activeCount = works.count { it.state == WorkInfo.State.RUNNING ||
+                        it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
+                    val completedCount = works.count { it.state == WorkInfo.State.SUCCEEDED }
+                    val failedCount = works.count { it.state == WorkInfo.State.FAILED ||
+                        it.state == WorkInfo.State.CANCELLED }
+                    listOf(Triple("ACTIVE", activeCount, MaterialTheme.colorScheme.primary),
+                        Triple("SAVED", completedCount, MaterialTheme.colorScheme.secondary),
+                        Triple("ISSUES", failedCount, MaterialTheme.colorScheme.error))
+                        .forEach { (label, count, accent) ->
+                            Surface(modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant) {
+                                Column(Modifier.padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(count.toString(), fontSize = 21.sp,
+                                        fontWeight = FontWeight.Bold, color = accent)
+                                    Text(label, fontSize = 10.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                }
+            }
+        }
         if (works.isEmpty()) {
             InfoCard("Nothing downloading yet", "Inspect a public link from Home to get started.", Icons.Default.Download, Modifier.fillMaxWidth())
         } else {
@@ -1286,13 +1535,41 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         return
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Your library", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-                Text("Downloaded media saved by VidGravity", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-            FilledTonalButton(onClick = { swipeFeedOpen = true }, modifier = Modifier.heightIn(min = 48.dp)) {
-                Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Swipe Feed")
+        Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("My Library", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("Captures, downloads and creator exports",
+                            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    FilledTonalButton(onClick = { swipeFeedOpen = true },
+                        modifier = Modifier.heightIn(min = 48.dp)) {
+                        Icon(Icons.Default.PlayArrow, null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Swipe Feed")
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        Triple("VIDEOS", media.count { it.mimeType.startsWith("video/") }, Icons.Default.Movie),
+                        Triple("PHOTOS", media.count { it.mimeType.startsWith("image/") }, Icons.Default.Image),
+                        Triple("AUDIO", media.count { it.mimeType.startsWith("audio/") }, Icons.Default.MusicNote)
+                    ).forEach { (label, count, icon) ->
+                        Surface(modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant) {
+                            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Icon(icon, null, tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp))
+                                Text(count.toString(), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                Text(label, fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                }
             }
         }
         Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(16.dp)) {
@@ -1743,11 +2020,21 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                     } else "Selected media" to 0L
                 } ?: ("Selected media" to 0L)
             }.getOrDefault("Selected media" to 0L)
-            val mime = context.contentResolver.getType(uri) ?: "video/*"
+            val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+            if (isRendering || segmentJob != null) {
+                notify("Wait for the current export to finish or cancel the clip split before changing media.")
+                return@rememberLauncherForActivityResult
+            }
             selectedMedia = LibraryMedia(uri, metadata.first, metadata.second, mime, System.currentTimeMillis())
+            storyEditorOpen = false
             exportedUri = null
             stickerUri = null
-            notify("Media selected. Preview, share, or create a 9:16 story or animated sticker.")
+            notify(when {
+                mime.startsWith("video/") -> "Video selected. Preview, share, edit a story, split status clips, or export a sticker."
+                mime.startsWith("audio/") -> "Audio selected. Preview, share, or try a compatible story layout."
+                mime.startsWith("image/") -> "Image selected. Preview, share, or try a compatible story layout."
+                else -> "File selected. Available Studio tools depend on the file type."
+            })
         }
     }
     if (storyEditorOpen && selectedMedia != null) {
@@ -1808,18 +2095,60 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             Spacer(Modifier.width(8.dp))
             Text("Share Inbox · Watch / Learn Later")
         }
-        Text("Create studio", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Choose local video, preview it, or create a share-ready 9:16 derivative. Originals remain unchanged.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp))
+                    Text("Creator Studio", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
+                }
+                Text("Turn your media into share-ready stories, status clips and stickers.",
+                    fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(Triple("STORIES", Icons.Default.Movie, Color(0xFF9C72FF)),
+                        Triple("AUDIO", Icons.Default.MusicNote, Color(0xFF43D8CA)),
+                        Triple("STICKERS", Icons.Default.AutoAwesome, Color(0xFFFF8195)))
+                        .forEach { (label, icon, accent) ->
+                            Surface(modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant) {
+                                Column(Modifier.padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Icon(icon, null, tint = accent, modifier = Modifier.size(22.dp))
+                                    Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                }
+                Text("Your original files stay unchanged.",
+                    fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary)
+            }
+        }
         Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
                 Text("Start with your own media", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text("Select a video from this device. Rendering uses the configured VidGravity companion and never overwrites the selected source.",
+                Text("Choose a video, audio track or image from your device. You can preview and share it, or use supported Studio tools to create a separate export.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                Button(onClick = { picker.launch(arrayOf("video/*", "audio/*")) }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("Choose media")
+                Button(onClick = { picker.launch(arrayOf("video/*", "audio/*", "image/*")) },
+                    enabled = !isRendering && segmentJob == null,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+                    Icon(Icons.Default.FolderOpen, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Choose media")
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Lock, contentDescription = null,
+                        modifier = Modifier.size(15.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Local file picker · Originals preserved · Export only when requested",
+                        fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -1829,6 +2158,17 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                     Text(media.displayName, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(if (media.sizeBytes > 0) String.format("%.1f MB · %s", media.sizeBytes / 1_000_000.0, media.mimeType)
                         else media.mimeType, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Surface(shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surface) {
+                        Text(when {
+                            media.mimeType.startsWith("video/") -> "VIDEO READY · Story editor, clip splitter and animated sticker"
+                            media.mimeType.startsWith("audio/") -> "AUDIO READY · Preview, share and compatible story layouts"
+                            media.mimeType.startsWith("image/") -> "IMAGE READY · Preview, share and compatible story layouts"
+                            else -> "FILE SELECTED · Available tools depend on file type"
+                        }, modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                            fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary)
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { onPlay(media) }, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(5.dp)); Text("Preview")
@@ -1847,6 +2187,20 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                     }
                     Button(onClick = { storyEditorOpen = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
                         Icon(Icons.Default.AutoAwesome, null); Spacer(Modifier.width(8.dp)); Text("Create 9:16 Story / Status")
+                    }
+                    if (!media.mimeType.startsWith("video/")) {
+                        Surface(shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)) {
+                            Row(Modifier.fillMaxWidth().padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(Icons.Default.Info, contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp))
+                                Text("Video-only tools such as clip splitting and animated WebP stickers require a video. You can still preview, share or open the story editor with this file.",
+                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
                     }
                     Text("STATUS CLIP LENGTH", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1868,7 +2222,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                         fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedButton(
-                        enabled = !isRendering && segmentJob == null,
+                        enabled = media.mimeType.startsWith("video/") && !isRendering && segmentJob == null,
                         onClick = {
                             if (!media.mimeType.startsWith("video/")) {
                                 notify("Status segmentation requires a video file.")
@@ -1888,7 +2242,9 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                                         require(durationSeconds <= 600f) { "For safety and predictable processing, split videos up to 10 minutes per batch." }
                                         val clipTargetSeconds = statusClipSeconds.toFloat()
                                         val count = kotlin.math.ceil(durationSeconds / clipTargetSeconds).toInt()
+                                        segmentProgress = "Preparing $count status clip(s)…"
                                         for (index in 0 until count) {
+                                            if (kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]?.isActive == false) throw kotlinx.coroutines.CancellationException("Split cancelled")
                                             val startSeconds = index * clipTargetSeconds
                                             val clipSeconds = (durationSeconds - startSeconds).coerceAtMost(clipTargetSeconds)
                                             segmentProgress = "Rendering ${statusClipSeconds}s clip ${index + 1} of $count…"
@@ -1901,7 +2257,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                                             completed++
                                             if (index < count - 1) kotlinx.coroutines.delay(21_000L)
                                         }
-                                        notify("Created $completed WhatsApp Status clips. Verified clips are saved in Movies/VidGravity.")
+                                        notify("Created $completed of $count WhatsApp Status clips. Exports are saved in Movies/VidGravity.")
                                     } catch (cancelled: kotlinx.coroutines.CancellationException) {
                                         notify("Status split cancelled after $completed clip(s).")
                                     } catch (failure: Exception) {
@@ -1936,7 +2292,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                         }
                     }
                     OutlinedButton(
-                        enabled = !isRendering && segmentJob == null,
+                        enabled = media.mimeType.startsWith("video/") && !isRendering && segmentJob == null,
                         onClick = {
                             if (!media.mimeType.startsWith("video/")) {
                                 notify("Animated WebP stickers require a video source.")
@@ -1995,9 +2351,28 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                             Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Share animated sticker")
                         }
                     }
-                    exportedUri?.let {
-                        Text("Latest story saved in Movies/VidGravity. Use the story share buttons to send the verified derivative.",
+                    exportedUri?.let { uri ->
+                        Text("Latest story exported to Movies/VidGravity.",
                             color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
+                        OutlinedButton(
+                            enabled = !isRendering && segmentJob == null,
+                            onClick = {
+                                runCatching {
+                                    val share = Intent(Intent.ACTION_SEND).apply {
+                                        type = "video/mp4"
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        putExtra(Intent.EXTRA_TITLE, "VidGravity story")
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(Intent.createChooser(share, "Share exported story"))
+                                }.onFailure { notify("Could not share story: ${it.message ?: "try again"}") }
+                            },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        ) {
+                            Icon(Icons.Default.Share, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Share latest exported story")
+                        }
                     }
                 }
             }
@@ -2015,9 +2390,9 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             Spacer(Modifier.width(8.dp))
             Text("Open POV camera")
         }
-        Text("More creator tools", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        InfoCard("Animated stickers", "Next pipeline batch: render short source clips as animated WebP with size and duration limits.", Icons.Default.AutoAwesome, Modifier.fillMaxWidth())
-        InfoCard("WhatsApp Status segments", "Next pipeline batch: create multiple bounded segments and verify every output before sharing.", Icons.Default.ContentCut, Modifier.fillMaxWidth())
+        Text("Creator workflow", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        InfoCard("Animated stickers", "Choose a video, export up to 10 seconds as animated WebP, then share the saved sticker.", Icons.Default.AutoAwesome, Modifier.fillMaxWidth())
+        InfoCard("WhatsApp Status segments", "Choose a video, select a clip length, split into separate saved clips, and share from your library.", Icons.Default.ContentCut, Modifier.fillMaxWidth())
     }
 }
 
