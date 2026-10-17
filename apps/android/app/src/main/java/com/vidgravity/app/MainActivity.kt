@@ -150,6 +150,9 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                         }
                     }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Studio }, { showStudyTok = true })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
+                    // Camera opens a dedicated Activity from its navigation item.
+                    // This branch keeps the enum dispatch exhaustive.
+                    VgTab.Camera -> Unit
                     VgTab.Library -> LibraryContent(
                         onPlay = { playingMedia = it },
                         onCreateWithMedia = { media -> creatorInitialMedia = media; selected = VgTab.Studio }
