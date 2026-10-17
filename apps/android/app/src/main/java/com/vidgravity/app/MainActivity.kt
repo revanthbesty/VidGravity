@@ -2056,9 +2056,39 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             Spacer(Modifier.width(8.dp))
             Text("Share Inbox · Watch / Learn Later")
         }
-        Text("Create studio", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Choose local video, preview it, or create a share-ready 9:16 derivative. Originals remain unchanged.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface,
+            modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxWidth().padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp))
+                    Text("Creator Studio", fontSize = 27.sp, fontWeight = FontWeight.ExtraBold)
+                }
+                Text("Turn your media into share-ready stories, status clips and stickers.",
+                    fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(Triple("STORIES", Icons.Default.Movie, Color(0xFF9C72FF)),
+                        Triple("AUDIO", Icons.Default.MusicNote, Color(0xFF43D8CA)),
+                        Triple("STICKERS", Icons.Default.AutoAwesome, Color(0xFFFF8195)))
+                        .forEach { (label, icon, accent) ->
+                            Surface(modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant) {
+                                Column(Modifier.padding(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Icon(icon, null, tint = accent, modifier = Modifier.size(22.dp))
+                                    Text(label, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                }
+                Text("Your original files stay unchanged.",
+                    fontSize = 11.sp, color = MaterialTheme.colorScheme.secondary)
+            }
+        }
         Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
