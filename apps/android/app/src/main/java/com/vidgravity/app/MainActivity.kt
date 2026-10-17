@@ -621,7 +621,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("MY RECENT MEDIA", modifier = Modifier.weight(1f), fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                TextButton(onClick = openLibrary) { Text("See all") }
+                androidx.compose.material3.TextButton(onClick = openLibrary) { Text("See all") }
             }
             Text("Real captures and exports from your VidGravity Library",
                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
