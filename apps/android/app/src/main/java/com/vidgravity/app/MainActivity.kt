@@ -650,10 +650,28 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                         fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp)
                     Text("Paste a public video or audio link. Inspect available quality, then choose exactly what to save.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Surface(color = Color(0xFF24D7E8).copy(alpha = 0.15f), shape = RoundedCornerShape(10.dp)) {
+                            Icon(Icons.Default.Link, contentDescription = null, tint = Color(0xFF24D7E8), modifier = Modifier.padding(8.dp).size(20.dp))
+                        }
+                        Column {
+                            Text("Quick Download", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF5F8FF))
+                            Text("Paste a link to inspect available media", fontSize = 12.sp, color = Color(0xFFC6D9F4))
+                        }
+                    }
                     OutlinedTextField(value = url, onValueChange = onUrl, modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Paste one link or multiple links (one per line)") }, leadingIcon = { Icon(Icons.Default.Link, null) },
+                        placeholder = { Text("Paste video or audio link here…") }, leadingIcon = { Icon(Icons.Default.Link, null) },
                         trailingIcon = { IconButton(onClick = { clipboard.getText()?.text?.let(onUrl) }) { Icon(Icons.Default.ContentPaste, "Paste") } },
-                        shape = RoundedCornerShape(16.dp), minLines = 1, maxLines = 4)
+                        shape = RoundedCornerShape(16.dp), minLines = 1, maxLines = 4,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF23D5E8),
+                            unfocusedBorderColor = Color(0xFF7F9DBD),
+                            focusedTextColor = Color(0xFFF5F8FF),
+                            unfocusedTextColor = Color(0xFFF5F8FF),
+                            focusedPlaceholderColor = Color(0xFFB4C7E4),
+                            unfocusedPlaceholderColor = Color(0xFFB4C7E4),
+                            cursorColor = Color(0xFF23D5E8)
+                        ))
                     OutlinedButton(
                         onClick = {
                             val candidates = Regex("https?://[^\\s<>\\\"']+", RegexOption.IGNORE_CASE)
