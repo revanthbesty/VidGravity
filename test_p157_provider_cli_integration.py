@@ -1,6 +1,7 @@
-import importlib.util, json, os, shutil, tempfile, threading, time, unittest, urllib.request, urllib.error
+import importlib.util, json, os, tempfile, threading, time, unittest, urllib.request, urllib.error
 from http.server import ThreadingHTTPServer
 from pathlib import Path
+from unittest.mock import patch
 
 SERVER_PATH = Path(__file__).with_name("server.py")
 SPEC = importlib.util.spec_from_file_location("vidgravity_p157_server", SERVER_PATH)
@@ -10,7 +11,9 @@ SPEC.loader.exec_module(server)
 class ProviderCliIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.tmp = Path(tempfile.mkdtemp(prefix="vidgravity-p157-"))
+        temp_dir = tempfile.TemporaryDirectory(prefix="vidgravity-p157-")
+        cls.addClassCleanup(temp_dir.cleanup)
+        cls.tmp = Path(temp_dir.name)
         cls.bin_dir = cls.tmp / "bin"; cls.bin_dir.mkdir()
         cls.output_dir = cls.tmp / "downloads"; cls.output_dir.mkdir()
         cls.db_path = cls.tmp / "jobs.sqlite3"
@@ -36,13 +39,17 @@ echo 'unsupported controlled CLI args' >&2
 exit 2
 """, encoding="utf-8")
         cls.fake_cli.chmod(0o755)
-        cls.old_path = os.environ.get("PATH", "")
-        os.environ["PATH"] = str(cls.bin_dir) + os.pathsep + cls.old_path
-        cls.old_db, cls.old_out = server.DOWNLOAD_DB_PATH, server.DOWNLOAD_OUTPUT_DIR
-        cls.old_valid, cls.old_call = server.valid_url, server.subprocess.call
-        server.subprocess.call = lambda *args, **kwargs: 0
-        server.DOWNLOAD_DB_PATH, server.DOWNLOAD_OUTPUT_DIR = cls.db_path, cls.output_dir
-        server.valid_url = lambda url: (True, "") if url == "https://provider-test.invalid/clip.mp4" else cls.old_valid(url)
+        patcher = patch.dict(os.environ, {"PATH": str(cls.bin_dir) + os.pathsep + os.environ.get("PATH", "")})
+        patcher.start()
+        cls.addClassCleanup(patcher.stop)
+        original_valid_url = server.valid_url
+        for name, value in (("DOWNLOAD_DB_PATH", cls.db_path), ("DOWNLOAD_OUTPUT_DIR", cls.output_dir)):
+            patcher = patch.object(server, name, value)
+            patcher.start()
+            cls.addClassCleanup(patcher.stop)
+        patcher = patch.object(server, "valid_url", lambda url: (True, "") if url == "https://provider-test.invalid/clip.mp4" else original_valid_url(url))
+        patcher.start()
+        cls.addClassCleanup(patcher.stop)
         server.DOWNLOAD_JOBS.clear(); server._init_job_store()
         cls.httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
         cls.thread = threading.Thread(target=cls.httpd.serve_forever, daemon=True)
@@ -53,10 +60,6 @@ exit 2
     def tearDownClass(cls):
         cls.httpd.shutdown(); cls.httpd.server_close(); cls.thread.join(timeout=2)
         server.DOWNLOAD_JOBS.clear()
-        server.DOWNLOAD_DB_PATH, server.DOWNLOAD_OUTPUT_DIR = cls.old_db, cls.old_out
-        server.valid_url, server.subprocess.call = cls.old_valid, cls.old_call
-        os.environ["PATH"] = cls.old_path
-        shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def request(self, path, method="GET", payload=None):
         data = None if payload is None else json.dumps(payload).encode()
@@ -104,13 +107,11 @@ exit 2
         job_id = "p157controlledfailure"
         server.DOWNLOAD_JOBS[job_id] = {"id":job_id,"state":"queued","progress":0,"message":"queued",
             "url":"https://provider-test.invalid/clip.mp4","format":"fail","created_at":time.time(),"updated_at":time.time()}
-        original = server.subprocess.Popen
         class FailedProcess:
             def __init__(self, *a, **kw): self.stdout = iter(["ERROR: controlled provider failure\n"])
             def wait(self): return 2
-        server.subprocess.Popen = FailedProcess
-        try: server._run_download_job(job_id, "https://provider-test.invalid/clip.mp4", "fail")
-        finally: server.subprocess.Popen = original
+        with patch.object(server.subprocess, "Popen", FailedProcess):
+            server._run_download_job(job_id, "https://provider-test.invalid/clip.mp4", "fail")
         self.assertEqual(server.DOWNLOAD_JOBS[job_id]["state"], "failed")
         self.assertFalse(list(self.output_dir.glob(job_id + ".*")))
 

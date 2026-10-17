@@ -38,7 +38,7 @@ class WebSocialExportSyntaxTests(unittest.TestCase):
         self.assertIn('href="social-export.css?v=p176"', index)
         self.assertIn('src="social-export.js?v=p176"', index)
         self.assertIn('app.js?v=p176', workflow)
-        self.assertIn('styles.css?v=p176', workflow)
+        self.assertIn('styles.css?v=p177', workflow)
 
 
 if __name__ == "__main__":
