@@ -21,6 +21,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.SeekBar
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import android.app.AlertDialog
@@ -54,6 +55,11 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private lateinit var container: FrameLayout
     private lateinit var rearPreview: PreviewView
     private lateinit var frontPreview: PreviewView
+    private lateinit var pauseRecording: Button
+    private lateinit var zoom: SeekBar
+    private lateinit var zoomLabel: TextView
+    private var recordingPaused = false
+    private var photoTimer: Runnable? = null
     private lateinit var useCapture: Button
     private lateinit var status: TextView
     private lateinit var shutter: Button
@@ -143,6 +149,31 @@ class DualCameraCaptureActivity : ComponentActivity() {
             setPadding(0, 0, 0, dp(10))
         }
         bottom.addView(status, LinearLayout.LayoutParams(-1, -2))
+        zoomLabel = TextView(this).apply { text = "Zoom 1.0×"; setTextColor(0xFFFFFFFF.toInt()); gravity = Gravity.CENTER }
+        bottom.addView(zoomLabel)
+        zoom = SeekBar(this).apply {
+            max = 1000
+            contentDescription = "Camera zoom"
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(bar: SeekBar, progress: Int, fromUser: Boolean) {
+                    if (!fromUser) return
+                    val state = camera?.cameraInfo?.zoomState?.value ?: return
+                    val ratio = state.minZoomRatio + (state.maxZoomRatio - state.minZoomRatio) * progress / 1000f
+                    camera?.cameraControl?.setZoomRatio(ratio)
+                }
+                override fun onStartTrackingTouch(bar: SeekBar) { }
+                override fun onStopTrackingTouch(bar: SeekBar) { }
+            })
+        }
+        bottom.addView(zoom, LinearLayout.LayoutParams(-1, dp(48)))
+        pauseRecording = controlButton("Pause recording") {
+            runCatching {
+                if (recordingPaused) recording?.resume() else recording?.pause()
+                recordingPaused = !recordingPaused
+                pauseRecording.text = if (recordingPaused) "Resume recording" else "Pause recording"
+            }.onFailure { Toast.makeText(this, "Recording could not change state.", Toast.LENGTH_SHORT).show() }
+        }.apply { isEnabled = false }
+        bottom.addView(pauseRecording, LinearLayout.LayoutParams(-1, dp(48)))
         useCapture = controlButton("Use capture in Studio") { finish() }.apply { isEnabled = false }
         bottom.addView(useCapture, LinearLayout.LayoutParams(-1, dp(48)))
         val controls = LinearLayout(this).apply {
@@ -167,6 +198,12 @@ class DualCameraCaptureActivity : ComponentActivity() {
         }
         bottom.addView(hint, LinearLayout.LayoutParams(-1, -2))
         container.addView(bottom, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(container) { view, insets ->
+            val bars = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars() or
+                androidx.core.view.WindowInsetsCompat.Type.displayCutout())
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+            insets
+        }
         setContentView(container)
     }
 
@@ -201,6 +238,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private fun bindCameraSession() {
         val cameraProvider = provider ?: return
         val selector = if (frontFacing) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+        camera?.cameraInfo?.zoomState?.removeObservers(this)
         cameraProvider.unbindAll()
         camera = null
         imageCapture = null
@@ -238,6 +276,8 @@ class DualCameraCaptureActivity : ComponentActivity() {
                 flashButton.isEnabled = false
                 flashButton.text = "Flash n/a"
                 shutter.text = "●  Capture"
+                zoom.isEnabled = false
+                zoomLabel.text = "Zoom unavailable in dual preview"
                 return
             } catch (error: Exception) {
                 runCatching { cameraProvider.unbindAll() }
@@ -271,6 +311,12 @@ class DualCameraCaptureActivity : ComponentActivity() {
                 return
             }
         }
+        camera?.cameraInfo?.zoomState?.observe(this) { state ->
+            zoom.isEnabled = state.maxZoomRatio > state.minZoomRatio
+            zoomLabel.text = String.format(java.util.Locale.US, "Zoom %.1f×", state.zoomRatio)
+            zoom.progress = if (zoom.isEnabled) (((state.zoomRatio - state.minZoomRatio) /
+                (state.maxZoomRatio - state.minZoomRatio)) * 1000).toInt() else 0
+        }
         camera?.cameraControl?.enableTorch(false)
         updateFlashLabel()
         status.text = if (frontFacing) "Front camera · ${if (videoMode) "Video" else "Photo"} mode"
@@ -299,11 +345,15 @@ class DualCameraCaptureActivity : ComponentActivity() {
     }
 
     private fun takePhoto() {
+        if (pendingPhoto) return
         val capture = imageCapture
         if (capture == null) {
             Toast.makeText(this, "Photo capture is not available in this camera mode.", Toast.LENGTH_LONG).show()
             return
         }
+        pendingPhoto = true
+        shutter.isEnabled = false
+        useCapture.isEnabled = false
         val captureNow = {
             val fileName = "vidgravity-${System.currentTimeMillis()}.jpg"
             // Publish photos to the same MediaStore folder the library indexes.
@@ -326,6 +376,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
             }
             capture.takePicture(options, executor, object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(result: ImageCapture.OutputFileResults) = runOnUiThread {
+                    pendingPhoto = false; shutter.isEnabled = true
                     completedCapture(result.savedUri,
                         File(getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: File(filesDir, "media"), fileName),
                         fileName, "image/jpeg")
@@ -333,13 +384,15 @@ class DualCameraCaptureActivity : ComponentActivity() {
                     Toast.makeText(this@DualCameraCaptureActivity, "Photo saved to VidGravity: ${fileName}", Toast.LENGTH_LONG).show()
                 }
                 override fun onError(exception: ImageCaptureException) = runOnUiThread {
+                    pendingPhoto = false; shutter.isEnabled = true
                     Toast.makeText(this@DualCameraCaptureActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
                 }
             })
         }
         if (timerSeconds > 0) {
             status.text = "Photo timer · ${timerSeconds}s"
-            shutter.postDelayed(captureNow, timerSeconds * 1000L)
+            photoTimer = Runnable { captureNow() }
+            shutter.postDelayed(photoTimer!!, timerSeconds * 1000L)
         } else captureNow()
     }
 
@@ -385,18 +438,21 @@ class DualCameraCaptureActivity : ComponentActivity() {
             pending = pending.withAudioEnabled()
         }
         shutter.isEnabled = true
+        useCapture.isEnabled = false
         recording = pending.start(ContextCompat.getMainExecutor(this)) { event ->
             when (event) {
                 is VideoRecordEvent.Start -> {
+                    recordingPaused = false; pauseRecording.isEnabled = true; pauseRecording.text = "Pause recording"
                     shutter.text = "■  Stop"
                     status.text = "Recording video…"
                 }
                 is VideoRecordEvent.Status -> {
                     val seconds = event.recordingStats.recordedDurationNanos / 1_000_000_000L
-                    status.text = "Recording · ${seconds}s"
+                    status.text = if (recordingPaused) "Paused · ${seconds}s" else "Recording · ${seconds}s"
                 }
                 is VideoRecordEvent.Finalize -> {
                     recording = null
+                    pauseRecording.isEnabled = false; recordingPaused = false
                     shutter.isEnabled = true
                     shutter.text = "●  Record"
                     if (event.hasError()) {
@@ -549,6 +605,15 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private fun finishWithMessage(message: String) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
         finish()
+    }
+
+    override fun onStop() {
+        photoTimer?.let { shutter.removeCallbacks(it) }
+        photoTimer = null
+        pendingPhoto = false
+        shutter.isEnabled = true
+        recording?.stop()
+        super.onStop()
     }
 
     override fun onDestroy() {
