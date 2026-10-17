@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -57,10 +58,16 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("vg-ui", 0) }
     var dark by remember { mutableStateOf(prefs.getBoolean("dark", true)) }
-    var selected by remember { mutableStateOf(VgTab.Home) }
+    var selected by remember {
+        mutableStateOf(runCatching {
+            VgTab.valueOf(prefs.getString("last_tab", VgTab.Home.name) ?: VgTab.Home.name)
+        }.getOrDefault(VgTab.Home))
+    }
+    LaunchedEffect(selected) { prefs.edit().putString("last_tab", selected.name).apply() }
     var showInbox by remember { mutableStateOf(openInboxInitially) }
     var showStudyTok by remember { mutableStateOf(false) }
     var creatorInitialMedia by remember { mutableStateOf<LibraryMedia?>(null) }
+    var librarySearchTarget by remember { mutableStateOf("") }
     var playingMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var url by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf<String?>(null) }
@@ -138,10 +145,11 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                             }
                         }
                     }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create }, { showStudyTok = true })
-                    VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
+                    VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it }, onOpenLibrary = { title -> librarySearchTarget = title; selected = VgTab.Library })
                     VgTab.Library -> LibraryContent(
                         onPlay = { playingMedia = it },
-                        onCreateWithMedia = { media -> creatorInitialMedia = media; selected = VgTab.Create }
+                        onCreateWithMedia = { media -> creatorInitialMedia = media; selected = VgTab.Create },
+                        initialSearch = librarySearchTarget
                     )
                     VgTab.Create -> CreateStudioContent(
                         onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true },
@@ -287,7 +295,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                     modifier = Modifier.fillMaxWidth().clickable {
                                         try {
                                             val preferences = SecureDownloadPreferences.load(context)
-                                            if (rememberQuality && choice.first != "Highest available") {
+                                            if (rememberQuality && choice.first != "Best available") {
                                                 SecureDownloadPreferences.save(context, preferences.copy(
                                                     autoDownloadWithPreferredPreset = true,
                                                     preferredFormatSelector = choice.second
@@ -425,7 +433,9 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                         Text("Shared URL found in clipboard", fontWeight = FontWeight.SemiBold)
                         Text("Tap to paste and inspect", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Icon(Icons.Default.ChevronRight, null)
+                    IconButton(onClick = { clipboardSuggestion = null }) {
+                        Icon(Icons.Default.Close, contentDescription = "Dismiss clipboard suggestion")
+                    }
                 }
             }
         }
@@ -451,9 +461,24 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                         fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp)
                     Text("Paste a public video or audio link. Inspect available quality, then choose exactly what to save.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedTextField(value = url, onValueChange = onUrl, modifier = Modifier.fillMaxWidth(),
+                    Text("Common sources: YouTube, Instagram, TikTok, Facebook, X, Vimeo and SoundCloud. Availability depends on the source and its access rules.",
+                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedTextField(value = url, onValueChange = { onUrl(it.take(10000)) }, modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Media URL or links") },
                         placeholder = { Text("Paste one link or multiple links (one per line)") }, leadingIcon = { Icon(Icons.Default.Link, null) },
-                        trailingIcon = { IconButton(onClick = { clipboard.getText()?.text?.let(onUrl) }) { Icon(Icons.Default.ContentPaste, "Paste") } },
+                        trailingIcon = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (url.isNotBlank()) IconButton(onClick = { onUrl("") }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear all pasted URLs")
+                                }
+                                IconButton(onClick = {
+                                    val pasted = clipboard.getText()?.text.orEmpty().take(10000)
+                                    if (pasted.isNotBlank()) onUrl(pasted)
+                                    else notify("Clipboard does not contain text to paste.")
+                                }) { Icon(Icons.Default.ContentPaste, contentDescription = "Paste URLs from clipboard") }
+                            }
+                        },
+                        supportingText = { Text("${url.length}/10000 characters · Up to 10 links per batch") },
                         shape = RoundedCornerShape(16.dp), minLines = 1, maxLines = 4)
                     OutlinedButton(
                         onClick = {
@@ -469,17 +494,18 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                 notify("Please queue up to 10 links at a time.")
                             } else {
                                 var queued = 0
+                                var failed = 0
                                 val preferences = SecureDownloadPreferences.load(context)
                                 candidates.forEach { link ->
                                     runCatching {
                                         DownloadWorker.enqueue(context, link, preferences.preferredFormatSelector,
                                             ShareReceiverActivity.friendlyTitle(link), preferences.unmeteredOnly)
-                                    }.onSuccess { queued++ }
+                                    }.onSuccess { queued++ }.onFailure { failed++ }
                                 }
                                 if (queued > 0) {
                                     onBatchQueued()
-                                    notify("${queued} of ${candidates.size} links added to Downloads using best available quality.")
-                                } else notify("No links could be queued. Please check the URLs and try again.")
+                                    notify("$queued of ${candidates.size} links queued using your saved quality preset; $failed failed.")
+                                } else notify("No links could be queued. Check the URLs and try again.")
                             }
                         },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
@@ -489,7 +515,14 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                         Spacer(Modifier.width(8.dp))
                         Text("Queue multiple links · best quality")
                     }
-                    Button(onClick = { if (url.startsWith("http://") || url.startsWith("https://")) inspect() else notify("Enter a complete public URL starting with https://") },
+                    Button(onClick = {
+                        val candidate = url.trim().lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()
+                        val parsed = runCatching { android.net.Uri.parse(candidate) }.getOrNull()
+                        if (parsed != null && parsed.scheme in setOf("http", "https") && !parsed.host.isNullOrBlank()) {
+                            onUrl(candidate)
+                            inspect()
+                        } else notify("Enter a complete URL with https:// and a valid host name.")
+                    },
                         modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
                         Icon(Icons.Default.Search, null); Spacer(Modifier.width(8.dp)); Text("Inspect link")
                     }
@@ -556,14 +589,25 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
 }
 
 @Composable
-private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
+private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onOpenLibrary: (String) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboard = LocalClipboardManager.current
     var expandedErrors by remember { mutableStateOf(setOf<java.util.UUID>()) }
-    var downloadFilter by remember { mutableStateOf("All") }
+    val downloadUiPrefs = remember(context) { context.getSharedPreferences("vg_downloads_ui", android.content.Context.MODE_PRIVATE) }
+    var downloadFilter by remember { mutableStateOf(downloadUiPrefs.getString("download_filter", "All") ?: "All") }
     var showClearHistoryConfirm by remember { mutableStateOf(false) }
-    var downloadSearch by remember { mutableStateOf("") }
-    var downloadSort by remember { mutableStateOf("Newest") }
+    var showCancelActiveConfirm by remember { mutableStateOf(false) }
+    var showDownloadTools by remember { mutableStateOf(downloadUiPrefs.getBoolean("show_download_tools", false)) }
+    var downloadSearch by remember { mutableStateOf(downloadUiPrefs.getString("download_search", "") ?: "") }
+    var downloadSort by remember { mutableStateOf(downloadUiPrefs.getString("download_sort", "Newest") ?: "Newest") }
+    LaunchedEffect(downloadFilter, downloadSearch, downloadSort, showDownloadTools) {
+        downloadUiPrefs.edit()
+            .putString("download_filter", downloadFilter)
+            .putString("download_search", downloadSearch)
+            .putString("download_sort", downloadSort)
+            .putBoolean("show_download_tools", showDownloadTools)
+            .apply()
+    }
     val liveWorks = remember(context) { WorkManager.getInstance(context).getWorkInfosByTagLiveData("vidgravity-download") }
     val allWorks by liveWorks.observeAsState(emptyList())
     val historyPrefs = remember(context) { context.getSharedPreferences("vg_downloads_ui", android.content.Context.MODE_PRIVATE) }
@@ -587,10 +631,18 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     ?: work.progress.getString("media_url")).isNullOrBlank()
             }
             val completedWorks = works.filter { it.state == WorkInfo.State.SUCCEEDED }
+            val queuedWorks = works.filter { it.state == WorkInfo.State.ENQUEUED }
+            val runningWorks = works.filter { it.state == WorkInfo.State.RUNNING }
+            val cancelledWorks = works.filter { it.state == WorkInfo.State.CANCELLED }
+            val blockedWorks = works.filter { it.state == WorkInfo.State.BLOCKED }
             val statusFilteredWorks = when (downloadFilter) {
                 "Active" -> activeWorks
+                "Queued" -> queuedWorks
+                "Running" -> runningWorks
+                "Blocked" -> blockedWorks
                 "Completed" -> completedWorks
                 "Failed" -> failedWorks
+                "Cancelled" -> cancelledWorks
                 else -> works
             }
             val searchTerm = downloadSearch.trim()
@@ -670,156 +722,365 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     }
                 }
             }
-            OutlinedButton(
-                onClick = {
-                    fun csvCell(value: String): String = "\"" + value.replace("\"", "\"\"").replace("\r", " ").replace("\n", " ") + "\""
-                    val csv = buildString {
-                        appendLine("Title,Status,Progress,Source URL,Error")
-                        filteredWorks.forEach { work ->
-                            val title = work.outputData.getString("display_name")
-                                ?: work.progress.getString("media_title")
-                                ?: work.progress.getString("title")
-                                ?: "Media download"
-                            val source = work.outputData.getString(DownloadWorker.RETRY_URL)
-                                ?: work.progress.getString("media_url")
-                                ?: ""
-                            val percent = work.progress.getInt("progress", -1)
-                            val error = work.outputData.getString("error") ?: ""
-                            appendLine(listOf(title, work.state.name, if (percent >= 0) "$percent%" else "", source, error).joinToString(",") { csvCell(it) })
-                        }
+            val finishedCount = completedWorks.size + failedWorks.size
+            val successRate = if (finishedCount == 0) 0 else (completedWorks.size * 100 / finishedCount)
+            val averageProgress = if (activeWorks.isEmpty()) 0 else activeWorks.map { it.progress.getInt("progress", 0).coerceIn(0, 100) }.average().toInt()
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Queue health", fontWeight = FontWeight.SemiBold)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column { Text("$averageProgress%", fontSize = 19.sp, fontWeight = FontWeight.Bold); Text("Avg. active progress", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        Column { Text("$successRate%", fontSize = 19.sp, fontWeight = FontWeight.Bold); Text("Success rate*", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        Column { Text("${queuedWorks.size}", fontSize = 19.sp, fontWeight = FontWeight.Bold); Text("Queued", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(csv))
-                    android.widget.Toast.makeText(context, "CSV download report copied.", android.widget.Toast.LENGTH_SHORT).show()
-                },
-                enabled = filteredWorks.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
-            ) {
-                Icon(Icons.Default.TableChart, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Copy CSV report (${filteredWorks.size})")
+                    Text("*Based on visible retained completed and failed/cancelled jobs; cancelled jobs are counted as failures.", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        when {
+                            activeWorks.isEmpty() && failedWorks.isNotEmpty() -> "Next step: review the error details or retry supported failed links."
+                            activeWorks.isEmpty() -> "Queue is idle. Add a link from Home to start a download."
+                            queuedWorks.isNotEmpty() -> "${queuedWorks.size} item(s) are waiting for a worker slot or network constraints."
+                            else -> "Your active downloads are running. Keep VidGravity updated if a provider stops responding."
+                        }, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             OutlinedButton(
-                onClick = {
-                    val links = filteredWorks.mapNotNull { work ->
-                        (work.outputData.getString(DownloadWorker.RETRY_URL)
-                            ?: work.progress.getString("media_url"))
-                            ?.takeIf { it.isNotBlank() }
-                    }.distinct()
-                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(links.joinToString("\n")))
-                    android.widget.Toast.makeText(context, "Copied ${links.size} source link(s).", android.widget.Toast.LENGTH_SHORT).show()
-                },
-                enabled = filteredWorks.any { work ->
-                    !(work.outputData.getString(DownloadWorker.RETRY_URL)
-                        ?: work.progress.getString("media_url")).isNullOrBlank()
-                },
+                enabled = activeWorks.isNotEmpty(),
+                onClick = { showCancelActiveConfirm = true },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
             ) {
-                Icon(Icons.Default.Link, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Copy visible source links")
+                Icon(Icons.Default.Cancel, null); Spacer(Modifier.width(8.dp))
+                Text("Cancel all active downloads (${activeWorks.size})")
             }
             OutlinedButton(
+                enabled = queuedWorks.isNotEmpty(),
                 onClick = {
-                    val report = buildString {
-                        appendLine("VidGravity download report")
-                        appendLine("Filter: $downloadFilter")
-                        appendLine("Listed: ${filteredWorks.size} | Active: ${activeWorks.size} | Completed: ${completedWorks.size} | Failed/cancelled: ${failedWorks.size}")
-                        appendLine()
-                        filteredWorks.forEachIndexed { index, work ->
-                            val title = work.outputData.getString("display_name")
-                                ?: work.progress.getString("media_title")
-                                ?: work.progress.getString("title")
-                                ?: "Media download"
-                            val source = work.outputData.getString(DownloadWorker.RETRY_URL)
-                                ?: work.progress.getString("media_url")
-                                ?: "Not saved"
-                            val percent = work.progress.getInt("progress", -1)
-                            val error = work.outputData.getString("error")
-                            appendLine("${index + 1}. $title")
-                            appendLine("   Status: ${work.state.name}${if (percent >= 0) " | Progress: $percent%" else ""}")
-                            appendLine("   Source: $source")
-                            if (!error.isNullOrBlank()) appendLine("   Error: $error")
-                        }
+                    queuedWorks.forEach { WorkManager.getInstance(context).cancelWorkById(it.id) }
+                    android.widget.Toast.makeText(context, "Cancelled ${queuedWorks.size} queued download(s).", android.widget.Toast.LENGTH_LONG).show()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.PauseCircleOutline, null); Spacer(Modifier.width(8.dp))
+                Text("Cancel queued downloads (${queuedWorks.size})")
+            }
+            OutlinedButton(
+                enabled = runningWorks.isNotEmpty(),
+                onClick = {
+                    val links = runningWorks.mapNotNull { it.outputData.getString(DownloadWorker.RETRY_URL) ?: it.progress.getString("media_url") }.distinct()
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(links.joinToString("\\n")))
+                    android.widget.Toast.makeText(context, "Copied ${links.size} active source link(s).", android.widget.Toast.LENGTH_SHORT).show()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.Link, null); Spacer(Modifier.width(8.dp)); Text("Copy active source links")
+            }
+            OutlinedButton(
+                enabled = completedWorks.isNotEmpty(),
+                onClick = {
+                    val titles = completedWorks.map { it.outputData.getString("display_name") ?: it.outputData.getString("filename") ?: it.progress.getString("media_title") ?: "Media download" }
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(titles.joinToString("\\n")))
+                    android.widget.Toast.makeText(context, "Copied ${titles.size} completed title(s).", android.widget.Toast.LENGTH_SHORT).show()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(8.dp)); Text("Copy completed titles")
+            }
+            OutlinedButton(
+                enabled = failedWorks.isNotEmpty(),
+                onClick = {
+                    val report = failedWorks.joinToString("\\n\\n") { work ->
+                        val title = work.outputData.getString("display_name") ?: work.progress.getString("media_title") ?: "Media download"
+                        val error = work.outputData.getString("error") ?: "No error details recorded"
+                        "$title\\nStatus: ${work.state.name}\\n$error"
                     }
                     clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
-                    android.widget.Toast.makeText(context, "Download report copied (${filteredWorks.size} item(s)).", android.widget.Toast.LENGTH_SHORT).show()
-                },
-                enabled = filteredWorks.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                    android.widget.Toast.makeText(context, "Copied failure summary for ${failedWorks.size} item(s).", android.widget.Toast.LENGTH_SHORT).show()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
             ) {
-                Icon(Icons.Default.ContentCopy, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Copy download report (${filteredWorks.size})")
+                Icon(Icons.Default.ErrorOutline, null); Spacer(Modifier.width(8.dp)); Text("Copy failure summary")
             }
             OutlinedButton(
+                enabled = blockedWorks.isNotEmpty(),
+                onClick = {
+                    blockedWorks.forEach { WorkManager.getInstance(context).cancelWorkById(it.id) }
+                    android.widget.Toast.makeText(context, "Cancelled ${blockedWorks.size} blocked job(s).", android.widget.Toast.LENGTH_LONG).show()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.Block, null); Spacer(Modifier.width(8.dp)); Text("Cancel blocked downloads (${blockedWorks.size})")
+            }
+            OutlinedButton(
+                enabled = queuedWorks.isNotEmpty(),
+                onClick = {
+                    val titles = queuedWorks.map { it.outputData.getString("display_name") ?: it.progress.getString("media_title") ?: "Media download" }
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(titles.joinToString("\\n")))
+                    android.widget.Toast.makeText(context, "Copied ${titles.size} queued title(s).", android.widget.Toast.LENGTH_SHORT).show()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(8.dp)); Text("Copy queued titles")
+            }
+            OutlinedButton(
+                enabled = retryableWorks.isNotEmpty(),
+                onClick = {
+                    val links = retryableWorks.mapNotNull { it.outputData.getString(DownloadWorker.RETRY_URL) ?: it.progress.getString("media_url") }.distinct()
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(links.joinToString("\\n")))
+                    android.widget.Toast.makeText(context, "Copied ${links.size} retryable source link(s).", android.widget.Toast.LENGTH_SHORT).show()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.Refresh, null); Spacer(Modifier.width(8.dp)); Text("Copy retryable links")
+            }
+            OutlinedButton(
+                enabled = failedWorks.isNotEmpty(),
                 onClick = {
                     val report = buildString {
-                        appendLine("VidGravity download report")
-                        appendLine("Filter: $downloadFilter")
-                        appendLine("Listed: ${filteredWorks.size} | Active: ${activeWorks.size} | Completed: ${completedWorks.size} | Failed/cancelled: ${failedWorks.size}")
-                        appendLine()
-                        filteredWorks.forEachIndexed { index, work ->
-                            val title = work.outputData.getString("display_name")
-                                ?: work.progress.getString("media_title")
-                                ?: work.progress.getString("title")
-                                ?: "Media download"
-                            val source = work.outputData.getString(DownloadWorker.RETRY_URL)
-                                ?: work.progress.getString("media_url")
-                                ?: "Not saved"
-                            val percent = work.progress.getInt("progress", -1)
-                            val error = work.outputData.getString("error")
-                            appendLine("${index + 1}. $title")
-                            appendLine("Status: ${work.state.name}${if (percent >= 0) " | Progress: $percent%" else ""}")
-                            appendLine("Source: $source")
-                            if (!error.isNullOrBlank()) appendLine("Error: $error")
+                        appendLine("VidGravity failure report")
+                        appendLine("Failed/cancelled: ${failedWorks.size}")
+                        failedWorks.forEach { work ->
                             appendLine()
+                            appendLine(work.outputData.getString("display_name") ?: work.progress.getString("media_title") ?: "Media download")
+                            appendLine("Status: ${work.state.name}")
+                            appendLine("Error: ${work.outputData.getString("error") ?: "No error details recorded"}")
+                            appendLine("Source: ${work.outputData.getString(DownloadWorker.RETRY_URL) ?: work.progress.getString("media_url") ?: "Not saved"}")
                         }
                     }
                     runCatching {
-                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_SUBJECT, "VidGravity download report")
-                            putExtra(Intent.EXTRA_TEXT, report)
-                        }
-                        context.startActivity(Intent.createChooser(shareIntent, "Share download report"))
+                        context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"; putExtra(Intent.EXTRA_SUBJECT, "VidGravity failure report"); putExtra(Intent.EXTRA_TEXT, report)
+                        }, "Share failure report"))
                     }.onFailure {
-                        android.widget.Toast.makeText(context, "Could not open the sharing menu.", android.widget.Toast.LENGTH_LONG).show()
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
+                        android.widget.Toast.makeText(context, "Share unavailable; failure report copied instead.", android.widget.Toast.LENGTH_LONG).show()
                     }
-                },
-                enabled = filteredWorks.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
             ) {
-                Icon(Icons.Default.Share, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Share report (${filteredWorks.size})")
+                Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Share failure report")
             }
             OutlinedButton(
-                onClick = { showClearHistoryConfirm = true },
-                enabled = completedWorks.isNotEmpty() || failedWorks.isNotEmpty(),
-                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                enabled = works.isNotEmpty(),
+                onClick = {
+                    val summary = "VidGravity queue summary\\nActive: ${activeWorks.size}\\nQueued: ${queuedWorks.size}\\nRunning: ${runningWorks.size}\\nBlocked: ${blockedWorks.size}\\nCompleted: ${completedWorks.size}\\nFailed: ${failedWorks.size}\\nCancelled: ${cancelledWorks.size}\\nAverage active progress: $averageProgress%\\nSuccess rate*: $successRate%"
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(summary))
+                    android.widget.Toast.makeText(context, "Queue summary copied.", android.widget.Toast.LENGTH_SHORT).show()
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
             ) {
-                Icon(Icons.Default.DeleteSweep, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Clear finished history")
+                Icon(Icons.Default.Assessment, null); Spacer(Modifier.width(8.dp)); Text("Copy queue summary")
             }
-            if (failedWorks.isNotEmpty()) {
+            if (retryableFilteredWorks.isNotEmpty()) {
                 OutlinedButton(
                     onClick = {
-                        val report = failedWorks.joinToString("\n\n") { work ->
-                            val title = work.outputData.getString("display_name")
-                                ?: work.progress.getString("media_title") ?: "Media download"
-                            val error = work.outputData.getString("error") ?: "No technical error was saved."
-                            "${title}\nStatus: ${work.state.name}\nError: ${error}"
+                        var queuedRetries = 0
+                        var skippedRetries = 0
+                        val preferences = SecureDownloadPreferences.load(context)
+                        val activeSources = activeWorks.mapNotNull { work ->
+                            (work.outputData.getString(DownloadWorker.RETRY_URL)
+                                ?: work.progress.getString("media_url"))?.trim()?.lowercase()
+                        }.toMutableSet()
+                        retryableFilteredWorks.forEach { work ->
+                            val source = (work.outputData.getString(DownloadWorker.RETRY_URL)
+                                ?: work.progress.getString("media_url"))?.trim()
+                            if (source.isNullOrBlank() || !activeSources.add(source.lowercase())) {
+                                skippedRetries++
+                            } else {
+                                runCatching {
+                                    DownloadWorker.enqueue(
+                                        context, source, preferences.preferredFormatSelector,
+                                        work.outputData.getString("display_name")
+                                            ?: work.progress.getString("media_title")
+                                            ?: ShareReceiverActivity.friendlyTitle(source),
+                                        preferences.unmeteredOnly
+                                    )
+                                }.onSuccess { queuedRetries++ }.onFailure { skippedRetries++ }
+                            }
+                        }
+                        android.widget.Toast.makeText(
+                            context,
+                            "Queued $queuedRetries retry(s); skipped $skippedRetries duplicate or invalid item(s).",
+                            android.widget.Toast.LENGTH_LONG
+                        ).show()
+                    },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Retry all available failures (${retryableFilteredWorks.size})")
+                }
+            }
+            OutlinedButton(
+                onClick = { showDownloadTools = !showDownloadTools },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(if (showDownloadTools) Icons.Default.ExpandLess else Icons.Default.Build, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (showDownloadTools) "Hide download tools" else "More tools · reports & history")
+            }
+            if (showDownloadTools) {
+                OutlinedButton(
+                    onClick = {
+                        fun csvCell(value: String): String = "\"" + value.replace("\"", "\"\"").replace("\r", " ").replace("\n", " ") + "\""
+                        val csv = buildString {
+                            appendLine("Title,Status,Progress,Source URL,Error")
+                            filteredWorks.forEach { work ->
+                                val title = work.outputData.getString("display_name")
+                                    ?: work.progress.getString("media_title")
+                                    ?: work.progress.getString("title")
+                                    ?: "Media download"
+                                val source = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                    ?: work.progress.getString("media_url")
+                                    ?: ""
+                                val percent = work.progress.getInt("progress", -1)
+                                val error = work.outputData.getString("error") ?: ""
+                                appendLine(listOf(title, work.state.name, if (percent >= 0) "$percent%" else "", source, error).joinToString(",") { csvCell(it) })
+                            }
+                        }
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(csv))
+                        android.widget.Toast.makeText(context, "CSV download report copied.", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    enabled = filteredWorks.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.TableChart, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Copy CSV report (${filteredWorks.size})")
+                }
+                OutlinedButton(
+                    onClick = {
+                        val links = filteredWorks.mapNotNull { work ->
+                            (work.outputData.getString(DownloadWorker.RETRY_URL)
+                                ?: work.progress.getString("media_url"))
+                                ?.takeIf { it.isNotBlank() }
+                        }.distinct()
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(links.joinToString("\n")))
+                        android.widget.Toast.makeText(context, "Copied ${links.size} source link(s).", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    enabled = filteredWorks.any { work ->
+                        !(work.outputData.getString(DownloadWorker.RETRY_URL)
+                            ?: work.progress.getString("media_url")).isNullOrBlank()
+                    },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.Link, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Copy visible source links")
+                }
+                OutlinedButton(
+                    onClick = {
+                        val links = filteredWorks
+                            .filter { it.state == WorkInfo.State.FAILED || it.state == WorkInfo.State.CANCELLED }
+                            .mapNotNull { work ->
+                                (work.outputData.getString(DownloadWorker.RETRY_URL)
+                                    ?: work.progress.getString("media_url"))?.takeIf { it.isNotBlank() }
+                            }.distinct()
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(links.joinToString("\n")))
+                        android.widget.Toast.makeText(context, "Copied ${links.size} failed source link(s).", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    enabled = filteredWorks.any { (it.state == WorkInfo.State.FAILED || it.state == WorkInfo.State.CANCELLED) &&
+                        !(it.outputData.getString(DownloadWorker.RETRY_URL) ?: it.progress.getString("media_url")).isNullOrBlank() },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.ErrorOutline, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Copy failed source links")
+                }
+                OutlinedButton(
+                    onClick = {
+                        val report = buildString {
+                            appendLine("VidGravity download report")
+                            appendLine("Filter: $downloadFilter")
+                            appendLine("Listed: ${filteredWorks.size} | Active: ${activeWorks.size} | Completed: ${completedWorks.size} | Failed/cancelled: ${failedWorks.size}")
+                            appendLine()
+                            filteredWorks.forEachIndexed { index, work ->
+                                val title = work.outputData.getString("display_name")
+                                    ?: work.progress.getString("media_title")
+                                    ?: work.progress.getString("title")
+                                    ?: "Media download"
+                                val source = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                    ?: work.progress.getString("media_url")
+                                    ?: "Not saved"
+                                val percent = work.progress.getInt("progress", -1)
+                                val error = work.outputData.getString("error")
+                                appendLine("${index + 1}. $title")
+                                appendLine("   Status: ${work.state.name}${if (percent >= 0) " | Progress: $percent%" else ""}")
+                                appendLine("   Source: $source")
+                                if (!error.isNullOrBlank()) appendLine("   Error: $error")
+                            }
                         }
                         clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
-                        android.widget.Toast.makeText(context, "Failure report copied (${failedWorks.size} item(s)).", android.widget.Toast.LENGTH_LONG).show()
+                        android.widget.Toast.makeText(context, "Download report copied (${filteredWorks.size} item(s)).", android.widget.Toast.LENGTH_SHORT).show()
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    enabled = filteredWorks.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
                 ) {
                     Icon(Icons.Default.ContentCopy, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Copy failure report (${failedWorks.size})")
+                    Text("Copy download report (${filteredWorks.size})")
                 }
+                OutlinedButton(
+                    onClick = {
+                        val report = buildString {
+                            appendLine("VidGravity download report")
+                            appendLine("Filter: $downloadFilter")
+                            appendLine("Listed: ${filteredWorks.size} | Active: ${activeWorks.size} | Completed: ${completedWorks.size} | Failed/cancelled: ${failedWorks.size}")
+                            appendLine()
+                            filteredWorks.forEachIndexed { index, work ->
+                                val title = work.outputData.getString("display_name")
+                                    ?: work.progress.getString("media_title")
+                                    ?: work.progress.getString("title")
+                                    ?: "Media download"
+                                val source = work.outputData.getString(DownloadWorker.RETRY_URL)
+                                    ?: work.progress.getString("media_url")
+                                    ?: "Not saved"
+                                val percent = work.progress.getInt("progress", -1)
+                                val error = work.outputData.getString("error")
+                                appendLine("${index + 1}. $title")
+                                appendLine("Status: ${work.state.name}${if (percent >= 0) " | Progress: $percent%" else ""}")
+                                appendLine("Source: $source")
+                                if (!error.isNullOrBlank()) appendLine("Error: $error")
+                                appendLine()
+                            }
+                        }
+                        runCatching {
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, "VidGravity download report")
+                                putExtra(Intent.EXTRA_TEXT, report)
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "Share download report"))
+                        }.onFailure {
+                            android.widget.Toast.makeText(context, "Could not open the sharing menu.", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    },
+                    enabled = filteredWorks.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.Share, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Share report (${filteredWorks.size})")
+                }
+                OutlinedButton(
+                    onClick = { showClearHistoryConfirm = true },
+                    enabled = completedWorks.isNotEmpty() || failedWorks.isNotEmpty(),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    Icon(Icons.Default.DeleteSweep, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Clear finished history")
+                }
+                if (failedWorks.isNotEmpty()) {
+                    OutlinedButton(
+                        onClick = {
+                            val report = failedWorks.joinToString("\n\n") { work ->
+                                val title = work.outputData.getString("display_name")
+                                    ?: work.progress.getString("media_title") ?: "Media download"
+                                val error = work.outputData.getString("error") ?: "No technical error was saved."
+                                "${title}\nStatus: ${work.state.name}\nError: ${error}"
+                            }
+                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(report))
+                            android.widget.Toast.makeText(context, "Failure report copied (${failedWorks.size} item(s)).", android.widget.Toast.LENGTH_LONG).show()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.ContentCopy, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Copy failure report (${failedWorks.size})")
+                    }
+                }
+    
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
@@ -869,7 +1130,6 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     Text("Retry visible (${retryableFilteredWorks.size})")
                 }
             }
-            val runningWorks = works.filter { it.state == WorkInfo.State.RUNNING }
             val pausableWorks = runningWorks.filterNot { DownloadActionReceiver.isPaused(context, it.id) }
             val resumableWorks = runningWorks.filter { DownloadActionReceiver.isPaused(context, it.id) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -906,16 +1166,17 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
             }
             OutlinedTextField(
                 value = downloadSearch,
-                onValueChange = { downloadSearch = it },
+                onValueChange = { downloadSearch = it.take(200) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 label = { Text("Search download history") },
                 placeholder = { Text("Filename, source URL, error, or status") },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                supportingText = { Text("${downloadSearch.length}/200 characters") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search download history") },
                 trailingIcon = {
                     if (downloadSearch.isNotBlank()) {
                         IconButton(onClick = { downloadSearch = "" }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear search")
+                            Icon(Icons.Default.Close, contentDescription = "Clear download history search")
                         }
                     }
                 }
@@ -945,11 +1206,15 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             }
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(listOf("All", "Active", "Completed", "Failed")) { filter ->
+                items(listOf("All", "Active", "Queued", "Running", "Blocked", "Completed", "Failed", "Cancelled")) { filter ->
                     val count = when (filter) {
                         "Active" -> activeWorks.size
+                        "Queued" -> queuedWorks.size
+                        "Running" -> runningWorks.size
+                        "Blocked" -> blockedWorks.size
                         "Completed" -> completedWorks.size
                         "Failed" -> failedWorks.size
+                        "Cancelled" -> cancelledWorks.size
                         else -> works.size
                     }
                     FilterChip(selected = downloadFilter == filter, onClick = { downloadFilter = filter },
@@ -957,9 +1222,27 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             }
             if (filteredWorks.isEmpty()) {
-                InfoCard("No ${downloadFilter.lowercase()} downloads",
-                    if (downloadFilter == "Active") "Your download queue is idle." else "Items will appear here when they match this filter.",
-                    Icons.Default.FilterList, Modifier.fillMaxWidth())
+                InfoCard(
+                    if (searchTerm.isNotBlank()) "No matching downloads" else "No ${downloadFilter.lowercase()} downloads",
+                    if (searchTerm.isNotBlank()) "Try a shorter title or source URL, or clear the search and filter."
+                    else if (downloadFilter == "Active") "Your download queue is idle."
+                    else "Items will appear here when they match this filter.",
+                    Icons.Default.FilterList, Modifier.fillMaxWidth()
+                )
+                if (searchTerm.isNotBlank() || downloadFilter != "All" || downloadSort != "Newest") {
+                    OutlinedButton(
+                        onClick = {
+                            downloadSearch = ""
+                            downloadFilter = "All"
+                            downloadSort = "Newest"
+                        },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    ) {
+                        Icon(Icons.Default.Refresh, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Reset download search and filters")
+                    }
+                }
             }
             // Use the screen's parent scroll container; nesting a LazyColumn here can
             // measure it with infinite height and crash on some Compose versions.
@@ -1050,6 +1333,14 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                             Text("Share")
                                         }
                                     }
+                                    OutlinedButton(
+                                        onClick = { onOpenLibrary(title) },
+                                        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                                    ) {
+                                        Icon(Icons.Default.VideoLibrary, null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Find this download in Library")
+                                    }
                                 }
                             }
                             LinearProgressIndicator(progress = { progress / 100f }, modifier = Modifier.fillMaxWidth())
@@ -1104,6 +1395,22 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             }
         }
+    }
+    if (showCancelActiveConfirm) {
+        AlertDialog(
+            onDismissRequest = { showCancelActiveConfirm = false },
+            title = { Text("Cancel active downloads?") },
+            text = { Text("This will cancel ${works.count { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }} active or queued job(s). Completed files will not be deleted.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val toCancel = works.filter { it.state == WorkInfo.State.RUNNING || it.state == WorkInfo.State.ENQUEUED || it.state == WorkInfo.State.BLOCKED }
+                    toCancel.forEach { WorkManager.getInstance(context).cancelWorkById(it.id) }
+                    showCancelActiveConfirm = false
+                    android.widget.Toast.makeText(context, "Cancelled ${toCancel.size} active/queued download(s). Existing files were kept.", android.widget.Toast.LENGTH_LONG).show()
+                }) { Text("Cancel downloads") }
+            },
+            dismissButton = { TextButton(onClick = { showCancelActiveConfirm = false }) { Text("Keep running") } }
+        )
     }
     if (showClearHistoryConfirm) {
         AlertDialog(
@@ -1186,7 +1493,10 @@ private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, o
         } else if (visibleItems.isEmpty()) {
             Text("No saved links match “${searchQuery.trim()}”.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 items(visibleItems, key = { it.id }) { item ->
                     Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1209,22 +1519,50 @@ private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, o
 }
 
 @Composable
-private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (LibraryMedia) -> Unit) {
+private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (LibraryMedia) -> Unit, initialSearch: String = "") {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboard = LocalClipboardManager.current
     var media by remember { mutableStateOf(emptyList<LibraryMedia>()) }
-    var filter by remember { mutableStateOf("All Media") }
-    var sizeFilter by remember { mutableStateOf("Any size") }
-    var sortBy by remember { mutableStateOf("Newest") }
-    var searchQuery by remember { mutableStateOf("") }
+    val libraryUiPrefs = remember(context) { context.getSharedPreferences("vg_library_ui", android.content.Context.MODE_PRIVATE) }
+    var filter by remember { mutableStateOf(libraryUiPrefs.getString("filter", "All Media") ?: "All Media") }
+    var sizeFilter by remember { mutableStateOf(libraryUiPrefs.getString("size_filter", "Any size") ?: "Any size") }
+    var sortBy by remember { mutableStateOf(libraryUiPrefs.getString("sort_by", "Newest") ?: "Newest") }
+    var searchQuery by remember { mutableStateOf(initialSearch.ifBlank { libraryUiPrefs.getString("search_query", "") ?: "" }) }
+    LaunchedEffect(filter, sizeFilter, sortBy, searchQuery) {
+        libraryUiPrefs.edit().putString("filter", filter).putString("size_filter", sizeFilter)
+            .putString("sort_by", sortBy).putString("search_query", searchQuery).apply()
+    }
+    LaunchedEffect(initialSearch) { if (initialSearch.isNotBlank()) searchQuery = initialSearch }
     var renameTarget by remember { mutableStateOf<LibraryMedia?>(null) }
     var renameText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<LibraryMedia?>(null) }
     var selectedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showBulkDeleteConfirm by remember { mutableStateOf(false) }
     var swipeFeedOpen by remember { mutableStateOf(false) }
+    var showLibraryTools by remember { mutableStateOf(libraryUiPrefs.getBoolean("show_library_tools", false)) }
+    var showBulkActions by remember { mutableStateOf(libraryUiPrefs.getBoolean("show_bulk_actions", false)) }
+    var showStorageInsights by remember { mutableStateOf(libraryUiPrefs.getBoolean("show_storage_insights", false)) }
+    var refreshingMedia by remember { mutableStateOf(false) }
+    LaunchedEffect(showLibraryTools, showBulkActions, showStorageInsights) {
+        libraryUiPrefs.edit()
+            .putBoolean("show_library_tools", showLibraryTools)
+            .putBoolean("show_bulk_actions", showBulkActions)
+            .putBoolean("show_storage_insights", showStorageInsights)
+            .apply()
+    }
     val scope = rememberCoroutineScope()
-    suspend fun refreshMedia() { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
+    var mediaRefreshError by remember { mutableStateOf<String?>(null) }
+    suspend fun refreshMedia() {
+        refreshingMedia = true
+        mediaRefreshError = null
+        try {
+            media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) }
+        } catch (failure: Exception) {
+            mediaRefreshError = "Could not refresh the library. Check media access and try again."
+        } finally {
+            refreshingMedia = false
+        }
+    }
     LaunchedEffect(Unit) { refreshMedia() }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -1243,6 +1581,8 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
             "Images" -> item.mimeType.startsWith("image/")
             "Other Files" -> !item.mimeType.startsWith("video/") && !item.mimeType.startsWith("audio/") && !item.mimeType.startsWith("image/")
             "Favorites" -> item.isFavorite
+            "Recent 7 days" -> item.createdAtMs >= System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000
+            "Large files" -> item.sizeBytes > 100_000_000L
             else -> true
         }
         val matchesSize = when (sizeFilter) {
@@ -1309,6 +1649,9 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                         Text("${favoriteCount} favorites", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
+                mediaRefreshError?.let { message ->
+                    Text(message, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                }
                 OutlinedButton(
                     onClick = {
                         val report = buildString {
@@ -1331,46 +1674,105 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                     Spacer(Modifier.width(8.dp))
                     Text("Copy visible library report")
                 }
+                OutlinedButton(
+                    onClick = { showStorageInsights = !showStorageInsights },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 42.dp)
+                ) {
+                    Icon(if (showStorageInsights) Icons.Default.ExpandLess else Icons.Default.BarChart, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (showStorageInsights) "Hide storage insights" else "Storage insights")
+                }
+                if (showStorageInsights) {
+                    val videoCount = media.count { it.mimeType.startsWith("video/") }
+                    val audioCount = media.count { it.mimeType.startsWith("audio/") }
+                    val imageCount = media.count { it.mimeType.startsWith("image/") }
+                    val otherCount = media.size - videoCount - audioCount - imageCount
+                    val largest = media.maxByOrNull { it.sizeBytes }
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Videos  $videoCount  ·  Audio  $audioCount", fontSize = 13.sp)
+                        Text("Images  $imageCount  ·  Other  $otherCount", fontSize = 13.sp)
+                        if (largest != null) {
+                            Text("Largest file: ${largest.displayName}", fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            Text(String.format("%.1f MB", largest.sizeBytes.coerceAtLeast(0L) / 1_000_000.0),
+                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
             }
         }
         OutlinedButton(
             onClick = {
-                val report = buildString {
-                    appendLine("VidGravity media library")
-                    appendLine("Visible: ${visibleMedia.size} | Total indexed: ${media.size} | Favorites: ${favoriteCount}")
-                    appendLine("Visible size: ${String.format("%.1f MB", visibleBytes / 1_000_000.0)}")
-                    appendLine()
-                    visibleMedia.forEachIndexed { index, item ->
-                        appendLine("${index + 1}. ${item.displayName}")
-                        appendLine("   Type: ${item.mimeType} | Size: ${if (item.sizeBytes > 0) String.format("%.1f MB", item.sizeBytes / 1_000_000.0) else "Unknown"}")
+                scope.launch {
+                    refreshMedia()
+                    if (mediaRefreshError == null) {
+                        android.widget.Toast.makeText(context, "Library refreshed: ${media.size} item(s).", android.widget.Toast.LENGTH_SHORT).show()
                     }
-                }
-                runCatching {
-                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(Intent.EXTRA_SUBJECT, "VidGravity media library report")
-                        putExtra(Intent.EXTRA_TEXT, report)
-                    }
-                    context.startActivity(Intent.createChooser(shareIntent, "Share library report"))
-                }.onFailure {
-                    android.widget.Toast.makeText(context, "Could not open the sharing menu.", android.widget.Toast.LENGTH_LONG).show()
                 }
             },
-            enabled = visibleMedia.isNotEmpty(),
+            enabled = !refreshingMedia,
             modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
         ) {
-            Icon(Icons.Default.Share, null)
+            if (refreshingMedia) {
+                CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text("Refreshing library…")
+            } else {
+                Icon(Icons.Default.Refresh, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Refresh library")
+            }
+        }
+        OutlinedButton(
+            onClick = { showLibraryTools = !showLibraryTools },
+            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+        ) {
+            Icon(if (showLibraryTools) Icons.Default.ExpandLess else Icons.Default.Build, null)
             Spacer(Modifier.width(8.dp))
-            Text("Share visible library report")
+            Text(if (showLibraryTools) "Hide library sharing tools" else "Library tools · share report")
+        }
+        if (showLibraryTools) {
+            OutlinedButton(
+                onClick = {
+                    val report = buildString {
+                        appendLine("VidGravity media library")
+                        appendLine("Visible: ${visibleMedia.size} | Total indexed: ${media.size} | Favorites: ${favoriteCount}")
+                        appendLine("Visible size: ${String.format("%.1f MB", visibleBytes / 1_000_000.0)}")
+                        appendLine()
+                        visibleMedia.forEachIndexed { index, item ->
+                            appendLine("${index + 1}. ${item.displayName}")
+                            appendLine("   Type: ${item.mimeType} | Size: ${if (item.sizeBytes > 0) String.format("%.1f MB", item.sizeBytes / 1_000_000.0) else "Unknown"}")
+                        }
+                    }
+                    runCatching {
+                        val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_SUBJECT, "VidGravity media library report")
+                            putExtra(Intent.EXTRA_TEXT, report)
+                        }
+                        context.startActivity(Intent.createChooser(shareIntent, "Share library report"))
+                    }.onFailure {
+                        android.widget.Toast.makeText(context, "Could not open the sharing menu.", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                },
+                enabled = visibleMedia.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(Icons.Default.Share, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Share visible library report")
+            }
+    
         }
         if (visibleMedia.isNotEmpty()) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedButton(onClick = {
-                    val allSelected = visibleMedia.all { it.uri.toString() in selectedUris }
-                    selectedUris = if (allSelected) emptySet() else visibleMedia.map { it.uri.toString() }.toSet()
+                    val visibleUris = visibleMedia.map { it.uri.toString() }.toSet()
+                    val allVisibleSelected = visibleUris.isNotEmpty() && visibleUris.all { it in selectedUris }
+                    selectedUris = if (allVisibleSelected) selectedUris - visibleUris else selectedUris + visibleUris
                 }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                     Icon(Icons.Default.Checklist, null); Spacer(Modifier.width(6.dp))
-                    Text(if (visibleMedia.all { it.uri.toString() in selectedUris }) "Clear selection" else "Select all")
+                    Text(if (visibleMedia.isNotEmpty() && visibleMedia.all { it.uri.toString() in selectedUris }) "Deselect visible" else "Select visible")
                 }
                 Button(enabled = visibleMedia.any { it.uri.toString() in selectedUris }, onClick = {
                     val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
@@ -1388,11 +1790,57 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                             }
                         }
                         context.startActivity(Intent.createChooser(shareIntent, "Share selected media"))
+                        android.widget.Toast.makeText(context, "Prepared ${streams.size} item(s) to share.", android.widget.Toast.LENGTH_SHORT).show()
                     }.onFailure {
                         android.widget.Toast.makeText(context, "Could not share selected media. Try fewer files.", android.widget.Toast.LENGTH_LONG).show()
                     }
                 }, modifier = Modifier.weight(1f).heightIn(min = 48.dp)) {
                     Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Share (${visibleMedia.count { it.uri.toString() in selectedUris }})")
+                }
+            }
+            OutlinedButton(
+                onClick = { showBulkActions = !showBulkActions },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+            ) {
+                Icon(if (showBulkActions) Icons.Default.ExpandLess else Icons.Default.Tune, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (showBulkActions) "Hide selection tools" else "Selection tools")
+            }
+            val selectedLibraryItems = media.filter { it.uri.toString() in selectedUris }
+            Text("${selectedLibraryItems.size} item(s) selected across your library", fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (selectedUris.isNotEmpty()) {
+                TextButton(onClick = { selectedUris = emptySet() }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Close, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Clear all selected items")
+                }
+            }
+            if (showBulkActions) {
+                val chosenMedia = media.filter { it.uri.toString() in selectedUris }
+                val allChosenAreFavorites = chosenMedia.isNotEmpty() && chosenMedia.all { it.isFavorite }
+                OutlinedButton(
+                    enabled = chosenMedia.isNotEmpty(),
+                    onClick = {
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                chosenMedia.forEach { item ->
+                                    MediaLibraryIndexer.setFavorite(context, item.uri, !allChosenAreFavorites)
+                                }
+                            }
+                            refreshMedia()
+                            android.widget.Toast.makeText(
+                                context,
+                                if (allChosenAreFavorites) "Removed ${chosenMedia.size} favorite(s)." else "Added ${chosenMedia.size} favorite(s).",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)
+                ) {
+                    Icon(if (allChosenAreFavorites) Icons.Default.StarBorder else Icons.Default.Star, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (allChosenAreFavorites) "Remove selected from favorites (${chosenMedia.size})" else "Favorite selected (${chosenMedia.size})")
                 }
             }
             OutlinedButton(
@@ -1449,9 +1897,9 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 Text("Copy visible filenames (" + visibleMedia.size + ")")
             }
             OutlinedButton(
-                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                enabled = media.any { it.uri.toString() in selectedUris },
                 onClick = {
-                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    val chosen = media.filter { it.uri.toString() in selectedUris }
                     val names = chosen.joinToString("\n") { it.displayName }
                     clipboard.setText(androidx.compose.ui.text.AnnotatedString(names))
                     android.widget.Toast.makeText(context, "Copied ${chosen.size} filename(s).", android.widget.Toast.LENGTH_SHORT).show()
@@ -1463,9 +1911,9 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 Text("Copy selected filenames")
             }
             OutlinedButton(
-                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                enabled = media.any { it.uri.toString() in selectedUris },
                 onClick = {
-                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    val chosen = media.filter { it.uri.toString() in selectedUris }
                     val report = buildString {
                         appendLine("VidGravity selected media report")
                         appendLine("Selected visible items: ${chosen.size}")
@@ -1486,9 +1934,9 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 Text("Copy selected media report")
             }
             OutlinedButton(
-                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                enabled = media.any { it.uri.toString() in selectedUris },
                 onClick = {
-                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    val chosen = media.filter { it.uri.toString() in selectedUris }
                     val report = buildString {
                         appendLine("VidGravity selected media report")
                         appendLine("Selected visible items: ${chosen.size}")
@@ -1517,9 +1965,9 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 Text("Share selected media report")
             }
             OutlinedButton(
-                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                enabled = media.any { it.uri.toString() in selectedUris },
                 onClick = {
-                    val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+                    val chosen = media.filter { it.uri.toString() in selectedUris }
                     val markFavorite = chosen.any { !it.isFavorite }
                     scope.launch {
                         withContext(Dispatchers.IO) {
@@ -1534,23 +1982,29 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
             ) {
                 Icon(Icons.Default.Star, null); Spacer(Modifier.width(6.dp))
-                val chosenItems = visibleMedia.filter { it.uri.toString() in selectedUris }
+                val chosenItems = media.filter { it.uri.toString() in selectedUris }
                 Text(if (chosenItems.isNotEmpty() && chosenItems.all { it.isFavorite }) "Remove selected from Favorites" else "Add selected to Favorites")
             }
             OutlinedButton(
-                enabled = visibleMedia.any { it.uri.toString() in selectedUris },
+                enabled = media.any { it.uri.toString() in selectedUris },
                 onClick = { showBulkDeleteConfirm = true },
                 modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
             ) {
                 Icon(Icons.Default.DeleteOutline, null); Spacer(Modifier.width(6.dp))
-                Text("Delete selected (${visibleMedia.count { it.uri.toString() in selectedUris }})")
+                Text("Delete selected (${media.count { it.uri.toString() in selectedUris }})")
             }
         }
         OutlinedTextField(
-            value = searchQuery, onValueChange = { searchQuery = it },
+            value = searchQuery, onValueChange = { searchQuery = it.take(200) },
             modifier = Modifier.fillMaxWidth(), singleLine = true,
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search library") },
+            trailingIcon = {
+                if (searchQuery.isNotBlank()) IconButton(onClick = { searchQuery = "" }) {
+                    Icon(Icons.Default.Close, contentDescription = "Clear library search")
+                }
+            },
             placeholder = { Text("Search your downloads") },
+            supportingText = { Text("${searchQuery.length}/200 characters") },
             shape = RoundedCornerShape(16.dp)
         )
         OutlinedButton(
@@ -1560,6 +2014,8 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 filter = "All Media"
                 sizeFilter = "Any size"
                 sortBy = "Newest"
+                selectedUris = emptySet()
+                android.widget.Toast.makeText(context, "Library filters and selection reset.", android.widget.Toast.LENGTH_SHORT).show()
             },
             modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
         ) {
@@ -1568,7 +2024,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
             Text("Reset library filters and sorting")
         }
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 2.dp)) {
-            items(listOf("All Media", "Video", "Audio", "Images", "Other Files", "Favorites")) { value ->
+            items(listOf("All Media", "Video", "Audio", "Images", "Other Files", "Favorites", "Recent 7 days", "Large files")) { value ->
                 FilterChip(
                     selected = filter == value,
                     onClick = { filter = value },
@@ -1606,13 +2062,32 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         }
         if (visibleMedia.isEmpty()) {
             InfoCard(
-                if (searchQuery.isNotBlank()) "No matching media" else if (filter == "Favorites") "No favorites yet" else "Your library is empty",
-                if (searchQuery.isNotBlank()) "Try another title or clear the search." else "Completed downloads saved by VidGravity will appear here. Use Downloads to check failed transfers.",
+                if (searchQuery.isNotBlank() || filter != "All Media" || sizeFilter != "Any size") "No matching media" else if (filter == "Favorites") "No favorites yet" else "Your library is empty",
+                if (searchQuery.isNotBlank() || filter != "All Media" || sizeFilter != "Any size") "Try another title or reset the active filters." else "Completed downloads saved by VidGravity will appear here. Use Downloads to check failed transfers.",
                 Icons.Default.VideoLibrary, Modifier.fillMaxWidth()
             )
+            if (searchQuery.isNotBlank() || filter != "All Media" || sizeFilter != "Any size" || sortBy != "Newest") {
+                OutlinedButton(
+                    onClick = {
+                        searchQuery = ""
+                        filter = "All Media"
+                        sizeFilter = "Any size"
+                        sortBy = "Newest"
+                        selectedUris = emptySet()
+                    },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Reset library search and filters")
+                }
+            }
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(visibleMedia, key = { it.uri.toString() }) { item ->
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                visibleMedia.forEach { item ->
                     Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp),
                         modifier = Modifier.fillMaxWidth().clickable { onPlay(item) }) {
                         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1657,14 +2132,14 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         AlertDialog(
             onDismissRequest = { renameTarget = null },
             title = { Text("Rename media") },
-            text = { OutlinedTextField(value = renameText, onValueChange = { renameText = it }, singleLine = true, label = { Text("File name") }) },
-            confirmButton = { TextButton(onClick = {
+            text = { OutlinedTextField(value = renameText, onValueChange = { renameText = it.take(180).replace("/", "").replace("\\", "") }, singleLine = true, label = { Text("File name") }, supportingText = { Text("${renameText.length}/180 characters · File paths are not allowed") }) },
+            confirmButton = { TextButton(enabled = renameText.isNotBlank(), onClick = {
                 val suffix = target.displayName.substringAfterLast(".", "")
-                val finalName = renameText.trim() + if (suffix.isNotBlank() && !renameText.trim().endsWith(".$suffix")) ".$suffix" else ""
+                val finalName = renameText.trim() + if (suffix.isNotBlank() && !renameText.trim().endsWith(".$suffix", ignoreCase = true)) ".$suffix" else ""
                 scope.launch {
                     val ok = withContext(Dispatchers.IO) { MediaLibraryIndexer.rename(context, target, finalName) }
                     refreshMedia()
-                    if (!ok) android.widget.Toast.makeText(context, "Could not rename this media item.", android.widget.Toast.LENGTH_LONG).show()
+                    android.widget.Toast.makeText(context, if (ok) "Media renamed." else "Could not rename this media item.", android.widget.Toast.LENGTH_LONG).show()
                     renameTarget = null
                 }
             }) { Text("Save") } },
@@ -1672,7 +2147,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         )
     }
     if (showBulkDeleteConfirm) {
-        val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+        val chosen = media.filter { it.uri.toString() in selectedUris }
         AlertDialog(
             onDismissRequest = { showBulkDeleteConfirm = false },
             title = { Text("Delete selected media?") },
@@ -1716,13 +2191,49 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
 @Composable
 private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, initialMedia: LibraryMedia? = null) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
-    var selectedMedia by remember(initialMedia) { mutableStateOf(initialMedia) }
+    val draftPrefs = remember { context.getSharedPreferences("vg-creator-draft", 0) }
+    var selectedMedia by remember(initialMedia) {
+        mutableStateOf(initialMedia ?: runCatching {
+            val savedUri = draftPrefs.getString("uri", null) ?: return@runCatching null
+            LibraryMedia(
+                Uri.parse(savedUri),
+                draftPrefs.getString("name", "Saved creator draft") ?: "Saved creator draft",
+                draftPrefs.getLong("size", 0L),
+                draftPrefs.getString("mime", "video/*") ?: "video/*",
+                draftPrefs.getLong("savedAt", System.currentTimeMillis())
+            )
+        }.getOrNull())
+    }
+    LaunchedEffect(selectedMedia) {
+        val media = selectedMedia
+        if (media == null) {
+            draftPrefs.edit().remove("uri").remove("name").remove("size").remove("mime").remove("savedAt").apply()
+        } else {
+            draftPrefs.edit()
+                .putString("uri", media.uri.toString())
+                .putString("name", media.displayName)
+                .putLong("size", media.sizeBytes)
+                .putString("mime", media.mimeType)
+                .putLong("savedAt", System.currentTimeMillis())
+                .apply()
+        }
+    }
     var storyEditorOpen by remember { mutableStateOf(false) }
     var isRendering by remember { mutableStateOf(false) }
     var segmentProgress by remember { mutableStateOf<String?>(null) }
     var segmentJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    var statusClipSeconds by remember { mutableStateOf(90) }
+    var statusClipSeconds by remember { mutableIntStateOf(draftPrefs.getInt("statusClipSeconds", 90).let { if (it in listOf(30, 60, 90, 120)) it else 90 }) }
+    LaunchedEffect(statusClipSeconds) { draftPrefs.edit().putInt("statusClipSeconds", statusClipSeconds).apply() }
+    var captionPlatform by remember { mutableStateOf(draftPrefs.getString("captionPlatform", "Instagram") ?: "Instagram") }
+    var captionText by remember { mutableStateOf(draftPrefs.getString("captionText", "").orEmpty().take(2200)) }
+    var hashtagText by remember { mutableStateOf(draftPrefs.getString("hashtagText", "#VidGravity #Creator").orEmpty().take(500)) }
+    var captionTone by remember { mutableStateOf(draftPrefs.getString("captionTone", "Casual") ?: "Casual") }
+    LaunchedEffect(captionTone) { draftPrefs.edit().putString("captionTone", captionTone).apply() }
+    LaunchedEffect(captionPlatform) { draftPrefs.edit().putString("captionPlatform", captionPlatform).apply() }
+    LaunchedEffect(captionText) { draftPrefs.edit().putString("captionText", captionText.take(2200)).apply() }
+    LaunchedEffect(hashtagText) { draftPrefs.edit().putString("hashtagText", hashtagText.take(500)).apply() }
     var exportedUri by remember { mutableStateOf<Uri?>(null) }
     var stickerUri by remember { mutableStateOf<Uri?>(null) }
     val picker = rememberLauncherForActivityResult(
@@ -1811,6 +2322,32 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
         Text("Create studio", fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Choose local video, preview it, or create a share-ready 9:16 derivative. Originals remain unchanged.",
             color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (selectedMedia != null) {
+            Surface(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Save, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Creator draft saved on this device. Reopen Create to continue.",
+                        Modifier.weight(1f),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    TextButton(onClick = {
+                        selectedMedia = null
+                        exportedUri = null
+                        stickerUri = null
+                        notify("Creator draft cleared from this device.")
+                    }) { Text("Clear") }
+                }
+            }
+        }
         Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1837,6 +2374,8 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                             runCatching {
                                 val intent = Intent(Intent.ACTION_SEND).apply {
                                     type = media.mimeType; putExtra(Intent.EXTRA_STREAM, media.uri)
+                                    val socialCaption = listOf(captionText.trim(), hashtagText.trim()).filter { it.isNotBlank() }.joinToString("\n\n")
+                                    if (socialCaption.isNotBlank()) putExtra(Intent.EXTRA_TEXT, socialCaption)
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
                                 context.startActivity(Intent.createChooser(intent, "Share original media"))
@@ -2002,6 +2541,190 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                 }
             }
         }
+        Surface(
+            color = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(20.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        ) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Social caption studio", fontSize = 19.sp, fontWeight = FontWeight.Bold)
+                Text("Draft captions and hashtags locally, then copy or share them with your media. Drafts stay on this device.",
+                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Instagram", "TikTok", "YouTube Shorts", "WhatsApp").forEach { platform ->
+                        FilterChip(selected = captionPlatform == platform, onClick = { captionPlatform = platform }, label = { Text(platform) })
+                    }
+                }
+                Text("WRITING STYLE", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Casual", "Educational", "Playful", "Professional").forEach { tone ->
+                        FilterChip(selected = captionTone == tone, onClick = { captionTone = tone }, label = { Text(tone) })
+                    }
+                }
+                Text(
+                    when (captionTone) {
+                        "Educational" -> "Style guide: explain one useful idea clearly, then invite a question."
+                        "Playful" -> "Style guide: keep the wording light and energetic without overpromising."
+                        "Professional" -> "Style guide: use concise wording, clear value, and a respectful call to action."
+                        else -> "Style guide: sound natural, friendly, and conversational."
+                    }, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text("HOOK STARTERS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        "Here's what I learned…" to "Here's what I learned…",
+                        "A quick tip for you:" to "A quick tip for you:",
+                        "I wish I knew this earlier…" to "I wish I knew this earlier…",
+                        "Behind this creation:" to "Behind this creation:",
+                        "Let's break it down:" to "Let's break it down:"
+                    ).forEach { (label, value) ->
+                        AssistChip(onClick = { captionText = (value + if (captionText.isBlank()) "" else "\\n\\n" + captionText).take(2200) }, label = { Text(label) })
+                    }
+                }
+                Text("CAPTION TEMPLATES", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        "Behind the scenes" to "A little behind the scenes 🎬\nWhat should I make next?",
+                        "Quick tutorial" to "Quick tip ✨\nSave this for later and tell me what you want to learn next.",
+                        "New creation" to "Made with creativity 💫\nThe original stays safe. What do you think?",
+                        "Study notes" to "One idea at a time 📚\nSave this and revisit it when you need a refresher."
+                    ).forEach { (label, template) -> AssistChip(onClick = { captionText = template.take(2200) }, label = { Text(label) }) }
+                }
+                OutlinedTextField(
+                    value = captionText, onValueChange = { captionText = it.take(2200) }, modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Caption") }, placeholder = { Text("Write a caption for your media…") },
+                    supportingText = { Text("${captionText.length}/2200 characters") },
+                    trailingIcon = { if (captionText.isNotBlank()) IconButton(onClick = { captionText = "" }) { Icon(Icons.Default.Close, contentDescription = "Clear caption") } },
+                    minLines = 3, maxLines = 6
+                )
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("✨", "🎬", "🔥", "📚", "💡", "❤️").forEach { emoji ->
+                        AssistChip(onClick = { captionText = (captionText + " " + emoji).trim().take(2200) }, label = { Text(emoji) })
+                    }
+                }
+                OutlinedTextField(
+                    value = hashtagText, onValueChange = { hashtagText = it.take(500) }, modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Hashtags") }, placeholder = { Text("#VidGravity #Creator") },
+                    supportingText = { Text("${hashtagText.length}/500 characters · Separate tags with spaces") },
+                    trailingIcon = { if (hashtagText.isNotBlank()) IconButton(onClick = { hashtagText = "" }) { Icon(Icons.Default.Close, contentDescription = "Clear hashtags") } },
+                    minLines = 1, maxLines = 3
+                )
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("#VidGravity", "#BehindTheScenes", "#LearnWithMe", "#Shorts", "#Creator").forEach { tag ->
+                        AssistChip(onClick = {
+                            val current = hashtagText.split(Regex("\\s+")).filter { it.isNotBlank() }
+                            if (current.none { it.equals(tag, true) }) hashtagText = (current + tag).joinToString(" ").take(500)
+                        }, label = { Text(tag) })
+                    }
+                }
+                val captionWordCount = captionText.trim().split(Regex("\\s+")).count { it.isNotBlank() }
+                val captionLineCount = if (captionText.isBlank()) 0 else captionText.lines().size
+                val estimatedReadSeconds = kotlin.math.ceil(captionWordCount / 3.5).toInt().coerceAtLeast(if (captionWordCount > 0) 1 else 0)
+                val platformCaptionLimit = when (captionPlatform) {
+                    "Instagram" -> 2200
+                    "TikTok" -> 2200
+                    "YouTube Shorts" -> 5000
+                    else -> 1000
+                }
+                Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("CAPTION CHECK", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Words: $captionWordCount", fontSize = 12.sp)
+                            Text("Lines: $captionLineCount", fontSize = 12.sp)
+                            Text("Read: ~${estimatedReadSeconds}s", fontSize = 12.sp)
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Hashtags: ${hashtagText.split(Regex("\\s+")).count { it.startsWith("#") }}", fontSize = 12.sp)
+                            Text("Caption: ${captionText.length}/$platformCaptionLimit", fontSize = 12.sp,
+                                color = if (captionText.length > platformCaptionLimit) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Text(
+                            when {
+                                captionText.length > platformCaptionLimit -> "Caption exceeds this platform's suggested limit. Shorten it before posting."
+                                captionText.isBlank() -> "Add a clear opening line to start your caption."
+                                !captionText.contains("?") && !captionText.contains("comment", ignoreCase = true) && !captionText.contains("save", ignoreCase = true) -> "Tip: consider adding a question or a clear call to action."
+                                else -> "Caption has content and an engagement prompt. Review spelling and platform formatting before posting."
+                            }, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Text(
+                    when (captionPlatform) {
+                        "Instagram" -> "Instagram draft · Preview line breaks and hashtags before posting."
+                        "TikTok" -> "TikTok draft · Keep the opening line clear and easy to read."
+                        "YouTube Shorts" -> "YouTube Shorts draft · Lead with the idea viewers should remember."
+                        else -> "WhatsApp draft · Keep the message concise for direct sharing."
+                    }, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text("CALL-TO-ACTION IDEAS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        "What would you try?" to "What would you try?",
+                        "Save this for later" to "Save this for later",
+                        "Tell me your thoughts" to "Tell me your thoughts",
+                        "Follow for more" to "Follow for more",
+                        "Share with a friend" to "Share with a friend"
+                    ).forEach { (label, value) ->
+                        AssistChip(onClick = { captionText = (captionText.trimEnd() + if (captionText.isBlank()) "" else "\\n\\n" + value).take(2200) }, label = { Text(label) })
+                    }
+                }
+                OutlinedButton(
+                    enabled = captionText.isNotBlank(),
+                    onClick = {
+                        captionText = captionText.trim().replace(Regex("[ \\t]+"), " ")
+                            .replace(Regex("\\n{3,}"), "\\n\\n").take(2200)
+                        notify("Caption spacing cleaned up.")
+                    }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) { Icon(Icons.Default.FormatAlignLeft, null); Spacer(Modifier.width(8.dp)); Text("Clean caption spacing") }
+                OutlinedButton(
+                    onClick = {
+                        val tags = hashtagText.split(Regex("\\s+")).filter { it.isNotBlank() }
+                            .map { raw -> if (raw.startsWith("#")) raw else "#$raw" }
+                            .distinctBy { it.lowercase() }.joinToString(" ")
+                        hashtagText = tags.take(500)
+                        notify(if (tags.isBlank()) "Add at least one hashtag first." else "Hashtags normalized and duplicate tags removed.")
+                    }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) { Icon(Icons.Default.Tag, null); Spacer(Modifier.width(8.dp)); Text("Normalize hashtags") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(enabled = captionText.isNotBlank(), onClick = {
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(captionText.trim()))
+                        notify("Caption copied.")
+                    }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(5.dp)); Text("Copy caption")
+                    }
+                    OutlinedButton(enabled = hashtagText.isNotBlank(), onClick = {
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(hashtagText.trim()))
+                        notify("Hashtags copied.")
+                    }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.Tag, null); Spacer(Modifier.width(5.dp)); Text("Copy tags")
+                    }
+                }
+                OutlinedButton(enabled = captionText.isNotBlank() || hashtagText.isNotBlank(), onClick = {
+                    val combined = listOf(captionText.trim(), hashtagText.trim()).filter { it.isNotBlank() }.joinToString("\n\n")
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(combined))
+                    notify("Caption and hashtags copied together.")
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)) {
+                    Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(8.dp)); Text("Copy caption + hashtags")
+                }
+                OutlinedButton(enabled = captionText.isNotBlank() || hashtagText.isNotBlank(), onClick = {
+                    val combined = listOf(captionText.trim(), hashtagText.trim()).filter { it.isNotBlank() }.joinToString("\n\n")
+                    runCatching {
+                        context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"; putExtra(Intent.EXTRA_SUBJECT, "$captionPlatform caption"); putExtra(Intent.EXTRA_TEXT, combined)
+                        }, "Share caption"))
+                    }.onFailure { notify("Could not open caption sharing: ${it.message ?: "try again"}") }
+                }, modifier = Modifier.fillMaxWidth().heightIn(min = 46.dp)) {
+                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Share caption")
+                }
+                Text("Caption draft is saved automatically on this device.", fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         Text("Capture", fontWeight = FontWeight.Bold, fontSize = 18.sp)
         OutlinedButton(
             onClick = {
@@ -2042,16 +2765,29 @@ private fun SimpleCollectionScreen(title: String, subtitle: String, icon: androi
 private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
     val deviceId = remember {
         val androidId = android.provider.Settings.Secure.getString(context.contentResolver, android.provider.Settings.Secure.ANDROID_ID).orEmpty()
         "VG-" + androidId.takeLast(8).uppercase()
     }
     var activationKey by remember { mutableStateOf("") }
     var showActivation by remember { mutableStateOf(false) }
+    var showHelpCenter by remember { mutableStateOf(false) }
     var mediaBytes by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(Unit) {
-        mediaBytes = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context).sumOf { it.sizeBytes } }
+    var refreshingStorage by remember { mutableStateOf(false) }
+    var storageRefreshError by remember { mutableStateOf<String?>(null) }
+    suspend fun refreshStorageUsage() {
+        refreshingStorage = true
+        storageRefreshError = null
+        try {
+            mediaBytes = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context).sumOf { it.sizeBytes.coerceAtLeast(0L) } }
+        } catch (failure: Exception) {
+            storageRefreshError = "Could not refresh library size. Check storage access and try again."
+        } finally {
+            refreshingStorage = false
+        }
     }
+    LaunchedEffect(Unit) { refreshStorageUsage() }
     var savedPreferences by remember { mutableStateOf(SecureDownloadPreferences.load(context)) }
     var unmeteredOnly by remember { mutableStateOf(savedPreferences.unmeteredOnly) }
     var autoPreset by remember { mutableStateOf(savedPreferences.autoDownloadWithPreferredPreset) }
@@ -2088,6 +2824,7 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                         val updated = savedPreferences.copy(preferredFormatSelector = preset.second)
                         savedPreferences = updated
                         SecureDownloadPreferences.save(context, updated)
+                        android.widget.Toast.makeText(context, "Default quality set to ${preset.first}.", android.widget.Toast.LENGTH_SHORT).show()
                     },
                     label = { Text(preset.first) },
                     modifier = Modifier.heightIn(min = 48.dp)
@@ -2106,6 +2843,7 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                 Switch(checked = unmeteredOnly, onCheckedChange = {
                     unmeteredOnly = it
                     SecureDownloadPreferences.save(context, SecureDownloadPreferences.load(context).copy(unmeteredOnly = it))
+                    android.widget.Toast.makeText(context, if (it) "Wi-Fi-only downloads enabled." else "Wi-Fi-only downloads disabled.", android.widget.Toast.LENGTH_SHORT).show()
                 })
             }
         }
@@ -2120,6 +2858,7 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                 Switch(checked = autoPreset, onCheckedChange = {
                     autoPreset = it
                     SecureDownloadPreferences.save(context, SecureDownloadPreferences.load(context).copy(autoDownloadWithPreferredPreset = it))
+                    android.widget.Toast.makeText(context, if (it) "Automatic share downloads enabled." else "Automatic share downloads disabled.", android.widget.Toast.LENGTH_SHORT).show()
                 })
             }
         }
@@ -2133,7 +2872,10 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                         Text("Device ID", fontWeight = FontWeight.SemiBold)
                         Text(deviceId, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    TextButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(deviceId)) }) { Text("Copy") }
+                    TextButton(onClick = {
+                        clipboard.setText(androidx.compose.ui.text.AnnotatedString(deviceId))
+                        android.widget.Toast.makeText(context, "Device ID copied.", android.widget.Toast.LENGTH_SHORT).show()
+                    }) { Text("Copy") }
                 }
                 OutlinedButton(onClick = { showActivation = true }, modifier = Modifier.fillMaxWidth()) {
                     Text("Enter license key")
@@ -2152,8 +2894,180 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                 }
                 LinearProgressIndicator(progress = { (mediaBytes.toFloat() / (2L * 1024 * 1024 * 1024)).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
                 Text("Gauge is relative to 2 GB; it does not represent total device capacity.", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedButton(
+                    onClick = {
+                        scope.launch {
+                            refreshStorageUsage()
+                            if (storageRefreshError == null) {
+                                android.widget.Toast.makeText(context, "Library size refreshed.", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    enabled = !refreshingStorage,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                ) {
+                    if (refreshingStorage) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Refreshing library size…")
+                    } else {
+                        Icon(Icons.Default.Refresh, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Refresh library size")
+                    }
+                }
+                storageRefreshError?.let { message ->
+                    Text(message, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                }
             }
         }
+        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.HelpOutline, null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Help & troubleshooting", fontWeight = FontWeight.SemiBold)
+                        Text("Quick answers for downloads, quality, Library and playback.", fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                OutlinedButton(onClick = { showHelpCenter = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                    Icon(Icons.Default.MenuBook, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Open Help Center")
+                }
+            }
+        }
+        var diagnosticsRunning by remember { mutableStateOf(false) }
+        var diagnosticsReport by remember { mutableStateOf<String?>(null) }
+        Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.HealthAndSafety, null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Diagnostics & self-test", fontWeight = FontWeight.SemiBold)
+                        Text("Check network, backend health, storage and Library indexing.", fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Button(
+                    enabled = !diagnosticsRunning,
+                    onClick = {
+                        diagnosticsRunning = true
+                        diagnosticsReport = null
+                        scope.launch {
+                            try {
+                                val report = withContext(Dispatchers.IO) {
+                                val lines = mutableListOf<String>()
+                                lines.add("Generated: " + java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss Z", java.util.Locale.getDefault()).format(java.util.Date()))
+                                val connectivity = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as android.net.ConnectivityManager
+                                val network = connectivity.activeNetwork
+                                val capabilities = network?.let { connectivity.getNetworkCapabilities(it) }
+                                val hasInternetCapability = capabilities?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+                                val validatedInternet = capabilities?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED) == true
+                                lines.add("Network: " + when {
+                                    validatedInternet -> "internet connection validated"
+                                    hasInternetCapability -> "network reports internet capability, but Android could not validate internet access"
+                                    else -> "no internet network detected"
+                                })
+                                val stat = android.os.StatFs(context.filesDir.absolutePath)
+                                val freeMb = stat.availableBytes / 1_000_000L
+                                lines.add("App storage available: $freeMb MB")
+                                try {
+                                    lines.add(DownloadApi.healthCheck())
+                                } catch (failure: Exception) {
+                                    lines.add("Backend: unavailable — " + (failure.message ?: "health check failed").take(180))
+                                }
+                                try {
+                                    val indexed = MediaLibraryIndexer.list(context)
+                                    lines.add("Library: ${indexed.size} item(s) indexed")
+                                    lines.add("Indexed media size: " + String.format("%.1f MB", indexed.sumOf { it.sizeBytes.coerceAtLeast(0L) } / 1_000_000.0))
+                                } catch (failure: Exception) {
+                                    lines.add("Library: indexing check failed — " + (failure.message ?: "unknown error").take(140))
+                                }
+                                lines.add("Device: " + android.os.Build.MANUFACTURER + " " + android.os.Build.MODEL)
+                                lines.add("Android: " + android.os.Build.VERSION.RELEASE + " (SDK " + android.os.Build.VERSION.SDK_INT + ")")
+                                lines.add("App version: " + runCatching {
+                                    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
+                                }.getOrDefault("unknown"))
+                                lines.joinToString("\n")
+                                }
+                                diagnosticsReport = report
+                            } catch (failure: Exception) {
+                                diagnosticsReport = "Diagnostics could not finish: " + (failure.message ?: "Unexpected error. Try again.").take(180)
+                            } finally {
+                                diagnosticsRunning = false
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                ) {
+                    if (diagnosticsRunning) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Icon(Icons.Default.HealthAndSafety, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (diagnosticsRunning) "Running checks…" else "Run diagnostics")
+                }
+                diagnosticsReport?.let { report ->
+                    Text(report, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedButton(
+                        onClick = {
+                            clipboard.setText(androidx.compose.ui.text.AnnotatedString("VidGravity diagnostics\n$report"))
+                            android.widget.Toast.makeText(context, "Diagnostics report copied.", android.widget.Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                    ) {
+                        Icon(Icons.Default.ContentCopy, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Copy diagnostics report")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_SUBJECT, "VidGravity diagnostics report")
+                                putExtra(Intent.EXTRA_TEXT, "VidGravity diagnostics\n$report")
+                            }
+                            runCatching { context.startActivity(Intent.createChooser(shareIntent, "Share diagnostics")) }
+                                .onFailure { android.widget.Toast.makeText(context, "Could not open sharing menu.", android.widget.Toast.LENGTH_LONG).show() }
+                        },
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                    ) {
+                        Icon(Icons.Default.Share, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Share diagnostics report")
+                    }
+                }
+            }
+        }
+        if (showHelpCenter) AlertDialog(
+            onDismissRequest = { showHelpCenter = false },
+            title = { Text("VidGravity Help Center") },
+            text = {
+                Column(
+                    Modifier.fillMaxWidth().heightIn(max = 480.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("GETTING STARTED", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("1. Open Home and paste a complete public media URL. 2. Tap Inspect link. 3. Choose a format actually offered by the source. 4. Open Downloads to follow the job. 5. When it succeeds, refresh Library.")
+                    Text("QUALITY OPTIONS", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("The quality picker lists formats returned by the source. If a resolution is missing, that source may not offer it, or inspection may be incomplete. Try inspecting again and compare the listed formats.")
+                    Text("DOWNLOAD STUCK OR AT 0%", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("A job can remain queued while waiting for network constraints or a worker slot. If transfer stays at 0%, check the job state and error, confirm internet access, review Wi-Fi-only settings, then retry when available.")
+                    Text("FILE MISSING FROM LIBRARY", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("Confirm the download says completed, open Library again, and check the media filter/search. If it still does not appear, open Settings → Diagnostics & self-test and copy the report.")
+                    Text("PLAYBACK PROBLEM", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("Playback depends on the file's container and codec. Try another player-supported format when available. Keep the original file if you need to report the issue.")
+                    Text("CHECKSUM OR SERVICE ERROR", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("If verification fails, the incomplete file is discarded rather than published. Retry once on a stable connection. Repeated service errors may require a backend fix.")
+                    Text("REPORT A PROBLEM", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("Include Android version, app version, exact job state/error, steps to reproduce, and a diagnostics report. Never share passwords, API tokens, cookies, or private signed URLs.")
+                    Text("Note: device-specific scrolling, background execution and playback still need real-device verification.")
+                }
+            },
+            confirmButton = { TextButton(onClick = { showHelpCenter = false }) { Text("Done") } }
+        )
         if (showActivation) AlertDialog(
             onDismissRequest = { showActivation = false },
             title = { Text("License activation") },
@@ -2161,13 +3075,20 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Enter the license key issued for your account.")
                     OutlinedTextField(value = activationKey, onValueChange = { activationKey = it.take(160) },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("License key") })
+                        modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("License key") },
+                        supportingText = { Text("${activationKey.length}/160 characters") })
                     Text("Activation requires the licensing API integration, which is not yet connected in this build.",
                         fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             },
             confirmButton = { TextButton(onClick = { showActivation = false; activationKey = "" }) { Text("Close") } },
-            dismissButton = { TextButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(activationKey)) }) { Text("Copy key") } }
+            dismissButton = { TextButton(onClick = {
+                if (activationKey.isBlank()) android.widget.Toast.makeText(context, "Enter a license key first.", android.widget.Toast.LENGTH_SHORT).show()
+                else {
+                    clipboard.setText(androidx.compose.ui.text.AnnotatedString(activationKey))
+                    android.widget.Toast.makeText(context, "License key copied.", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }) { Text("Copy key") } }
         )
     }
 }

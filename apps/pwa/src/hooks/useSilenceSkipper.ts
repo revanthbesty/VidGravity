@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 export interface SilenceSkipperOptions {enabled:boolean;thresholdDb?:number;silentRate?:number;speechRate?:number;}
-interface Meter {context:AudioContext;source:MediaElementAudioSourceNode;analyser:AnalyserNode;buffer:Uint8Array;}
+interface Meter {context:AudioContext;source:MediaElementAudioSourceNode;analyser:AnalyserNode;buffer:Uint8Array<ArrayBuffer>;}
 /** Reuses one WebAudio source per mounted media element; avoids createMediaElementSource() reuse failures. */
 export function useSilenceSkipper(audio:HTMLMediaElement|null,options:SilenceSkipperOptions) {
  const [isSilent,setSilent]=useState(false);const meter=useRef<Meter|null>(null);const latest=useRef(options);latest.current=options;
@@ -9,7 +9,7 @@ export function useSilenceSkipper(audio:HTMLMediaElement|null,options:SilenceSki
   let created:Meter;
   try{
    const context=new AudioContext();const source=context.createMediaElementSource(audio);const analyser=context.createAnalyser();analyser.fftSize=2048;source.connect(analyser);analyser.connect(context.destination);
-   created={context,source,analyser,buffer:new Uint8Array(analyser.fftSize)};meter.current=created;
+   created={context,source,analyser,buffer:new Uint8Array(new ArrayBuffer(analyser.fftSize))};meter.current=created;
   }catch{return;}
   return()=>{created.source.disconnect();created.analyser.disconnect();void created.context.close();if(meter.current===created)meter.current=null;audio.playbackRate=1;setSilent(false);};
  },[audio]);

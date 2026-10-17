@@ -13,6 +13,10 @@ This repository is being initialized from the P172 Production Deployment Bundle.
 - Docker and Docker Compose v2 for container validation
 - ffmpeg and yt-dlp for media-provider testing
 
+## Android feature pipeline
+
+The prioritized native Android roadmap and acceptance gates are maintained in [`docs/ANDROID_FEATURE_PIPELINE.md`](docs/ANDROID_FEATURE_PIPELINE.md). Release-blocking download/player/camera reliability and the fresh APK validation gate take precedence over new AI or creator expansion.
+
 ## Security / release status
 
 **Not production-ready yet.** A passing local test suite does not establish that public HTTPS, network egress isolation, authorized provider downloads, payment/webhook verification, Android builds, or independent security review have passed.

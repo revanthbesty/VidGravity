@@ -75,6 +75,26 @@ object DownloadApi {
         return JSONObject(body)
     }
 
+    /** Lightweight backend health probe used by Settings diagnostics. */
+    fun healthCheck(): String {
+        val connection = open("/api/health", "GET")
+        try {
+            val json = readJson(connection)
+            val status = json.optString("status", "reachable").take(40)
+            val extractor = json.optString("yt_dlp", "").takeIf { it.isNotBlank() }
+            val runtime = json.optString("deno", "").takeIf { it.isNotBlank() }
+            val challenge = json.optString("yt_dlp_ejs", "").takeIf { it.isNotBlank() }
+            return buildList {
+                add("Backend: $status")
+                extractor?.let { add("Extractor: $it") }
+                runtime?.let { add("JavaScript runtime: $it") }
+                challenge?.let { add("Challenge scripts: $it") }
+            }.joinToString("\\n")
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     fun analyzeSource(url: String): SourceAnalysisResult {
         val connection = open("/api/formats?url=" + URLEncoder.encode(url, "UTF-8"), "GET")
         try {

@@ -23,8 +23,18 @@ ytdlp = shutil.which("yt-dlp")
 add("provider_cli", "Real provider CLI", bool(ytdlp), f"yt-dlp found at {ytdlp}" if ytdlp else "yt-dlp executable not installed", "Install/pin yt-dlp and run provider_live_acceptance.py with an authorized test URL")
 live_url = os.getenv("VIDGRAVITY_LIVE_TEST_URL", "").strip()
 add("live_provider_url", "Authorized live-provider acceptance URL", bool(live_url.startswith(("https://", "http://"))), "A test URL was supplied (value withheld)" if live_url.startswith(("https://", "http://")) else "No authorized live test URL configured", "Supply an authorized, non-DRM test URL and run the live provider acceptance check")
-android_gradle = (ROOT / "android" / "gradlew").exists() or (ROOT / "android" / "build.gradle").exists() or (ROOT / "android" / "settings.gradle").exists()
-add("android_native", "Native Android build project", android_gradle, "Gradle Android project detected" if android_gradle else "Only Android web companion scaffold is present; no native Gradle project detected", "Create/build the native Android wrapper and verify APK on emulator and physical device")
+android_gradle = any((ROOT / p).is_file() for p in (
+    "apps/android/settings.gradle.kts",
+    "apps/android/build.gradle.kts",
+    "apps/android/app/build.gradle.kts",
+    "android/gradlew", "android/gradlew.bat",
+    "android/build.gradle", "android/build.gradle.kts",
+    "android/settings.gradle", "android/settings.gradle.kts",
+    "gradlew", "gradlew.bat",
+    "build.gradle", "build.gradle.kts",
+    "settings.gradle", "settings.gradle.kts",
+))
+add("android_native", "Native Android build project", android_gradle, "Gradle Android project detected" if android_gradle else "No Gradle Android project configuration detected", "Create/build the native Android wrapper and verify APK on emulator and physical device")
 egress = os.getenv("VIDGRAVITY_PROVIDER_EGRESS_ISOLATED", "").strip().lower() == "true"
 add("provider_egress", "Provider subprocess egress isolation", egress, "Explicit egress isolation assertion supplied" if egress else "No verified provider-process egress isolation assertion configured", "Run provider downloads in a network-isolated sandbox that blocks private, loopback, link-local and metadata destinations")
 source_test = (ROOT / "test_p163_release_acceptance.py").is_file()
