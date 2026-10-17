@@ -68,6 +68,11 @@ fun StoryCardScreen(
             Text("Story Card", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
             TextButton(onClick = onClose, modifier = Modifier.heightIn(min = 48.dp)) { Text("Close") }
         }
+        Text(
+            "How it works: choose a clip length that fits this source, adjust the start point, add an optional title/caption, choose a layout below, then tap Render. When rendering finishes, use the share buttons to send the new copy. Your original file is kept unchanged.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Box(Modifier.height(340.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
             Column(Modifier.fillMaxHeight(0.88f).aspectRatio(9f / 16f).clip(RoundedCornerShape(28.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant).padding(18.dp),

@@ -15,6 +15,22 @@ class YouTubeExtractorConfigTests(unittest.TestCase):
         self.assertNotIn("--extractor-args", command)
         self.assertNotIn("--cookies-from-browser", command)
 
+    def test_android_player_client_is_only_a_youtube_fallback(self):
+        self.assertEqual(
+            server._youtube_android_fallback_args("https://www.youtube.com/watch?v=test"),
+            ["--extractor-args", "youtube:player_client=android"],
+        )
+        self.assertEqual(
+            server._youtube_android_fallback_args("https://youtu.be/test"),
+            ["--extractor-args", "youtube:player_client=android"],
+        )
+        self.assertEqual(server._youtube_android_fallback_args("https://www.instagram.com/reel/test"), [])
+
+    def test_youtube_fallback_only_applies_to_youtube_urls(self):
+        self.assertEqual(server._youtube_android_fallback_args("https://youtube.com/watch?v=example"), ["--extractor-args", "youtube:player_client=android"])
+        self.assertEqual(server._youtube_android_fallback_args("https://youtu.be/example"), ["--extractor-args", "youtube:player_client=android"])
+        self.assertEqual(server._youtube_android_fallback_args("https://www.instagram.com/reel/example"), [])
+
     def test_browser_cookies_are_opt_in_for_loopback_server_only(self):
         with patch.dict(os.environ, {"VIDGRAVITY_YTDLP_COOKIES_FROM_BROWSER": "chrome"}), patch.object(server, "SERVER_HOST", "127.0.0.1"):
             command = server._yt_dlp_command("--no-playlist", "https://www.youtube.com/watch?v=test")

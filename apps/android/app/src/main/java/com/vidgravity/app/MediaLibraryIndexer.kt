@@ -43,9 +43,8 @@ object MediaLibraryIndexer {
         val sources = listOf(
             MediaStore.Video.Media.EXTERNAL_CONTENT_URI to "Movies/VidGravity/",
             MediaStore.Audio.Media.EXTERNAL_CONTENT_URI to "Music/VidGravity/",
-            // Creator exports use the Images collection and this dedicated folder.
-            // Reconcile it too so verified animated stickers survive process restarts
-            // and appear in Library's Images filter.
+            // Camera captures and creator exports share the Library index.
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI to "Pictures/VidGravity/",
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI to "Pictures/VidGravity/Stickers/"
         )
         LibraryIndexDb(context).use { helper ->
@@ -129,18 +128,32 @@ object MediaLibraryIndexer {
             "m4a" -> "audio/mp4"
             "wav" -> "audio/wav"
             "flac" -> "audio/flac"
+            "jpg", "jpeg" -> "image/jpeg"
+            "png" -> "image/png"
+            "webp" -> "image/webp"
+            "heic" -> "image/heic"
             else -> "video/mp4"
+        }
+        val isImage = mime.startsWith("image/")
+        val relativePath = when {
+            isImage -> "Pictures/VidGravity"
+            mime.startsWith("audio/") -> "Music/VidGravity"
+            else -> "Movies/VidGravity"
         }
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, safeName)
             put(MediaStore.MediaColumns.MIME_TYPE, mime)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.MediaColumns.RELATIVE_PATH, if (mime.startsWith("audio/")) "Music/VidGravity" else "Movies/VidGravity")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
         }
-        // Save into the matching media collection so Android indexes it as playable audio/video.
-        val collection = if (mime.startsWith("audio/")) MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        // Save into the matching media collection so Android indexes it as playable/viewable media.
+        val collection = when {
+            isImage -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            mime.startsWith("audio/") -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+            else -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        }
         val uri = context.contentResolver.insert(collection, values)
             ?: throw IllegalStateException("MediaStore could not create the download item.")
         try {

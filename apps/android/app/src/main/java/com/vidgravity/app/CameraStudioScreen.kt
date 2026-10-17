@@ -1,0 +1,701 @@
+package com.vidgravity.app
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.Matrix
+import android.graphics.Paint
+import android.media.ExifInterface
+import android.os.Handler
+import org.json.JSONArray
+import org.json.JSONObject
+import android.os.Looper
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
+import android.view.ViewGroup
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.FlashAuto
+import androidx.compose.material.icons.filled.FlashOff
+import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.GridOn
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.SwitchCamera
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color as ComposeColor
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.security.MessageDigest
+import java.util.concurrent.Executors
+import kotlin.math.PI
+import kotlin.math.atan2
+
+private val cameraStyles = listOf("Natural", "Rich Contrast", "Warm", "Cool", "Vibrant", "Soft", "Cinematic", "Monochrome", "Golden Hour", "Matte", "Rose", "Teal")
+private data class CameraCreatorPreset(val name: String, val style: Int, val intensity: Float, val framing: String)
+
+private fun readCreatorPresets(raw: String?): List<CameraCreatorPreset> = runCatching {
+    val json = JSONArray(raw ?: "[]")
+    (0 until json.length()).mapNotNull { index ->
+        val item = json.optJSONObject(index) ?: return@mapNotNull null
+        val name = item.optString("name").trim()
+        val style = item.optInt("style", 0)
+        val intensity = item.optDouble("intensity", 0.75).toFloat()
+        val framing = item.optString("framing", "Off")
+        if (name.isBlank() || style !in cameraStyles.indices || framing !in listOf("Off", "1:1", "4:5", "16:9")) null
+        else CameraCreatorPreset(name.take(32), style, intensity.coerceIn(0f, 1f), framing)
+    }
+}.getOrDefault(emptyList())
+
+private fun writeCreatorPresets(presets: List<CameraCreatorPreset>): String {
+    val json = JSONArray()
+    presets.forEach { preset -> json.put(JSONObject().put("name", preset.name).put("style", preset.style).put("intensity", preset.intensity.toDouble()).put("framing", preset.framing)) }
+    return json.toString()
+}
+
+
+private fun renderCameraStyle(sourceFile: File, outputFile: File, style: String, intensity: Float) {
+    if (style == "Natural" || intensity <= 0.001f) {
+        sourceFile.copyTo(outputFile, overwrite = true)
+        return
+    }
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(sourceFile.absolutePath, bounds)
+    require(bounds.outWidth > 0 && bounds.outHeight > 0) { "Captured photo could not be decoded." }
+    var sample = 1
+    while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 2560) sample *= 2
+    val options = BitmapFactory.Options().apply { inSampleSize = sample; inPreferredConfig = Bitmap.Config.ARGB_8888 }
+    var decoded = BitmapFactory.decodeFile(sourceFile.absolutePath, options) ?: error("Captured photo could not be decoded.")
+    val orientation = runCatching { ExifInterface(sourceFile.absolutePath).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+    val rotation = when (orientation) {
+        ExifInterface.ORIENTATION_ROTATE_90, ExifInterface.ORIENTATION_TRANSPOSE -> 90f
+        ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+        ExifInterface.ORIENTATION_ROTATE_270, ExifInterface.ORIENTATION_TRANSVERSE -> 270f
+        else -> 0f
+    }
+    val mirrorX = orientation == ExifInterface.ORIENTATION_FLIP_HORIZONTAL ||
+        orientation == ExifInterface.ORIENTATION_TRANSPOSE ||
+        orientation == ExifInterface.ORIENTATION_TRANSVERSE
+    val mirrorY = orientation == ExifInterface.ORIENTATION_FLIP_VERTICAL
+    if (rotation != 0f || mirrorX || mirrorY) {
+        val matrix = Matrix().apply {
+            if (rotation != 0f) postRotate(rotation)
+            if (mirrorX || mirrorY) postScale(if (mirrorX) -1f else 1f, if (mirrorY) -1f else 1f)
+        }
+        val oriented = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
+        if (oriented !== decoded) decoded.recycle()
+        decoded = oriented
+    }
+    val a = intensity.coerceIn(0f, 1f)
+    // Effects are deliberately stronger than subtle preview-only color tweaks so
+    // each named style is visible in the exported photo at ordinary intensities.
+    val saturation = when (style) {
+        "Monochrome" -> 1f - a
+        "Vibrant" -> 1f + .65f * a
+        "Soft" -> 1f - .18f * a
+        "Cinematic" -> 1f - .12f * a
+        "Golden Hour" -> 1f + .18f * a
+        "Matte" -> 1f - .14f * a
+        "Rose" -> 1f + .18f * a
+        "Teal" -> 1f + .24f * a
+        else -> 1f
+    }
+    val contrast = when (style) {
+        "Rich Contrast" -> 1f + .42f * a
+        "Cinematic" -> 1f + .22f * a
+        "Soft" -> 1f - .18f * a
+        "Golden Hour" -> 1f + .08f * a
+        "Matte" -> 1f - .24f * a
+        "Rose" -> 1f + .08f * a
+        "Teal" -> 1f + .12f * a
+        "Vibrant" -> 1f + .12f * a
+        else -> 1f
+    }
+    val warm = when (style) {
+        "Warm" -> 1.35f * a
+        "Cool" -> -1.25f * a
+        "Vibrant" -> .20f * a
+        "Cinematic" -> -.24f * a
+        "Golden Hour" -> 2.2f * a
+        "Matte" -> .14f * a
+        "Rose" -> 1.35f * a
+        "Teal" -> -1.2f * a
+        else -> 0f
+    }
+    val matrix = ColorMatrix().apply { setSaturation(saturation) }
+    val offset = 128f * (1f - contrast)
+    matrix.postConcat(ColorMatrix(floatArrayOf(
+        contrast,0f,0f,0f,offset + 30f * warm,
+        0f,contrast,0f,0f,offset + 4f * warm,
+        0f,0f,contrast,0f,offset - 30f * warm,
+        0f,0f,0f,1f,0f
+    )))
+    val result = Bitmap.createBitmap(decoded.width, decoded.height, Bitmap.Config.ARGB_8888)
+    try {
+        Canvas(result).drawBitmap(decoded, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG).apply { colorFilter = ColorMatrixColorFilter(matrix) })
+        outputFile.outputStream().buffered().use { out -> check(result.compress(Bitmap.CompressFormat.JPEG, 94, out)) { "Styled photo encoding failed." } }
+    } finally {
+        result.recycle()
+        decoded.recycle()
+    }
+}
+
+@Composable
+internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit) {
+    val context = LocalContext.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    val prefs = remember { context.getSharedPreferences("vg-camera-studio", 0) }
+    var permitted by remember { mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) }
+    var denied by remember { mutableStateOf(false) }
+    var front by remember { mutableStateOf(prefs.getBoolean("front", false)) }
+    var gridMode by remember { mutableIntStateOf(prefs.getInt("grid-mode", if (prefs.getBoolean("grid", true)) 1 else 0).coerceIn(0, 2)) }
+    val grid = gridMode != 0
+    var levelEnabled by remember { mutableStateOf(prefs.getBoolean("level-enabled", true)) }
+    var horizonAngle by remember { mutableFloatStateOf(0f) }
+    var focusPoint by remember { mutableStateOf<Offset?>(null) }
+    var focusLocked by remember { mutableStateOf(false) }
+    var focusIndicatorJob by remember { mutableStateOf<Job?>(null) }
+    var levelSensorAvailable by remember { mutableStateOf(false) }
+    val framingGuides = listOf("Off", "1:1", "4:5", "16:9")
+    var framingGuide by remember { mutableStateOf(prefs.getString("framing-guide", "Off")?.takeIf { it in framingGuides } ?: "Off") }
+    var flash by remember { mutableIntStateOf(prefs.getInt("flash", ImageCapture.FLASH_MODE_OFF)) }
+    var style by remember { mutableIntStateOf(prefs.getInt("style", 0).coerceIn(0, cameraStyles.lastIndex)) }
+    var favoriteStyles by remember { mutableStateOf(prefs.getStringSet("favorite-styles", emptySet()).orEmpty().toSet()) }
+    var favoritesOnly by remember { mutableStateOf(false) }
+    val creatorPresets = remember { mutableStateListOf<CameraCreatorPreset>().apply { addAll(readCreatorPresets(prefs.getString("creator-presets", "[]"))) } }
+    var savePresetDialog by remember { mutableStateOf(false) }
+    var presetName by remember { mutableStateOf("") }
+    var styleIntensity by remember { mutableFloatStateOf(prefs.getFloat("style-intensity", 0.75f).coerceIn(0f, 1f)) }
+    var exposure by remember { mutableFloatStateOf(prefs.getFloat("exposure", 0f).coerceIn(-2f, 2f)) }
+    var zoomRatio by remember { mutableFloatStateOf(prefs.getFloat("zoom-ratio", 1f).coerceAtLeast(1f)) }
+    var zoomRange by remember { mutableStateOf(1f..1f) }
+    var activeCamera by remember { mutableStateOf<androidx.camera.core.Camera?>(null) }
+    var previewReady by remember { mutableStateOf(false) }
+    var cameraRetryToken by remember { mutableIntStateOf(0) }
+    var exposureRange by remember { mutableStateOf(-2f..2f) }
+    var busy by remember { mutableStateOf(false) }
+    var timerSeconds by remember { mutableIntStateOf(prefs.getInt("timer-seconds", 0).coerceIn(0, 10)) }
+    var countdownRemaining by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
+    var countdownJob by remember { mutableStateOf<Job?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var settings by remember { mutableStateOf(false) }
+
+    // Camera Studio is an in-screen workspace, so Android Back must return to VidGravity
+    // instead of finishing the host Activity. Let open dialogs handle Back themselves.
+    BackHandler(enabled = !settings && !savePresetDialog) { onClose() }
+
+    val permissionRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> permitted = granted; denied = !granted }
+    val providerFuture = remember { ProcessCameraProvider.getInstance(context.applicationContext) }
+    val executor = remember { Executors.newSingleThreadExecutor() }
+    val previewView = remember {
+        PreviewView(context).apply {
+            scaleType = PreviewView.ScaleType.FILL_CENTER
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+            layoutParams = ViewGroup.LayoutParams(-1, -1)
+        }
+    }
+    val imageCapture = remember { ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build() }
+
+    DisposableEffect(levelEnabled) {
+        val sensorManager = context.getSystemService(android.content.Context.SENSOR_SERVICE) as SensorManager
+        val sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
+        levelSensorAvailable = sensor != null
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                if (event.values.size >= 2) {
+                    val degrees = (atan2(event.values[0].toDouble(), event.values[1].toDouble()) * 180.0 / PI).toFloat()
+                    horizonAngle = if (degrees > 90f) degrees - 180f else if (degrees < -90f) degrees + 180f else degrees
+                }
+            }
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+        }
+        if (levelEnabled && sensor != null) sensorManager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_UI)
+        onDispose { sensorManager.unregisterListener(listener) }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { runCatching { providerFuture.get().unbindAll() }; executor.shutdown() }
+    }
+    LaunchedEffect(permitted, front, flash, previewReady, cameraRetryToken) {
+        // Wait until Compose has attached and measured PreviewView before binding CameraX.
+        // This avoids binding to a surface that does not exist yet on first entry.
+        if (!permitted || !previewReady) return@LaunchedEffect
+        try {
+            val provider = withContext(Dispatchers.IO) { providerFuture.get() }
+            val selector = if (front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
+            if (!provider.hasCamera(selector)) { error = "Selected camera is unavailable on this device."; return@LaunchedEffect }
+            // Re-attach the surface provider immediately before binding. PreviewView may not
+            // have created its surface when the screen first enters composition.
+            val preview = Preview.Builder().build()
+            preview.setSurfaceProvider(previewView.surfaceProvider)
+            imageCapture.flashMode = flash
+            provider.unbindAll()
+            val camera = provider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture)
+            previewView.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+            previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
+            activeCamera = camera
+            val zoomState = camera.cameraInfo.zoomState.value
+            zoomRange = if (zoomState != null && zoomState.maxZoomRatio > zoomState.minZoomRatio) zoomState.minZoomRatio..zoomState.maxZoomRatio else 1f..1f
+            zoomRatio = zoomRatio.coerceIn(zoomRange.start, zoomRange.endInclusive)
+            val exposureState = camera.cameraInfo.exposureState
+            val stepEv = exposureState.exposureCompensationStep.toFloat()
+            val supportedRange = exposureState.exposureCompensationRange
+            exposureRange = if (stepEv > 0f) (supportedRange.lower * stepEv)..(supportedRange.upper * stepEv) else 0f..0f
+            exposure = exposure.coerceIn(exposureRange.start, exposureRange.endInclusive)
+            error = null
+        } catch (t: Exception) {
+            activeCamera = null
+            error = "Camera startup failed: " + (t.message ?: t.javaClass.simpleName)
+        }
+    }
+
+    LaunchedEffect(activeCamera, exposure, permitted) {
+        val camera = activeCamera ?: return@LaunchedEffect
+        if (!permitted) return@LaunchedEffect
+        val state = camera.cameraInfo.exposureState
+        val range = state.exposureCompensationRange
+        val step = state.exposureCompensationStep.toFloat()
+        val index = if (step > 0f) (exposure / step).toInt().coerceIn(range.lower, range.upper) else 0
+        runCatching { camera.cameraControl.setExposureCompensationIndex(index) }
+    }
+
+    fun capturePhoto() {
+        if (busy || error != null) return
+        busy = true
+        val capturedStyle = cameraStyles[style]
+        val capturedIntensity = styleIntensity
+        val file = File(context.cacheDir, "vg-camera-" + System.currentTimeMillis() + ".jpg")
+        imageCapture.takePicture(ImageCapture.OutputFileOptions.Builder(file).build(), executor, object : ImageCapture.OnImageSavedCallback {
+            override fun onImageSaved(result: ImageCapture.OutputFileResults) {
+                try {
+                    val output = File(context.cacheDir, "vg-camera-styled-" + System.currentTimeMillis() + ".jpg")
+                    try {
+                        renderCameraStyle(file, output, capturedStyle, capturedIntensity)
+                        val digest = MessageDigest.getInstance("SHA-256").digest(output.readBytes()).joinToString("") { "%02x".format(it) }
+                        val suffix = if (capturedStyle == "Natural" || capturedIntensity <= 0.001f) "" else "-" + capturedStyle.lowercase().replace(" ", "-")
+                        val saved = MediaLibraryIndexer.publish(context, output, "vidgravity-camera-" + System.currentTimeMillis() + suffix + ".jpg", digest)
+                        Handler(Looper.getMainLooper()).post { busy = false; onNotice("Photo saved to Library: " + saved.displayName) }
+                    } finally { file.delete(); output.delete() }
+                } catch (t: Exception) {
+                    file.delete()
+                    Handler(Looper.getMainLooper()).post { busy = false; onNotice("Photo save failed: " + (t.message ?: "unknown error")) }
+                }
+            }
+            override fun onError(exception: ImageCaptureException) {
+                file.delete()
+                // CameraX invokes this callback on the supplied executor. Compose state and
+                // UI notices must be updated on the main thread, including failure paths.
+                Handler(Looper.getMainLooper()).post {
+                    busy = false
+                    onNotice("Capture failed: " + (exception.message ?: "please retry"))
+                }
+            }
+        })
+    }
+
+    LaunchedEffect(activeCamera, zoomRatio, permitted) {
+        val camera = activeCamera ?: return@LaunchedEffect
+        if (!permitted) return@LaunchedEffect
+        val target = zoomRatio.coerceIn(zoomRange.start, zoomRange.endInclusive)
+        runCatching { camera.cameraControl.setZoomRatio(target) }
+    }
+
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onClose) { Icon(Icons.Default.ArrowBack, "Close camera") }
+            Column(Modifier.weight(1f)) {
+                Text("Camera Studio", style = MaterialTheme.typography.titleLarge)
+                Text("Smart photo capture · " + cameraStyles[style], style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            TextButton(
+                onClick = {
+                    runCatching {
+                        context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
+                    }.onFailure { onNotice("Could not open video camera: " + (it.message ?: "please retry")) }
+                },
+                modifier = Modifier.heightIn(min = 48.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Icon(Icons.Default.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Video", color = MaterialTheme.colorScheme.primary)
+            }
+            IconButton(onClick = { settings = true }) { Icon(Icons.Default.Settings, "Camera preferences") }
+        }
+        if (!permitted) {
+            Column(Modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Default.PhotoCamera, null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
+                Text("Camera permission is required to take photos.", modifier = Modifier.padding(16.dp))
+                Button(onClick = { permissionRequest.launch(Manifest.permission.CAMERA) }) { Text("Allow camera") }
+                if (denied) Text("Enable camera access in Android Settings to continue.", color = MaterialTheme.colorScheme.error)
+            }
+        } else {
+            // Keep the live camera preview visible even when the controls exceed the screen height.
+            Box(
+                Modifier.fillMaxWidth().heightIn(min = 240.dp).height(250.dp)
+                    .padding(horizontal = 10.dp).background(ComposeColor.Black, RoundedCornerShape(16.dp))
+            ) {
+                AndroidView(
+                    factory = { previewView },
+                    modifier = Modifier.fillMaxSize()
+                        .onGloballyPositioned { coordinates ->
+                            if (!previewReady && coordinates.size.width > 0 && coordinates.size.height > 0) previewReady = true
+                        }
+                        .background(ComposeColor.Black, RoundedCornerShape(16.dp))
+                        .pointerInput(activeCamera, zoomRange, zoomRatio, focusLocked) { detectTapGestures(
+                    onTap = { tap ->
+                        if (focusLocked) {
+                            runCatching { activeCamera?.cameraControl?.cancelFocusAndMetering() }
+                            focusLocked = false
+                            focusPoint = null
+                            focusIndicatorJob?.cancel()
+                            onNotice("Focus and metering lock released.")
+                        } else {
+                            focusPoint = tap
+                            focusIndicatorJob?.cancel()
+                            focusIndicatorJob = scope.launch { delay(1200); focusPoint = null }
+                            val point = previewView.meteringPointFactory.createPoint(tap.x, tap.y)
+                            val action = FocusMeteringAction.Builder(point).setAutoCancelDuration(3, java.util.concurrent.TimeUnit.SECONDS).build()
+                            runCatching { activeCamera?.cameraControl?.startFocusAndMetering(action) }
+                        }
+                    },
+                    onLongPress = { tap ->
+                        focusPoint = tap
+                        focusIndicatorJob?.cancel()
+                        val point = previewView.meteringPointFactory.createPoint(tap.x, tap.y)
+                        val action = FocusMeteringAction.Builder(point).disableAutoCancel().build()
+                        val control = activeCamera?.cameraControl
+                        if (control != null) {
+                            control.startFocusAndMetering(action).addListener({
+                                focusLocked = true
+                                onNotice("Focus and metering locked. Tap preview to release.")
+                            }, ContextCompat.getMainExecutor(context))
+                        }
+                    },
+                    onDoubleTap = {
+                        val targets = listOf(1f, 2f, 3f).filter { it >= zoomRange.start && it <= zoomRange.endInclusive }
+                        if (targets.isNotEmpty()) {
+                            val next = targets.firstOrNull { it > zoomRatio + 0.08f } ?: targets.first()
+                            zoomRatio = next
+                            prefs.edit().putFloat("zoom-ratio", next).apply()
+                        }
+                    }
+                ) })
+                if (activeCamera == null && error == null) {
+                    Text(
+                        "Starting camera…",
+                        color = ComposeColor.White,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+                focusPoint?.let { point ->
+                    Canvas(Modifier.fillMaxSize()) {
+                        drawCircle(color = ComposeColor(0xFF55E0C0), radius = 24.dp.toPx(), center = point, style = Stroke(width = 2.dp.toPx()))
+                        drawLine(ComposeColor(0xFF55E0C0), Offset(point.x - 31.dp.toPx(), point.y), Offset(point.x - 18.dp.toPx(), point.y), strokeWidth = 2.dp.toPx())
+                        drawLine(ComposeColor(0xFF55E0C0), Offset(point.x + 18.dp.toPx(), point.y), Offset(point.x + 31.dp.toPx(), point.y), strokeWidth = 2.dp.toPx())
+                        drawLine(ComposeColor(0xFF55E0C0), Offset(point.x, point.y - 31.dp.toPx()), Offset(point.x, point.y - 18.dp.toPx()), strokeWidth = 2.dp.toPx())
+                        drawLine(ComposeColor(0xFF55E0C0), Offset(point.x, point.y + 18.dp.toPx()), Offset(point.x, point.y + 31.dp.toPx()), strokeWidth = 2.dp.toPx())
+                    }
+                }
+                if (levelEnabled && levelSensorAvailable) Canvas(Modifier.fillMaxSize()) {
+                    val centerX = size.width / 2f
+                    val centerY = size.height / 2f
+                    val lineHalfWidth = size.width * .12f
+                    val isLevel = kotlin.math.abs(horizonAngle) <= 2.0f
+                    val levelColor = if (isLevel) ComposeColor(0xFF55E0C0) else ComposeColor.White.copy(alpha = .92f)
+                    rotate(-horizonAngle, pivot = Offset(centerX, centerY)) {
+                        drawLine(levelColor, Offset(centerX - lineHalfWidth, centerY), Offset(centerX + lineHalfWidth, centerY), strokeWidth = 3.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                        drawCircle(levelColor, radius = 4.dp.toPx(), center = Offset(centerX, centerY))
+                    }
+                }
+                if (grid || framingGuide != "Off") Canvas(Modifier.fillMaxSize()) {
+                    val guideColor = ComposeColor.White.copy(alpha = .82f)
+                    if (grid) {
+                        val divisions = if (gridMode == 2) 4 else 3
+                        for (n in 1 until divisions) {
+                            drawLine(guideColor.copy(alpha = .55f), Offset(size.width * n / divisions, 0f), Offset(size.width * n / divisions, size.height), 1.dp.toPx())
+                            drawLine(guideColor.copy(alpha = .55f), Offset(0f, size.height * n / divisions), Offset(size.width, size.height * n / divisions), 1.dp.toPx())
+                        }
+                    }
+                    if (framingGuide != "Off") {
+                        val ratio = when (framingGuide) { "1:1" -> 1f; "4:5" -> 4f / 5f; else -> 16f / 9f }
+                        val frameWidth = minOf(size.width, size.height * ratio)
+                        val frameHeight = frameWidth / ratio
+                        drawRect(guideColor, Offset((size.width - frameWidth) / 2f, (size.height - frameHeight) / 2f), androidx.compose.ui.geometry.Size(frameWidth, frameHeight), style = Stroke(2.dp.toPx()))
+                    }
+                }
+                Column(Modifier.align(Alignment.CenterEnd).padding(6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(shape = CircleShape, color = ComposeColor.Black.copy(alpha = .58f)) {
+                        IconButton(onClick = { gridMode = (gridMode + 1) % 3; prefs.edit().putInt("grid-mode", gridMode).putBoolean("grid", gridMode != 0).apply(); onNotice("Composition grid: " + listOf("Off", "Thirds", "4×4")[gridMode]) }) { Icon(Icons.Default.GridOn, "Composition grid: " + listOf("Off", "Thirds", "4 by 4")[gridMode], tint = ComposeColor.White) }
+                    }
+                    Surface(shape = CircleShape, color = ComposeColor.Black.copy(alpha = .58f)) {
+                        IconButton(onClick = { flash = when (flash) { ImageCapture.FLASH_MODE_OFF -> ImageCapture.FLASH_MODE_AUTO; ImageCapture.FLASH_MODE_AUTO -> ImageCapture.FLASH_MODE_ON; else -> ImageCapture.FLASH_MODE_OFF }; prefs.edit().putInt("flash", flash).apply() }) {
+                            Icon(when (flash) { ImageCapture.FLASH_MODE_AUTO -> Icons.Default.FlashAuto; ImageCapture.FLASH_MODE_ON -> Icons.Default.FlashOn; else -> Icons.Default.FlashOff }, "Cycle flash", tint = ComposeColor.White)
+                        }
+                    }
+                    Surface(shape = CircleShape, color = ComposeColor.Black.copy(alpha = .58f)) {
+                        IconButton(onClick = { front = !front; prefs.edit().putBoolean("front", front).apply() }) { Icon(Icons.Default.SwitchCamera, "Switch camera", tint = ComposeColor.White) }
+                    }
+                }
+                error?.let { message ->
+                    Surface(
+                        Modifier.align(Alignment.BottomCenter).padding(8.dp).fillMaxWidth(),
+                        color = ComposeColor.Black.copy(alpha = .84f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ComposeColor.White.copy(alpha = .22f))
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(start = 12.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(message, color = ComposeColor.White, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                            TextButton(
+                                onClick = {
+                                    runCatching { providerFuture.get().unbindAll() }
+                                    activeCamera = null
+                                    error = null
+                                    cameraRetryToken++
+                                },
+                                modifier = Modifier.heightIn(min = 48.dp)
+                            ) { Text("Retry", color = ComposeColor.White) }
+                        }
+                    }
+                }
+            }
+            Column(
+                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Exposure compensation", style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.weight(1f))
+                    Text((if (exposure >= 0) "+" else "") + "%.1f EV".format(exposure), style = MaterialTheme.typography.labelMedium)
+                }
+                Slider(
+                    value = exposure.coerceIn(exposureRange.start, exposureRange.endInclusive),
+                    onValueChange = { exposure = it; prefs.edit().putFloat("exposure", it).apply() },
+                    valueRange = exposureRange,
+                    enabled = exposureRange.start < exposureRange.endInclusive,
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant,
+                        activeTickColor = MaterialTheme.colorScheme.primary,
+                        inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
+                    )
+                )
+                if (zoomRange.endInclusive > zoomRange.start) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Zoom", style = MaterialTheme.typography.labelMedium)
+                        Spacer(Modifier.weight(1f))
+                        Text("%.1fx".format(zoomRatio), style = MaterialTheme.typography.labelMedium)
+                        TextButton(onClick = { zoomRatio = 1f.coerceIn(zoomRange.start, zoomRange.endInclusive); prefs.edit().putFloat("zoom-ratio", zoomRatio).apply() }) { Text("1×") }
+                    }
+                    Slider(
+                        value = zoomRatio.coerceIn(zoomRange.start, zoomRange.endInclusive),
+                        onValueChange = { zoomRatio = it; prefs.edit().putFloat("zoom-ratio", it).apply() },
+                        valueRange = zoomRange,
+                        colors = SliderDefaults.colors(
+                            thumbColor = MaterialTheme.colorScheme.primary,
+                            activeTrackColor = MaterialTheme.colorScheme.primary,
+                            inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant,
+                            activeTickColor = MaterialTheme.colorScheme.primary,
+                            inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
+                        )
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(1f, 2f, 3f).filter { it >= zoomRange.start && it <= zoomRange.endInclusive }.forEach { quickZoom ->
+                            FilterChip(selected = kotlin.math.abs(zoomRatio - quickZoom) < 0.08f, onClick = { zoomRatio = quickZoom; prefs.edit().putFloat("zoom-ratio", quickZoom).apply() }, label = { Text(quickZoom.toInt().toString() + "×") })
+                        }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Level / horizon guide", style = MaterialTheme.typography.labelMedium)
+                        Text(if (levelSensorAvailable) "Turns teal when level (±2°)" else "Accelerometer unavailable", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Switch(checked = levelEnabled, onCheckedChange = { levelEnabled = it; prefs.edit().putBoolean("level-enabled", it).apply() }, enabled = levelSensorAvailable)
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Text("Social framing guide", style = MaterialTheme.typography.labelMedium)
+                    OutlinedButton(onClick = { val next = (framingGuides.indexOf(framingGuide) + 1) % framingGuides.size; framingGuide = framingGuides[next]; prefs.edit().putString("framing-guide", framingGuide).apply() }) { Text(framingGuide) }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Text("Creator presets", style = MaterialTheme.typography.labelMedium)
+                    OutlinedButton(onClick = { presetName = ""; savePresetDialog = true }, enabled = creatorPresets.size < 12) { Text("Save current") }
+                }
+                if (creatorPresets.isNotEmpty()) {
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        creatorPresets.forEach { preset ->
+                            AssistChip(onClick = {
+                                style = preset.style
+                                styleIntensity = preset.intensity
+                                framingGuide = preset.framing
+                                prefs.edit().putInt("style", style).putFloat("style-intensity", styleIntensity).putString("framing-guide", framingGuide).apply()
+                                onNotice("Applied creator preset: " + preset.name)
+                            }, label = { Text(preset.name) }, trailingIcon = { IconButton(onClick = { creatorPresets.remove(preset); prefs.edit().putString("creator-presets", writeCreatorPresets(creatorPresets)).apply() }) { Icon(Icons.Default.DeleteOutline, contentDescription = "Delete " + preset.name, modifier = Modifier.size(16.dp)) } })
+                        }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = { val candidates = if (favoritesOnly && favoriteStyles.isNotEmpty()) cameraStyles.indices.filter { cameraStyles[it] in favoriteStyles } else cameraStyles.indices.toList(); val currentPosition = candidates.indexOf(style).let { if (it < 0) 0 else it }; style = candidates[(currentPosition - 1 + candidates.size) % candidates.size]; prefs.edit().putInt("style", style).apply() }) { Text("‹ Style") }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(cameraStyles[style], style = MaterialTheme.typography.labelLarge)
+                        Text(if (cameraStyles[style] in favoriteStyles) "★ Favorite" else "Photographic style", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    IconButton(onClick = { favoriteStyles = if (cameraStyles[style] in favoriteStyles) favoriteStyles - cameraStyles[style] else favoriteStyles + cameraStyles[style]; prefs.edit().putStringSet("favorite-styles", favoriteStyles).apply() }) {
+                        Icon(if (cameraStyles[style] in favoriteStyles) Icons.Default.Star else Icons.Default.StarBorder, contentDescription = "Toggle favorite style", tint = if (cameraStyles[style] in favoriteStyles) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    OutlinedButton(onClick = { val candidates = if (favoritesOnly && favoriteStyles.isNotEmpty()) cameraStyles.indices.filter { cameraStyles[it] in favoriteStyles } else cameraStyles.indices.toList(); val currentPosition = candidates.indexOf(style).let { if (it < 0) 0 else it }; style = candidates[(currentPosition + 1) % candidates.size]; prefs.edit().putInt("style", style).apply() }) { Text("Style ›") }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                    Text("Style favorites", style = MaterialTheme.typography.labelMedium)
+                    TextButton(onClick = { if (!favoritesOnly && favoriteStyles.isEmpty()) onNotice("Mark a style as favorite first."); else { favoritesOnly = !favoritesOnly; if (favoritesOnly && cameraStyles[style] !in favoriteStyles) { style = cameraStyles.indexOfFirst { it in favoriteStyles }.coerceAtLeast(0); prefs.edit().putInt("style", style).apply() } } }) {
+                        Text(if (favoritesOnly) "Show all" else "Favorites only (" + favoriteStyles.size + ")")
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Style intensity", style = MaterialTheme.typography.labelMedium)
+                    Spacer(Modifier.weight(1f))
+                    Text((styleIntensity * 100).toInt().toString() + "%", style = MaterialTheme.typography.labelMedium)
+                }
+                Slider(
+                    value = styleIntensity,
+                    onValueChange = { styleIntensity = it; prefs.edit().putFloat("style-intensity", it).apply() },
+                    valueRange = 0f..1f,
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant,
+                        activeTickColor = MaterialTheme.colorScheme.primary,
+                        inactiveTickColor = MaterialTheme.colorScheme.outlineVariant
+                    )
+                )
+                Text("Tap to focus; long-press to lock focus and metering, then tap again to release. Exposure range follows the selected camera hardware. Styles are applied to saved photos; live preview remains ungraded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Self-timer", style = MaterialTheme.typography.labelMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(0, 3, 5, 10).forEach { seconds ->
+                            FilterChip(selected = timerSeconds == seconds, onClick = { timerSeconds = seconds; prefs.edit().putInt("timer-seconds", seconds).apply() }, label = { Text(if (seconds == 0) "Off" else seconds.toString() + "s") }, enabled = !busy && countdownRemaining == 0)
+                        }
+                    }
+                }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Button(onClick = {
+                        if (countdownRemaining > 0) {
+                            countdownJob?.cancel()
+                            countdownRemaining = 0
+                            onNotice("Self-timer cancelled.")
+                            return@Button
+                        }
+                        if (busy || error != null) return@Button
+                        if (timerSeconds == 0) capturePhoto()
+                        else {
+                            countdownJob?.cancel()
+                            countdownJob = scope.launch {
+                                for (remaining in timerSeconds downTo 1) {
+                                    countdownRemaining = remaining
+                                    delay(1000)
+                                }
+                                countdownRemaining = 0
+                                capturePhoto()
+                            }
+                        }
+                    }, enabled = !busy && error == null, modifier = Modifier.weight(1f).height(56.dp), shape = RoundedCornerShape(18.dp)) {
+                        if (busy) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        else if (countdownRemaining > 0) Text(countdownRemaining.toString(), style = MaterialTheme.typography.headlineSmall)
+                        else Icon(Icons.Default.PhotoCamera, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (busy) "Saving…" else if (countdownRemaining > 0) "Cancel timer" else if (timerSeconds > 0) "Start " + timerSeconds + "s" else "Photo")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            runCatching {
+                                context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
+                            }.onFailure { onNotice("Could not open video camera: " + (it.message ?: "please retry")) }
+                        },
+                        modifier = Modifier.weight(1f).heightIn(min = 56.dp),
+                        shape = RoundedCornerShape(18.dp)
+                    ) {
+                        Icon(Icons.Default.PhotoCamera, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Record video")
+                    }
+                }
+            }
+        }
+    }
+
+    if (savePresetDialog) AlertDialog(
+        onDismissRequest = { savePresetDialog = false },
+        title = { Text("Save creator preset") },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Save the current photographic style, intensity and framing guide for quick reuse.")
+            OutlinedTextField(value = presetName, onValueChange = { presetName = it.take(32) }, label = { Text("Preset name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Text(creatorPresets.size.toString() + " of 12 presets saved", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } },
+        confirmButton = { TextButton(onClick = {
+            val name = presetName.trim()
+            if (name.isNotEmpty() && creatorPresets.size < 12 && creatorPresets.none { it.name.equals(name, ignoreCase = true) }) {
+                creatorPresets.add(CameraCreatorPreset(name, style, styleIntensity, framingGuide))
+                prefs.edit().putString("creator-presets", writeCreatorPresets(creatorPresets)).apply()
+                savePresetDialog = false
+                onNotice("Saved creator preset: " + name)
+            } else onNotice(if (name.isEmpty()) "Enter a preset name." else if (creatorPresets.size >= 12) "Preset limit reached." else "That preset name already exists.")
+        }) { Text("Save preset") } },
+        dismissButton = { TextButton(onClick = { savePresetDialog = false }) { Text("Cancel") } }
+    )
+    if (settings) AlertDialog(
+        onDismissRequest = { settings = false },
+        title = { Text("Camera preferences") },
+        text = { Text("Front/rear camera, flash, exposure, composition grid, photographic style and style intensity are remembered on this device. Styles are applied to exported photos; the live preview is not color-graded.") },
+        confirmButton = { TextButton(onClick = { settings = false }) { Text("Done") } },
+        dismissButton = { TextButton(onClick = { front = false; gridMode = 1; framingGuide = "Off"; flash = ImageCapture.FLASH_MODE_OFF; style = 0; favoriteStyles = emptySet(); favoritesOnly = false; creatorPresets.clear(); savePresetDialog = false; presetName = ""; styleIntensity = 0.75f; exposure = 0f; zoomRatio = 1f; zoomRange = 1f..1f; runCatching { providerFuture.get().unbindAll() }; activeCamera = null; error = null; prefs.edit().clear().apply(); settings = false; cameraRetryToken++ }) { Text("Reset defaults") } }
+    )
+}
