@@ -2242,7 +2242,9 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                                         require(durationSeconds <= 600f) { "For safety and predictable processing, split videos up to 10 minutes per batch." }
                                         val clipTargetSeconds = statusClipSeconds.toFloat()
                                         val count = kotlin.math.ceil(durationSeconds / clipTargetSeconds).toInt()
+                                        segmentProgress = "Preparing $count status clip(s)…"
                                         for (index in 0 until count) {
+                                            kotlinx.coroutines.currentCoroutineContext().ensureActive()
                                             val startSeconds = index * clipTargetSeconds
                                             val clipSeconds = (durationSeconds - startSeconds).coerceAtMost(clipTargetSeconds)
                                             segmentProgress = "Rendering ${statusClipSeconds}s clip ${index + 1} of $count…"
@@ -2255,7 +2257,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                                             completed++
                                             if (index < count - 1) kotlinx.coroutines.delay(21_000L)
                                         }
-                                        notify("Created $completed WhatsApp Status clips. Verified clips are saved in Movies/VidGravity.")
+                                        notify("Created $completed of $count WhatsApp Status clips. Exports are saved in Movies/VidGravity.")
                                     } catch (cancelled: kotlinx.coroutines.CancellationException) {
                                         notify("Status split cancelled after $completed clip(s).")
                                     } catch (failure: Exception) {
