@@ -67,15 +67,32 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     var analysis by remember { mutableStateOf<SourceAnalysisResult?>(null) }
     var inspecting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    // Premium VidGravity palette inspired by the approved cinematic UI references.
+    // Deep navy surfaces reduce glare; teal actions and violet accents create clear hierarchy.
     val scheme = if (dark) darkColorScheme(
-        primary = Color(0xFFB8A5FF), secondary = Color(0xFF8B7BFF),
-        background = Color(0xFF101014), surface = Color(0xFF19191F),
-        surfaceVariant = Color(0xFF25252D), onBackground = Color(0xFFF4F2FA),
-        onSurface = Color(0xFFF4F2FA)
+        primary = Color(0xFF27DCE5),
+        onPrimary = Color(0xFF002A31),
+        secondary = Color(0xFFB46BFF),
+        onSecondary = Color(0xFF240044),
+        tertiary = Color(0xFFFFB45E),
+        background = Color(0xFF050D1B),
+        surface = Color(0xFF0B1729),
+        surfaceVariant = Color(0xFF14243B),
+        onBackground = Color(0xFFF3F7FF),
+        onSurface = Color(0xFFF3F7FF),
+        onSurfaceVariant = Color(0xFFAABBD2),
+        outline = Color(0xFF38516F)
     ) else lightColorScheme(
-        primary = Color(0xFF5B43D6), secondary = Color(0xFF735FE3),
-        background = Color(0xFFF7F7FB), surface = Color.White,
-        surfaceVariant = Color(0xFFECECF4)
+        primary = Color(0xFF087F91),
+        onPrimary = Color.White,
+        secondary = Color(0xFF7541B8),
+        onSecondary = Color.White,
+        tertiary = Color(0xFFB96817),
+        background = Color(0xFFF1F6FC),
+        surface = Color(0xFFFAFCFF),
+        surfaceVariant = Color(0xFFE3ECF7),
+        onSurfaceVariant = Color(0xFF4E617A),
+        outline = Color(0xFF9AADC4)
     )
     MaterialTheme(colorScheme = scheme) {
         Scaffold(
@@ -84,7 +101,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                 Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("VidGravity", fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
-                        Text("Your media, in one place", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                        Text("Capture • Download • Edit • Play • Share", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant) {
                         IconButton(onClick = { dark = !dark; prefs.edit().putBoolean("dark", dark).apply() }) {
@@ -568,8 +585,11 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
             work.id.toString() in hiddenHistoryIds
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Downloads", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Track active and completed transfers on this device.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        ScreenHeading(
+            title = "Downloads",
+            subtitle = "Track active and completed transfers on this device.",
+            icon = Icons.Default.Download
+        )
         if (works.isEmpty()) {
             InfoCard("Nothing downloading yet", "Inspect a public link from Home to get started.", Icons.Default.Download, Modifier.fillMaxWidth())
         } else {
@@ -1122,12 +1142,57 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
 }
 
 @Composable
+private fun ScreenHeading(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.13f),
+            shape = RoundedCornerShape(15.dp)
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(12.dp).size(25.dp)
+            )
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(title, fontSize = 27.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.45).sp)
+            Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+        }
+    }
+}
+
+@Composable
 private fun InfoCard(title: String, detail: String, icon: androidx.compose.ui.graphics.vector.ImageVector, modifier: Modifier = Modifier) {
-    Surface(modifier, shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
-            Text(title, fontWeight = FontWeight.Bold)
-            Text(detail, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Surface(
+        modifier,
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        tonalElevation = 1.dp
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Surface(
+                color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.13f),
+                shape = RoundedCornerShape(13.dp)
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(10.dp).size(22.dp)
+                )
+            }
+            Text(title, fontWeight = FontWeight.Bold, letterSpacing = (-0.2).sp)
+            Text(detail, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, lineHeight = 17.sp)
         }
     }
 }
@@ -1280,9 +1345,28 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Your library", fontSize = 27.sp, fontWeight = FontWeight.Bold)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.VideoLibrary,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.padding(9.dp).size(20.dp)
+                        )
+                    }
+                    Text("Your library", fontSize = 27.sp, fontWeight = FontWeight.Bold)
+                }
                 Text("Downloaded media saved by VidGravity", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "${visibleMedia.size} items · ${String.format("%.1f MB", visibleBytes / 1_000_000.0)} visible",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
             FilledTonalButton(onClick = { swipeFeedOpen = true }, modifier = Modifier.heightIn(min = 48.dp)) {
                 Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Swipe Feed")
@@ -1801,9 +1885,11 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             Spacer(Modifier.width(8.dp))
             Text("Share Inbox · Watch / Learn Later")
         }
-        Text("Create studio", fontSize = 27.sp, fontWeight = FontWeight.Bold)
-        Text("Choose local video, preview it, or create a share-ready 9:16 derivative. Originals remain unchanged.",
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+        ScreenHeading(
+            title = "Create studio",
+            subtitle = "Choose local video, preview it, or create a share-ready 9:16 derivative. Originals remain unchanged.",
+            icon = Icons.Default.AutoAwesome
+        )
         Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(20.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
