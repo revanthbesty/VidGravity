@@ -149,11 +149,12 @@ jobs:
         with:
           gradle-version: "8.10.2"
       - name: Build native Android APK
-        run: gradle -p apps/android assembleDebug
+        run: gradle -p apps/android assembleDebug testDebugUnitTest
       - name: Run export and Android share tests
         run: |
           python -m unittest discover -s tests -p "test_media_export.py" -v
           python -m unittest -v test_p174_android_share_pipeline.py
+          python -m unittest discover -s tests -p "test_android_startup.py" -v
 
       - name: Upload Android debug APK for device testing
         if: success()
