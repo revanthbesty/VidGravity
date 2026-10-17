@@ -6,6 +6,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
@@ -14,6 +17,7 @@ import androidx.compose.ui.unit.dp
 internal fun StudioToolsPanel(project: StudioProject, enabled: Boolean, onEdit: (StudioProject,String?) -> Unit,
     onAddAudio: () -> Unit, onImportSrt: () -> Unit, onExportSrt: () -> Unit) {
     val t=project.tools
+    val focus=LocalFocusManager.current
     fun tools(next: StudioTools, group: String?=null) = onEdit(project.copy(tools=next),group)
     Text("Color & framing",style=MaterialTheme.typography.titleLarge)
     StudioAdjustment("Brightness",t.brightness,-1f..1f,enabled) { tools(t.copy(brightness=it),"brightness") }
@@ -60,7 +64,8 @@ internal fun StudioToolsPanel(project: StudioProject, enabled: Boolean, onEdit: 
     t.captions.forEachIndexed { index,cue ->
         fun cueEdit(next: StudioCaption,group:String?=null) = tools(t.copy(captions=t.captions.mapIndexed { i,c -> if(i==index) next else c }),group)
         OutlinedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp)) {
-            OutlinedTextField(cue.text,{cueEdit(cue.copy(text=it.take(500)),"caption-$index")},enabled=enabled,label={Text("Caption ${index+1}")},modifier=Modifier.fillMaxWidth())
+            OutlinedTextField(cue.text,{cueEdit(cue.copy(text=it.take(500)),"caption-$index")},enabled=enabled,label={Text("Caption ${index+1}")},keyboardOptions=androidx.compose.foundation.text.KeyboardOptions(imeAction=ImeAction.Done),
+                keyboardActions=KeyboardActions(onDone={focus.clearFocus()}),modifier=Modifier.fillMaxWidth())
             StudioLongField("Cue ${index+1} in (ms)",cue.startMs,enabled) {cueEdit(cue.copy(startMs=it))}
             StudioLongField("Cue ${index+1} out (ms)",cue.endMs,enabled) {cueEdit(cue.copy(endMs=it))}
             TextButton(enabled=enabled,onClick={tools(t.copy(captions=t.captions.filterIndexed { i,_ -> i!=index }))}) {Text("Delete cue ${index+1}")}

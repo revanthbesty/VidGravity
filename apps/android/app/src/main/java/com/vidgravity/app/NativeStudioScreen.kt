@@ -21,6 +21,13 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.input.nestedscroll.*
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -149,6 +156,14 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val manager = remember(context) { WorkManager.getInstance(context) }
+    val focus=LocalFocusManager.current
+    val keyboard=LocalSoftwareKeyboardController.current
+    val editorScroll=remember(focus,keyboard) { object: NestedScrollConnection {
+        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+            if(source==NestedScrollSource.UserInput && kotlin.math.abs(available.y)>1f) {focus.clearFocus(); keyboard?.hide()}
+            return Offset.Zero
+        }
+    }}
     var project by remember(initial.id) { mutableStateOf(initial) }
     var selected by remember(initial.id) { mutableIntStateOf(0) }
     var positionMs by remember(initial.id) { mutableLongStateOf(0) }
@@ -298,16 +313,18 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
     }
     val clip = project.clips[selected.coerceIn(project.clips.indices)]
     val currentExport = record?.takeIf { it.uri != null && it.fingerprint == project.fingerprint() }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxSize().nestedScroll(editorScroll).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = { close() }) { Text("Projects") }
             Text(saveStatus, style = MaterialTheme.typography.labelSmall)
         }
         OutlinedTextField(project.title, { edit(project.copy(title = it.take(100))) }, enabled = !busy,
-            label = { Text("Project name") }, modifier = Modifier.fillMaxWidth())
+            label = { Text("Project name") }, singleLine=true,
+            keyboardOptions=KeyboardOptions(imeAction=ImeAction.Done), keyboardActions=KeyboardActions(onDone={focus.clearFocus(); keyboard?.hide()}),
+            modifier = Modifier.fillMaxWidth())
         Row {
-            TextButton(enabled=!busy && canUndo,onClick={project=history.undo(project).copy(updatedAt=System.currentTimeMillis()); canUndo=history.canUndo; canRedo=history.canRedo; selected=selected.coerceIn(project.clips.indices)}) {Text("Undo")}
-            TextButton(enabled=!busy && canRedo,onClick={project=history.redo(project).copy(updatedAt=System.currentTimeMillis()); canUndo=history.canUndo; canRedo=history.canRedo; selected=selected.coerceIn(project.clips.indices)}) {Text("Redo")}
+            TextButton(enabled=!busy && canUndo,onClick={saveStatus="Saving…"; project=history.undo(project).copy(updatedAt=System.currentTimeMillis()); canUndo=history.canUndo; canRedo=history.canRedo; selected=selected.coerceIn(project.clips.indices)}) {Text("Undo")}
+            TextButton(enabled=!busy && canRedo,onClick={saveStatus="Saving…"; project=history.redo(project).copy(updatedAt=System.currentTimeMillis()); canUndo=history.canUndo; canRedo=history.canRedo; selected=selected.coerceIn(project.clips.indices)}) {Text("Redo")}
         }
         NativeClipPreview(project, clip,seekRequest) {positionMs=it}
         StudioTimeline(project,selected,positionMs,!busy,{selected=it},::seek,::edit)
@@ -362,7 +379,9 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
             }) {Text("Split at playhead")}
         }
         OutlinedTextField(project.overlay, { edit(project.copy(overlay = it.take(160))) }, enabled = !busy,
-            label = { Text("Centered text overlay") }, modifier = Modifier.fillMaxWidth())
+            label = { Text("Centered text overlay") },
+            keyboardOptions=KeyboardOptions(imeAction=ImeAction.Done), keyboardActions=KeyboardActions(onDone={focus.clearFocus(); keyboard?.hide()}),
+            modifier = Modifier.fillMaxWidth())
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StudioFilter.entries.forEach { filter -> FilterChip(selected = project.filter == filter, enabled = !busy,
                 onClick = { edit(project.copy(filter = filter)) }, label = { Text(filter.name.lowercase().replaceFirstChar { it.uppercase() }) }) }
