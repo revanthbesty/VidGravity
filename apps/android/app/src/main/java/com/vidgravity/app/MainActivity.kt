@@ -238,7 +238,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create }, { selected = it })
+                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create }, { selected = it }, { playingMedia = it })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     VgTab.Library -> LibraryContent(
                         onPlay = { playingMedia = it },
@@ -561,12 +561,18 @@ private fun VgPrimaryButton(
 }
 
 @Composable
-private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, onTab: (VgTab) -> Unit) {
+private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, onTab: (VgTab) -> Unit, onPlay: (LibraryMedia) -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val activity = context as? ComponentActivity
     var clipboardSuggestion by remember { mutableStateOf<String?>(null) }
+    var recentMedia by remember { mutableStateOf(emptyList<LibraryMedia>()) }
+    suspend fun refreshRecentMedia() {
+        recentMedia = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context).take(8) }
+    }
+    LaunchedEffect(Unit) { runCatching { refreshRecentMedia() } }
+
     fun detectClipboardUrl() {
         val raw = runCatching {
             val manager = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -582,7 +588,10 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
         detectClipboardUrl()
         val lifecycle = activity?.lifecycle
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) detectClipboardUrl()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                detectClipboardUrl()
+                scope.launch { runCatching { refreshRecentMedia() } }
+            }
         }
         lifecycle?.addObserver(observer)
         onDispose { lifecycle?.removeObserver(observer) }
@@ -804,6 +813,70 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                     }
                                     Text(tile.first, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     Text(tile.second, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Recent Media", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { onTab(VgTab.Library) }) { Text("View all  ›") }
+                }
+                if (recentMedia.isEmpty()) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().clickable { onTab(VgTab.Library) },
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.VideoLibrary, null, tint = Color(0xFF35D8E8), modifier = Modifier.size(28.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text("Your media will appear here", fontWeight = FontWeight.SemiBold)
+                                Text("Capture a photo or download a file to get started.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                } else {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(end = 12.dp)) {
+                        items(recentMedia, key = { it.uri.toString() }) { media ->
+                            val accent = when {
+                                media.mimeType.startsWith("video/") -> Color(0xFF43B7FF)
+                                media.mimeType.startsWith("image/") -> Color(0xFF29D6C8)
+                                media.mimeType.startsWith("audio/") -> Color(0xFFC084FC)
+                                else -> Color(0xFFFFB454)
+                            }
+                            Surface(
+                                modifier = Modifier.width(150.dp).heightIn(min = 112.dp).clickable { onPlay(media) },
+                                shape = RoundedCornerShape(16.dp),
+                                color = accent.copy(alpha = 0.10f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.52f))
+                            ) {
+                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(
+                                        when {
+                                            media.mimeType.startsWith("video/") -> Icons.Default.PlayCircle
+                                            media.mimeType.startsWith("image/") -> Icons.Default.Image
+                                            media.mimeType.startsWith("audio/") -> Icons.Default.MusicNote
+                                            else -> Icons.Default.InsertDriveFile
+                                        },
+                                        contentDescription = null, tint = accent, modifier = Modifier.size(27.dp)
+                                    )
+                                    Text(media.displayName, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        when {
+                                            media.mimeType.startsWith("video/") -> "Video"
+                                            media.mimeType.startsWith("image/") -> "Photo"
+                                            media.mimeType.startsWith("audio/") -> "Audio"
+                                            else -> "Media"
+                                        },
+                                        fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
                             }
                         }
