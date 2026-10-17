@@ -1,0 +1,17 @@
+rules_version = '2';
+// Prototype: only private raster images, max 10 MiB. MIME metadata is not content inspection.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isOwner(uid) { return request.auth != null && request.auth.uid == uid; }
+    function validImage() {
+      return request.resource.size > 0 && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp'];
+    }
+    match /users/{uid}/images/{imageId} {
+      allow get: if isOwner(uid);
+      allow create, update: if isOwner(uid) && imageId.matches('[A-Za-z0-9_-]{1,80}') && validImage();
+      allow delete: if isOwner(uid);
+    }
+    match /{path=**} { allow read, write: if false; }
+  }
+}

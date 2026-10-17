@@ -1,0 +1,41 @@
+name: Firebase integration checks
+on:
+  pull_request:
+    paths: ['apps/android/**', 'firebase-tests/**', 'firebase.json', 'firestore.rules', 'storage.rules', '.github/workflows/firebase.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: npm ci
+        working-directory: firebase-tests
+      - run: npm test
+        working-directory: firebase-tests
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - run: gradle -p apps/android testDebugUnitTest assembleDebug --console=plain
+      - name: Compile enabled variant with synthetic project identifiers
+        run: |
+          cp firebase-tests/google-services.test.json apps/android/app/google-services.json
+          gradle -p apps/android -PVG_FIREBASE_ENABLED=true testDebugUnitTest assembleDebug --console=plain

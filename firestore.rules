@@ -1,0 +1,22 @@
+rules_version = '2';
+// Prototype: users/{uid}: displayName (1..80 chars, nonblank), updatedAt (server time).
+// No roles, payments, tokens, nested collections, or public profiles are client writable.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) { return request.auth != null && request.auth.uid == uid; }
+    function validProfile() {
+      let d = request.resource.data;
+      return d.keys().hasAll(['displayName', 'updatedAt'])
+        && d.keys().hasOnly(['displayName', 'updatedAt'])
+        && d.displayName is string && d.displayName.size() > 0
+        && d.displayName.size() <= 80 && d.displayName.matches('.*[^\\s].*')
+        && d.updatedAt == request.time;
+    }
+    match /users/{uid} {
+      allow get: if isOwner(uid);
+      allow create, update: if isOwner(uid) && validProfile();
+      allow delete: if isOwner(uid);
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

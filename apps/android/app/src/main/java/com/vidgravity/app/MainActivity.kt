@@ -2065,6 +2065,7 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Settings", fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Make VidGravity work your way.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        com.vidgravity.app.firebase.FirebaseAccountPanel()
         Text("APPEARANCE", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
         Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
