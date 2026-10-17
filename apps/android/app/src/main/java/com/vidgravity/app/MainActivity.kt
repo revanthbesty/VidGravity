@@ -2021,6 +2021,10 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                 } ?: ("Selected media" to 0L)
             }.getOrDefault("Selected media" to 0L)
             val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
+            if (isRendering || segmentJob != null) {
+                notify("Wait for the current export to finish or cancel the clip split before changing media.")
+                return@rememberLauncherForActivityResult
+            }
             selectedMedia = LibraryMedia(uri, metadata.first, metadata.second, mime, System.currentTimeMillis())
             storyEditorOpen = false
             exportedUri = null
@@ -2132,6 +2136,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                 Text("Choose a video, audio track or image from your device. You can preview and share it, or use supported Studio tools to create a separate export.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 Button(onClick = { picker.launch(arrayOf("video/*", "audio/*", "image/*")) },
+                    enabled = !isRendering && segmentJob == null,
                     modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
                     Icon(Icons.Default.FolderOpen, null)
                     Spacer(Modifier.width(8.dp))
