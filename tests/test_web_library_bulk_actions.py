@@ -27,7 +27,7 @@ class WebLibraryBulkActionsTests(unittest.TestCase):
 
     def test_selected_filenames_are_joined_by_newlines(self):
         app = (ROOT / "site" / "app.js").read_text(encoding="utf-8")
-        self.assertIn("const text=names.join('\n');", app)
+        self.assertIn(r"const text=names.join('\n');", app)
 
 
 if __name__ == "__main__":
