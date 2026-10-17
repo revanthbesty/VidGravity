@@ -39,11 +39,11 @@ class StudioHistoryUiTest {
         compose.waitUntil(10_000) {compose.onAllNodesWithText("Project name").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("Project name").performTextReplacement("Sprint 3 history")
         compose.onNodeWithText("Duplicate clip").performScrollTo().performClick()
-        compose.onNodeWithText("2. native-source.mp4",substring=true).assertExists()
+        compose.onNodeWithText("2. native-source.mp4",substring=true).assertExists(compose.onRoot(useUnmergedTree=true).printToString())
         compose.onNodeWithText("Undo").performScrollTo().performClick()
         compose.onNodeWithText("2. native-source.mp4",substring=true).assertDoesNotExist()
         compose.onNodeWithText("Redo").performClick()
-        compose.onNodeWithText("2. native-source.mp4",substring=true).assertExists()
+        compose.onNodeWithText("2. native-source.mp4",substring=true).assertExists(compose.onRoot(useUnmergedTree=true).printToString())
         compose.onNodeWithText("Add title cue").performScrollTo().performClick()
         compose.onNodeWithText("Caption 1").performScrollTo().performTextReplacement("Sprint 3 caption")
         compose.onNodeWithText("Save project").performScrollTo().performClick()

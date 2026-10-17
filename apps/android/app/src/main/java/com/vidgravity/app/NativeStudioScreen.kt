@@ -172,6 +172,7 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
         try {
             next.validate()
             if(next.copy(updatedAt=0)==project.copy(updatedAt=0)) return
+            if(next.clips.size!=project.clips.size) android.util.Log.i("VGStudio","timeline.clips=${next.clips.size}")
             history.record(project,group); project = next.copy(updatedAt = System.currentTimeMillis()); saveStatus = "Saving…"
             canUndo=history.canUndo; canRedo=history.canRedo
             selected=selected.coerceIn(project.clips.indices); positionMs=positionMs.coerceIn(0,project.durationMs)

@@ -18,7 +18,7 @@ class NativeStudioProjectUiTest {
         compose.waitUntil(10_000) { compose.onAllNodesWithText("Project name").fetchSemanticsNodes().isNotEmpty() }
         compose.onNodeWithText("Project name").performTextReplacement("Sprint 2 saved project")
         compose.onNodeWithText("Split at midpoint").performScrollTo().performClick()
-        compose.onNodeWithText("2. native-source.mp4", substring = true).assertExists()
+        compose.onNodeWithText("2. native-source.mp4", substring = true).assertExists(compose.onRoot(useUnmergedTree=true).printToString())
         compose.onNodeWithText("Centered text overlay").performScrollTo().performTextReplacement("Saved caption")
         compose.onNodeWithText("Mono").performScrollTo().performClick()
         compose.onNodeWithText("Save project").performScrollTo().performClick()
