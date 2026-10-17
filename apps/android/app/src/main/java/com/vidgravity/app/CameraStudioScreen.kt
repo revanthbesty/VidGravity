@@ -434,16 +434,6 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
-                Surface(
-                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
-                    shape = CircleShape,
-                    color = ComposeColor.Black.copy(alpha = .72f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, ComposeColor.White.copy(alpha = .35f))
-                ) {
-                    IconButton(onClick = onClose, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back and close Camera Studio", tint = ComposeColor.White)
-                    }
-                }
                 focusPoint?.let { point ->
                     Canvas(Modifier.fillMaxSize()) {
                         drawCircle(color = ComposeColor(0xFF55E0C0), radius = 24.dp.toPx(), center = point, style = Stroke(width = 2.dp.toPx()))
