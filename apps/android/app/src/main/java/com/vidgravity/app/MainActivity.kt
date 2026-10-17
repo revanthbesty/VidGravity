@@ -709,9 +709,28 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
             }
         }
         item {
-            Text("Getting started", fontSize = 19.sp, fontWeight = FontWeight.Bold)
-            Text("1. Capture with Camera · 2. Edit in Studio · 3. Export and share",
-                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+            Text("CREATE IN THREE STEPS", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp)
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    Triple("01", "Capture", "Camera"),
+                    Triple("02", "Edit", "Studio"),
+                    Triple("03", "Share", "Export")
+                ).forEach { (number, label, detail) ->
+                    Surface(modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant) {
+                        Column(Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(number, fontSize = 18.sp, fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.primary)
+                            Text(label, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                            Text(detail, fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
         }
     }
 }
