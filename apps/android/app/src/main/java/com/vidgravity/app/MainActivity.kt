@@ -1349,6 +1349,8 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
     var selectedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showBulkDeleteConfirm by remember { mutableStateOf(false) }
     var swipeFeedOpen by remember { mutableStateOf(false) }
+    // Close the nested Library feed before the app-level handler changes tabs.
+    BackHandler(enabled = swipeFeedOpen) { swipeFeedOpen = false }
     val scope = rememberCoroutineScope()
     suspend fun refreshMedia() { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
     LaunchedEffect(Unit) { refreshMedia() }
