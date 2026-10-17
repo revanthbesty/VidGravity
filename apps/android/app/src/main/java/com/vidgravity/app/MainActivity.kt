@@ -238,7 +238,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create })
+                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create }, { selected = it })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     VgTab.Library -> LibraryContent(
                         onPlay = { playingMedia = it },
@@ -561,7 +561,7 @@ private fun VgPrimaryButton(
 }
 
 @Composable
-private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit) {
+private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, onTab: (VgTab) -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -611,8 +611,17 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
             }
         }
         item {
-            Surface(shape = RoundedCornerShape(26.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
-                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Surface(
+                shape = RoundedCornerShape(26.dp),
+                color = Color.Transparent,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2876B9).copy(alpha = 0.55f))
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().background(
+                        Brush.linearGradient(listOf(Color(0xFF071B38), Color(0xFF102B4D), Color(0xFF27134A), Color(0xFF073A49)))
+                    ).padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
                     Surface(
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                         shape = RoundedCornerShape(50)
@@ -748,6 +757,86 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                     }
                 }
             }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Your Creative Studio", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("Capture, edit, play and organize", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    TextButton(onClick = { onTab(VgTab.Create) }) { Text("View all  ›") }
+                }
+                val studioTiles = listOf(
+                    Triple("Camera Studio", "Capture photos & videos", Icons.Default.PhotoCamera),
+                    Triple("Edit Media", "Trim, crop and create", Icons.Default.ContentCut),
+                    Triple("Player", "Play video and audio", Icons.Default.PlayCircle),
+                    Triple("Media Library", "Browse saved media", Icons.Default.VideoLibrary)
+                )
+                studioTiles.chunked(2).forEachIndexed { rowIndex, rowTiles ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        rowTiles.forEachIndexed { columnIndex, tile ->
+                            val index = rowIndex * 2 + columnIndex
+                            val accent = listOf(
+                                Color(0xFF16D8E8), Color(0xFFC56BFF),
+                                Color(0xFF48A8FF), Color(0xFFFFB454)
+                            )[index]
+                            val destination = when (index) {
+                                0, 1 -> VgTab.Create
+                                2, 3 -> VgTab.Library
+                                else -> VgTab.Create
+                            }
+                            Surface(
+                                modifier = Modifier.weight(1f).heightIn(min = 124.dp).clickable {
+                                    if (index == 0) openCreate() else onTab(destination)
+                                },
+                                shape = RoundedCornerShape(20.dp),
+                                color = Color.Transparent,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.58f))
+                            ) {
+                                Column(
+                                    Modifier.fillMaxWidth().background(
+                                        Brush.linearGradient(listOf(accent.copy(alpha = 0.25f), MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)))
+                                    ).padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(9.dp)
+                                ) {
+                                    Surface(color = accent.copy(alpha = 0.18f), shape = RoundedCornerShape(12.dp)) {
+                                        Icon(tile.third, contentDescription = null, tint = accent, modifier = Modifier.padding(9.dp).size(25.dp))
+                                    }
+                                    Text(tile.first, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(tile.second, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Quick Actions", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        Triple("Downloads", Icons.Default.Download, Color(0xFF22D3EE)),
+                        Triple("Take Photo", Icons.Default.PhotoCamera, Color(0xFF2DD4BF)),
+                        Triple("Library", Icons.Default.VideoLibrary, Color(0xFFC084FC))
+                    ).forEachIndexed { index, action ->
+                        Surface(
+                            modifier = Modifier.weight(1f).heightIn(min = 76.dp).clickable {
+                                when (index) { 0 -> onTab(VgTab.Downloads); 1 -> openCreate(); else -> onTab(VgTab.Library) }
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            color = action.third.copy(alpha = 0.12f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, action.third.copy(alpha = 0.55f))
+                        ) {
+                            Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Icon(action.second, contentDescription = null, tint = action.third, modifier = Modifier.size(23.dp))
+                                Text(action.first, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+            }
+        }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 InfoCard("Downloads", "Real transfer status", Icons.Default.Download, Modifier.weight(1f))
