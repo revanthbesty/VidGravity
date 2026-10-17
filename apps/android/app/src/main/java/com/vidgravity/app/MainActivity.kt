@@ -2123,7 +2123,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
                 Text("Start with your own media", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text("Select a video, audio track or image. Rendering uses the configured VidGravity companion and never overwrites the selected source.",
+                Text("Choose a video, audio track or image from your device. You can preview and share it, or use supported Studio tools to create a separate export.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 Button(onClick = { picker.launch(arrayOf("video/*", "audio/*", "image/*")) },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
@@ -2147,6 +2147,17 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                     Text(media.displayName, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(if (media.sizeBytes > 0) String.format("%.1f MB · %s", media.sizeBytes / 1_000_000.0, media.mimeType)
                         else media.mimeType, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Surface(shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surface) {
+                        Text(when {
+                            media.mimeType.startsWith("video/") -> "VIDEO READY · Story editor, clip splitter and animated sticker"
+                            media.mimeType.startsWith("audio/") -> "AUDIO READY · Preview, share and compatible story layouts"
+                            media.mimeType.startsWith("image/") -> "IMAGE READY · Preview, share and compatible story layouts"
+                            else -> "FILE SELECTED · Available tools depend on file type"
+                        }, modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+                            fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.primary)
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { onPlay(media) }, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(5.dp)); Text("Preview")
