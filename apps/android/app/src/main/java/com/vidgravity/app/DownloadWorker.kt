@@ -174,6 +174,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
         const val RETRY_TITLE = "retry_title"
         const val RETRY_AUDIO_ONLY = "retry_audio_only"
         private const val REGISTRY = "vg_remote_job_registry"
+        private const val QUEUE_TIMESTAMPS = "vg-download-queue-times"
 
         private fun failureResult(message: String, url: String, selector: String, title: String, audioOnly: Boolean = false): Result =
             Result.failure(workDataOf(
@@ -188,13 +189,16 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(if (unmeteredOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
                 .build()
+            val queuedAtMs = System.currentTimeMillis()
             val request = OneTimeWorkRequestBuilder<DownloadWorker>()
-                .setInputData(workDataOf(KEY_URL to url, KEY_FORMAT to selector, KEY_TITLE to title, KEY_AUDIO_ONLY to audioOnly, "queued_at_ms" to System.currentTimeMillis()))
+                .setInputData(workDataOf(KEY_URL to url, KEY_FORMAT to selector, KEY_TITLE to title, KEY_AUDIO_ONLY to audioOnly, "queued_at_ms" to queuedAtMs))
                 .setConstraints(constraints)
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.SECONDS)
                 .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
                 .addTag("vidgravity-download")
                 .build()
+            context.getSharedPreferences(QUEUE_TIMESTAMPS, Context.MODE_PRIVATE)
+                .edit().putLong(request.id.toString(), queuedAtMs).apply()
             WorkManager.getInstance(context).enqueueUniqueWork("vg-download-" + request.id, ExistingWorkPolicy.KEEP, request)
             return request.id
         }
