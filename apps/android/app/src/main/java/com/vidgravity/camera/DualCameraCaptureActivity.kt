@@ -335,21 +335,24 @@ class DualCameraCaptureActivity : ComponentActivity() {
         // Android 10+: publish finished recordings in Movies/VidGravity so the
         // MediaStore-backed library can discover them on its next refresh.
         // Older devices retain the existing app-specific file fallback.
-        val outputOptions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        // CameraX overloads are typed by output destination; prepare each branch
+        // separately instead of passing a common OutputOptions supertype.
+        var pending = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val values = ContentValues().apply {
                 put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
                 put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
                 put(MediaStore.MediaColumns.RELATIVE_PATH, "Movies/VidGravity/")
             }
-            MediaStoreOutputOptions.Builder(
+            val options = MediaStoreOutputOptions.Builder(
                 contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI
             ).setContentValues(values).build()
+            capture.output.prepareRecording(this, options)
         } else {
             val directory = getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: filesDir
             if (!directory.exists()) directory.mkdirs()
-            FileOutputOptions.Builder(File(directory, fileName)).build()
+            val options = FileOutputOptions.Builder(File(directory, fileName)).build()
+            capture.output.prepareRecording(this, options)
         }
-        var pending = capture.output.prepareRecording(this, outputOptions)
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             pending = pending.withAudioEnabled()
         }
