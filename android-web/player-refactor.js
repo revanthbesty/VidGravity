@@ -72,5 +72,6 @@
     event.preventDefault();
     try{const v=player();if(document.fullscreenElement)await document.exitFullscreen();else if(v?.requestFullscreen)await v.requestFullscreen();else if(v?.webkitEnterFullscreen)v.webkitEnterFullscreen();}catch(_){}
   });
-  window.addEventListener("vg:library-updated",()=>{if(typeof dbAll==="function"&&typeof renderAll==="function")dbAll().then(items=>{media=items;renderAll();}).catch(()=>{});});\n  window.addEventListener("load",()=>{bindLoop();bindIdle();populateTracks();});
+  window.addEventListener("vg:library-updated",()=>{if(typeof dbAll==="function"&&typeof renderAll==="function")dbAll().then(items=>{media=items;renderAll();}).catch(()=>{});});
+  window.addEventListener("load",()=>{bindLoop();bindIdle();populateTracks();});
 })();

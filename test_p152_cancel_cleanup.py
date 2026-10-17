@@ -5,6 +5,7 @@ import time
 import urllib.error
 import urllib.request
 import unittest
+from unittest.mock import patch
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -44,38 +45,34 @@ class FakeProcess:
 class DownloadCancellationCleanupTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.old_valid_url = server.valid_url
-        cls.old_popen = server.subprocess.Popen
-        cls.old_call = server.subprocess.call
-        cls.old_which = server.shutil.which
-        cls.old_runner = server._run_download_job
+        def patch_server(target, name, value):
+            patcher = patch.object(target, name, value)
+            patcher.start()
+            cls.addClassCleanup(patcher.stop)
+
+        old_valid_url = server.valid_url
+        old_which = server.shutil.which
         cls.fake_processes = []
         server.DOWNLOAD_JOBS.clear()
-        server.valid_url = lambda url: (True, "") if url == "https://example.com/cancel-test.mp4" else cls.old_valid_url(url)
-        server.subprocess.call = lambda *a, **k: 0
+        cls.addClassCleanup(server.DOWNLOAD_JOBS.clear)
+        # A test also replaces the runner; restore it even if class setup fails.
+        cls.addClassCleanup(setattr, server, "_run_download_job", server._run_download_job)
+        patch_server(server, "valid_url", lambda url: (True, "") if url == "https://example.com/cancel-test.mp4" else old_valid_url(url))
+        patch_server(server.subprocess, "call", lambda *a, **k: 0)
         # The worker checks provider availability before Popen; fake that dependency in this isolated test.
-        server.shutil.which = lambda name: "/usr/bin/yt-dlp" if name == "yt-dlp" else cls.old_which(name)
+        patch_server(server.shutil, "which", lambda name: "/usr/bin/yt-dlp" if name == "yt-dlp" else old_which(name))
         def fake_popen(*args, **kwargs):
             p = FakeProcess()
             cls.fake_processes.append(p)
             return p
-        server.subprocess.Popen = fake_popen
+        patch_server(server.subprocess, "Popen", fake_popen)
         cls.httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.Handler)
+        cls.addClassCleanup(cls.httpd.server_close)
         cls.thread = threading.Thread(target=cls.httpd.serve_forever, daemon=True)
         cls.thread.start()
+        cls.addClassCleanup(cls.thread.join, timeout=2)
+        cls.addClassCleanup(cls.httpd.shutdown)
         cls.root = "http://127.0.0.1:%d" % cls.httpd.server_address[1]
-
-    @classmethod
-    def tearDownClass(cls):
-        cls.httpd.shutdown()
-        cls.httpd.server_close()
-        cls.thread.join(timeout=2)
-        server.valid_url = cls.old_valid_url
-        server.subprocess.Popen = cls.old_popen
-        server.subprocess.call = cls.old_call
-        server.shutil.which = cls.old_which
-        server._run_download_job = cls.old_runner
-        server.DOWNLOAD_JOBS.clear()
 
     def request(self, path, method="GET", payload=None):
         data = None if payload is None else json.dumps(payload).encode()
