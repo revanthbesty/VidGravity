@@ -235,6 +235,8 @@ class DualCameraCaptureActivity : ComponentActivity() {
         bottom.addView(hint, LinearLayout.LayoutParams(-1, -2))
         container.addView(bottom, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         setContentView(container)
+        // Make the default mode obvious on first launch.
+        selectPhotoMode()
     }
 
     private fun controlButton(label: String, action: () -> Unit): Button =
