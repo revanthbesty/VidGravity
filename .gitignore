@@ -1,4 +1,14 @@
 .env
+# Firebase project configuration stays local, even though client identifiers are not secrets.
+**/google-services.json
+**/service-account*.json
+**/*firebase-adminsdk*.json
+**/local.properties
+**/.gradle/
+.firebase/
+firebase-debug.log*
+firestore-debug.log*
+ui-debug.log*
 .env.*
 !.env.production.example
 __pycache__/
@@ -49,3 +59,4 @@ __pycache__/
 .venv/
 venv/
 node_modules/
+**/.kotlin/

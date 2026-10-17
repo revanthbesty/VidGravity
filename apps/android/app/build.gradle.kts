@@ -4,6 +4,15 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val firebaseEnabled = providers.gradleProperty("VG_FIREBASE_ENABLED").orElse("false").get().toBooleanStrict()
+if (firebaseEnabled) {
+    check(file("google-services.json").isFile) {
+        "Download google-services.json for com.vidgravity.app into apps/android/app before enabling Firebase"
+    }
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
+}
+
 // Keep this aligned with the public cloud endpoint used by the PWA in site/app.js.
 // Override with -PVG_API_BASE_URL=https://your-service.onrender.com for a different deployment.
 // The API is mounted at the service root (/api/formats, /api/download-jobs); do not append /api/v1.
@@ -17,6 +26,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = 178
+        buildConfigField("boolean", "FIREBASE_ENABLED", firebaseEnabled.toString())
         versionName = "1.0.8-p178"
         buildConfigField("String", "VG_API_BASE_URL", "\"$safeApi\"")
     }
@@ -28,6 +38,15 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 dependencies {
+    // Compatibility baseline for Kotlin 2.0.21; upgrade BoM/toolchain together.
+    implementation(platform("com.google.firebase:firebase-bom:33.16.0"))
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-firestore")
+    implementation("com.google.firebase:firebase-storage")
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-crashlytics")
+    implementation("com.google.firebase:firebase-messaging")
+    testImplementation("junit:junit:4.13.2")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-compose:1.10.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
