@@ -999,11 +999,11 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
             }
             val sortedMatchedWorks = when (downloadSort) {
                 "Newest" -> matchedWorks.sortedWith(
-                    compareByDescending<WorkInfo> { it.inputData.getLong("queued_at_ms", 0L) }
+                    compareByDescending<WorkInfo> { it.progress.getLong("queued_at_ms", 0L) }
                         .thenByDescending { it.id.toString() }
                 )
                 "Oldest" -> matchedWorks.sortedWith(
-                    compareBy<WorkInfo> { it.inputData.getLong("queued_at_ms", 0L) }
+                    compareBy<WorkInfo> { it.progress.getLong("queued_at_ms", 0L) }
                         .thenBy { it.id.toString() }
                 )
                 "Name A–Z" -> matchedWorks.sortedBy { work ->
