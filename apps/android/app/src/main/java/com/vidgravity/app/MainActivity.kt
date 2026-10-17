@@ -1037,30 +1037,33 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     !(work.outputData.getString(DownloadWorker.RETRY_URL)
                         ?: work.progress.getString("media_url")).isNullOrBlank()
             }
-            var sortMenuExpanded by remember { mutableStateOf(false) }
-            var filterMenuExpanded by remember { mutableStateOf(false) }
+            var organizeMenuExpanded by remember { mutableStateOf(false) }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
-                    OutlinedButton(onClick = { filterMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
-                        Icon(Icons.Default.FilterList, null); Spacer(Modifier.width(6.dp)); Text(if (downloadFilter == "All") "Filter" else "Filter · " + downloadFilter, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    OutlinedButton(onClick = { organizeMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                        Icon(Icons.Default.FilterList, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Filter & sort", maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    DropdownMenu(expanded = filterMenuExpanded, onDismissRequest = { filterMenuExpanded = false }) {
+                    DropdownMenu(expanded = organizeMenuExpanded, onDismissRequest = { organizeMenuExpanded = false }) {
+                        DropdownMenuItem(text = { Text("FILTER BY", fontWeight = FontWeight.Bold) }, onClick = {}, enabled = false)
                         listOf("All", "Active", "Completed", "Failed").forEach { option ->
-                            DropdownMenuItem(text = { Text(option) }, onClick = { downloadFilter = option; filterMenuExpanded = false })
+                            DropdownMenuItem(
+                                text = { Text(option + if (downloadFilter == option) " ✓" else "") },
+                                onClick = { downloadFilter = option; organizeMenuExpanded = false }
+                            )
                         }
-                    }
-                }
-                Box(Modifier.weight(1f)) {
-                    OutlinedButton(onClick = { sortMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
-                        Icon(Icons.Default.Sort, null); Spacer(Modifier.width(6.dp)); Text(downloadSort, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    DropdownMenu(expanded = sortMenuExpanded, onDismissRequest = { sortMenuExpanded = false }) {
+                        Divider()
+                        DropdownMenuItem(text = { Text("SORT BY", fontWeight = FontWeight.Bold) }, onClick = {}, enabled = false)
                         listOf("Newest", "Oldest", "Name A–Z", "Progress").forEach { option ->
-                            DropdownMenuItem(text = { Text(option) }, onClick = { downloadSort = option; sortMenuExpanded = false })
+                            DropdownMenuItem(
+                                text = { Text(option + if (downloadSort == option) " ✓" else "") },
+                                onClick = { downloadSort = option; organizeMenuExpanded = false }
+                            )
                         }
                     }
                 }
-                IconButton(onClick = { showDownloadFilters = !showDownloadFilters }, modifier = Modifier.size(44.dp)) {
+                IconButton(onClick = { showDownloadFilters = !showDownloadFilters }, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Default.Search, contentDescription = if (showDownloadFilters) "Hide download search" else "Search downloads")
                 }
             }
@@ -1433,30 +1436,40 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Swipe Feed")
             }
         }
-        var libraryFilterMenuExpanded by remember { mutableStateOf(false) }
-        var librarySortMenuExpanded by remember { mutableStateOf(false) }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.weight(1f)) {
-                OutlinedButton(onClick = { libraryFilterMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
-                    Icon(Icons.Default.FilterList, null); Spacer(Modifier.width(6.dp)); Text(if (filter == "All Media" && sizeFilter == "Any size") "Filter" else "Filter · Applied")
+        var libraryOrganizeMenuExpanded by remember { mutableStateOf(false) }
+        Row(Modifier.fillMaxWidth()) {
+            Box(Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = { libraryOrganizeMenuExpanded = true },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                ) {
+                    Icon(Icons.Default.FilterList, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Filter & sort", maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                DropdownMenu(expanded = libraryFilterMenuExpanded, onDismissRequest = { libraryFilterMenuExpanded = false }) {
+                DropdownMenu(expanded = libraryOrganizeMenuExpanded, onDismissRequest = { libraryOrganizeMenuExpanded = false }) {
+                    DropdownMenuItem(text = { Text("FILTER BY", fontWeight = FontWeight.Bold) }, onClick = {}, enabled = false)
                     listOf("All Media", "Video", "Audio", "Images", "Other Files", "Favorites").forEach { option ->
-                        DropdownMenuItem(text = { Text(option + if (filter == option) " ✓" else "") }, onClick = { filter = option; libraryFilterMenuExpanded = false })
+                        DropdownMenuItem(
+                            text = { Text(option + if (filter == option) " ✓" else "") },
+                            onClick = { filter = option; libraryOrganizeMenuExpanded = false }
+                        )
                     }
                     Divider()
+                    DropdownMenuItem(text = { Text("SIZE", fontWeight = FontWeight.Bold) }, onClick = {}, enabled = false)
                     listOf("Any size", "Under 10 MB", "10–100 MB", "Over 100 MB", "Unknown size").forEach { option ->
-                        DropdownMenuItem(text = { Text(option + if (sizeFilter == option) " ✓" else "") }, onClick = { sizeFilter = option; libraryFilterMenuExpanded = false })
+                        DropdownMenuItem(
+                            text = { Text(option + if (sizeFilter == option) " ✓" else "") },
+                            onClick = { sizeFilter = option; libraryOrganizeMenuExpanded = false }
+                        )
                     }
-                }
-            }
-            Box(Modifier.weight(1f)) {
-                OutlinedButton(onClick = { librarySortMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
-                    Icon(Icons.Default.Sort, null); Spacer(Modifier.width(6.dp)); Text("Sort · " + sortBy)
-                }
-                DropdownMenu(expanded = librarySortMenuExpanded, onDismissRequest = { librarySortMenuExpanded = false }) {
+                    Divider()
+                    DropdownMenuItem(text = { Text("SORT BY", fontWeight = FontWeight.Bold) }, onClick = {}, enabled = false)
                     listOf("Newest", "Oldest", "Name A-Z", "Largest", "Smallest", "Type", "Extension").forEach { option ->
-                        DropdownMenuItem(text = { Text(option) }, onClick = { sortBy = option; librarySortMenuExpanded = false })
+                        DropdownMenuItem(
+                            text = { Text(option + if (sortBy == option) " ✓" else "") },
+                            onClick = { sortBy = option; libraryOrganizeMenuExpanded = false }
+                        )
                     }
                 }
             }
