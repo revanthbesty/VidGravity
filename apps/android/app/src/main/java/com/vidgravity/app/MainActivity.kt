@@ -10,6 +10,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -26,6 +27,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -645,13 +648,38 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                             else openCreate()
                         }, shape = RoundedCornerShape(18.dp),
                             color = MaterialTheme.colorScheme.surfaceVariant) {
-                            Column(Modifier.padding(14.dp),
+                            var thumbnail by remember(media.uri) {
+                                mutableStateOf<android.graphics.Bitmap?>(null)
+                            }
+                            LaunchedEffect(media.uri) {
+                                thumbnail = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+                                            context.contentResolver.loadThumbnail(
+                                                media.uri, android.util.Size(320, 200), null
+                                            )
+                                        } else if (media.mimeType.startsWith("image/")) {
+                                            context.contentResolver.openInputStream(media.uri)?.use { stream ->
+                                                android.graphics.BitmapFactory.decodeStream(stream)
+                                            }
+                                        } else null
+                                    }.getOrNull()
+                                }
+                            }
+                            Column(Modifier.padding(10.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Icon(if (media.mimeType.startsWith("video/")) Icons.Default.Movie
-                                    else if (media.mimeType.startsWith("audio/")) Icons.Default.MusicNote
-                                    else Icons.Default.Image, null,
-                                    modifier = Modifier.size(34.dp),
-                                    tint = MaterialTheme.colorScheme.primary)
+                                if (thumbnail != null) {
+                                    Image(bitmap = thumbnail!!.asImageBitmap(),
+                                        contentDescription = "Preview of " + media.displayName,
+                                        modifier = Modifier.fillMaxWidth().height(92.dp),
+                                        contentScale = ContentScale.Crop)
+                                } else {
+                                    Icon(if (media.mimeType.startsWith("video/")) Icons.Default.Movie
+                                        else if (media.mimeType.startsWith("audio/")) Icons.Default.MusicNote
+                                        else Icons.Default.Image, null,
+                                        modifier = Modifier.size(34.dp),
+                                        tint = MaterialTheme.colorScheme.primary)
+                                }
                                 Text(media.displayName, maxLines = 2,
                                     overflow = TextOverflow.Ellipsis,
                                     fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
