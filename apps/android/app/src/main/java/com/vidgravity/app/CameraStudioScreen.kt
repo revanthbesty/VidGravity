@@ -706,6 +706,6 @@ internal fun CameraStudioScreen(onClose: () -> Unit, onNotice: (String) -> Unit)
         title = { Text("Camera preferences") },
         text = { Text("Front/rear camera, flash, exposure, composition grid, photographic style and style intensity are remembered on this device. Styles are applied to exported photos; the live preview is not color-graded.") },
         confirmButton = { TextButton(onClick = { settings = false }) { Text("Done") } },
-        dismissButton = { TextButton(onClick = { front = false; gridMode = 1; framingGuide = "Off"; flash = ImageCapture.FLASH_MODE_OFF; style = 0; favoriteStyles = emptySet(); favoritesOnly = false; creatorPresets.clear(); savePresetDialog = false; presetName = ""; styleIntensity = 0.75f; exposure = 0f; zoomRatio = 1f; zoomRange = 1f..1f; activeCamera = null; prefs.edit().clear().apply(); settings = false }) { Text("Reset defaults") } }
+        dismissButton = { TextButton(onClick = { front = false; gridMode = 1; framingGuide = "Off"; flash = ImageCapture.FLASH_MODE_OFF; style = 0; favoriteStyles = emptySet(); favoritesOnly = false; creatorPresets.clear(); savePresetDialog = false; presetName = ""; styleIntensity = 0.75f; exposure = 0f; zoomRatio = 1f; zoomRange = 1f..1f; runCatching { providerFuture.get().unbindAll() }; activeCamera = null; error = null; prefs.edit().clear().apply(); settings = false; cameraRetryToken++ }) { Text("Reset defaults") } }
     )
 }
