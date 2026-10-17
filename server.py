@@ -596,13 +596,13 @@ class Handler(SimpleHTTPRequestHandler):
             if shutil.which('yt-dlp') is None:
                 return self._json(200,{'source':'direct','formats':[],'message':'yt-dlp is not installed'})
             try:
-                p=subprocess.run(_yt_dlp_command('--no-playlist','-J','--skip-download','--no-warnings',url),capture_output=True,text=True,timeout=30)
+                p=subprocess.run(_yt_dlp_command('--no-playlist','-J','--skip-download','--no-warnings',url),capture_output=True,text=True,timeout=60)
             except subprocess.TimeoutExpired:
                 return self._json(504,{'error':'Format inspection timed out while contacting the provider. Try a single video URL rather than a playlist, then retry.'})
             fallback_args=_youtube_android_fallback_args(url)
             if p.returncode!=0 and fallback_args:
                 try:
-                    p=subprocess.run(_yt_dlp_command(*fallback_args,'--no-playlist','-J','--skip-download','--no-warnings',url),capture_output=True,text=True,timeout=20)
+                    p=subprocess.run(_yt_dlp_command(*fallback_args,'--no-playlist','-J','--skip-download','--no-warnings',url),capture_output=True,text=True,timeout=45)
                 except subprocess.TimeoutExpired:
                     return self._json(504,{'error':'YouTube format inspection timed out on both supported extraction attempts. Try again later or check whether the video is publicly accessible.'})
             if p.returncode!=0:

@@ -1,14 +1,28 @@
 package com.vidgravity.app
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.Matrix
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import java.io.File
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -23,9 +37,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,6 +61,32 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private data class PhotoEditState(
+    val filter: String,
+    val intensity: Float,
+    val brightness: Float,
+    val contrast: Float,
+    val rotation: Int,
+    val crop: String
+)
+
+private fun bestAccentForeground(background: Color): Color {
+    fun linear(channel: Float): Float =
+        if (channel <= 0.04045f) channel / 12.92f else Math.pow(((channel + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
+    val luminance = 0.2126f * linear(background.red) +
+        0.7152f * linear(background.green) +
+        0.0722f * linear(background.blue)
+    val darkLuminance = 0.2126f * linear(VidGravityPalette.darkText.red) +
+        0.7152f * linear(VidGravityPalette.darkText.green) +
+        0.0722f * linear(VidGravityPalette.darkText.blue)
+    val lightLuminance = 0.2126f * linear(VidGravityPalette.lightText.red) +
+        0.7152f * linear(VidGravityPalette.lightText.green) +
+        0.0722f * linear(VidGravityPalette.lightText.blue)
+    val darkContrast = (luminance + 0.05f) / (darkLuminance + 0.05f)
+    val lightContrast = (lightLuminance + 0.05f) / (luminance + 0.05f)
+    return if (darkContrast >= lightContrast) VidGravityPalette.darkText else VidGravityPalette.lightText
+}
+
 private enum class VgTab(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Home("Home", Icons.Default.Home), Downloads("Downloads", Icons.Default.Download),
     Library("Library", Icons.Default.VideoLibrary), Create("Create", Icons.Default.AutoAwesome),
@@ -56,53 +98,142 @@ private enum class VgTab(val title: String, val icon: androidx.compose.ui.graphi
 private fun VidGravityApp(openInboxInitially: Boolean = false) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("vg-ui", 0) }
+    val queueTimestampPrefs = remember { context.getSharedPreferences("vg-download-queue-times", 0) }
     var dark by remember { mutableStateOf(prefs.getBoolean("dark", true)) }
+    var accentPreset by remember { mutableStateOf(VgAccentPreset.fromStored(prefs.getString("accent_preset", VgAccentPreset.VidGravity.name))) }
+    val accentPalette = accentPreset
     var selected by remember { mutableStateOf(VgTab.Home) }
     var showInbox by remember { mutableStateOf(openInboxInitially) }
     var creatorInitialMedia by remember { mutableStateOf<LibraryMedia?>(null) }
+    var cameraStudioOpen by remember { mutableStateOf(false) }
     var playingMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var url by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf<String?>(null) }
     var analysis by remember { mutableStateOf<SourceAnalysisResult?>(null) }
     var inspecting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    // VidGravity Premium UI tokens: Soft Slate + Muted Teal + selective Creative Violet.
     val scheme = if (dark) darkColorScheme(
-        primary = Color(0xFFB8A5FF), secondary = Color(0xFF8B7BFF),
-        background = Color(0xFF101014), surface = Color(0xFF19191F),
-        surfaceVariant = Color(0xFF25252D), onBackground = Color(0xFFF4F2FA),
-        onSurface = Color(0xFFF4F2FA)
+        primary = Color(0xFF8CC8BC),
+        onPrimary = Color(0xFF171F23),
+        primaryContainer = Color(0xFF304842),
+        onPrimaryContainer = Color(0xFFE6EEF0),
+        secondary = accentPalette.secondary,
+        onSecondary = bestAccentForeground(accentPalette.secondary),
+        tertiary = accentPalette.tertiary,
+        onTertiary = bestAccentForeground(accentPalette.tertiary),
+        background = Color(0xFF171F23),
+        surface = Color(0xFF202B30),
+        surfaceVariant = Color(0xFF29373D),
+        onBackground = Color(0xFFE6EEF0),
+        onSurface = Color(0xFFE6EEF0),
+        onSurfaceVariant = Color(0xFFAFBEC3),
+        outline = Color(0xFF38484E),
+        outlineVariant = Color(0xFF38484E)
     ) else lightColorScheme(
-        primary = Color(0xFF5B43D6), secondary = Color(0xFF735FE3),
-        background = Color(0xFFF7F7FB), surface = Color.White,
-        surfaceVariant = Color(0xFFECECF4)
+        primary = Color(0xFF286B66),
+        onPrimary = Color.White,
+        primaryContainer = Color(0xFFDDEBE7),
+        onPrimaryContainer = Color(0xFF205A56),
+        secondary = accentPalette.secondary,
+        onSecondary = VidGravityPalette.darkText,
+        secondaryContainer = Color(0xFFDDEBE7),
+        onSecondaryContainer = Color(0xFF205A56),
+        tertiary = accentPalette.tertiary,
+        onTertiary = bestAccentForeground(accentPalette.tertiary),
+        tertiaryContainer = Color(0xFFEAE7F3),
+        onTertiaryContainer = Color(0xFF30205E),
+        background = Color(0xFFE8EEED),
+        surface = Color(0xFFF1F5F4),
+        surfaceVariant = Color(0xFFDDE6E4),
+        onBackground = Color(0xFF26363B),
+        onSurface = Color(0xFF26363B),
+        onSurfaceVariant = Color(0xFF58696D),
+        outline = Color(0xFFCCDAD7),
+        outlineVariant = Color(0xFFD7E2DF)
     )
-    MaterialTheme(colorScheme = scheme) {
+    val vgShapes = Shapes(
+        extraSmall = RoundedCornerShape(8.dp),
+        small = RoundedCornerShape(12.dp),
+        medium = RoundedCornerShape(16.dp),
+        large = RoundedCornerShape(20.dp),
+        extraLarge = RoundedCornerShape(26.dp)
+    )
+    MaterialTheme(colorScheme = scheme, shapes = vgShapes) {
+        // Keep Android system Back inside the current VidGravity destination before
+        // leaving the app: close transient screens/sheets first, then return to Home.
+        BackHandler(
+            enabled = cameraStudioOpen || playingMedia != null || showInbox || analysis != null || selected != VgTab.Home
+        ) {
+            when {
+                cameraStudioOpen -> cameraStudioOpen = false
+                playingMedia != null -> playingMedia = null
+                showInbox -> showInbox = false
+                analysis != null -> analysis = null
+                selected != VgTab.Home -> selected = VgTab.Home
+            }
+        }
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
-                Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("VidGravity", fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
-                        Text("Your media, in one place", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                    }
-                    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant) {
-                        IconButton(onClick = { dark = !dark; prefs.edit().putBoolean("dark", dark).apply() }) {
-                            Icon(if (dark) Icons.Default.LightMode else Icons.Default.DarkMode, "Toggle theme")
+                // Hide global branding on focused destinations; Player and Share Inbox
+                // provide their own screen headers and back controls.
+                if (!cameraStudioOpen && playingMedia == null && !showInbox) {
+                    Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("VidGravity", fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
+                            Text("Your media, in one place", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                        }
+                        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant) {
+                            IconButton(onClick = { dark = !dark; prefs.edit().putBoolean("dark", dark).apply() }) {
+                                Icon(if (dark) Icons.Default.LightMode else Icons.Default.DarkMode, "Toggle theme")
+                            }
                         }
                     }
                 }
             },
             bottomBar = {
-                NavigationBar(modifier = Modifier.navigationBarsPadding(), containerColor = MaterialTheme.colorScheme.surface) {
-                    VgTab.values().forEach { tab ->
-                        NavigationBarItem(selected = selected == tab, onClick = { selected = tab },
-                            icon = { Icon(tab.icon, contentDescription = tab.title) }, label = { Text(tab.title, maxLines = 1) })
+                // Hide tab navigation for full-screen destinations so taps cannot silently change
+                // the tab underneath Player, Share Inbox, or Camera Studio.
+                if (!cameraStudioOpen && playingMedia == null && !showInbox) {
+                    NavigationBar(
+                        modifier = Modifier.navigationBarsPadding().border(
+                            width = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                            shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp)
+                        ),
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        tonalElevation = 2.dp
+                    ) {
+                        VgTab.values().forEach { tab ->
+                            NavigationBarItem(
+                                selected = selected == tab,
+                                onClick = { selected = tab },
+                                colors = NavigationBarItemDefaults.colors(
+                                    indicatorColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    selectedIconColor = when (tab) {
+                                        VgTab.Home -> VidGravityPalette.mint
+                                        VgTab.Downloads -> VidGravityPalette.softBlue
+                                        VgTab.Library -> VidGravityPalette.oceanCyan
+                                        VgTab.Create -> VidGravityPalette.lavender
+                                        VgTab.Settings -> VidGravityPalette.champagneGold
+                                    },
+                                    selectedTextColor = MaterialTheme.colorScheme.onSurface,
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                ),
+                                icon = { Icon(tab.icon, contentDescription = tab.title) },
+                                label = { Text(tab.title, maxLines = 1) }
+                            )
+                        }
                     }
                 }
             }
         ) { padding ->
             Column(Modifier.fillMaxSize().padding(padding)) {
-                if (playingMedia != null) {
+                if (cameraStudioOpen) {
+                    CameraStudioScreen(onClose = { cameraStudioOpen = false }, onNotice = { notice = it })
+                } else if (playingMedia != null) {
                     PlayerScreen(media = playingMedia!!, onBack = { playingMedia = null })
                 } else if (showInbox) {
                     ShareInboxContent(
@@ -124,7 +255,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create })
+                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create }, { cameraStudioOpen = true }, { selected = it }, { playingMedia = it })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     VgTab.Library -> LibraryContent(
                         onPlay = { playingMedia = it },
@@ -132,9 +263,14 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                     )
                     VgTab.Create -> CreateStudioContent(
                         onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true },
-                        initialMedia = creatorInitialMedia
+                        initialMedia = creatorInitialMedia, onOpenCamera = { cameraStudioOpen = true }
                     )
-                    VgTab.Settings -> SettingsContent(dark, { dark = it; prefs.edit().putBoolean("dark", it).apply() })
+                    VgTab.Settings -> SettingsContent(
+                        dark = dark,
+                        onDark = { dark = it; prefs.edit().putBoolean("dark", it).apply() },
+                        accentPreset = accentPreset,
+                        onAccentPreset = { preset -> accentPreset = preset; prefs.edit().putString("accent_preset", preset.name).apply() }
+                    )
                 }
             }
         }
@@ -399,13 +535,61 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     }
 }
 
+
+/** Shared primary action: signature teal-to-violet gradient, restrained depth and a large touch target. */
 @Composable
-private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit) {
+private fun VgPrimaryButton(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(16.dp)
+    val brush = if (enabled) Brush.linearGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.secondary,
+            MaterialTheme.colorScheme.tertiary,
+            MaterialTheme.colorScheme.primary
+        )
+    ) else Brush.linearGradient(
+        colors = listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant)
+    )
+    Row(
+        modifier = modifier
+            .background(brush, shape)
+            .border(1.dp, Color.White.copy(alpha = if (enabled) 0.28f else 0.08f), shape)
+            .then(if (enabled) Modifier.padding(top = 1.dp) else Modifier)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (icon != null) {
+            Icon(icon, contentDescription = null, tint = if (enabled) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(8.dp))
+        }
+        Text(
+            text = text,
+            color = if (enabled) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, onOpenCamera: () -> Unit, onTab: (VgTab) -> Unit, onPlay: (LibraryMedia) -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val activity = context as? ComponentActivity
     var clipboardSuggestion by remember { mutableStateOf<String?>(null) }
+    var recentMedia by remember { mutableStateOf(emptyList<LibraryMedia>()) }
+    suspend fun refreshRecentMedia() {
+        recentMedia = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context).take(8) }
+    }
+    LaunchedEffect(Unit) { runCatching { refreshRecentMedia() } }
+
     fun detectClipboardUrl() {
         val raw = runCatching {
             val manager = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -421,7 +605,10 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
         detectClipboardUrl()
         val lifecycle = activity?.lifecycle
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) detectClipboardUrl()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                detectClipboardUrl()
+                scope.launch { runCatching { refreshRecentMedia() } }
+            }
         }
         lifecycle?.addObserver(observer)
         onDispose { lifecycle?.removeObserver(observer) }
@@ -450,8 +637,17 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
             }
         }
         item {
-            Surface(shape = RoundedCornerShape(26.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
-                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Surface(
+                shape = RoundedCornerShape(26.dp),
+                color = Color.Transparent,
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF2876B9).copy(alpha = 0.55f))
+            ) {
+                Column(
+                    Modifier.fillMaxWidth().background(
+                        Brush.linearGradient(listOf(Color(0xFF071B38), Color(0xFF102B4D), Color(0xFF27134A), Color(0xFF073A49)))
+                    ).padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
                     Surface(
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
                         shape = RoundedCornerShape(50)
@@ -471,10 +667,28 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                         fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp)
                     Text("Paste a public video or audio link. Inspect available quality, then choose exactly what to save.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Surface(color = Color(0xFF24D7E8).copy(alpha = 0.15f), shape = RoundedCornerShape(10.dp)) {
+                            Icon(Icons.Default.Link, contentDescription = null, tint = Color(0xFF24D7E8), modifier = Modifier.padding(8.dp).size(20.dp))
+                        }
+                        Column {
+                            Text("Quick Download", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFFF5F8FF))
+                            Text("Paste a link to inspect available media", fontSize = 12.sp, color = Color(0xFFC6D9F4))
+                        }
+                    }
                     OutlinedTextField(value = url, onValueChange = onUrl, modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Paste one link or multiple links (one per line)") }, leadingIcon = { Icon(Icons.Default.Link, null) },
+                        placeholder = { Text("Paste video or audio link here…") }, leadingIcon = { Icon(Icons.Default.Link, null) },
                         trailingIcon = { IconButton(onClick = { clipboard.getText()?.text?.let(onUrl) }) { Icon(Icons.Default.ContentPaste, "Paste") } },
-                        shape = RoundedCornerShape(16.dp), minLines = 1, maxLines = 4)
+                        shape = RoundedCornerShape(16.dp), minLines = 1, maxLines = 4,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF23D5E8),
+                            unfocusedBorderColor = Color(0xFF7F9DBD),
+                            focusedTextColor = Color(0xFFF5F8FF),
+                            unfocusedTextColor = Color(0xFFF5F8FF),
+                            focusedPlaceholderColor = Color(0xFFB4C7E4),
+                            unfocusedPlaceholderColor = Color(0xFFB4C7E4),
+                            cursorColor = Color(0xFF23D5E8)
+                        ))
                     OutlinedButton(
                         onClick = {
                             val candidates = Regex("https?://[^\\s<>\\\"']+", RegexOption.IGNORE_CASE)
@@ -509,59 +723,240 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                         Spacer(Modifier.width(8.dp))
                         Text("Queue multiple links · best quality")
                     }
-                    Button(onClick = { if (url.startsWith("http://") || url.startsWith("https://")) inspect() else notify("Enter a complete public URL starting with https://") },
-                        modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
-                        Icon(Icons.Default.Search, null); Spacer(Modifier.width(8.dp)); Text("Inspect link")
-                    }
+                    VgPrimaryButton(
+                        text = "Inspect link",
+                        icon = Icons.Default.Search,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                        onClick = { if (url.startsWith("http://") || url.startsWith("https://")) inspect() else notify("Enter a complete public URL starting with https://") }
+                    )
                     Text("QUICK ACTIONS", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     LazyRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            contentPadding = PaddingValues(end = 4.dp)
-                        ) {
-                            items(listOf("♫ Sound Only", "✂ Status Clip Splitter")) { action ->
-                                Surface(
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
-                                    shape = RoundedCornerShape(18.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                                    modifier = Modifier.width(220.dp).heightIn(min = 112.dp).clickable {
-                                        if (url.isBlank()) notify("Paste a media URL first, then choose " + action + ".")
-                                        else if (action.contains("Sound")) {
-                                            scope.launch {
-                                                try {
-                                                    val result = withContext(Dispatchers.IO) { DownloadApi.analyzeSource(url.trim()) }
-                                                    // Some providers omit or mislabel the audio-only format metadata.
-                                                    // Ask yt-dlp for its best audio stream as a reliable fallback.
-                                                    val audio = result.formats.firstOrNull { it.hasAudio && !it.hasVideo }
-                                                    val selector = audio?.selector?.takeIf { it.isNotBlank() } ?: "bestaudio/best"
-                                                    val prefs = SecureDownloadPreferences.load(context)
-                                                    DownloadWorker.enqueue(
-                                                        context, url.trim(), selector, result.title + " — Audio",
-                                                        prefs.unmeteredOnly, audioOnly = true
-                                                    )
-                                                    notify("Sound Only queued. Audio will be converted to M4A when supported; check Downloads for status.")
-                                                } catch (failure: Exception) {
-                                                    notify("Could not prepare audio: " + (failure.message ?: "Please try again."))
-                                                }
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(end = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        items(listOf("♫ Sound Only", "✂ Status Clip Splitter")) { action ->
+                            val isSound = action.contains("Sound")
+                            Surface(
+                                color = MaterialTheme.colorScheme.surface,
+                                shape = RoundedCornerShape(18.dp),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.75f)
+                                ),
+                                shadowElevation = 3.dp,
+                                modifier = Modifier.width(196.dp).heightIn(min = 116.dp).clickable {
+                                    if (url.isBlank()) notify("Paste a media URL first, then choose " + action + ".")
+                                    else if (isSound) {
+                                        scope.launch {
+                                            try {
+                                                val result = withContext(Dispatchers.IO) { DownloadApi.analyzeSource(url.trim()) }
+                                                // Preserve existing audio selection and queue behavior.
+                                                val audio = result.formats.firstOrNull { it.hasAudio && !it.hasVideo }
+                                                val selector = audio?.selector?.takeIf { it.isNotBlank() } ?: "bestaudio/best"
+                                                val prefs = SecureDownloadPreferences.load(context)
+                                                DownloadWorker.enqueue(
+                                                    context, url.trim(), selector, result.title + " — Audio",
+                                                    prefs.unmeteredOnly, audioOnly = true
+                                                )
+                                                notify("Sound Only queued. Audio will be converted to M4A when supported; check Downloads for status.")
+                                            } catch (failure: Exception) {
+                                                notify("Could not prepare audio: " + (failure.message ?: "Please try again."))
                                             }
-                                        } else if (action.contains("Status Clip")) {
-                                            openCreate()
-                                            notify("In Create Studio, choose a local video and select a 30, 60, 90, or 120-second clip target.")
-                                        } else inspect()
+                                        }
+                                    } else {
+                                        openCreate()
+                                        notify("In Create Studio, choose a local video and select a 30, 60, 90, or 120-second clip target.")
                                     }
+                                }
+                            ) {
+                                Column(
+                                    Modifier.fillMaxWidth().padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text(action.substringBefore(" "), fontSize = 24.sp)
-                                        Text(action.substringAfter(" "), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                        Text("Tap to start", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Surface(
+                                        color = if (isSound) MaterialTheme.colorScheme.primaryContainer
+                                            else MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Icon(
+                                            if (isSound) Icons.Default.MusicNote else Icons.Default.ContentCut,
+                                            contentDescription = null,
+                                            tint = if (isSound) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary,
+                                            modifier = Modifier.padding(8.dp).size(22.dp)
+                                        )
                                     }
+                                    Text(
+                                        action.substringAfter(" "),
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text("Tap to start", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                    }
+                }
+            }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Your Creative Studio", fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                        Text("Capture, edit, play and organize", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    TextButton(onClick = { onTab(VgTab.Create) }) { Text("View all  ›") }
+                }
+                val studioTiles = listOf(
+                    Triple("Camera Studio", "Capture photos & videos", Icons.Default.PhotoCamera),
+                    Triple("Edit Media", "Trim, crop and create", Icons.Default.ContentCut),
+                    Triple("Player", "Play video and audio", Icons.Default.PlayCircle),
+                    Triple("Media Library", "Browse saved media", Icons.Default.VideoLibrary)
+                )
+                studioTiles.chunked(2).forEachIndexed { rowIndex, rowTiles ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        rowTiles.forEachIndexed { columnIndex, tile ->
+                            val index = rowIndex * 2 + columnIndex
+                            val accent = listOf(
+                                Color(0xFF16D8E8), Color(0xFFC56BFF),
+                                Color(0xFF48A8FF), Color(0xFFFFB454)
+                            )[index]
+                            val destination = when (index) {
+                                0, 1 -> VgTab.Create
+                                2, 3 -> VgTab.Library
+                                else -> VgTab.Create
+                            }
+                            Surface(
+                                modifier = Modifier.weight(1f).heightIn(min = 124.dp).clickable {
+                                    when (index) {
+                                        0 -> onOpenCamera()
+                                        2 -> recentMedia.firstOrNull()?.let(onPlay) ?: onTab(VgTab.Library)
+                                        else -> onTab(destination)
+                                    }
+                                },
+                                shape = RoundedCornerShape(20.dp),
+                                color = Color.Transparent,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.58f))
+                            ) {
+                                Column(
+                                    Modifier.fillMaxWidth().background(
+                                        Brush.linearGradient(listOf(accent.copy(alpha = 0.25f), MaterialTheme.colorScheme.surface, MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)))
+                                    ).padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(9.dp)
+                                ) {
+                                    Surface(color = accent.copy(alpha = 0.18f), shape = RoundedCornerShape(12.dp)) {
+                                        Icon(tile.third, contentDescription = null, tint = accent, modifier = Modifier.padding(9.dp).size(25.dp))
+                                    }
+                                    Text(tile.first, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(tile.second, fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }
                     }
                 }
             }
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Recent Media", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { onTab(VgTab.Library) }) { Text("View all  ›") }
+                }
+                if (recentMedia.isEmpty()) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth().clickable { onTab(VgTab.Library) },
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.VideoLibrary, null, tint = Color(0xFF35D8E8), modifier = Modifier.size(28.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text("Your media will appear here", fontWeight = FontWeight.SemiBold)
+                                Text("Capture a photo or download a file to get started.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                } else {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(end = 12.dp)) {
+                        items(recentMedia, key = { it.uri.toString() }) { media ->
+                            val accent = when {
+                                media.mimeType.startsWith("video/") -> Color(0xFF43B7FF)
+                                media.mimeType.startsWith("image/") -> Color(0xFF29D6C8)
+                                media.mimeType.startsWith("audio/") -> Color(0xFFC084FC)
+                                else -> Color(0xFFFFB454)
+                            }
+                            Surface(
+                                modifier = Modifier.width(150.dp).heightIn(min = 112.dp).clickable { onPlay(media) },
+                                shape = RoundedCornerShape(16.dp),
+                                color = accent.copy(alpha = 0.10f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.52f))
+                            ) {
+                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(
+                                        when {
+                                            media.mimeType.startsWith("video/") -> Icons.Default.PlayCircle
+                                            media.mimeType.startsWith("image/") -> Icons.Default.Image
+                                            media.mimeType.startsWith("audio/") -> Icons.Default.MusicNote
+                                            else -> Icons.Default.InsertDriveFile
+                                        },
+                                        contentDescription = null, tint = accent, modifier = Modifier.size(27.dp)
+                                    )
+                                    Text(media.displayName, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        when {
+                                            media.mimeType.startsWith("video/") -> "Video"
+                                            media.mimeType.startsWith("image/") -> "Photo"
+                                            media.mimeType.startsWith("audio/") -> "Audio"
+                                            else -> "Media"
+                                        },
+                                        fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Quick Actions", fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(
+                        Triple("Downloads", Icons.Default.Download, Color(0xFF22D3EE)),
+                        Triple("Take Photo", Icons.Default.PhotoCamera, Color(0xFF2DD4BF)),
+                        Triple("Library", Icons.Default.VideoLibrary, Color(0xFFC084FC))
+                    ).forEachIndexed { index, action ->
+                        Surface(
+                            modifier = Modifier.weight(1f).heightIn(min = 82.dp).clickable {
+                                when (index) { 0 -> onTab(VgTab.Downloads); 1 -> onOpenCamera(); else -> onTab(VgTab.Library) }
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            color = action.third.copy(alpha = 0.12f),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, action.third.copy(alpha = 0.55f))
+                        ) {
+                            Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Icon(action.second, contentDescription = null, tint = action.third, modifier = Modifier.size(23.dp))
+                                Text(
+                                    action.first,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 2,
+                                    textAlign = TextAlign.Center,
+                                    softWrap = true,
+                                    lineHeight = 13.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 InfoCard("Downloads", "Real transfer status", Icons.Default.Download, Modifier.weight(1f))
@@ -579,6 +974,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
 @Composable
 private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val queueTimestampPrefs = remember { context.getSharedPreferences("vg-download-queue-times", 0) }
     val clipboard = LocalClipboardManager.current
     var expandedErrors by remember { mutableStateOf(setOf<java.util.UUID>()) }
     var downloadFilter by remember { mutableStateOf("All") }
@@ -632,8 +1028,14 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             }
             val sortedMatchedWorks = when (downloadSort) {
-                "Newest" -> matchedWorks
-                "Oldest" -> matchedWorks.reversed()
+                "Newest" -> matchedWorks.sortedWith(
+                    compareByDescending<WorkInfo> { queueTimestampPrefs.getLong(it.id.toString(), it.progress.getLong("queued_at_ms", 0L)) }
+                        .thenByDescending { it.id.toString() }
+                )
+                "Oldest" -> matchedWorks.sortedWith(
+                    compareBy<WorkInfo> { queueTimestampPrefs.getLong(it.id.toString(), it.progress.getLong("queued_at_ms", 0L)) }
+                        .thenBy { it.id.toString() }
+                )
                 "Name A–Z" -> matchedWorks.sortedBy { work ->
                     (work.outputData.getString("display_name") ?: work.outputData.getString("filename")
                         ?: work.progress.getString("media_title") ?: "Media download").lowercase()
@@ -648,32 +1050,63 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                     !(work.outputData.getString(DownloadWorker.RETRY_URL)
                         ?: work.progress.getString("media_url")).isNullOrBlank()
             }
-            var sortMenuExpanded by remember { mutableStateOf(false) }
-            var filterMenuExpanded by remember { mutableStateOf(false) }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            var organizeMenuExpanded by remember { mutableStateOf(false) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
-                    OutlinedButton(onClick = { filterMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
-                        Icon(Icons.Default.FilterList, null); Spacer(Modifier.width(6.dp)); Text(if (downloadFilter == "All") "Filter" else "Filter · " + downloadFilter)
+                    OutlinedButton(onClick = { organizeMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                        Icon(Icons.Default.FilterList, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Filter & sort", maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    DropdownMenu(expanded = filterMenuExpanded, onDismissRequest = { filterMenuExpanded = false }) {
+                    DropdownMenu(expanded = organizeMenuExpanded, onDismissRequest = { organizeMenuExpanded = false }) {
+                        DropdownMenuItem(text = { Text("FILTER BY", fontWeight = FontWeight.Bold) }, onClick = {}, enabled = false)
                         listOf("All", "Active", "Completed", "Failed").forEach { option ->
-                            DropdownMenuItem(text = { Text(option) }, onClick = { downloadFilter = option; filterMenuExpanded = false })
+                            DropdownMenuItem(
+                                text = { Text(option + if (downloadFilter == option) " ✓" else "") },
+                                onClick = { downloadFilter = option; organizeMenuExpanded = false }
+                            )
+                        }
+                        Divider()
+                        DropdownMenuItem(text = { Text("SORT BY", fontWeight = FontWeight.Bold) }, onClick = {}, enabled = false)
+                        listOf("Newest", "Oldest", "Name A–Z", "Progress").forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option + if (downloadSort == option) " ✓" else "") },
+                                onClick = { downloadSort = option; organizeMenuExpanded = false }
+                            )
                         }
                     }
                 }
-                Box(Modifier.weight(1f)) {
-                    OutlinedButton(onClick = { sortMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
-                        Icon(Icons.Default.Sort, null); Spacer(Modifier.width(6.dp)); Text("Sort · " + downloadSort)
-                    }
-                    DropdownMenu(expanded = sortMenuExpanded, onDismissRequest = { sortMenuExpanded = false }) {
-                        listOf("Newest", "Oldest", "Name A–Z", "Progress").forEach { option ->
-                            DropdownMenuItem(text = { Text(option) }, onClick = { downloadSort = option; sortMenuExpanded = false })
-                        }
-                    }
+                IconButton(onClick = { showDownloadFilters = !showDownloadFilters }, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Default.Search, contentDescription = if (showDownloadFilters) "Hide download search" else "Search downloads")
+                }
+            }
+            if (showDownloadFilters) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = downloadSearch,
+                        onValueChange = { downloadSearch = it },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        label = { Text("Search downloads") },
+                        placeholder = { Text("Title, link, status or error") }
+                    )
+                    TextButton(onClick = {
+                        downloadSearch = ""
+                        downloadFilter = "All"
+                        downloadSort = "Newest"
+                    }) { Text("Reset") }
                 }
             }
             filteredWorks.forEach { work ->
                     val progress = work.progress.getInt("progress", 0).coerceIn(0, 100)
+                    val statusAccent = when (work.state) {
+                        WorkInfo.State.SUCCEEDED -> VidGravityPalette.mint
+                        WorkInfo.State.FAILED -> VidGravityPalette.coral
+                        WorkInfo.State.RUNNING -> VidGravityPalette.oceanCyan
+                        WorkInfo.State.ENQUEUED -> VidGravityPalette.warmAmber
+                        WorkInfo.State.CANCELLED -> VidGravityPalette.silverBlue
+                        else -> MaterialTheme.colorScheme.primary
+                    }
                     val paused = DownloadActionReceiver.isPaused(context, work.id)
                     val title = work.outputData.getString("display_name") ?: work.outputData.getString("filename") ?: work.progress.getString("media_title") ?: "Media download"
                     val downloaded = work.progress.getLong("bytes_downloaded", 0L).coerceAtLeast(0L)
@@ -694,7 +1127,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                 }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(work.state.name.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        color = statusAccent)
                                     if (sourceUrl.isNotBlank()) {
                                         IconButton(onClick = {
                                             clipboard.setText(androidx.compose.ui.text.AnnotatedString(sourceUrl))
@@ -760,7 +1193,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                     }
                                 }
                             }
-                            LinearProgressIndicator(progress = { progress / 100f }, modifier = Modifier.fillMaxWidth())
+                            LinearProgressIndicator(progress = { progress / 100f }, color = statusAccent, trackColor = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth())
                             if (work.state == WorkInfo.State.RUNNING || work.state == WorkInfo.State.ENQUEUED) {
                                 Text(String.format("%.1f MB", downloaded / 1_000_000.0) +
                                     (if (total > 0L) " / " + String.format("%.1f MB", total / 1_000_000.0) else " downloaded"),
@@ -902,10 +1335,19 @@ private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, o
                             Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             Text(item.url, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = { onInspect(item.url) }) { Text("Inspect") }
-                                OutlinedButton(onClick = { onOpen(item.url) }) { Text("Open source") }
-                                IconButton(onClick = { ShareInboxStore.remove(context, item.id); items = ShareInboxStore.list(context) }) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Button(
+                                    onClick = { onInspect(item.url) },
+                                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                                ) { Text("Inspect", maxLines = 1) }
+                                OutlinedButton(
+                                    onClick = { onOpen(item.url) },
+                                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                                ) { Text("Open source", maxLines = 1) }
+                                IconButton(
+                                    onClick = { ShareInboxStore.remove(context, item.id); items = ShareInboxStore.list(context) },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
                                     Icon(Icons.Default.DeleteOutline, "Remove saved link")
                                 }
                             }
@@ -933,6 +1375,8 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
     var selectedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showBulkDeleteConfirm by remember { mutableStateOf(false) }
     var swipeFeedOpen by remember { mutableStateOf(false) }
+    // Close the nested Library feed before the app-level handler changes tabs.
+    BackHandler(enabled = swipeFeedOpen) { swipeFeedOpen = false }
     val scope = rememberCoroutineScope()
     suspend fun refreshMedia() { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
     LaunchedEffect(Unit) { refreshMedia() }
@@ -995,7 +1439,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         )
         return
     }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(Modifier.fillMaxSize().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Your library", fontSize = 27.sp, fontWeight = FontWeight.Bold)
@@ -1005,42 +1449,93 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Swipe Feed")
             }
         }
-        var libraryFilterMenuExpanded by remember { mutableStateOf(false) }
-        var librarySortMenuExpanded by remember { mutableStateOf(false) }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.weight(1f)) {
-                OutlinedButton(onClick = { libraryFilterMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
-                    Icon(Icons.Default.FilterList, null); Spacer(Modifier.width(6.dp)); Text(if (filter == "All Media" && sizeFilter == "Any size") "Filter" else "Filter · Applied")
+        var libraryOrganizeMenuExpanded by remember { mutableStateOf(false) }
+        Row(Modifier.fillMaxWidth()) {
+            Box(Modifier.fillMaxWidth()) {
+                OutlinedButton(
+                    onClick = { libraryOrganizeMenuExpanded = true },
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                ) {
+                    Icon(Icons.Default.FilterList, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Filter & sort", maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                DropdownMenu(expanded = libraryFilterMenuExpanded, onDismissRequest = { libraryFilterMenuExpanded = false }) {
+                DropdownMenu(expanded = libraryOrganizeMenuExpanded, onDismissRequest = { libraryOrganizeMenuExpanded = false }) {
+                    DropdownMenuItem(text = { Text("FILTER BY", fontWeight = FontWeight.Bold) }, onClick = {}, enabled = false)
                     listOf("All Media", "Video", "Audio", "Images", "Other Files", "Favorites").forEach { option ->
-                        DropdownMenuItem(text = { Text(option + if (filter == option) " ✓" else "") }, onClick = { filter = option; libraryFilterMenuExpanded = false })
+                        DropdownMenuItem(
+                            text = { Text(option + if (filter == option) " ✓" else "") },
+                            onClick = { filter = option; libraryOrganizeMenuExpanded = false }
+                        )
                     }
                     Divider()
+                    DropdownMenuItem(text = { Text("SIZE", fontWeight = FontWeight.Bold) }, onClick = {}, enabled = false)
                     listOf("Any size", "Under 10 MB", "10–100 MB", "Over 100 MB", "Unknown size").forEach { option ->
-                        DropdownMenuItem(text = { Text(option + if (sizeFilter == option) " ✓" else "") }, onClick = { sizeFilter = option; libraryFilterMenuExpanded = false })
+                        DropdownMenuItem(
+                            text = { Text(option + if (sizeFilter == option) " ✓" else "") },
+                            onClick = { sizeFilter = option; libraryOrganizeMenuExpanded = false }
+                        )
                     }
-                }
-            }
-            Box(Modifier.weight(1f)) {
-                OutlinedButton(onClick = { librarySortMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
-                    Icon(Icons.Default.Sort, null); Spacer(Modifier.width(6.dp)); Text("Sort · " + sortBy)
-                }
-                DropdownMenu(expanded = librarySortMenuExpanded, onDismissRequest = { librarySortMenuExpanded = false }) {
+                    Divider()
+                    DropdownMenuItem(text = { Text("SORT BY", fontWeight = FontWeight.Bold) }, onClick = {}, enabled = false)
                     listOf("Newest", "Oldest", "Name A-Z", "Largest", "Smallest", "Type", "Extension").forEach { option ->
-                        DropdownMenuItem(text = { Text(option) }, onClick = { sortBy = option; librarySortMenuExpanded = false })
+                        DropdownMenuItem(
+                            text = { Text(option + if (sortBy == option) " ✓" else "") },
+                            onClick = { sortBy = option; libraryOrganizeMenuExpanded = false }
+                        )
                     }
                 }
             }
         }
+            if (selectedUris.isNotEmpty()) {
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "${selectedUris.size} selected",
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        TextButton(onClick = { selectedUris = emptySet() }) {
+                            Text("Clear")
+                        }
+                        Button(
+                            onClick = { showBulkDeleteConfirm = true },
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        ) {
+                            Icon(Icons.Default.DeleteOutline, null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Delete")
+                        }
+                    }
+                }
+            }
         if (visibleMedia.isEmpty()) {
-            InfoCard(
-                if (searchQuery.isNotBlank()) "No matching media" else if (filter == "Favorites") "No favorites yet" else "Your library is empty",
-                if (searchQuery.isNotBlank()) "Try another title or clear the search." else "Completed downloads saved by VidGravity will appear here. Use Downloads to check failed transfers.",
-                Icons.Default.VideoLibrary, Modifier.fillMaxWidth()
-            )
+            val libraryEmptyTitle = when {
+                media.isEmpty() -> "Your library is empty"
+                searchQuery.isNotBlank() -> "No matching media"
+                filter == "Favorites" && favoriteCount == 0 -> "No favorites yet"
+                filter != "All Media" || sizeFilter != "Any size" -> "No media matches these filters"
+                else -> "No matching media"
+            }
+            val libraryEmptyMessage = when {
+                media.isEmpty() -> "Completed downloads and captured media saved by VidGravity will appear here. Use Downloads to check failed transfers."
+                searchQuery.isNotBlank() -> "Try another title or clear the search."
+                filter == "Favorites" && favoriteCount == 0 -> "Mark an item as a favorite to find it here."
+                filter != "All Media" || sizeFilter != "Any size" -> "Change or reset the filters to see more of your library."
+                else -> "Try changing your search or filter."
+            }
+            InfoCard(libraryEmptyTitle, libraryEmptyMessage, Icons.Default.VideoLibrary, Modifier.fillMaxWidth())
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(visibleMedia, key = { it.uri.toString() }) { item ->
                     Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp),
                         modifier = Modifier.fillMaxWidth().clickable { onPlay(item) }) {
@@ -1061,20 +1556,66 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                                 Text(String.format("%.1f MB", item.sizeBytes / 1_000_000.0), fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = {
-                                    scope.launch {
-                                        withContext(Dispatchers.IO) { MediaLibraryIndexer.setFavorite(context, item.uri, !item.isFavorite) }
-                                        refreshMedia()
-                                    }
-                                }) { Icon(if (item.isFavorite) Icons.Default.Star else Icons.Default.StarBorder, "Favorite", tint = if (item.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
-                                IconButton(onClick = { renameTarget = item; renameText = item.displayName.substringBeforeLast(".", item.displayName) }) { Icon(Icons.Default.Edit, "Rename") }
-                                IconButton(onClick = { deleteTarget = item }) { Icon(Icons.Default.Delete, "Delete") }
-                                IconButton(onClick = {
-                                    val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = item.mimeType; putExtra(android.content.Intent.EXTRA_STREAM, item.uri); addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-                                    context.startActivity(android.content.Intent.createChooser(share, "Share media"))
-                                }) { Icon(Icons.Default.Share, "Share") }
-                                IconButton(onClick = { onPlay(item) }) { Icon(Icons.Default.PlayCircle, "Play", tint = MaterialTheme.colorScheme.primary) }
+                            var mediaActionsExpanded by remember(item.uri) { mutableStateOf(false) }
+                            Box {
+                                IconButton(
+                                    onClick = { mediaActionsExpanded = true },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(Icons.Default.MoreVert, "Media actions")
+                                }
+                                DropdownMenu(
+                                    expanded = mediaActionsExpanded,
+                                    onDismissRequest = { mediaActionsExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(if (item.isFavorite) "Remove favorite" else "Add to favorites") },
+                                        leadingIcon = { Icon(if (item.isFavorite) Icons.Default.Star else Icons.Default.StarBorder, null) },
+                                        onClick = {
+                                            mediaActionsExpanded = false
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) { MediaLibraryIndexer.setFavorite(context, item.uri, !item.isFavorite) }
+                                                refreshMedia()
+                                            }
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Rename") },
+                                        leadingIcon = { Icon(Icons.Default.Edit, null) },
+                                        onClick = {
+                                            mediaActionsExpanded = false
+                                            renameTarget = item
+                                            renameText = item.displayName.substringBeforeLast(".", item.displayName)
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete") },
+                                        leadingIcon = { Icon(Icons.Default.DeleteOutline, null) },
+                                        onClick = { mediaActionsExpanded = false; deleteTarget = item }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Share") },
+                                        leadingIcon = { Icon(Icons.Default.Share, null) },
+                                        onClick = {
+                                            mediaActionsExpanded = false
+                                            runCatching {
+                                                val share = Intent(Intent.ACTION_SEND).apply {
+                                                    type = item.mimeType
+                                                    putExtra(Intent.EXTRA_STREAM, item.uri)
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                                context.startActivity(Intent.createChooser(share, "Share media"))
+                                            }.onFailure {
+                                                android.widget.Toast.makeText(context, "Could not share this media item.", android.widget.Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Play") },
+                                        leadingIcon = { Icon(Icons.Default.PlayCircle, null) },
+                                        onClick = { mediaActionsExpanded = false; onPlay(item) }
+                                    )
+                                }
                             }
                         }
                     }
@@ -1101,7 +1642,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         )
     }
     if (showBulkDeleteConfirm) {
-        val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+        val chosen = media.filter { it.uri.toString() in selectedUris }
         AlertDialog(
             onDismissRequest = { showBulkDeleteConfirm = false },
             title = { Text("Delete selected media?") },
@@ -1143,7 +1684,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
 }
 
 @Composable
-private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, initialMedia: LibraryMedia? = null) {
+private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, initialMedia: LibraryMedia? = null, onOpenCamera: () -> Unit = {}) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var selectedMedia by remember(initialMedia) { mutableStateOf(initialMedia) }
@@ -1154,6 +1695,57 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     var statusClipSeconds by remember { mutableStateOf(90) }
     var exportedUri by remember { mutableStateOf<Uri?>(null) }
     var stickerUri by remember { mutableStateOf<Uri?>(null) }
+    var photoEditorOpen by remember { mutableStateOf(false) }
+    var photoFilter by remember { mutableStateOf("Original") }
+    var photoIntensity by remember { mutableFloatStateOf(0.65f) }
+    var photoBrightness by remember { mutableFloatStateOf(0f) }
+    var photoContrast by remember { mutableFloatStateOf(0f) }
+    var photoRotation by remember { mutableIntStateOf(0) }
+    var photoCrop by remember { mutableStateOf("Original") }
+    var photoPreview by remember { mutableStateOf<Bitmap?>(null) }
+    var photoExporting by remember { mutableStateOf(false) }
+    val photoUndo = remember { mutableStateListOf<PhotoEditState>() }
+    val photoRedo = remember { mutableStateListOf<PhotoEditState>() }
+    // Nested creator workspaces consume system Back before the app-level tab handler.
+    BackHandler(enabled = photoEditorOpen || storyEditorOpen) {
+        when {
+            photoEditorOpen -> {
+                photoEditorOpen = false
+                photoPreview = null
+            }
+            storyEditorOpen -> storyEditorOpen = false
+        }
+    }
+    fun currentPhotoEdit() = PhotoEditState(photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation, photoCrop)
+    fun rememberPhotoEdit() {
+        photoUndo.add(currentPhotoEdit())
+        if (photoUndo.size > 30) photoUndo.removeAt(0)
+        photoRedo.clear()
+    }
+    fun restorePhotoEdit(state: PhotoEditState) {
+        photoFilter = state.filter
+        photoIntensity = state.intensity
+        photoBrightness = state.brightness
+        photoContrast = state.contrast
+        photoRotation = state.rotation
+        photoCrop = state.crop
+    }
+    val photoFilters = listOf("Original", "Mono", "Warm", "Cool", "Vintage", "Dramatic", "Fade", "Sepia", "Teal", "Punch")
+    LaunchedEffect(selectedMedia?.uri, photoEditorOpen, photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation, photoCrop) {
+        val media = selectedMedia
+        if (photoEditorOpen && media != null && media.mimeType.startsWith("image/")) {
+            val nextPreview = withContext(Dispatchers.IO) {
+                runCatching {
+                    // Preview decode is deliberately bounded to keep high-resolution phone photos
+                    // from allocating multiple full-size bitmaps on every slider movement.
+                    val source = decodePhotoBitmap(context, media.uri, 1440)
+                        ?: error("Unable to decode image preview")
+                    try { applyVidGravityPhotoFilter(source, photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation, photoCrop) } finally { source.recycle() }
+                }.getOrNull()
+            }
+            photoPreview = nextPreview
+        }
+    }
     val picker = rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -1178,6 +1770,99 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             stickerUri = null
             notify("Media selected. Preview, share, or create a 9:16 story or animated sticker.")
         }
+    }
+    if (photoEditorOpen && selectedMedia != null && selectedMedia!!.mimeType.startsWith("image/")) {
+        val media = selectedMedia!!
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { photoEditorOpen = false; photoPreview = null }) { Icon(Icons.Default.ArrowBack, "Back") }
+                Column(Modifier.weight(1f)) {
+                    Text("Photo Filters", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text("Original image stays unchanged", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
+                Box(Modifier.fillMaxWidth().heightIn(min = 240.dp, max = 420.dp), contentAlignment = Alignment.Center) {
+                    val bitmap = photoPreview
+                    if (bitmap != null) Image(bitmap.asImageBitmap(), contentDescription = "Edited photo preview", modifier = Modifier.fillMaxWidth().heightIn(max = 420.dp), contentScale = ContentScale.Fit)
+                    else CircularProgressIndicator()
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    if (photoUndo.isNotEmpty()) {
+                        photoRedo.add(currentPhotoEdit())
+                        val previous = photoUndo.removeAt(photoUndo.lastIndex)
+                        restorePhotoEdit(previous)
+                    }
+                }, enabled = photoUndo.isNotEmpty() && !photoExporting, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.Undo, null); Spacer(Modifier.width(6.dp)); Text("Undo")
+                }
+                OutlinedButton(onClick = {
+                    if (photoRedo.isNotEmpty()) {
+                        photoUndo.add(currentPhotoEdit())
+                        val next = photoRedo.removeAt(photoRedo.lastIndex)
+                        restorePhotoEdit(next)
+                    }
+                }, enabled = photoRedo.isNotEmpty() && !photoExporting, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.Redo, null); Spacer(Modifier.width(6.dp)); Text("Redo")
+                }
+                OutlinedButton(onClick = {
+                    rememberPhotoEdit()
+                    restorePhotoEdit(PhotoEditState("Original", 0.65f, 0f, 0f, 0, "Original"))
+                }, enabled = !photoExporting, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.RestartAlt, null); Spacer(Modifier.width(6.dp)); Text("Reset")
+                }
+            }
+            Text("Undo history · " + photoUndo.size + "/30", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("FILTER PRESET", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(photoFilters) { preset -> FilterChip(selected = photoFilter == preset, onClick = { if (photoFilter != preset) { rememberPhotoEdit(); photoFilter = preset } }, label = { Text(preset) }) }
+            }
+            Text("Filter intensity · " + (photoIntensity * 100).toInt() + "%", fontWeight = FontWeight.SemiBold)
+            Slider(value = photoIntensity, onValueChange = { if (photoIntensity != it) { rememberPhotoEdit(); photoIntensity = it } }, valueRange = 0f..1f, enabled = photoFilter != "Original")
+            Text("Intensity changes the strength of the selected look. Export creates a separate copy.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("Brightness · " + (photoBrightness * 100).toInt(), fontWeight = FontWeight.SemiBold)
+            Slider(value = photoBrightness, onValueChange = { if (photoBrightness != it) { rememberPhotoEdit(); photoBrightness = it } }, valueRange = -1f..1f)
+            Text("Contrast · " + (photoContrast * 100).toInt(), fontWeight = FontWeight.SemiBold)
+            Slider(value = photoContrast, onValueChange = { if (photoContrast != it) { rememberPhotoEdit(); photoContrast = it } }, valueRange = -1f..1f)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedButton(onClick = { rememberPhotoEdit(); photoRotation = (photoRotation + 270) % 360 }) { Icon(Icons.Default.RotateLeft, null); Spacer(Modifier.width(4.dp)); Text("Rotate left") }
+                OutlinedButton(onClick = { rememberPhotoEdit(); photoRotation = (photoRotation + 90) % 360 }) { Icon(Icons.Default.RotateRight, null); Spacer(Modifier.width(4.dp)); Text("Rotate right") }
+                Text(photoRotation.toString() + "°", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text("Crop aspect ratio", fontWeight = FontWeight.SemiBold)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(listOf("Original", "1:1", "4:5", "16:9")) { ratio ->
+                    FilterChip(selected = photoCrop == ratio, onClick = { if (photoCrop != ratio) { rememberPhotoEdit(); photoCrop = ratio } }, label = { Text(ratio) })
+                }
+            }
+            Button(onClick = {
+                if (!photoExporting) scope.launch {
+                    photoExporting = true
+                    try {
+                        val saved = withContext(Dispatchers.IO) {
+                            val original = decodePhotoBitmap(context, media.uri, 4096) ?: error("Could not decode the selected image. Try a smaller image if your device has limited memory.")
+                            val edited = try { applyVidGravityPhotoFilter(original, photoFilter, photoIntensity, photoBrightness, photoContrast, photoRotation, photoCrop) } finally { original.recycle() }
+                            val temp = File(context.cacheDir, "vg-edit-" + System.currentTimeMillis() + ".jpg")
+                            try {
+                                temp.outputStream().use { output -> if (!edited.compress(Bitmap.CompressFormat.JPEG, 95, output)) error("Image encoding failed.") }
+                                com.vidgravity.app.MediaLibraryIndexer.publish(context, temp, "vidgravity-edited-" + System.currentTimeMillis() + ".jpg", sha256FileForPhoto(temp))
+                            } finally { edited.recycle(); temp.delete() }
+                        }
+                        notify("Edited copy saved to VidGravity Library: " + saved.displayName)
+                        photoEditorOpen = false
+                        photoPreview = null
+                    } catch (failure: Exception) { notify(("Photo export failed: " + (failure.message ?: "Please try again.")).take(240)) }
+                    finally { photoExporting = false }
+                }
+            }, modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp), enabled = !photoExporting && photoPreview != null) {
+                if (photoExporting) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else Icon(Icons.Default.SaveAlt, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (photoExporting) "Exporting edited copy…" else "Export edited copy to Library")
+            }
+        }
+        return
     }
     if (storyEditorOpen && selectedMedia != null) {
         StoryCardScreen(
@@ -1232,28 +1917,20 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
         return
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(
-                onClick = { picker.launch(arrayOf("video/*", "audio/*", "image/*")) },
-                modifier = Modifier.weight(1f).heightIn(min = 58.dp)
-            ) {
-                Icon(Icons.Default.FolderOpen, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Media")
-            }
-            Button(
-                onClick = {
-                    runCatching {
-                        context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
-                    }.onFailure { notify("Could not open camera: ${it.message ?: "try again"}") }
-                },
-                modifier = Modifier.weight(1f).heightIn(min = 58.dp)
-            ) {
-                Icon(Icons.Default.PhotoCamera, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Camera")
-            }
-        }
+        // Keep the two primary Create Studio entry points consistent with the intended
+        // workflow: choose existing media first, or open the camera to capture new media.
+        VgPrimaryButton(
+            text = "Media",
+            icon = Icons.Default.FolderOpen,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp),
+            onClick = { picker.launch(arrayOf("video/*", "audio/*", "image/*")) }
+        )
+        VgPrimaryButton(
+            text = "Camera",
+            icon = Icons.Default.PhotoCamera,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp),
+            onClick = onOpenCamera
+        )
         selectedMedia?.let { media ->
             Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(18.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1276,9 +1953,18 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                             Icon(Icons.Default.Share, null); Spacer(Modifier.width(5.dp)); Text("Share original")
                         }
                     }
-                    Button(onClick = { storyEditorOpen = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
-                        Icon(Icons.Default.AutoAwesome, null); Spacer(Modifier.width(8.dp)); Text("Create 9:16 Story / Status")
+                    if (media.mimeType.startsWith("image/")) {
+                        OutlinedButton(onClick = { photoFilter = "Original"; photoIntensity = 0.65f; photoEditorOpen = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 50.dp)) {
+                            Icon(Icons.Default.AutoFixHigh, null); Spacer(Modifier.width(8.dp)); Text("Edit photo · Filters")
+                        }
                     }
+                    VgPrimaryButton(
+                        text = "Create 9:16 Story / Status",
+                        icon = Icons.Default.AutoAwesome,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                        enabled = !isRendering && segmentJob == null,
+                        onClick = { storyEditorOpen = true }
+                    )
                     Text("STATUS CLIP LENGTH", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1472,7 +2158,88 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             }
         }
 
+        // Keep Share Inbox reachable from Create Studio without adding another top-level action.
+        TextButton(
+            onClick = openInbox,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+        ) {
+            Icon(Icons.Default.Inbox, null)
+            Spacer(Modifier.width(8.dp))
+            Text("Open Share Inbox")
+        }
     }
+}
+
+private fun decodePhotoBitmap(context: android.content.Context, uri: Uri, maxDimension: Int): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    var sample = 1
+    while (maxOf(bounds.outWidth / sample, bounds.outHeight / sample) > maxDimension && sample <= (1 shl 14)) {
+        sample *= 2
+    }
+    val options = BitmapFactory.Options().apply {
+        inSampleSize = sample
+        inPreferredConfig = Bitmap.Config.ARGB_8888
+    }
+    return context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) }
+}
+
+private fun applyVidGravityPhotoFilter(source: Bitmap, preset: String, intensity: Float, brightness: Float = 0f, contrast: Float = 0f, rotationDegrees: Int = 0, cropAspect: String = "Original"): Bitmap {
+    val amount = intensity.coerceIn(0f, 1f)
+    val saturation = when (preset) {
+        "Mono" -> 1f - amount
+        "Vintage", "Fade" -> 1f - amount * 0.35f
+        "Dramatic", "Punch" -> 1f + amount * 0.45f
+        else -> 1f
+    }
+    val matrix = ColorMatrix().apply { setSaturation(saturation) }
+    val values = when (preset) {
+        "Warm" -> floatArrayOf(1f + .10f * amount,0f,0f,0f,18f*amount, 0f,1f+.015f*amount,0f,0f,3f*amount, 0f,0f,1f-.10f*amount,0f,-8f*amount, 0f,0f,0f,1f,0f)
+        "Cool" -> floatArrayOf(1f-.04f*amount,0f,0f,0f,-3f*amount, 0f,1f+.02f*amount,0f,0f,2f*amount, 0f,0f,1f+.12f*amount,0f,12f*amount, 0f,0f,0f,1f,0f)
+        "Vintage" -> floatArrayOf(1f-.10f*amount,0f,0f,0f,14f*amount, 0f,1f-.06f*amount,0f,0f,8f*amount, 0f,0f,1f-.15f*amount,0f,-4f*amount, 0f,0f,0f,1f,0f)
+        "Dramatic" -> floatArrayOf(1f+.25f*amount,0f,0f,0f,-18f*amount, 0f,1f+.25f*amount,0f,0f,-18f*amount, 0f,0f,1f+.25f*amount,0f,-18f*amount, 0f,0f,0f,1f,0f)
+        "Fade" -> floatArrayOf(1f-.12f*amount,0f,0f,0f,18f*amount, 0f,1f-.12f*amount,0f,0f,18f*amount, 0f,0f,1f-.12f*amount,0f,18f*amount, 0f,0f,0f,1f,0f)
+        "Sepia" -> floatArrayOf(0.393f*amount+(1f-amount),0.769f*amount,0.189f*amount,0f,0f, 0.349f*amount,0.686f*amount+(1f-amount),0.168f*amount,0f,0f, 0.272f*amount,0.534f*amount,0.131f*amount+(1f-amount),0f,0f, 0f,0f,0f,1f,0f)
+        "Teal" -> floatArrayOf(1f-.04f*amount,0f,0f,0f,0f, 0f,1f+.08f*amount,0f,0f,8f*amount, 0f,0f,1f+.10f*amount,0f,12f*amount, 0f,0f,0f,1f,0f)
+        "Punch" -> floatArrayOf(1f+.22f*amount,0f,0f,0f,-12f*amount, 0f,1f+.22f*amount,0f,0f,-12f*amount, 0f,0f,1f+.22f*amount,0f,-12f*amount, 0f,0f,0f,1f,0f)
+        else -> null
+    }
+    if (values != null) matrix.postConcat(ColorMatrix(values))
+    val contrastScale = (1f + contrast.coerceIn(-1f, 1f)).coerceIn(0f, 2f)
+    val offset = 128f * (1f - contrastScale) + brightness.coerceIn(-1f, 1f) * 255f
+    matrix.postConcat(ColorMatrix(floatArrayOf(contrastScale,0f,0f,0f,offset, 0f,contrastScale,0f,0f,offset, 0f,0f,contrastScale,0f,offset, 0f,0f,0f,1f,0f)))
+    val filtered = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+    Canvas(filtered).drawBitmap(source, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG).apply { colorFilter = ColorMatrixColorFilter(matrix) })
+    val rotated = if (rotationDegrees % 360 == 0) filtered else {
+        val rotation = Matrix().apply { postRotate(rotationDegrees.toFloat()) }
+        Bitmap.createBitmap(filtered, 0, 0, filtered.width, filtered.height, rotation, true)
+    }
+    if (rotated !== filtered) filtered.recycle()
+    if (cropAspect == "Original") return rotated
+    val targetRatio = when (cropAspect) { "1:1" -> 1f; "4:5" -> 4f / 5f; "16:9" -> 16f / 9f; else -> return rotated }
+    val sourceRatio = rotated.width.toFloat() / rotated.height.toFloat()
+    val cropWidth: Int
+    val cropHeight: Int
+    if (sourceRatio > targetRatio) {
+        cropHeight = rotated.height
+        cropWidth = (cropHeight * targetRatio).toInt().coerceIn(1, rotated.width)
+    } else {
+        cropWidth = rotated.width
+        cropHeight = (cropWidth / targetRatio).toInt().coerceIn(1, rotated.height)
+    }
+    val cropped = Bitmap.createBitmap(rotated, (rotated.width - cropWidth) / 2, (rotated.height - cropHeight) / 2, cropWidth, cropHeight)
+    if (cropped !== rotated) rotated.recycle()
+    return cropped
+}
+
+private fun sha256FileForPhoto(file: File): String {
+    val digest = java.security.MessageDigest.getInstance("SHA-256")
+    file.inputStream().buffered(64 * 1024).use { input ->
+        val buffer = ByteArray(64 * 1024)
+        while (true) { val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count) }
+    }
+    return digest.digest().joinToString("") { "%02x".format(it) }
 }
 
 @Composable
@@ -1493,7 +2260,7 @@ private fun SimpleCollectionScreen(title: String, subtitle: String, icon: androi
 }
 
 @Composable
-private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
+private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit, accentPreset: VgAccentPreset, onAccentPreset: (VgAccentPreset) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboard = LocalClipboardManager.current
     val deviceId = remember {
@@ -1530,6 +2297,24 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                     Text(if (dark) "Dark theme enabled" else "Light theme enabled", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 Switch(checked = dark, onCheckedChange = onDark)
+            }
+        }
+        Text("ACCENT THEME", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+        Text("Choose a coordinated accent palette. Your light/dark foundation and existing settings stay unchanged.", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            VgAccentPreset.entries.chunked(2).forEach { rowPresets ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    rowPresets.forEach { preset ->
+                        FilterChip(
+                            selected = accentPreset == preset,
+                            onClick = { onAccentPreset(preset) },
+                            label = { Text(preset.title, maxLines = 1) },
+                            leadingIcon = { Surface(Modifier.size(14.dp), shape = RoundedCornerShape(50), color = preset.secondary) { } },
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                        )
+                    }
+                    if (rowPresets.size == 1) Spacer(Modifier.weight(1f))
+                }
             }
         }
         Text("DOWNLOADS", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
@@ -1579,7 +2364,9 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                 }
                 Switch(checked = unmeteredOnly, onCheckedChange = {
                     unmeteredOnly = it
-                    SecureDownloadPreferences.save(context, SecureDownloadPreferences.load(context).copy(unmeteredOnly = it))
+                    val updated = savedPreferences.copy(unmeteredOnly = it)
+                    savedPreferences = updated
+                    SecureDownloadPreferences.save(context, updated)
                 })
             }
         }
@@ -1593,7 +2380,9 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                 }
                 Switch(checked = autoPreset, onCheckedChange = {
                     autoPreset = it
-                    SecureDownloadPreferences.save(context, SecureDownloadPreferences.load(context).copy(autoDownloadWithPreferredPreset = it))
+                    val updated = savedPreferences.copy(autoDownloadWithPreferredPreset = it)
+                    savedPreferences = updated
+                    SecureDownloadPreferences.save(context, updated)
                 })
             }
         }

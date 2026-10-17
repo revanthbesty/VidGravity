@@ -26,6 +26,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
     private val workId: UUID get() = id
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        val queuedAtMs = inputData.getLong("queued_at_ms", 0L)
         val rawUrl = inputData.getString(KEY_URL)
         val url = rawUrl?.let(ShareReceiverActivity::normalizeSharedUrl)
             ?: return@withContext Result.failure(workDataOf("error" to "Invalid shared URL"))
@@ -52,14 +53,14 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 if (isStopped) throw CancellationException("Work was cancelled")
                 while (DownloadActionReceiver.isPaused(applicationContext, workId)) {
                     promoteOrNotify(title, "Paused", 0, true)
-                    setProgress(workDataOf("state" to "paused", "progress" to lastKnownProgress,
+                    setProgress(workDataOf("queued_at_ms" to queuedAtMs, "state" to "paused", "progress" to lastKnownProgress,
                         "media_url" to url, "format_selector" to selector, "media_title" to title))
                     delay(500)
                     if (isStopped) throw CancellationException("Work was cancelled")
                 }
                 job = DownloadApi.getJob(remoteJobId!!)
                 lastKnownProgress = job.progress
-                setProgress(workDataOf("remoteJobId" to remoteJobId, "state" to job.state, "progress" to job.progress,
+                setProgress(workDataOf("queued_at_ms" to queuedAtMs, "remoteJobId" to remoteJobId, "state" to job.state, "progress" to job.progress,
                     "media_url" to url, "format_selector" to selector, "media_title" to title))
                 promoteOrNotify(title, job.message, job.progress, false)
                 when (job.state) {
@@ -92,7 +93,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 val percent = if (total != null && total > 0) ((bytes * 100) / total).toInt().coerceIn(0, 99) else 0
                 lastTransferPercent = percent
                 val eta = if (total != null && currentSpeed > 0L) ((total - bytes).coerceAtLeast(0L) / currentSpeed) else -1L
-                setProgressAsync(workDataOf("bytes_downloaded" to bytes, "total_bytes" to (total ?: -1L),
+                setProgressAsync(workDataOf("queued_at_ms" to queuedAtMs, "bytes_downloaded" to bytes, "total_bytes" to (total ?: -1L),
                     "bytes_per_second" to currentSpeed, "eta_seconds" to eta, "progress" to percent,
                     "media_url" to url, "format_selector" to selector, "media_title" to title))
                 DownloadNotifications.progress(applicationContext, workId, title,
@@ -102,7 +103,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
                 shouldPause = { DownloadActionReceiver.isPaused(applicationContext, workId) },
                 isStopped = { isStopped },
                 onPauseState = { paused ->
-                    setProgressAsync(workDataOf("state" to if (paused) "paused" else "downloading",
+                    setProgressAsync(workDataOf("queued_at_ms" to queuedAtMs, "state" to if (paused) "paused" else "downloading",
                         "progress" to lastTransferPercent,
                         "media_url" to url, "format_selector" to selector, "media_title" to title))
                     DownloadNotifications.progress(applicationContext, workId, title,
@@ -173,6 +174,7 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
         const val RETRY_TITLE = "retry_title"
         const val RETRY_AUDIO_ONLY = "retry_audio_only"
         private const val REGISTRY = "vg_remote_job_registry"
+        private const val QUEUE_TIMESTAMPS = "vg-download-queue-times"
 
         private fun failureResult(message: String, url: String, selector: String, title: String, audioOnly: Boolean = false): Result =
             Result.failure(workDataOf(
@@ -187,13 +189,16 @@ class DownloadWorker(context: Context, params: WorkerParameters) : CoroutineWork
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(if (unmeteredOnly) NetworkType.UNMETERED else NetworkType.CONNECTED)
                 .build()
+            val queuedAtMs = System.currentTimeMillis()
             val request = OneTimeWorkRequestBuilder<DownloadWorker>()
-                .setInputData(workDataOf(KEY_URL to url, KEY_FORMAT to selector, KEY_TITLE to title, KEY_AUDIO_ONLY to audioOnly))
+                .setInputData(workDataOf(KEY_URL to url, KEY_FORMAT to selector, KEY_TITLE to title, KEY_AUDIO_ONLY to audioOnly, "queued_at_ms" to queuedAtMs))
                 .setConstraints(constraints)
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 15, TimeUnit.SECONDS)
                 .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
                 .addTag("vidgravity-download")
                 .build()
+            context.getSharedPreferences(QUEUE_TIMESTAMPS, Context.MODE_PRIVATE)
+                .edit().putLong(request.id.toString(), queuedAtMs).apply()
             WorkManager.getInstance(context).enqueueUniqueWork("vg-download-" + request.id, ExistingWorkPolicy.KEEP, request)
             return request.id
         }
