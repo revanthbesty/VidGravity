@@ -299,7 +299,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                     modifier = Modifier.fillMaxWidth().clickable {
                                         try {
                                             val preferences = SecureDownloadPreferences.load(context)
-                                            if (rememberQuality && choice.first != "Highest available") {
+                                            if (rememberQuality) {
                                                 SecureDownloadPreferences.save(context, preferences.copy(
                                                     autoDownloadWithPreferredPreset = true,
                                                     preferredFormatSelector = choice.second
@@ -327,8 +327,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                             val hdrLabel = option?.dynamicRange?.takeIf { it.isNotBlank() && !it.equals("SDR", true) }?.let { "HDR" }
                                             val safeContainer = option?.container?.uppercase()
                                                 ?.takeIf { it.matches(Regex("[A-Z0-9]{2,5}")) } ?: "MEDIA"
-                                            Text(if (choice.first == "Highest available") "Best compatible quality for this source"
-                                                else listOfNotNull(safeContainer, fpsLabel, hdrLabel, sizeLabel).joinToString(" • "),
+                                            Text(listOfNotNull(safeContainer, fpsLabel, hdrLabel, sizeLabel).joinToString(" • "),
                                                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
                                         Icon(Icons.Default.ChevronRight, null)
