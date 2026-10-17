@@ -19,7 +19,7 @@ smoke_code=$?
 kill "$evidence_pid" 2>/dev/null
 wait "$evidence_pid" 2>/dev/null
 adb logcat -d -v threadtime > work/android-smoke/logcat.txt
-adb logcat -d -v threadtime -s VGStartup VGSmoke AndroidRuntime
+adb logcat -d -v threadtime -s VGStartup VGSmoke VGStudio AndroidRuntime
 adb shell dumpsys activity lastanr > work/android-smoke/lastanr.txt
 adb shell dumpsys window > work/android-smoke/windows.txt
 adb shell dumpsys power > work/android-smoke/power.txt

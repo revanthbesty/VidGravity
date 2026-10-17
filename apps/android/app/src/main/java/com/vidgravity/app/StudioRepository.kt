@@ -31,6 +31,23 @@ class StudioRepository(context: Context) {
             }.sortedByDescending { it.updatedAt }
         return StudioProjectListing(projects, unreadable)
     }
+    @Synchronized fun duplicate(project: StudioProject): StudioProject = project.copy(
+        id = java.util.UUID.randomUUID().toString(), title = (project.title.take(90) + " copy"), updatedAt = System.currentTimeMillis()).also { save(it) }
+    @Synchronized fun trash(id: String) {
+        val project = load(id)
+        write(File(root,"trash/${file(id).name}"),StudioProjectCodec.encode(project))
+        AtomicFile(file(id)).delete()
+    }
+    @Synchronized fun trashed(): List<StudioProject> = File(root,"trash").listFiles().orEmpty()
+        .map { File(it.parentFile,it.name.removeSuffix(".bak")) }.distinctBy { it.name }
+        .filter { it.name.endsWith(".json") }.mapNotNull { runCatching { StudioProjectCodec.decode(read(it)) }.getOrNull() }
+        .sortedByDescending { it.updatedAt }
+    @Synchronized fun restore(id: String) {
+        val target=File(root,"trash/${file(id).name}")
+        check(!file(id).exists()) { "A project with this identifier already exists." }
+        save(StudioProjectCodec.decode(read(target)))
+        AtomicFile(target).delete()
+    }
     @Synchronized fun delete(id: String) {
         AtomicFile(file(id)).delete()
         AtomicFile(file(id, ".export.json")).delete()
@@ -52,7 +69,7 @@ class StudioRepository(context: Context) {
     }
     private fun read(file: File): String = AtomicFile(file).openRead().bufferedReader().use { it.readText() }
     private fun write(file: File, content: String) {
-        check(root.exists() || root.mkdirs()) { "Project storage is unavailable." }
+        check(file.parentFile!!.exists() || file.parentFile!!.mkdirs()) { "Project storage is unavailable." }
         val atomic = AtomicFile(file)
         val stream = atomic.startWrite()
         try { stream.write(content.toByteArray(Charsets.UTF_8)); atomic.finishWrite(stream) }
