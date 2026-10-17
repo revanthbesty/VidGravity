@@ -1543,20 +1543,66 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                                 Text(String.format("%.1f MB", item.sizeBytes / 1_000_000.0), fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = {
-                                    scope.launch {
-                                        withContext(Dispatchers.IO) { MediaLibraryIndexer.setFavorite(context, item.uri, !item.isFavorite) }
-                                        refreshMedia()
-                                    }
-                                }) { Icon(if (item.isFavorite) Icons.Default.Star else Icons.Default.StarBorder, "Favorite", tint = if (item.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
-                                IconButton(onClick = { renameTarget = item; renameText = item.displayName.substringBeforeLast(".", item.displayName) }) { Icon(Icons.Default.Edit, "Rename") }
-                                IconButton(onClick = { deleteTarget = item }) { Icon(Icons.Default.Delete, "Delete") }
-                                IconButton(onClick = {
-                                    val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = item.mimeType; putExtra(android.content.Intent.EXTRA_STREAM, item.uri); addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-                                    context.startActivity(android.content.Intent.createChooser(share, "Share media"))
-                                }) { Icon(Icons.Default.Share, "Share") }
-                                IconButton(onClick = { onPlay(item) }) { Icon(Icons.Default.PlayCircle, "Play", tint = MaterialTheme.colorScheme.primary) }
+                            var mediaActionsExpanded by remember(item.uri) { mutableStateOf(false) }
+                            Box {
+                                IconButton(
+                                    onClick = { mediaActionsExpanded = true },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
+                                    Icon(Icons.Default.MoreVert, "Media actions")
+                                }
+                                DropdownMenu(
+                                    expanded = mediaActionsExpanded,
+                                    onDismissRequest = { mediaActionsExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(if (item.isFavorite) "Remove favorite" else "Add to favorites") },
+                                        leadingIcon = { Icon(if (item.isFavorite) Icons.Default.Star else Icons.Default.StarBorder, null) },
+                                        onClick = {
+                                            mediaActionsExpanded = false
+                                            scope.launch {
+                                                withContext(Dispatchers.IO) { MediaLibraryIndexer.setFavorite(context, item.uri, !item.isFavorite) }
+                                                refreshMedia()
+                                            }
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Rename") },
+                                        leadingIcon = { Icon(Icons.Default.Edit, null) },
+                                        onClick = {
+                                            mediaActionsExpanded = false
+                                            renameTarget = item
+                                            renameText = item.displayName.substringBeforeLast(".", item.displayName)
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Delete") },
+                                        leadingIcon = { Icon(Icons.Default.DeleteOutline, null) },
+                                        onClick = { mediaActionsExpanded = false; deleteTarget = item }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Share") },
+                                        leadingIcon = { Icon(Icons.Default.Share, null) },
+                                        onClick = {
+                                            mediaActionsExpanded = false
+                                            runCatching {
+                                                val share = Intent(Intent.ACTION_SEND).apply {
+                                                    type = item.mimeType
+                                                    putExtra(Intent.EXTRA_STREAM, item.uri)
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                                context.startActivity(Intent.createChooser(share, "Share media"))
+                                            }.onFailure {
+                                                android.widget.Toast.makeText(context, "Could not share this media item.", android.widget.Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Play") },
+                                        leadingIcon = { Icon(Icons.Default.PlayCircle, null) },
+                                        onClick = { mediaActionsExpanded = false; onPlay(item) }
+                                    )
+                                }
                             }
                         }
                     }
