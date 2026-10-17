@@ -47,8 +47,8 @@ class MainActivity : ComponentActivity() {
 
 private enum class VgTab(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Home("Home", Icons.Default.Home), Downloads("Downloads", Icons.Default.Download),
-    Library("Library", Icons.Default.VideoLibrary), Create("Create", Icons.Default.AutoAwesome),
-    Settings("Settings", Icons.Default.Settings)
+    Camera("Camera", Icons.Default.PhotoCamera), Studio("Studio", Icons.Default.AutoAwesome),
+    Library("Library", Icons.Default.VideoLibrary), Settings("Settings", Icons.Default.Settings)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,6 +93,9 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                         Text("VidGravity", fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
                         Text("Capture • Download • Edit • Play • Share", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     }
+                    IconButton(onClick = { selected = VgTab.Settings }) {
+                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    }
                     Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant) {
                         IconButton(onClick = { dark = !dark; prefs.edit().putBoolean("dark", dark).apply() }) {
                             Icon(if (dark) Icons.Default.LightMode else Icons.Default.DarkMode, "Toggle theme")
@@ -102,8 +105,16 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
             },
             bottomBar = {
                 NavigationBar(modifier = Modifier.navigationBarsPadding(), containerColor = MaterialTheme.colorScheme.surface) {
-                    VgTab.values().forEach { tab ->
-                        NavigationBarItem(selected = selected == tab, onClick = { selected = tab },
+                    VgTab.values().filter { it != VgTab.Settings }.forEach { tab ->
+                        NavigationBarItem(selected = selected == tab, onClick = {
+                            if (tab == VgTab.Camera) {
+                                runCatching {
+                                    context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
+                                }.onFailure { notice = "Could not open camera: ${it.message ?: "try again"}" }
+                            } else {
+                                selected = tab
+                            }
+                        },
                             icon = { Icon(tab.icon, contentDescription = tab.title) }, label = { Text(tab.title, maxLines = 1) })
                     }
                 }
@@ -137,13 +148,16 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Create }, { showStudyTok = true })
+                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Studio }, { showStudyTok = true })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
+                    // Camera opens a dedicated Activity from its navigation item.
+                    // This branch keeps the enum dispatch exhaustive.
+                    VgTab.Camera -> Unit
                     VgTab.Library -> LibraryContent(
                         onPlay = { playingMedia = it },
-                        onCreateWithMedia = { media -> creatorInitialMedia = media; selected = VgTab.Create }
+                        onCreateWithMedia = { media -> creatorInitialMedia = media; selected = VgTab.Studio }
                     )
-                    VgTab.Create -> CreateStudioContent(
+                    VgTab.Studio -> CreateStudioContent(
                         onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true },
                         initialMedia = creatorInitialMedia
                     )
