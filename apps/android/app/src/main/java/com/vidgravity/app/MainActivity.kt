@@ -2351,9 +2351,28 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                             Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Share animated sticker")
                         }
                     }
-                    exportedUri?.let {
-                        Text("Latest story saved in Movies/VidGravity. Use the story share buttons to send the verified derivative.",
+                    exportedUri?.let { uri ->
+                        Text("Latest story exported to Movies/VidGravity.",
                             color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
+                        OutlinedButton(
+                            enabled = !isRendering && segmentJob == null,
+                            onClick = {
+                                runCatching {
+                                    val share = Intent(Intent.ACTION_SEND).apply {
+                                        type = "video/mp4"
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        putExtra(Intent.EXTRA_TITLE, "VidGravity story")
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    context.startActivity(Intent.createChooser(share, "Share exported story"))
+                                }.onFailure { notify("Could not share story: ${it.message ?: "try again"}") }
+                            },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                        ) {
+                            Icon(Icons.Default.Share, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Share latest exported story")
+                        }
                     }
                 }
             }
@@ -2371,9 +2390,9 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             Spacer(Modifier.width(8.dp))
             Text("Open POV camera")
         }
-        Text("More creator tools", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-        InfoCard("Animated stickers", "Next pipeline batch: render short source clips as animated WebP with size and duration limits.", Icons.Default.AutoAwesome, Modifier.fillMaxWidth())
-        InfoCard("WhatsApp Status segments", "Next pipeline batch: create multiple bounded segments and verify every output before sharing.", Icons.Default.ContentCut, Modifier.fillMaxWidth())
+        Text("Creator workflow", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        InfoCard("Animated stickers", "Choose a video, export up to 10 seconds as animated WebP, then share the saved sticker.", Icons.Default.AutoAwesome, Modifier.fillMaxWidth())
+        InfoCard("WhatsApp Status segments", "Choose a video, select a clip length, split into separate saved clips, and share from your library.", Icons.Default.ContentCut, Modifier.fillMaxWidth())
     }
 }
 
