@@ -2249,7 +2249,9 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit, accentPres
                 }
                 Switch(checked = unmeteredOnly, onCheckedChange = {
                     unmeteredOnly = it
-                    SecureDownloadPreferences.save(context, SecureDownloadPreferences.load(context).copy(unmeteredOnly = it))
+                    val updated = savedPreferences.copy(unmeteredOnly = it)
+                    savedPreferences = updated
+                    SecureDownloadPreferences.save(context, updated)
                 })
             }
         }
@@ -2263,7 +2265,9 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit, accentPres
                 }
                 Switch(checked = autoPreset, onCheckedChange = {
                     autoPreset = it
-                    SecureDownloadPreferences.save(context, SecureDownloadPreferences.load(context).copy(autoDownloadWithPreferredPreset = it))
+                    val updated = savedPreferences.copy(autoDownloadWithPreferredPreset = it)
+                    savedPreferences = updated
+                    SecureDownloadPreferences.save(context, updated)
                 })
             }
         }
