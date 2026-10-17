@@ -1,15 +1,17 @@
 {
   "id": "./",
-  "name": "VidGravity \u2014 Media Workspace",
+  "name": "VidGravity — Media Workspace",
   "short_name": "VidGravity",
-  "description": "A local-first media workspace for managing downloads and your media library.",
+  "description": "Download supported media, capture photos and videos, edit video and audio, and create social-ready content.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#0d0b14",
-  "theme_color": "#171326",
+  "background_color": "#141A2B",
+  "theme_color": "#141A2B",
   "categories": [
+    "video",
+    "photo",
     "productivity",
     "utilities"
   ],
