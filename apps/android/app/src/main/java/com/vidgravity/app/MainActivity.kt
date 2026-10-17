@@ -617,6 +617,9 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                             openStudyTok()
                                         } else if (url.isBlank()) {
                                             notify("Paste a media URL first, then choose " + action + ".")
+                                        } else if (!url.trim().startsWith("https://", ignoreCase = true) &&
+                                            !url.trim().startsWith("http://", ignoreCase = true)) {
+                                            notify("Enter a complete public URL starting with https:// before downloading.")
                                         } else if (action.contains("Sound")) {
                                             scope.launch {
                                                 try {
