@@ -2268,7 +2268,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                         }
                     }
                     OutlinedButton(
-                        enabled = !isRendering && segmentJob == null,
+                        enabled = media.mimeType.startsWith("video/") && !isRendering && segmentJob == null,
                         onClick = {
                             if (!media.mimeType.startsWith("video/")) {
                                 notify("Animated WebP stickers require a video source.")
