@@ -1024,10 +1024,10 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
             }
             var sortMenuExpanded by remember { mutableStateOf(false) }
             var filterMenuExpanded by remember { mutableStateOf(false) }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.weight(1f)) {
                     OutlinedButton(onClick = { filterMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
-                        Icon(Icons.Default.FilterList, null); Spacer(Modifier.width(6.dp)); Text(if (downloadFilter == "All") "Filter" else "Filter · " + downloadFilter)
+                        Icon(Icons.Default.FilterList, null); Spacer(Modifier.width(6.dp)); Text(if (downloadFilter == "All") "Filter" else "Filter · " + downloadFilter, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     DropdownMenu(expanded = filterMenuExpanded, onDismissRequest = { filterMenuExpanded = false }) {
                         listOf("All", "Active", "Completed", "Failed").forEach { option ->
@@ -1037,13 +1037,33 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 }
                 Box(Modifier.weight(1f)) {
                     OutlinedButton(onClick = { sortMenuExpanded = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp)) {
-                        Icon(Icons.Default.Sort, null); Spacer(Modifier.width(6.dp)); Text("Sort · " + downloadSort)
+                        Icon(Icons.Default.Sort, null); Spacer(Modifier.width(6.dp)); Text(downloadSort, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     DropdownMenu(expanded = sortMenuExpanded, onDismissRequest = { sortMenuExpanded = false }) {
                         listOf("Newest", "Oldest", "Name A–Z", "Progress").forEach { option ->
                             DropdownMenuItem(text = { Text(option) }, onClick = { downloadSort = option; sortMenuExpanded = false })
                         }
                     }
+                }
+                IconButton(onClick = { showDownloadFilters = !showDownloadFilters }, modifier = Modifier.size(44.dp)) {
+                    Icon(Icons.Default.Search, contentDescription = if (showDownloadFilters) "Hide download search" else "Search downloads")
+                }
+            }
+            if (showDownloadFilters) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = downloadSearch,
+                        onValueChange = { downloadSearch = it },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        label = { Text("Search downloads") },
+                        placeholder = { Text("Title, link, status or error") }
+                    )
+                    TextButton(onClick = {
+                        downloadSearch = ""
+                        downloadFilter = "All"
+                        downloadSort = "Newest"
+                    }) { Text("Reset") }
                 }
             }
             filteredWorks.forEach { work ->
