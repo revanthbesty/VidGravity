@@ -830,7 +830,11 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                             }
                             Surface(
                                 modifier = Modifier.weight(1f).heightIn(min = 124.dp).clickable {
-                                    if (index == 0) onOpenCamera() else onTab(destination)
+                                    when (index) {
+                                        0 -> onOpenCamera()
+                                        2 -> recentMedia.firstOrNull()?.let(onPlay) ?: onTab(VgTab.Library)
+                                        else -> onTab(destination)
+                                    }
                                 },
                                 shape = RoundedCornerShape(20.dp),
                                 color = Color.Transparent,
