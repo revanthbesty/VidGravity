@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -24,6 +25,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -443,48 +445,71 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
         item {
             Surface(shape = RoundedCornerShape(26.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        shape = RoundedCornerShape(50)
-                    ) {
-                        Row(
-                            Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(7.dp)
-                        ) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
-                            Text("YOUR MEDIA WORKSPACE", fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.1.sp, color = MaterialTheme.colorScheme.primary)
+                    Text("VIDGRAVITY  /  CREATE ANYTHING", fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp,
+                        color = MaterialTheme.colorScheme.primary)
+                    Text("Create. Download.\nEdit. Share.", fontSize = 36.sp,
+                        lineHeight = 40.sp, fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = (-0.8).sp)
+                    Text("All your video and audio tools in one powerful app.",
+                        fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()) {
+                        Surface(modifier = Modifier.weight(1f).height(112.dp)
+                            .clickable(onClick = openCreate),
+                            shape = RoundedCornerShape(18.dp),
+                            color = Color.Transparent) {
+                            Column(Modifier.fillMaxSize().background(Brush.horizontalGradient(
+                                listOf(Color(0xFFD728C0), Color(0xFF6559FF)))).padding(14.dp),
+                                verticalArrangement = Arrangement.SpaceBetween) {
+                                Icon(Icons.Default.ContentCut, null, tint = Color.White)
+                                Text("Creator Studio", color = Color.White,
+                                    fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text("Edit videos & reels", color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 11.sp)
+                            }
+                        }
+                        Surface(modifier = Modifier.weight(1f).height(112.dp)
+                            .clickable(onClick = openCamera),
+                            shape = RoundedCornerShape(18.dp),
+                            color = Color.Transparent) {
+                            Column(Modifier.fillMaxSize().background(Brush.horizontalGradient(
+                                listOf(Color(0xFF366BFA), Color(0xFF00A6EA)))).padding(14.dp),
+                                verticalArrangement = Arrangement.SpaceBetween) {
+                                Icon(Icons.Default.PhotoCamera, null, tint = Color.White)
+                                Text("Pro Camera", color = Color.White,
+                                    fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text("Capture your story", color = Color.White.copy(alpha = 0.85f),
+                                    fontSize = 11.sp)
+                            }
                         }
                     }
-                    Text("Make something worth sharing.", fontSize = 28.sp, lineHeight = 33.sp,
-                        fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.6).sp)
-                    Text("Capture. Create. Remix. Share.",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Surface(color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.10f),
-                        shape = RoundedCornerShape(18.dp)) {
-                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("START CREATING", fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp, color = MaterialTheme.colorScheme.secondary)
-                            Button(onClick = openCreate, modifier = Modifier.fillMaxWidth().height(50.dp),
-                                shape = RoundedCornerShape(14.dp)) {
-                                Icon(Icons.Default.AutoAwesome, null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Open Creator Studio")
-                            }
-                            OutlinedButton(onClick = openCamera, modifier = Modifier.fillMaxWidth().height(48.dp),
-                                shape = RoundedCornerShape(14.dp)) {
-                                Icon(Icons.Default.PhotoCamera, null)
-                                Spacer(Modifier.width(8.dp))
-                                Text("Open Pro Camera")
-                            }
-                            Text("Edit a video, build a Reel, or prepare a Story from your media.",
-                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                    Text("DOWNLOAD FROM A LINK", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    Text("EXPLORE TOOLS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        listOf(
+                            Triple("Download", Icons.Default.Download, { notify("Paste a link below to download authorized media.") }),
+                            Triple("Camera", Icons.Default.PhotoCamera, openCamera),
+                            Triple("Edit Video", Icons.Default.ContentCut, openCreate),
+                            Triple("Audio", Icons.Default.MusicNote, openCreate),
+                            Triple("Templates", Icons.Default.AutoAwesome, openCreate)
+                        ).forEach { (label, icon, action) ->
+                            Column(Modifier.width(62.dp).clickable(onClick = action),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Surface(shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surfaceVariant) {
+                                    Icon(icon, null, modifier = Modifier.padding(14.dp).size(24.dp),
+                                        tint = MaterialTheme.colorScheme.secondary)
+                                }
+                                Text(label, fontSize = 10.sp, maxLines = 1,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    Text("DOWNLOAD FROM A LINK", fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OutlinedTextField(value = url, onValueChange = onUrl, modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("Paste one link or multiple links (one per line)") }, leadingIcon = { Icon(Icons.Default.Link, null) },
                         trailingIcon = { IconButton(onClick = { clipboard.getText()?.text?.let(onUrl) }) { Icon(Icons.Default.ContentPaste, "Paste") } },
