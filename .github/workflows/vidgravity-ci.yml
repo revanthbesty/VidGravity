@@ -151,6 +151,19 @@ jobs:
           gradle-version: "8.10.2"
       - name: Build native Android APK
         run: gradle -p apps/android assembleDebug testDebugUnitTest lintDebug
+      - name: Summarize Android lint errors
+        if: always()
+        run: |
+          python - <<'PY'
+          import pathlib, xml.etree.ElementTree as ET
+          report = pathlib.Path('apps/android/app/build/reports/lint-results-debug.xml')
+          if report.exists():
+              for issue in ET.parse(report).getroot().findall('issue'):
+                  if issue.get('severity') in ('Error', 'Fatal'):
+                      print(issue.get('id'), issue.get('message'))
+                      for location in issue.findall('location'):
+                          print(location.get('file'), 'line', location.get('line'))
+          PY
       - name: Run export and Android share tests
         run: |
           python -m unittest discover -s tests -p "test_media_export.py" -v
