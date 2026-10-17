@@ -1904,17 +1904,19 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
         return
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        VgPrimaryButton(
-            text = "Open Camera Studio",
-            icon = Icons.Default.PhotoCamera,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp),
-            onClick = onOpenCamera
-        )
+        // Keep the two primary Create Studio entry points consistent with the intended
+        // workflow: choose existing media first, or open the camera to capture new media.
         VgPrimaryButton(
             text = "Media",
             icon = Icons.Default.FolderOpen,
             modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp),
             onClick = { picker.launch(arrayOf("video/*", "audio/*", "image/*")) }
+        )
+        VgPrimaryButton(
+            text = "Camera",
+            icon = Icons.Default.PhotoCamera,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 58.dp),
+            onClick = onOpenCamera
         )
         selectedMedia?.let { media ->
             Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(18.dp)) {
