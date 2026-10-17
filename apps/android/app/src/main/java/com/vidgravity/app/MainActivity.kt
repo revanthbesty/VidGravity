@@ -998,8 +998,14 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                 }
             }
             val sortedMatchedWorks = when (downloadSort) {
-                "Newest" -> matchedWorks
-                "Oldest" -> matchedWorks.reversed()
+                "Newest" -> matchedWorks.sortedWith(
+                    compareByDescending<WorkInfo> { it.inputData.getLong("queued_at_ms", 0L) }
+                        .thenByDescending { it.id.toString() }
+                )
+                "Oldest" -> matchedWorks.sortedWith(
+                    compareBy<WorkInfo> { it.inputData.getLong("queued_at_ms", 0L) }
+                        .thenBy { it.id.toString() }
+                )
                 "Name A–Z" -> matchedWorks.sortedBy { work ->
                     (work.outputData.getString("display_name") ?: work.outputData.getString("filename")
                         ?: work.progress.getString("media_title") ?: "Media download").lowercase()
