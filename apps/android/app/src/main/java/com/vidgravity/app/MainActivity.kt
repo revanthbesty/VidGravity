@@ -68,6 +68,23 @@ private data class PhotoEditState(
     val crop: String
 )
 
+private fun bestAccentForeground(background: Color): Color {
+    fun linear(channel: Float): Float =
+        if (channel <= 0.04045f) channel / 12.92f else Math.pow(((channel + 0.055f) / 1.055f).toDouble(), 2.4).toFloat()
+    val luminance = 0.2126f * linear(background.red) +
+        0.7152f * linear(background.green) +
+        0.0722f * linear(background.blue)
+    val darkLuminance = 0.2126f * linear(VidGravityPalette.darkText.red) +
+        0.7152f * linear(VidGravityPalette.darkText.green) +
+        0.0722f * linear(VidGravityPalette.darkText.blue)
+    val lightLuminance = 0.2126f * linear(VidGravityPalette.lightText.red) +
+        0.7152f * linear(VidGravityPalette.lightText.green) +
+        0.0722f * linear(VidGravityPalette.lightText.blue)
+    val darkContrast = (luminance + 0.05f) / (darkLuminance + 0.05f)
+    val lightContrast = (lightLuminance + 0.05f) / (luminance + 0.05f)
+    return if (darkContrast >= lightContrast) VidGravityPalette.darkText else VidGravityPalette.lightText
+}
+
 private enum class VgTab(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     Home("Home", Icons.Default.Home), Downloads("Downloads", Icons.Default.Download),
     Library("Library", Icons.Default.VideoLibrary), Create("Create", Icons.Default.AutoAwesome),
@@ -99,9 +116,9 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
         primaryContainer = Color(0xFF304842),
         onPrimaryContainer = Color(0xFFE6EEF0),
         secondary = accentPalette.secondary,
-        onSecondary = VidGravityPalette.darkText,
+        onSecondary = bestAccentForeground(accentPalette.secondary),
         tertiary = accentPalette.tertiary,
-        onTertiary = Color(0xFF17102F),
+        onTertiary = bestAccentForeground(accentPalette.tertiary),
         background = Color(0xFF171F23),
         surface = Color(0xFF202B30),
         surfaceVariant = Color(0xFF29373D),
@@ -120,7 +137,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
         secondaryContainer = Color(0xFFDDEBE7),
         onSecondaryContainer = Color(0xFF205A56),
         tertiary = accentPalette.tertiary,
-        onTertiary = Color.White,
+        onTertiary = bestAccentForeground(accentPalette.tertiary),
         tertiaryContainer = Color(0xFFEAE7F3),
         onTertiaryContainer = Color(0xFF30205E),
         background = Color(0xFFE8EEED),
