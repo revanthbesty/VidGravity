@@ -96,6 +96,7 @@ private enum class VgTab(val title: String, val icon: androidx.compose.ui.graphi
 private fun VidGravityApp(openInboxInitially: Boolean = false) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val prefs = remember { context.getSharedPreferences("vg-ui", 0) }
+    val queueTimestampPrefs = remember { context.getSharedPreferences("vg-download-queue-times", 0) }
     var dark by remember { mutableStateOf(prefs.getBoolean("dark", true)) }
     var accentPreset by remember { mutableStateOf(VgAccentPreset.fromStored(prefs.getString("accent_preset", VgAccentPreset.VidGravity.name))) }
     val accentPalette = accentPreset
@@ -999,11 +1000,11 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
             }
             val sortedMatchedWorks = when (downloadSort) {
                 "Newest" -> matchedWorks.sortedWith(
-                    compareByDescending<WorkInfo> { it.progress.getLong("queued_at_ms", 0L) }
+                    compareByDescending<WorkInfo> { queueTimestampPrefs.getLong(it.id.toString(), it.progress.getLong("queued_at_ms", 0L)) }
                         .thenByDescending { it.id.toString() }
                 )
                 "Oldest" -> matchedWorks.sortedWith(
-                    compareBy<WorkInfo> { it.progress.getLong("queued_at_ms", 0L) }
+                    compareBy<WorkInfo> { queueTimestampPrefs.getLong(it.id.toString(), it.progress.getLong("queued_at_ms", 0L)) }
                         .thenBy { it.id.toString() }
                 )
                 "Name A–Z" -> matchedWorks.sortedBy { work ->
