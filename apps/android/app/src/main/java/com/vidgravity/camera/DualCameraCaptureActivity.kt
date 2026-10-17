@@ -95,11 +95,13 @@ class DualCameraCaptureActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         executor = Executors.newSingleThreadExecutor()
         buildCameraUi()
-        val permissions = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+        // Ask only for camera access on entry. Microphone permission is requested
+        // when the user explicitly switches to video mode, so photo capture does not
+        // require an unrelated permission grant.
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             startCameras()
         } else {
-            permissionRequest.launch(permissions)
+            permissionRequest.launch(arrayOf(Manifest.permission.CAMERA))
         }
     }
 
