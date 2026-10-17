@@ -165,7 +165,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Studio }, { context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java)) }, { playingMedia = it }, { creatorInitialMedia = it; selected = VgTab.Studio }, { selected = VgTab.Library }, { showStudyTok = true })
+                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Studio }, { runCatching { context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java)) }.onFailure { notice = "Could not open camera: ${it.message ?: "try again"}" } }, { playingMedia = it }, { creatorInitialMedia = it; selected = VgTab.Studio }, { selected = VgTab.Library }, { showStudyTok = true })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     // Camera opens a dedicated Activity from its navigation item.
                     // This branch keeps the enum dispatch exhaustive.
