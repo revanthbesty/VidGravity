@@ -153,7 +153,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Studio }, { context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java)) }, { playingMedia = it }, { creatorInitialMedia = it; selected = VgTab.Studio }, { showStudyTok = true })
+                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Studio }, { context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java)) }, { playingMedia = it }, { creatorInitialMedia = it; selected = VgTab.Studio }, { selected = VgTab.Library }, { showStudyTok = true })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     // Camera opens a dedicated Activity from its navigation item.
                     // This branch keeps the enum dispatch exhaustive.
@@ -396,7 +396,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
 }
 
 @Composable
-private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, openCamera: () -> Unit, onPlayRecent: (LibraryMedia) -> Unit, onEditRecent: (LibraryMedia) -> Unit, openStudyTok: () -> Unit) {
+private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, openCamera: () -> Unit, onPlayRecent: (LibraryMedia) -> Unit, onEditRecent: (LibraryMedia) -> Unit, openLibrary: () -> Unit, openStudyTok: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -404,7 +404,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
     var recentMedia by remember { mutableStateOf(emptyList<LibraryMedia>()) }
     suspend fun refreshRecentMedia() {
         recentMedia = withContext(Dispatchers.IO) {
-            runCatching { MediaLibraryIndexer.list(context).take(4) }.getOrDefault(emptyList())
+            runCatching { MediaLibraryIndexer.list(context).take(8) }.getOrDefault(emptyList())
         }
     }
     LaunchedEffect(Unit) { refreshRecentMedia() }
@@ -619,7 +619,10 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                 }
             }
         item {
-            Text("MY RECENT MEDIA", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("MY RECENT MEDIA", modifier = Modifier.weight(1f), fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                TextButton(onClick = openLibrary) { Text("See all") }
+            }
             Text("Real captures and exports from your VidGravity Library",
                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(10.dp))
