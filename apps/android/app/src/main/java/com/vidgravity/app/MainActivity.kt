@@ -1478,6 +1478,37 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
             }
             InfoCard(libraryEmptyTitle, libraryEmptyMessage, Icons.Default.VideoLibrary, Modifier.fillMaxWidth())
         } else {
+            if (selectedUris.isNotEmpty()) {
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "${selectedUris.size} selected",
+                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        TextButton(onClick = { selectedUris = emptySet() }) {
+                            Text("Clear")
+                        }
+                        Button(
+                            onClick = { showBulkDeleteConfirm = true },
+                            modifier = Modifier.heightIn(min = 48.dp)
+                        ) {
+                            Icon(Icons.Default.DeleteOutline, null)
+                            Spacer(Modifier.width(6.dp))
+                            Text("Delete")
+                        }
+                    }
+                }
+            }
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(visibleMedia, key = { it.uri.toString() }) { item ->
                     Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp),
@@ -1539,7 +1570,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         )
     }
     if (showBulkDeleteConfirm) {
-        val chosen = visibleMedia.filter { it.uri.toString() in selectedUris }
+        val chosen = media.filter { it.uri.toString() in selectedUris }
         AlertDialog(
             onDismissRequest = { showBulkDeleteConfirm = false },
             title = { Text("Delete selected media?") },
