@@ -6,9 +6,31 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertEquals
+import androidx.compose.ui.geometry.Offset
 
 class StudioHistoryUiTest {
     @get:Rule val compose=createComposeRule()
+    @Test fun longPressDragReordersThePersistedTimeline() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val source=studioFixture("native-source.mp4")
+        val clip=StudioMediaImports.video(context,MediaLibraryIndexer.localUri(context,source))
+        val project=StudioProject(title="Drag timeline",clips=listOf(clip.copy(name="First"),clip.copy(id=java.util.UUID.randomUUID().toString(),name="Second")))
+        val repository=StudioRepository(context)
+        repository.save(project)
+        try {
+            compose.setContent {MaterialTheme {NativeStudioHub(onClose={},onBusyChanged={})}}
+            compose.waitUntil(10_000) {compose.onAllNodesWithText("Drag timeline").fetchSemanticsNodes().isNotEmpty()}
+            compose.onAllNodesWithText("Continue editing").onFirst().performClick()
+            compose.onNodeWithContentDescription("Video clip 1: First").performScrollTo().performTouchInput {
+                down(center); advanceEventTime(700); moveBy(Offset(width.toFloat()*1.5f,0f)); advanceEventTime(100); up()
+            }
+            compose.onNodeWithContentDescription("Video clip 1: Second").assertExists()
+            compose.onNodeWithText("Save project").performScrollTo().performClick()
+            compose.waitUntil(5000) {repository.load(project.id).clips.first().name=="Second"}
+            assertEquals(listOf("Second","First"),repository.load(project.id).clips.map {it.name})
+        } finally {repository.delete(project.id)}
+    }
     @Test fun duplicateUndoRedoAndTimedTitleSaveAndReopen() {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val source=studioFixture("native-source.mp4")

@@ -61,7 +61,7 @@ restarts after interruption instead of resuming partial output.
 
 ## Verification boundaries
 
-CI keeps Gradle assembleDebug/testDebugUnitTest/lintDebug and every existing
+CI runs the complete instrumentation suite on API29 and API35 and keeps Gradle assembleDebug/testDebugUnitTest/lintDebug and every existing
 regression gate. New JVM tests cover schema migration, effect/audio/caption
 roundtrip, editing/history, SRT and relinking. Android tests cover project
 trash/duplicate/restore, UI undo/redo and save/reopen, and real encoding of speed,
@@ -70,7 +70,7 @@ verify the silent lead-in and audible lane, rather than checking only metadata.
 Existing startup nonblack capture, navigation, legacy export, native render,
 project recovery and foreground export tests remain.
 
-API35 emulator checks do not certify Android 17, camera sensors, microphone quality
+API29/API35 emulator checks do not certify Android 17, camera sensors, microphone quality
 or 4K hardware. The Android17 CI discovery job reports unavailable API37/37.2
 Google APIs x86_64 images as BLOCKED and runs the suite when an image is published.
 No physical-device tests, merges, infrastructure changes or deployment are part

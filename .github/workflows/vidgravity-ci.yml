@@ -209,7 +209,11 @@ jobs:
 
 
   android-ui-smoke:
-    name: Android API 35 startup and navigation smoke
+    name: Android API ${{ matrix.api }} startup and editing tests
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [29, 35]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -234,7 +238,7 @@ jobs:
       - name: Run automated launch, navigation and image preview tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: ${{ matrix.api }}
           target: google_apis
           arch: x86_64
           profile: pixel_7
@@ -245,7 +249,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: vidgravity-android-api35-smoke-evidence
+          name: vidgravity-android-api${{ matrix.api }}-smoke-evidence
           path: |
             work/android-smoke/
             apps/android/app/build/reports/androidTests/
