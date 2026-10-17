@@ -601,9 +601,41 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                 }
             }
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                InfoCard("Downloads", "Real transfer status", Icons.Default.Download, Modifier.weight(1f))
-                InfoCard("On this device", "Your media library", Icons.Default.PhoneAndroid, Modifier.weight(1f))
+            Text("MY RECENT PROJECTS", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text("Your saved photos, videos and edits appear in Library.",
+                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(10.dp))
+            Surface(modifier = Modifier.fillMaxWidth().clickable(onClick = openCreate),
+                shape = RoundedCornerShape(18.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(Icons.Default.VideoLibrary, null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(32.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Continue creating", fontWeight = FontWeight.Bold)
+                        Text("Open Studio to work with media from your Library",
+                            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Icon(Icons.Default.ChevronRight, null)
+                }
+            }
+        }
+        item {
+            Surface(shape = RoundedCornerShape(20.dp),
+                color = Color(0xFF352066),
+                modifier = Modifier.fillMaxWidth()) {
+                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.WorkspacePremium, null, tint = Color(0xFFFFC66B),
+                        modifier = Modifier.size(36.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("VidGravity Pro", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text("Premium creator tools are coming soon",
+                            fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
+                    }
+                }
             }
         }
         item {
