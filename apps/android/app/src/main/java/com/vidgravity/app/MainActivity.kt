@@ -932,7 +932,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                         Triple("Library", Icons.Default.VideoLibrary, Color(0xFFC084FC))
                     ).forEachIndexed { index, action ->
                         Surface(
-                            modifier = Modifier.weight(1f).heightIn(min = 76.dp).clickable {
+                            modifier = Modifier.weight(1f).heightIn(min = 82.dp).clickable {
                                 when (index) { 0 -> onTab(VgTab.Downloads); 1 -> onOpenCamera(); else -> onTab(VgTab.Library) }
                             },
                             shape = RoundedCornerShape(16.dp),
@@ -941,7 +941,15 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                         ) {
                             Column(Modifier.padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Icon(action.second, contentDescription = null, tint = action.third, modifier = Modifier.size(23.dp))
-                                Text(action.first, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(
+                                    action.first,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 2,
+                                    textAlign = TextAlign.Center,
+                                    softWrap = true,
+                                    lineHeight = 13.sp
+                                )
                             }
                         }
                     }
