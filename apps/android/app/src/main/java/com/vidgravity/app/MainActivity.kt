@@ -4,7 +4,8 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -30,6 +31,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -43,10 +45,39 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
+    private lateinit var startup: StartupHost
+    private var inboxRequest by mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        android.util.Log.i(StartupHost.TAG, "onCreate.begin sdk=${android.os.Build.VERSION.SDK_INT} target=${applicationInfo.targetSdkVersion}")
         super.onCreate(savedInstanceState)
-        val openInbox = intent?.getBooleanExtra(ShareReceiverActivity.EXTRA_OPEN_INBOX, false) == true
-        setContent { VidGravityApp(openInboxInitially = openInbox) }
+        startup = StartupHost(this)
+        setContentView(startup)
+        if (intent?.getBooleanExtra(ShareReceiverActivity.EXTRA_OPEN_INBOX, false) == true) inboxRequest++
+        startup.start { VidGravityApp(inboxRequest = inboxRequest) }
+        android.util.Log.i(StartupHost.TAG, "onCreate.end")
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(ShareReceiverActivity.EXTRA_OPEN_INBOX, false)) inboxRequest++
+        android.util.Log.i(StartupHost.TAG, "onNewIntent")
+    }
+
+    override fun onResume() {
+        super.onResume()
+        android.util.Log.i(StartupHost.TAG, "onResume")
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        android.util.Log.i(StartupHost.TAG, "window.focus=$hasFocus")
+    }
+
+    override fun onDestroy() {
+        if (::startup.isInitialized) startup.close()
+        super.onDestroy()
     }
 }
 
@@ -58,20 +89,75 @@ private enum class VgTab(val title: String, val icon: androidx.compose.ui.graphi
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun VidGravityApp(openInboxInitially: Boolean = false) {
+private fun VidGravityApp(inboxRequest: Int = 0) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val prefs = remember { context.getSharedPreferences("vg-ui", 0) }
-    var dark by remember { mutableStateOf(prefs.getBoolean("dark", true)) }
-    var selected by remember { mutableStateOf(VgTab.Home) }
-    var showInbox by remember { mutableStateOf(openInboxInitially) }
+    var prefs by remember { mutableStateOf<android.content.SharedPreferences?>(null) }
+    var dark by remember { mutableStateOf(true) }
+    // SharedPreferences may wait for disk loading. Never hold the first frame on it.
+    LaunchedEffect(context) {
+        val loaded = withContext(Dispatchers.IO) {
+            try {
+                val loadedPrefs = context.getSharedPreferences("vg-ui", 0)
+                loadedPrefs to loadedPrefs.getBoolean("dark", true)
+            }
+            catch (failure: RuntimeException) {
+                android.util.Log.w(StartupHost.TAG, "theme.preference.failed type=${failure.javaClass.simpleName}")
+                null to true
+            }
+        }
+        prefs = loaded.first
+        dark = loaded.second
+        android.util.Log.i(StartupHost.TAG, "theme.preference.loaded")
+    }
+    var selected by rememberSaveable { mutableStateOf(VgTab.Home) }
+    var showInbox by rememberSaveable { mutableStateOf(inboxRequest > 0) }
     var showStudyTok by remember { mutableStateOf(false) }
     var creatorInitialMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var playingMedia by remember { mutableStateOf<LibraryMedia?>(null) }
-    var url by remember { mutableStateOf("") }
+    var url by rememberSaveable { mutableStateOf("") }
     var notice by remember { mutableStateOf<String?>(null) }
     var analysis by remember { mutableStateOf<SourceAnalysisResult?>(null) }
     var inspecting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    var studioBusy by remember { mutableStateOf(false) }
+    LaunchedEffect(inboxRequest) {
+        if (inboxRequest > 0) {
+            if (studioBusy) notice = "Link saved to Share Inbox. Finish the current export before opening it."
+            else { playingMedia = null; showStudyTok = false; showInbox = true }
+        }
+    }
+    fun navigate(tab: VgTab) {
+        if (studioBusy) { notice = "Wait for the Studio export to finish or cancel the clip split."; return }
+        playingMedia = null
+        showStudyTok = false
+        showInbox = false
+        selected = tab
+    }
+    BackHandler(enabled = playingMedia != null || showStudyTok || showInbox || selected != VgTab.Home) {
+        when {
+            playingMedia != null -> playingMedia = null
+            showStudyTok -> showStudyTok = false
+            showInbox -> showInbox = false
+            else -> navigate(VgTab.Home)
+        }
+    }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val data = result.data
+        val uri = data?.data
+        if (result.resultCode == android.app.Activity.RESULT_OK && uri?.scheme == "content") {
+            val mime = data.type.orEmpty()
+            creatorInitialMedia = LibraryMedia(uri, data.getStringExtra(Intent.EXTRA_TITLE) ?: "Camera capture",
+                0L, mime, System.currentTimeMillis())
+            selected = VgTab.Studio
+        }
+    }
+    val openCamera: () -> Unit = camera@{
+        if (studioBusy) { notice = "Wait for the Studio export to finish or cancel the clip split."; return@camera }
+        runCatching { cameraLauncher.launch(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java)) }
+            .onFailure { notice = "Could not open camera. Please try again." }
+    }
     // Premium cinematic palette: low-glare navy/slate with teal, violet and amber accents.
     val scheme = if (dark) darkColorScheme(
         primary = Color(0xFF43D8CA), onPrimary = Color(0xFF141A2B),
@@ -110,11 +196,11 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 fontWeight = FontWeight.SemiBold)
                         }
                     }
-                    IconButton(onClick = { selected = VgTab.Settings }) {
+                    IconButton(onClick = { navigate(VgTab.Settings) }) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
                     }
                     Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant) {
-                        IconButton(onClick = { dark = !dark; prefs.edit().putBoolean("dark", dark).apply() }) {
+                        IconButton(onClick = { dark = !dark; prefs?.edit()?.putBoolean("dark", dark)?.apply() }) {
                             Icon(if (dark) Icons.Default.LightMode else Icons.Default.DarkMode, "Toggle theme")
                         }
                     }
@@ -123,13 +209,14 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
             bottomBar = {
                 NavigationBar(modifier = Modifier.navigationBarsPadding(), containerColor = MaterialTheme.colorScheme.surface) {
                     VgTab.values().filter { it != VgTab.Settings }.forEach { tab ->
-                        NavigationBarItem(selected = selected == tab, onClick = {
+                        NavigationBarItem(modifier = Modifier.testTag("nav_${tab.name}"), selected = selected == tab, onClick = {
+                            if (studioBusy) { notice = "Wait for the Studio export to finish or cancel the clip split."; return@NavigationBarItem }
                             if (tab == VgTab.Camera) {
                                 runCatching {
-                                    context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
+                                    openCamera()
                                 }.onFailure { notice = "Could not open camera: ${it.message ?: "try again"}" }
                             } else {
-                                selected = tab
+                                navigate(tab)
                             }
                         },
                             icon = { Icon(tab.icon, contentDescription = tab.title) }, label = { Text(tab.title, maxLines = 1) })
@@ -165,8 +252,9 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Studio }, { runCatching { context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java)) }.onFailure { notice = "Could not open camera: ${it.message ?: "try again"}" } }, { playingMedia = it }, { creatorInitialMedia = it; selected = VgTab.Studio }, { selected = VgTab.Library }, { showStudyTok = true })
-                    VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
+                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Studio }, { runCatching { openCamera() }.onFailure { notice = "Could not open camera: ${it.message ?: "try again"}" } }, { playingMedia = it }, { creatorInitialMedia = it; selected = VgTab.Studio }, { selected = VgTab.Library }, { showStudyTok = true })
+                    VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it },
+                        onEdit = { creatorInitialMedia = it; selected = VgTab.Studio })
                     // Camera opens a dedicated Activity from its navigation item.
                     // This branch keeps the enum dispatch exhaustive.
                     VgTab.Camera -> Unit
@@ -176,9 +264,10 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                     )
                     VgTab.Studio -> CreateStudioContent(
                         onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true },
-                        initialMedia = creatorInitialMedia
+                        initialMedia = creatorInitialMedia, openCamera = openCamera,
+                        onBusyChanged = { studioBusy = it }
                     )
-                    VgTab.Settings -> SettingsContent(dark, { dark = it; prefs.edit().putBoolean("dark", it).apply() })
+                    VgTab.Settings -> SettingsContent(dark, { dark = it; prefs?.edit()?.putBoolean("dark", it)?.apply() })
                 }
             }
         }
@@ -440,11 +529,20 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
             ?.takeIf { it.length <= 4096 && (it.contains("://youtu") || it.contains("instagram.com") || it.contains("tiktok.com") || it.contains("facebook.com") || it.contains("twitter.com") || it.contains("x.com") || it.contains("vimeo.com") || it.contains("soundcloud.com") || it.contains("youtube.com") || it.contains("youtu.be")) }
         clipboardSuggestion = candidate?.takeIf { it != url }
     }
-    DisposableEffect(activity) {
+    // Clipboard binder access is optional: defer it until after a rendered frame.
+    LaunchedEffect(activity) {
+        withFrameNanos { }
+        withFrameNanos { }
         detectClipboardUrl()
+    }
+    DisposableEffect(activity) {
         val lifecycle = activity?.lifecycle
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) detectClipboardUrl()
+            if (event == Lifecycle.Event.ON_RESUME) scope.launch {
+                withFrameNanos { }
+                withFrameNanos { }
+                detectClipboardUrl()
+            }
         }
         lifecycle?.addObserver(observer)
         onDispose { lifecycle?.removeObserver(observer) }
@@ -770,7 +868,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
 }
 
 @Composable
-private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
+private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onEdit: (LibraryMedia) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboard = LocalClipboardManager.current
     var expandedErrors by remember { mutableStateOf(setOf<java.util.UUID>()) }
@@ -1276,6 +1374,12 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit) {
                                 Text("Saved to your device", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
                                 val contentUri = work.outputData.getString("content_uri")?.let { runCatching { Uri.parse(it) }.getOrNull() }
                                 if (contentUri != null) {
+                                    OutlinedButton(onClick = {
+                                        val mime = MediaWorkflowRules.mimeForName(title) ?: "video/mp4"
+                                        onEdit(LibraryMedia(contentUri, title,
+                                            work.outputData.getLong("bytes_downloaded", downloaded), mime, System.currentTimeMillis()))
+                                    }) { Text("Edit in Studio") }
+
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                                         OutlinedButton(onClick = {
                                             val mime = if (title.substringAfterLast(".", "").lowercase() in listOf("mp3", "m4a", "aac", "flac", "wav", "opus")) "audio/*" else "video/*"
@@ -1473,7 +1577,14 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
     var showBulkDeleteConfirm by remember { mutableStateOf(false) }
     var swipeFeedOpen by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    suspend fun refreshMedia() { media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) } }
+    var libraryError by remember { mutableStateOf<String?>(null) }
+    suspend fun refreshMedia() {
+        try {
+            media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) }
+            libraryError = null
+        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (failure: Exception) { libraryError = "Library could not refresh. Your saved files are unchanged." }
+    }
     LaunchedEffect(Unit) { refreshMedia() }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -1535,6 +1646,10 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         return
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        libraryError?.let { message ->
+            Text(message, color = MaterialTheme.colorScheme.error)
+            TextButton(onClick = { scope.launch { refreshMedia() } }) { Text("Retry library") }
+        }
         Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface,
             modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1991,7 +2106,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
 }
 
 @Composable
-private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, initialMedia: LibraryMedia? = null) {
+private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, initialMedia: LibraryMedia? = null, openCamera: () -> Unit, onBusyChanged: (Boolean) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var selectedMedia by remember(initialMedia) { mutableStateOf(initialMedia) }
@@ -2002,6 +2117,11 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     var statusClipSeconds by remember { mutableStateOf(90) }
     var exportedUri by remember { mutableStateOf<Uri?>(null) }
     var stickerUri by remember { mutableStateOf<Uri?>(null) }
+    DisposableEffect(isRendering, segmentJob) {
+        onBusyChanged(isRendering || segmentJob != null)
+        onDispose { }
+    }
+    DisposableEffect(Unit) { onDispose { onBusyChanged(false) } }
     val picker = rememberLauncherForActivityResult(
         contract = androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -2032,20 +2152,27 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             notify(when {
                 mime.startsWith("video/") -> "Video selected. Preview, share, edit a story, split status clips, or export a sticker."
                 mime.startsWith("audio/") -> "Audio selected. Preview, share, or try a compatible story layout."
-                mime.startsWith("image/") -> "Image selected. Preview, share, or try a compatible story layout."
+                mime.startsWith("image/") -> "Image selected. Preview or share the original; story rendering supports video and audio."
                 else -> "File selected. Available Studio tools depend on the file type."
             })
         }
+    }
+    BackHandler(enabled = storyEditorOpen) {
+        if (isRendering) notify("Wait for the export to finish before leaving the editor.")
+        else storyEditorOpen = false
     }
     if (storyEditorOpen && selectedMedia != null) {
         StoryCardScreen(
             media = selectedMedia!!,
             onClose = { storyEditorOpen = false },
             isRendering = isRendering,
+            hasDerivative = exportedUri != null,
+            onEdit = { exportedUri = null },
             onRenderStory = { source, startSeconds, endSeconds, title, artist, layout ->
                 if (!isRendering) {
                     scope.launch {
                         isRendering = true
+                        exportedUri = null
                         try {
                             val mode = when (layout) {
                                 "Audio Visualizer" -> "audio-story"
@@ -2163,7 +2290,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                         Text(when {
                             media.mimeType.startsWith("video/") -> "VIDEO READY · Story editor, clip splitter and animated sticker"
                             media.mimeType.startsWith("audio/") -> "AUDIO READY · Preview, share and compatible story layouts"
-                            media.mimeType.startsWith("image/") -> "IMAGE READY · Preview, share and compatible story layouts"
+                            media.mimeType.startsWith("image/") -> "IMAGE READY · Preview and share original"
                             else -> "FILE SELECTED · Available tools depend on file type"
                         }, modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
                             fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
@@ -2185,7 +2312,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                             Icon(Icons.Default.Share, null); Spacer(Modifier.width(5.dp)); Text("Share original")
                         }
                     }
-                    Button(onClick = { storyEditorOpen = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
+                    Button(enabled = MediaWorkflowRules.supportsStory(media.mimeType), onClick = { storyEditorOpen = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
                         Icon(Icons.Default.AutoAwesome, null); Spacer(Modifier.width(8.dp)); Text("Create 9:16 Story / Status")
                     }
                     if (!media.mimeType.startsWith("video/")) {
@@ -2197,7 +2324,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                                 Icon(Icons.Default.Info, contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(18.dp))
-                                Text("Video-only tools such as clip splitting and animated WebP stickers require a video. You can still preview, share or open the story editor with this file.",
+                                Text("Video-only tools such as clip splitting and animated WebP stickers require a video. You can preview and share images; story rendering currently supports video and audio.",
                                     fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                             }
                         }
@@ -2381,7 +2508,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
         OutlinedButton(
             onClick = {
                 runCatching {
-                    context.startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java))
+                    openCamera()
                 }.onFailure { notify("Could not open camera capture: ${it.message ?: "try again"}") }
             },
             modifier = Modifier.fillMaxWidth().heightIn(min = 54.dp)

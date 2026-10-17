@@ -35,7 +35,7 @@ class ShareReceiverActivity : FragmentActivity(), FormatPickerBottomSheet.Listen
         Toast.makeText(this, "Saved to VidGravity Share Inbox. No download started.", Toast.LENGTH_LONG).show()
         startActivity(Intent(this, MainActivity::class.java).apply {
             putExtra(EXTRA_OPEN_INBOX, true)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         })
         finish()
     }

@@ -28,6 +28,10 @@ import androidx.media3.ui.PlayerView
 
 @Composable
 fun PlayerScreen(media: LibraryMedia, onBack: () -> Unit) {
+    if (media.mimeType.startsWith("image/")) {
+        ImagePreview(media, onBack)
+        return
+    }
     val context = LocalContext.current
     val activity = context as? Activity
     val progressPrefs = remember(context) { context.getSharedPreferences("vg_player_progress", android.content.Context.MODE_PRIVATE) }

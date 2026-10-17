@@ -1,0 +1,71 @@
+package com.vidgravity.app
+
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.assertion.ViewAssertions.matches
+import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
+import androidx.test.espresso.matcher.ViewMatchers.withText
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import org.hamcrest.Matchers.not
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import java.io.File
+
+@RunWith(AndroidJUnit4::class)
+class StartupNavigationTest {
+    @get:Rule val compose = createAndroidComposeRule<MainActivity>()
+
+    @Test fun startupDrawsHomeAndCoreTabsNavigate() {
+        compose.waitUntil(15_000) {
+            compose.onAllNodesWithText("YOUR CREATOR UNIVERSE").fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithText("YOUR CREATOR UNIVERSE").assertIsDisplayed()
+        compose.waitForIdle()
+        onView(withText("Retry startup")).check(matches(not(isDisplayed())))
+
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val captured = instrumentation.uiAutomation.takeScreenshot()
+        val screenshot = captured?.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+        captured?.recycle()
+        assertTrue("System screenshot unavailable", screenshot != null)
+        screenshot?.let { bitmap ->
+            val directory = File(compose.activity.getExternalFilesDir(null), "smoke-evidence").apply { mkdirs() }
+            File(directory, "startup.png").outputStream().use {
+                bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it)
+            }
+            var colored = 0
+            var samples = 0
+            for (y in 0 until bitmap.height step 16) for (x in 0 until bitmap.width step 16) {
+                val pixel = bitmap.getPixel(x, y)
+                if (android.graphics.Color.red(pixel) + android.graphics.Color.green(pixel) + android.graphics.Color.blue(pixel) > 100) colored++
+                samples++
+            }
+            assertTrue("Launch image is almost entirely black", colored > samples / 20)
+            bitmap.recycle()
+        }
+
+        for (tab in listOf("Downloads", "Library", "Studio", "Home")) {
+            compose.onNodeWithTag("nav_$tab").performClick()
+            compose.onNodeWithTag("nav_$tab").assertIsSelected()
+        }
+        compose.onNodeWithText("YOUR CREATOR UNIVERSE").assertIsDisplayed()
+        compose.onNodeWithTag("nav_Studio").performClick()
+        compose.onNodeWithText("Creator Studio").assertIsDisplayed()
+        compose.activityRule.scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        compose.onNodeWithTag("nav_Home").assertIsSelected()
+        compose.activityRule.scenario.onActivity { activity ->
+            activity.startActivity(android.content.Intent(activity, MainActivity::class.java).apply {
+                putExtra(ShareReceiverActivity.EXTRA_OPEN_INBOX, true)
+                addFlags(android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            })
+        }
+        compose.waitUntil(5_000) { compose.onAllNodesWithText("Share Inbox").fetchSemanticsNodes().isNotEmpty() }
+        compose.onNodeWithText("Share Inbox").assertIsDisplayed()
+        compose.onNodeWithTag("nav_Home").performClick()
+        compose.onNodeWithText("YOUR CREATOR UNIVERSE").assertIsDisplayed()
+    }
+}

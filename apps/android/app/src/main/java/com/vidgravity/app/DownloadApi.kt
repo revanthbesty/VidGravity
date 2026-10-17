@@ -348,6 +348,11 @@ object DownloadApi {
                     throw java.io.IOException("Export SHA-256 verification failed; the file was not published.")
                 }
             } finally { connection.disconnect() }
+            if (android.os.Build.VERSION.SDK_INT < 29) {
+                val extension = if (outputFormat == "webp") "webp" else "mp4"
+                return MediaLibraryIndexer.publish(context, outputFile,
+                    "VidGravity_Export_${System.currentTimeMillis()}.$extension", sha256(outputFile)).uri
+            }
             val values = android.content.ContentValues().apply {
                 val suffix = if (outputFormat == "webp") "Sticker" else "Story"
                 val extension = if (outputFormat == "webp") "webp" else "mp4"

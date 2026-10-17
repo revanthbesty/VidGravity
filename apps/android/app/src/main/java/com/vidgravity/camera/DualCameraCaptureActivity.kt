@@ -1,6 +1,13 @@
 package com.vidgravity.camera
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import com.vidgravity.app.MediaLibraryIndexer
 import android.content.ContentValues
 import android.os.Build
 import android.provider.MediaStore
@@ -47,6 +54,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private lateinit var container: FrameLayout
     private lateinit var rearPreview: PreviewView
     private lateinit var frontPreview: PreviewView
+    private lateinit var useCapture: Button
     private lateinit var status: TextView
     private lateinit var shutter: Button
     private lateinit var modeButton: Button
@@ -135,6 +143,8 @@ class DualCameraCaptureActivity : ComponentActivity() {
             setPadding(0, 0, 0, dp(10))
         }
         bottom.addView(status, LinearLayout.LayoutParams(-1, -2))
+        useCapture = controlButton("Use capture in Studio") { finish() }.apply { isEnabled = false }
+        bottom.addView(useCapture, LinearLayout.LayoutParams(-1, dp(48)))
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -308,7 +318,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
                     contentResolver, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values
                 ).build()
             } else {
-                val directory = getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: filesDir
+                val directory = getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: File(filesDir, "media")
                 if (!directory.exists()) directory.mkdirs()
                 ImageCapture.OutputFileOptions.Builder(
                     File(directory, fileName)
@@ -316,6 +326,9 @@ class DualCameraCaptureActivity : ComponentActivity() {
             }
             capture.takePicture(options, executor, object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(result: ImageCapture.OutputFileResults) = runOnUiThread {
+                    completedCapture(result.savedUri,
+                        File(getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: File(filesDir, "media"), fileName),
+                        fileName, "image/jpeg")
                     status.text = "Photo saved · ${fileName}"
                     Toast.makeText(this@DualCameraCaptureActivity, "Photo saved to VidGravity: ${fileName}", Toast.LENGTH_LONG).show()
                 }
@@ -363,7 +376,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
             ).setContentValues(values).build()
             capture.output.prepareRecording(this, options)
         } else {
-            val directory = getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: filesDir
+            val directory = getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: File(filesDir, "media")
             if (!directory.exists()) directory.mkdirs()
             val options = FileOutputOptions.Builder(File(directory, fileName)).build()
             capture.output.prepareRecording(this, options)
@@ -390,10 +403,35 @@ class DualCameraCaptureActivity : ComponentActivity() {
                         status.text = "Recording failed"
                         Toast.makeText(this, "Recording failed. Please retry.", Toast.LENGTH_LONG).show()
                     } else {
+                        completedCapture(event.outputResults.outputUri.takeIf { it != Uri.EMPTY },
+                            File(getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: File(filesDir, "media"), fileName),
+                            fileName, "video/mp4")
                         status.text = "Video saved · ${fileName}"
                         Toast.makeText(this, "Video saved to VidGravity: ${fileName}", Toast.LENGTH_LONG).show()
                     }
                 }
+            }
+        }
+    }
+
+    private fun completedCapture(savedUri: Uri?, file: File, name: String, mime: String) {
+        lifecycleScope.launch {
+            try {
+                val uri = withContext(Dispatchers.IO) {
+                    val readable = savedUri ?: MediaLibraryIndexer.localUri(this@DualCameraCaptureActivity, file)
+                    val size = contentResolver.openAssetFileDescriptor(readable, "r")?.use { it.length } ?: 0L
+                    MediaLibraryIndexer.register(this@DualCameraCaptureActivity, readable, name, mime, size)
+                    readable
+                }
+                setResult(RESULT_OK, Intent().setDataAndType(uri, mime).apply {
+                    putExtra(Intent.EXTRA_TITLE, name)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                })
+                useCapture.isEnabled = true
+                status.text = "Saved to Library · Ready for Studio"
+            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+            catch (failure: Exception) {
+                status.text = "Capture saved. Library indexing could not finish; reopen Library to retry."
             }
         }
     }
