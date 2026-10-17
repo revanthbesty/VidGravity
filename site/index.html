@@ -9,8 +9,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="VidGravity">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="styles.css?v=p177">
+<link rel="stylesheet" href="styles.css?v=p180">
 <link rel="stylesheet" href="social-export.css?v=p176">
+<link rel="stylesheet" href="ui-batch-20.css?v=1">
+<link rel="stylesheet" href="ui-batch-40.css?v=1">
+<link rel="stylesheet" href="ui-batch-50.css?v=1">
 <title>VidGravity</title>
 </head>
 <body>
@@ -38,6 +41,7 @@
       <button class="nav active" data-page="home">⌂ <span>Home</span></button>
       <button class="nav" data-page="downloads">↓ <span>Downloads</span><em id="queueBadge">0</em></button>
       <button class="nav" data-page="library">▣ <span>Library</span></button>
+      <button class="nav" data-page="create">✦ <span>Create Studio</span></button>
       <button class="nav" data-page="ask">✦ <span>Ask My Media</span></button>
       <button class="nav" data-page="settings">⚙ <span>Settings</span></button>
     </nav>
@@ -96,6 +100,16 @@
     <div id="libraryGrid" class="mediaGrid"></div>
     </section>
 
+    <section id="create" class="page">
+      <div class="sectionTitle"><div><div class="eyebrow">CREATE STUDIO</div><h1>Make something new.</h1><p>Import media or capture a clip. Keep the tools simple and within reach.</p></div></div>
+      <div class="createStudioGrid">
+        <article class="createFeature card"><div class="createFeatureIcon">↥</div><div><h2>Import media</h2><p>Choose a video or audio file from this device to preview it before saving.</p></div><label class="createAction primary" for="vgLocalMediaInput">Choose files</label><input id="vgLocalMediaInput" type="file" accept="video/*,audio/*" multiple hidden><small id="vgImportStatus" role="status">Files stay on this device unless you choose to share them.</small></article>
+        <article class="createFeature card"><div class="createFeatureIcon">◉</div><div><h2>Camera studio</h2><p>Record a quick clip with your device camera. Camera access is requested only when you start.</p></div><div class="cameraPreviewWrap"><video id="vgCameraPreview" autoplay muted playsinline aria-label="Camera preview"></video><div id="vgCameraPlaceholder" class="cameraPlaceholder">Camera preview appears here</div></div><div class="createButtonRow"><button id="vgCameraStart" class="primary" type="button">Start camera</button><button id="vgCameraFlip" class="smallBtn" type="button" disabled>Flip camera</button><button id="vgRecordToggle" class="smallBtn" type="button" disabled>Record</button><button id="vgCameraStop" class="ghost" type="button" disabled>Stop</button></div><small id="vgCameraStatus" role="status">Camera is off.</small></article>
+        <article class="createFeature card"><div class="createFeatureIcon">✂</div><div><h2>Quick actions</h2><p>Jump to the right workspace instead of navigating through crowded menus.</p></div><div class="createQuickLinks"><button class="quickLink" data-page="downloads" type="button"><span>↓</span><span><b>Download manager</b><small>Queue, progress, and retries</small></span><span>→</span></button><button class="quickLink" data-page="library" type="button"><span>▣</span><span><b>Media library</b><small>Search and organize saved media</small></span><span>→</span></button><button class="quickLink" data-page="home" type="button"><span>↗</span><span><b>Inspect a link</b><small>Choose format and quality</small></span><span>→</span></button></div></article>
+      </div>
+      <div id="vgLocalPreview" class="card vgLocalPreview" hidden><div class="localPreviewHeader"><div><div class="eyebrow">LOCAL PREVIEW</div><h2 id="vgLocalPreviewName">Selected media</h2></div><button id="vgLocalPreviewClose" class="ghost" type="button">Close preview</button></div><div id="vgLocalPreviewStage"></div></div>
+    </section>
+
     <section id="ask" class="page">
       <div class="sectionTitle"><div><div class="eyebrow">MEDIA INTELLIGENCE</div><h1>Ask My Media</h1><p>Search your local media metadata and transcript-ready evidence.</p></div></div>
       <div class="ask card">
@@ -117,6 +131,7 @@
     <section id="settings" class="page">
       <div class="sectionTitle"><div><div class="eyebrow">CONTROL CENTER</div><h1>Settings</h1><p>Cloud-backed preferences for the VidGravity online app.</p></div></div>
       <div class="settingsGrid">
+        <div class="card setting"><div><b>Display scale</b><small>Adjust workspace zoom for your screen. Default is 100%.</small></div><select id="vgZoomPreference" aria-label="Workspace zoom"><option value="90">90%</option><option value="100" selected>100% · Default</option><option value="110">110%</option><option value="120">120%</option><option value="130">130%</option></select></div>
         <div class="card setting"><div><b>Media library</b><small>Downloaded files are saved in this browser on your device. Downloads are processed by the hosted VidGravity service.</small></div><span class="pill">DEVICE STORAGE</span></div>
         <div class="card setting licenseSetting"><div class="licenseHead"><div><b>Account & device license</b><small>Activate one license on this device. To transfer, deactivate the old device first.</small></div><span id="licenseState" class="pill muted">CHECKING</span></div><div class="licenseControls"><input id="licenseKeyInput" type="password" autocomplete="off" placeholder="Enter license key"><button id="activateLicenseBtn" class="primary">Activate</button><button id="deactivateLicenseBtn" class="ghost" disabled>Deactivate device</button></div><small id="licenseMessage" role="status">Connect to the VidGravity cloud service to check activation.</small><small id="licenseDevice" class="licenseDevice"></small></div>
         <div class="card setting vg-api-setting"><div><b>VidGravity cloud service</b><small>Inspection, format detection, downloads, and licensing use the hosted API. No local companion or PC installation is required. Some providers may block cloud-server requests.</small></div><div class="vg-api-controls"><input id="vgApiBaseInput" type="url" inputmode="url" placeholder="https://vidgravity.onrender.com" autocomplete="url"><button id="vgApiSaveButton" class="primary" type="button">Save</button><button id="vgApiTestButton" class="smallBtn" type="button">Test connection</button><button id="vgApiClearButton" class="ghost" type="button">Reset</button></div><small id="vgApiMessage" role="status">Using VidGravity cloud API.</small></div>
@@ -134,6 +149,8 @@
 <script src="social-export.js?v=p176"></script>
 <script src="player-refactor.js?v=p176"></script>
 <script src="quickflow.js?v=qf1" defer></script>
+<script src="ui-polish.js?v=ui1" defer></script>
+<script src="create-studio.js?v=1" defer></script>
 <script id="vgApiConfigRuntime">
 (() => {
  const DEFAULT_API="https://vidgravity.onrender.com";
@@ -167,5 +184,8 @@
  }
 })();
 </script>
+<script src="ui-batch-20.js?v=1" defer></script>
+<script src="ui-batch-40.js?v=1" defer></script>
+<script src="ui-batch-50.js?v=1" defer></script>
 </body>
 </html>

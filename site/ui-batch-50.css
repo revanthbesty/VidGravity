@@ -1,0 +1,26 @@
+/* UI batch 41–90 shared styles. Semantic theme tokens remain in control. */
+.vg90-sr{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}
+.vg90-skip{position:fixed;top:8px;left:8px;z-index:99999;transform:translateY(-150%);padding:11px 16px;border-radius:10px;background:var(--surface-overlay,#fff);color:var(--text-primary,#222);border:2px solid var(--focus-ring,#8b5cf6);font-weight:700}
+.vg90-skip:focus{transform:translateY(0)}
+.vg90-tool-button,.vg90-inline-clear{min-height:40px;padding:8px 11px;border:1px solid var(--border-subtle,var(--line));border-radius:10px;background:var(--surface-raised,var(--panel2));color:var(--text-primary,var(--text));font:inherit;font-size:12px;font-weight:650;cursor:pointer}
+.vg90-inline-clear{margin:4px;font-size:11px}
+.vg90-tool-button:hover,.vg90-inline-clear:hover{border-color:var(--accent,#8b5cf6)}
+.vg90-toast{position:fixed;z-index:99998;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));max-width:min(92vw,480px);padding:11px 16px;border:1px solid var(--border-subtle,var(--line));border-radius:12px;background:var(--surface-overlay,#20232b);color:var(--text-primary,#fff);box-shadow:var(--surface-shadow,0 12px 32px #0004);opacity:0;transform:translate(-50%,12px);pointer-events:none;transition:opacity .18s,transform .18s}
+.vg90-toast.show{opacity:1;transform:translate(-50%,0)}
+.vg90-charcount,.vg90-version{display:block;color:var(--text-muted,var(--muted));font-size:11px;margin:4px 0 8px}
+.vg90-wrap{overflow-wrap:anywhere;word-break:normal;min-width:0}
+.vg90-top{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom));z-index:30;opacity:0;pointer-events:none;transform:translateY(8px);transition:opacity .18s,transform .18s;min-height:42px;padding:9px 13px;border-radius:999px;border:1px solid var(--border-subtle,var(--line));background:var(--surface-overlay,var(--panel));color:var(--text-primary,var(--text));box-shadow:var(--surface-shadow,0 12px 32px #0004)}
+.vg90-top.visible{opacity:1;pointer-events:auto;transform:none}
+.vg90-help-panel{position:fixed;right:16px;top:76px;z-index:9997;width:min(340px,calc(100vw - 32px));padding:18px;border:1px solid var(--border-subtle,var(--line));border-radius:16px;background:var(--surface-overlay,var(--panel));color:var(--text-primary,var(--text));box-shadow:var(--surface-shadow,0 18px 54px #0004)}
+.vg90-help-panel h2{font-size:17px;margin:0 0 12px}.vg90-help-panel li{margin:9px 0;line-height:1.5}.vg90-help-panel kbd{padding:2px 5px;border:1px solid var(--border-subtle,var(--line));border-radius:5px;background:var(--surface-raised,var(--panel2))}
+.vg90-scroll-wrap{max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain}.vg90-scroll-wrap table{max-width:100%}.vg90-media-fit{max-width:100%;height:auto}.vg90-pwa-status{font-size:11px;color:var(--text-muted,var(--muted));padding:5px 8px;border:1px solid var(--border-subtle,var(--line));border-radius:999px}
+.vg90-touch-target{touch-action:manipulation}.vg90-disabled{opacity:.58;cursor:not-allowed!important}.vg90-no-select{user-select:none}
+html[data-vg-density="compact"] .card,html[data-vg-density="compact"] .media,html[data-vg-density="compact"] .downloadItem,html[data-vg-density="compact"] .job{padding-top:9px!important;padding-bottom:9px!important;gap:8px!important}
+html.vg90-contrast{--border-subtle:#858aa0!important;--line:#858aa0!important;--text-muted:color-mix(in srgb,var(--text-primary) 82%,transparent)!important}
+html.vg90-large-text{font-size:110%}html.vg90-large-text button,html.vg90-large-text input,html.vg90-large-text select,html.vg90-large-text textarea{font-size:1em}
+html.vg90-contrast button,html.vg90-contrast input,html.vg90-contrast select,html.vg90-contrast textarea,html.vg90-contrast .card,html.vg90-contrast .media,html.vg90-contrast .downloadItem{border-width:2px}
+.vg90-empty:empty::after{content:"Nothing to show here yet.";display:block;padding:22px;color:var(--text-muted,var(--muted));text-align:center}
+.vg90-has-value{border-color:var(--accent,#8b5cf6)!important}
+#vgConnectivityStatus[data-online="false"]{border-color:#d97706}
+@media(max-width:650px){.vg90-tool-button{min-height:44px}.vg90-top{right:12px}.vg90-help-panel{top:calc(60px + env(safe-area-inset-top))}.vg90-pwa-status{display:none}.topbarActions{gap:6px;flex-wrap:wrap}}
+@media(prefers-reduced-motion:reduce){.vg90-toast,.vg90-top,.vg90-skip{transition:none!important;scroll-behavior:auto!important}}

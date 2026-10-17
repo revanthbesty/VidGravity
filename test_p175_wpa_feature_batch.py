@@ -46,15 +46,17 @@ class P175WpaFeatureBatchTests(unittest.TestCase):
         html = (ROOT / "site" / "index.html").read_text(encoding="utf-8")
         sw = (ROOT / "site" / "sw.js").read_text(encoding="utf-8")
         workflow = (ROOT / ".github" / "workflows" / "cloudflare-wpa-deploy.yml").read_text(encoding="utf-8")
-        self.assertIn("styles.css?v=p177", html)
+        self.assertIn("styles.css?v=p180", html)
         self.assertIn("app.js?v=p176", html)
-        self.assertIn('const CACHE_NAME = "vidgravity-p177-shell-v1";', sw)
+        self.assertIn('const CACHE_NAME = "vidgravity-p180-shell-v1";', sw)
         self.assertIn("CLOUDFLARE_API_TOKEN", workflow)
         self.assertIn("CLOUDFLARE_ACCOUNT_ID", workflow)
         self.assertIn("cloudflare/wrangler-action@v3", workflow)
         self.assertIn("deploy --config wrangler.jsonc", workflow)
         self.assertIn("Smoke-test deployed WPA assets", workflow)
         self.assertIn("VidGravity-Deploy-Smoke/1.0", workflow)
+        wrangler = (ROOT / "site" / "wrangler.jsonc").read_text(encoding="utf-8")
+        self.assertIn('"previews": {}', wrangler)
 
     def test_web_and_android_runtime_bundles_are_synchronized(self):
         for name in ("index.html", "app.js", "styles.css", "sw.js"):
