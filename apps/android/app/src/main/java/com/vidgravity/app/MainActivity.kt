@@ -2022,9 +2022,15 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             }.getOrDefault("Selected media" to 0L)
             val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
             selectedMedia = LibraryMedia(uri, metadata.first, metadata.second, mime, System.currentTimeMillis())
+            storyEditorOpen = false
             exportedUri = null
             stickerUri = null
-            notify("Media selected. Preview, share, or create a 9:16 story or animated sticker.")
+            notify(when {
+                mime.startsWith("video/") -> "Video selected. Preview, share, edit a story, split status clips, or export a sticker."
+                mime.startsWith("audio/") -> "Audio selected. Preview, share, or try a compatible story layout."
+                mime.startsWith("image/") -> "Image selected. Preview, share, or try a compatible story layout."
+                else -> "File selected. Available Studio tools depend on the file type."
+            })
         }
     }
     if (storyEditorOpen && selectedMedia != null) {
