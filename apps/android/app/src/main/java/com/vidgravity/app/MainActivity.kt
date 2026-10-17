@@ -148,7 +148,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Studio }, { showStudyTok = true })
+                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Studio }, { startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java)) }, { showStudyTok = true })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     // Camera opens a dedicated Activity from its navigation item.
                     // This branch keeps the enum dispatch exhaustive.
@@ -391,7 +391,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
 }
 
 @Composable
-private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, openStudyTok: () -> Unit) {
+private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, openCamera: () -> Unit, openStudyTok: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
@@ -472,6 +472,12 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                 Icon(Icons.Default.AutoAwesome, null)
                                 Spacer(Modifier.width(8.dp))
                                 Text("Open Creator Studio")
+                            }
+                            OutlinedButton(onClick = openCamera, modifier = Modifier.fillMaxWidth().height(48.dp),
+                                shape = RoundedCornerShape(14.dp)) {
+                                Icon(Icons.Default.PhotoCamera, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Open Pro Camera")
                             }
                             Text("Edit a video, build a Reel, or prepare a Story from your media.",
                                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -577,7 +583,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
         }
         item {
             Text("Getting started", fontSize = 19.sp, fontWeight = FontWeight.Bold)
-            Text("1. Paste a public link · 2. Inspect formats · 3. Choose and download",
+            Text("1. Capture with Camera · 2. Edit in Studio · 3. Export and share",
                 color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
         }
     }
