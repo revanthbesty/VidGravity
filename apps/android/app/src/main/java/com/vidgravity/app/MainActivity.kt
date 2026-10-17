@@ -2244,7 +2244,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                                         val count = kotlin.math.ceil(durationSeconds / clipTargetSeconds).toInt()
                                         segmentProgress = "Preparing $count status clip(s)…"
                                         for (index in 0 until count) {
-                                            kotlinx.coroutines.currentCoroutineContext().ensureActive()
+                                            if (kotlinx.coroutines.currentCoroutineContext()[kotlinx.coroutines.Job]?.isActive == false) throw kotlinx.coroutines.CancellationException("Split cancelled")
                                             val startSeconds = index * clipTargetSeconds
                                             val clipSeconds = (durationSeconds - startSeconds).coerceAtMost(clipTargetSeconds)
                                             segmentProgress = "Rendering ${statusClipSeconds}s clip ${index + 1} of $count…"
