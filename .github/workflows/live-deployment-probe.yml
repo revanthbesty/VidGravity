@@ -6,6 +6,9 @@ on:
       - main
       - "fix/**"
       - "release/**"
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -16,8 +19,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  probe:
-    name: Probe public backend and PWA
+  backend:
+    name: Probe public Render backend
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
@@ -29,6 +32,20 @@ jobs:
           python-version: "3.12"
       - name: Probe configured public HTTPS backend
         run: python p169_deployment_probe.py --url https://vidgravity.onrender.com
+      - name: Upload sanitized backend probe report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vidgravity-live-backend-probe
+          path: P169_DEPLOYMENT_PROBE_REPORT.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  pwa:
+    name: Verify public Cloudflare PWA
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
       - name: Verify PWA origin serves the app
         run: |
           python - <<'PY'
@@ -48,11 +65,3 @@ jobs:
                   raise SystemExit("PWA homepage is missing the VidGravity marker")
               print(f"PWA smoke test passed: HTTP {response.status}, {content_type}, {len(body)} bytes")
           PY
-      - name: Upload sanitized backend probe report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: vidgravity-live-deployment-probe
-          path: P169_DEPLOYMENT_PROBE_REPORT.json
-          if-no-files-found: ignore
-          retention-days: 14
