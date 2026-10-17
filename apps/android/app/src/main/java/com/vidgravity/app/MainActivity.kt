@@ -94,9 +94,21 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
                 Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("VidGravity", fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
-                        Text("Capture • Download • Edit • Play • Share", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Surface(shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)) {
+                            Icon(Icons.Default.AutoAwesome, contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(9.dp).size(23.dp))
+                        }
+                        Column {
+                            Text("VidGravity", fontSize = 23.sp, fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = (-0.4).sp)
+                            Text("YOUR CREATOR UNIVERSE", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 9.sp, letterSpacing = 1.sp,
+                                fontWeight = FontWeight.SemiBold)
+                        }
                     }
                     IconButton(onClick = { selected = VgTab.Settings }) {
                         Icon(Icons.Default.Settings, contentDescription = "Settings")
