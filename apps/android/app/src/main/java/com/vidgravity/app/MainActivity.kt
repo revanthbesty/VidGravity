@@ -67,15 +67,22 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
     var analysis by remember { mutableStateOf<SourceAnalysisResult?>(null) }
     var inspecting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    // Premium cinematic palette: low-glare navy/slate with teal, violet and amber accents.
     val scheme = if (dark) darkColorScheme(
-        primary = Color(0xFFB8A5FF), secondary = Color(0xFF8B7BFF),
-        background = Color(0xFF101014), surface = Color(0xFF19191F),
-        surfaceVariant = Color(0xFF25252D), onBackground = Color(0xFFF4F2FA),
-        onSurface = Color(0xFFF4F2FA)
+        primary = Color(0xFF27DCE5), onPrimary = Color(0xFF002F35),
+        secondary = Color(0xFFB46BFF), onSecondary = Color(0xFF260047),
+        tertiary = Color(0xFFFFB45E), onTertiary = Color(0xFF402000),
+        background = Color(0xFF050D1B), surface = Color(0xFF0B1729),
+        surfaceVariant = Color(0xFF17263B), onBackground = Color(0xFFEAF2FC),
+        onSurface = Color(0xFFEAF2FC), onSurfaceVariant = Color(0xFFB2C1D5),
+        outline = Color(0xFF354861)
     ) else lightColorScheme(
-        primary = Color(0xFF5B43D6), secondary = Color(0xFF735FE3),
-        background = Color(0xFFF7F7FB), surface = Color.White,
-        surfaceVariant = Color(0xFFECECF4)
+        primary = Color(0xFF087F8C), onPrimary = Color.White,
+        secondary = Color(0xFF7041B8), onSecondary = Color.White,
+        tertiary = Color(0xFF985300), onTertiary = Color.White,
+        background = Color(0xFFF3F6FA), surface = Color(0xFFFFFFFF),
+        surfaceVariant = Color(0xFFE5ECF4), onSurfaceVariant = Color(0xFF4A5C70),
+        outline = Color(0xFFB9C7D8)
     )
     MaterialTheme(colorScheme = scheme) {
         Scaffold(
@@ -84,7 +91,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                 Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("VidGravity", fontSize = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
-                        Text("Your media, in one place", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+                        Text("Capture • Download • Edit • Play • Share", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
                     }
                     Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant) {
                         IconButton(onClick = { dark = !dark; prefs.edit().putBoolean("dark", dark).apply() }) {
