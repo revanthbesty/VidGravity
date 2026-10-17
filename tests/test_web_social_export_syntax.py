@@ -1,3 +1,4 @@
+import re
 import subprocess
 import tempfile
 import unittest
@@ -37,8 +38,10 @@ class WebSocialExportSyntaxTests(unittest.TestCase):
         workflow = (ROOT / ".github" / "workflows" / "cloudflare-wpa-deploy.yml").read_text(encoding="utf-8")
         self.assertIn('href="social-export.css?v=p176"', index)
         self.assertIn('src="social-export.js?v=p176"', index)
-        self.assertIn('app.js?v=p176', workflow)
-        self.assertIn('styles.css?v=p176', workflow)
+        for asset in ('app.js', 'styles.css'):
+            reference = re.search(r'(?<![\w-])' + re.escape(asset) + r'\?v=[\w.-]+', index)
+            self.assertIsNotNone(reference, asset)
+            self.assertIn(reference.group(0), workflow)
 
 
 if __name__ == "__main__":

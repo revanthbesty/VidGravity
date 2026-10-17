@@ -26,8 +26,13 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 @Composable
 fun PlayerScreen(media: LibraryMedia, onBack: () -> Unit) {
+    if (media.mimeType.startsWith("image/")) {
+        ImagePreview(media, onBack)
+        return
+    }
     val context = LocalContext.current
     val activity = context as? Activity
     val progressPrefs = remember(context) { context.getSharedPreferences("vg_player_progress", android.content.Context.MODE_PRIVATE) }

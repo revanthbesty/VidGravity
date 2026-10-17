@@ -30,6 +30,8 @@ fun StoryCardScreen(
     onClose: () -> Unit,
     onRenderStory: (LibraryMedia, Float, Float, String, String, String) -> Unit,
     onShareDerivative: (String) -> Unit = {},
+    hasDerivative: Boolean = false,
+    onEdit: () -> Unit = {},
     isRendering: Boolean = false
 ) {
     val context = LocalContext.current
@@ -41,6 +43,7 @@ fun StoryCardScreen(
     var status by remember { mutableStateOf("") }
     var duration by remember(media.uri) { mutableFloatStateOf(60f) }
     var durationKnown by remember(media.uri) { mutableStateOf(false) }
+    LaunchedEffect(media.uri, start, length, title, artist, layout) { onEdit() }
     LaunchedEffect(media.uri) {
         val measured = withContext(Dispatchers.IO) {
             runCatching {
@@ -63,10 +66,13 @@ fun StoryCardScreen(
     }
     val maxLength = minOf(duration, 120f).coerceAtLeast(1f)
     val end = (start + length).coerceAtMost(duration)
+    val currentSettings = StoryEditSettings(media.uri.toString(), start, end, title, artist, layout)
+    var renderedSettings by remember(media.uri) { mutableStateOf<StoryEditSettings?>(null) }
+    val canShare = hasDerivative && !isRendering && renderedSettings == currentSettings
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).background(MaterialTheme.colorScheme.background).padding(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Story Card", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
-            TextButton(onClick = onClose, modifier = Modifier.heightIn(min = 48.dp)) { Text("Close") }
+            TextButton(enabled = !isRendering, onClick = onClose, modifier = Modifier.heightIn(min = 48.dp)) { Text("Close") }
         }
         Box(Modifier.height(340.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
             Column(Modifier.fillMaxHeight(0.88f).aspectRatio(9f / 16f).clip(RoundedCornerShape(28.dp))
@@ -119,8 +125,8 @@ fun StoryCardScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall
         )
-        OutlinedTextField(value = title, onValueChange = { title = it.take(100) }, label = { Text("Track / story title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(value = artist, onValueChange = { artist = it.take(100) }, label = { Text("Artist / caption") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(enabled = !isRendering, value = title, onValueChange = { title = it.take(100) }, label = { Text("Track / story title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(enabled = !isRendering, value = artist, onValueChange = { artist = it.take(100) }, label = { Text("Artist / caption") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Text(
             "Title and caption are embedded in the exported video. Your original media stays unchanged.",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -140,8 +146,8 @@ fun StoryCardScreen(
             )
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = layout == "Cover Art", onClick = { layout = "Cover Art" }, label = { Text("Fit / Letterbox") })
-                FilterChip(selected = layout == "Video Backdrop", onClick = { layout = "Video Backdrop" }, label = { Text("Blurred Backdrop") })
+                FilterChip(enabled = !isRendering, selected = layout == "Cover Art", onClick = { layout = "Cover Art" }, label = { Text("Fit / Letterbox") })
+                FilterChip(enabled = !isRendering, selected = layout == "Video Backdrop", onClick = { layout = "Video Backdrop" }, label = { Text("Blurred Backdrop") })
             }
             FilterChip(
                 selected = layout == "Privacy Blur",
@@ -157,14 +163,14 @@ fun StoryCardScreen(
                 )
             }
         }
-        Button(enabled = !isRendering, onClick = { onRenderStory(media, start, end, title, artist, layout); status = "Story render requested." },
+        Button(enabled = !isRendering, onClick = { renderedSettings = currentSettings; onRenderStory(media, start, end, title, artist, layout); status = "Story render requested." },
             modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {
             if (isRendering) { CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)); Text("Rendering story…") }
             else Text("Render 9:16 Story")
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { onShareDerivative("instagram") }, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) { Text("Instagram Story") }
-            OutlinedButton(onClick = { onShareDerivative("whatsapp") }, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) { Text("WhatsApp Status") }
+            OutlinedButton(enabled = canShare, onClick = { onShareDerivative("instagram") }, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) { Text("Instagram Story") }
+            OutlinedButton(enabled = canShare, onClick = { onShareDerivative("whatsapp") }, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) { Text("WhatsApp Status") }
         }
         if (status.isNotBlank()) Text(status, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }

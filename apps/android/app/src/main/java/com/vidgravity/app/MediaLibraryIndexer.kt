@@ -19,6 +19,7 @@ object MediaLibraryIndexer {
         // Reconcile the index with MediaStore on every refresh. This recovers downloads that
         // were published before a process died or before the SQLite insert completed.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) reconcileMediaStore(context)
+        else reconcileLocalFiles(context)
         LibraryIndexDb(context).use { helper ->
             val rows = mutableListOf<LibraryMedia>()
             helper.readableDatabase.rawQuery(
@@ -91,6 +92,34 @@ object MediaLibraryIndexer {
         }
     }
 
+    /** Index a completed, readable capture/export without copying or changing its original. */
+    fun register(context: Context, uri: Uri, name: String, mime: String, size: Long) {
+        require(uri.scheme == "content") { "A shareable content URI is required." }
+        LibraryIndexDb(context).use { helper ->
+            helper.writableDatabase.insertWithOnConflict("media", null, ContentValues().apply {
+                put("content_uri", uri.toString()); put("display_name", name)
+                put("mime_type", mime); put("size_bytes", size.coerceAtLeast(0L))
+                put("sha256", ""); put("created_at_ms", System.currentTimeMillis())
+                put("is_favorite", 0)
+            }, SQLiteDatabase.CONFLICT_IGNORE)
+        }
+    }
+
+    fun localUri(context: Context, file: File): Uri = androidx.core.content.FileProvider.getUriForFile(
+        context, context.packageName + ".files", file)
+
+    private fun reconcileLocalFiles(context: Context) {
+        val directories = listOf(android.os.Environment.DIRECTORY_PICTURES,
+            android.os.Environment.DIRECTORY_MOVIES, android.os.Environment.DIRECTORY_MUSIC)
+            .mapNotNull { context.getExternalFilesDir(it) } + File(context.filesDir, "media")
+        for (directory in directories) {
+            directory.listFiles()?.filter { it.isFile && it.length() > 0L }?.forEach { file ->
+                val mime = MediaWorkflowRules.mimeForName(file.name)
+                if (mime != null) register(context, localUri(context, file), file.name, mime, file.length())
+            }
+        }
+    }
+
     fun setFavorite(context: Context, uri: Uri, favorite: Boolean) {
         LibraryIndexDb(context).use { db ->
             db.writableDatabase.update("media", ContentValues().apply { put("is_favorite", if (favorite) 1 else 0) },
@@ -125,6 +154,9 @@ object MediaLibraryIndexer {
             .replace(Regex("[^A-Za-z0-9._ -]"), "_").take(140).ifBlank { "vidgravity-media.mp4" }
         val extension = safeName.substringAfterLast('.', "mp4").lowercase()
         val mime = when (extension) {
+            "webp" -> "image/webp"
+            "jpg", "jpeg" -> "image/jpeg"
+            "png" -> "image/png"
             "webm" -> "video/webm"
             "mkv" -> "video/x-matroska"
             "mp3" -> "audio/mpeg"
@@ -132,6 +164,19 @@ object MediaLibraryIndexer {
             "wav" -> "audio/wav"
             "flac" -> "audio/flac"
             else -> "video/mp4"
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            val directory = File(context.filesDir, "media").apply { mkdirs() }
+            val target = File(directory, "${System.currentTimeMillis()}-${java.util.UUID.randomUUID()}-$safeName")
+            try {
+                source.copyTo(target)
+                val uri = localUri(context, target)
+                register(context, uri, safeName, mime, target.length())
+                return PublishedMedia(uri, safeName, target.length(), hash)
+            } catch (failure: Exception) {
+                target.delete()
+                throw failure
+            }
         }
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, safeName)
