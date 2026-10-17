@@ -610,8 +610,14 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                     shape = RoundedCornerShape(18.dp),
                                     border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.32f)),
                                     modifier = Modifier.width(170.dp).heightIn(min = 116.dp).clickable {
-                                        if (url.isBlank()) notify("Paste a media URL first, then choose " + action + ".")
-                                        else if (action.contains("Sound")) {
+                                        if (action.contains("Status Clip")) {
+                                            openCreate()
+                                            notify("In Creator Studio, choose a local video and select a 30, 60, 90, or 120-second clip target.")
+                                        } else if (action.contains("StudyTok")) {
+                                            openStudyTok()
+                                        } else if (url.isBlank()) {
+                                            notify("Paste a media URL first, then choose " + action + ".")
+                                        } else if (action.contains("Sound")) {
                                             scope.launch {
                                                 try {
                                                     val result = withContext(Dispatchers.IO) { DownloadApi.analyzeSource(url.trim()) }
@@ -626,11 +632,6 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                                                     notify("Could not prepare audio: " + (failure.message ?: "Please try again."))
                                                 }
                                             }
-                                        } else if (action.contains("Status Clip")) {
-                                            openCreate()
-                                            notify("In Create Studio, choose a local video and select a 30, 60, 90, or 120-second clip target.")
-                                        } else if (action.contains("StudyTok")) {
-                                            openStudyTok()
                                         } else inspect()
                                     }
                                 ) {
