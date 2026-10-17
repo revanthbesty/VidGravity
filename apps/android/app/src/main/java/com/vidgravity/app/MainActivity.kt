@@ -2166,6 +2166,20 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                     Button(onClick = { storyEditorOpen = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
                         Icon(Icons.Default.AutoAwesome, null); Spacer(Modifier.width(8.dp)); Text("Create 9:16 Story / Status")
                     }
+                    if (!media.mimeType.startsWith("video/")) {
+                        Surface(shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)) {
+                            Row(Modifier.fillMaxWidth().padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(Icons.Default.Info, contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(18.dp))
+                                Text("Video-only tools such as clip splitting and animated WebP stickers require a video. You can still preview, share or open the story editor with this file.",
+                                    fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
+                    }
                     Text("STATUS CLIP LENGTH", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                         letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2186,7 +2200,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                         fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     OutlinedButton(
-                        enabled = !isRendering && segmentJob == null,
+                        enabled = media.mimeType.startsWith("video/") && !isRendering && segmentJob == null,
                         onClick = {
                             if (!media.mimeType.startsWith("video/")) {
                                 notify("Status segmentation requires a video file.")
