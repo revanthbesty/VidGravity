@@ -536,7 +536,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                             Triple("Camera", Icons.Default.PhotoCamera, openCamera),
                             Triple("Edit Video", Icons.Default.ContentCut, openCreate),
                             Triple("Audio", Icons.Default.MusicNote, openCreate),
-                            Triple("Templates", Icons.Default.AutoAwesome, openCreate),
+                            Triple("Stories", Icons.Default.AutoAwesome, openCreate),
                             Triple("My Library", Icons.Default.VideoLibrary, openLibrary)
                         )) { (label, icon, action) ->
                             Column(Modifier.width(70.dp).clickable(onClick = action),
@@ -2016,7 +2016,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                     } else "Selected media" to 0L
                 } ?: ("Selected media" to 0L)
             }.getOrDefault("Selected media" to 0L)
-            val mime = context.contentResolver.getType(uri) ?: "video/*"
+            val mime = context.contentResolver.getType(uri) ?: "application/octet-stream"
             selectedMedia = LibraryMedia(uri, metadata.first, metadata.second, mime, System.currentTimeMillis())
             exportedUri = null
             stickerUri = null
@@ -2119,9 +2119,9 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
             Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(Icons.Default.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
                 Text("Start with your own media", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text("Select a video from this device. Rendering uses the configured VidGravity companion and never overwrites the selected source.",
+                Text("Select a video, audio track or image. Rendering uses the configured VidGravity companion and never overwrites the selected source.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
-                Button(onClick = { picker.launch(arrayOf("video/*", "audio/*")) }, modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = { picker.launch(arrayOf("video/*", "audio/*", "image/*")) }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("Choose media")
                 }
             }
