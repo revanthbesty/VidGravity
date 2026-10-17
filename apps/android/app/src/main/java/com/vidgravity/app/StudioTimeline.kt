@@ -26,6 +26,16 @@ internal fun StudioTimeline(project: StudioProject, selected: Int, positionMs: L
     val scale = minOf(zoom, 12000f / (project.durationMs / 1000f))
     val widths = project.clips.map { maxOf(64f, it.playbackDurationMs / 1000f * scale) }
     val totalWidth = widths.sum()
+    // Short clips have a minimum touch target; map audio timing through the same
+    // piecewise scale so lane boundaries still align with video boundaries.
+    fun timelineX(timeMs: Long): Float {
+        var start=0L; var x=0f
+        project.clips.forEachIndexed { i,clip ->
+            if(timeMs <= start+clip.playbackDurationMs) return x+widths[i]*((timeMs-start).coerceAtLeast(0).toFloat()/clip.playbackDurationMs)
+            start+=clip.playbackDurationMs; x+=widths[i]
+        }
+        return totalWidth
+    }
     Text("Editing timeline", style=MaterialTheme.typography.titleLarge)
     Text("Long-press a clip and drag to reorder. Video is sequential; audio lanes mix independently.",style=MaterialTheme.typography.labelSmall)
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -60,9 +70,9 @@ internal fun StudioTimeline(project: StudioProject, selected: Int, positionMs: L
         }
         project.tools.audio.forEachIndexed { i,lane ->
             Row(Modifier.width(totalWidth.dp).height(36.dp)) {
-                Spacer(Modifier.width((totalWidth*lane.offsetMs/project.durationMs).dp))
+                Spacer(Modifier.width(timelineX(lane.offsetMs).dp))
                 Text("A${i+1} · ${lane.name}",maxLines=1,modifier=Modifier
-                    .width((totalWidth*minOf(lane.durationMs,project.durationMs-lane.offsetMs)/project.durationMs).coerceAtLeast(1f).dp)
+                    .width((timelineX(minOf(project.durationMs,lane.offsetMs+lane.durationMs))-timelineX(lane.offsetMs)).coerceAtLeast(1f).dp)
                     .background(MaterialTheme.colorScheme.secondaryContainer).padding(6.dp))
             }
         }

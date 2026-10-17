@@ -442,6 +442,7 @@ private fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequ
     val offset=project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs}
     LaunchedEffect(player,seekRequest,clip) {
         delay(200) // Apply after the debounced media/effect preparation.
+        player.pause()
         player.seekTo(((seekRequest-offset).coerceIn(0,clip.playbackDurationMs)*clip.speed).toLong())
     }
     LaunchedEffect(player,offset,clip.speed) {while(true) {delay(200); positionCallback(offset+(player.currentPosition/clip.speed).toLong())}}
