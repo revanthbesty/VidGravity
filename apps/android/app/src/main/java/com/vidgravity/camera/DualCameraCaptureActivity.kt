@@ -54,7 +54,8 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private lateinit var gridOverlay: View
     private lateinit var status: TextView
     private lateinit var shutter: Button
-    private lateinit var modeButton: Button
+    private lateinit var photoButton: Button
+    private lateinit var videoButton: Button
     private lateinit var dualButton: Button
     private lateinit var flashButton: Button
     private lateinit var executor: ExecutorService
@@ -212,17 +213,19 @@ class DualCameraCaptureActivity : ComponentActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
         }
-        modeButton = controlButton("PHOTO ✓") { toggleMode() }
-        shutter = controlButton("●  Capture") { onShutterPressed() }.apply {
+        photoButton = controlButton("Photo") { selectPhotoMode() }
+        videoButton = controlButton("Video") { selectVideoMode() }
+        shutter = controlButton("●") { onShutterPressed() }.apply {
             textSize = 17f
             setTextColor(0xFF102124.toInt())
             setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF80CDBF.toInt()))
         }
-        controls.addView(modeButton, LinearLayout.LayoutParams(0, dp(58), 1f).apply { marginEnd = dp(12) })
-        controls.addView(shutter, LinearLayout.LayoutParams(0, dp(58), 1.3f))
+        controls.addView(photoButton, LinearLayout.LayoutParams(0, dp(56), 1f).apply { marginEnd = dp(6) })
+        controls.addView(videoButton, LinearLayout.LayoutParams(0, dp(56), 1f).apply { marginEnd = dp(6) })
+        controls.addView(shutter, LinearLayout.LayoutParams(0, dp(56), 0.72f))
         bottom.addView(controls, LinearLayout.LayoutParams(-1, -2))
         val hint = TextView(this).apply {
-            text = "Tap preview to focus · Tap Capture for a photo. In Video mode, tap to start/stop recording."
+            text = "Choose Photo or Video, then tap the capture button. In Video mode, tap again to stop."
             setTextColor(0xFFB8C9C8.toInt())
             textSize = 11f
             gravity = Gravity.CENTER
@@ -373,27 +376,41 @@ class DualCameraCaptureActivity : ComponentActivity() {
             }, ContextCompat.getMainExecutor(this))
     }
 
-    private fun toggleMode() {
+    private fun selectPhotoMode() {
         if (recording != null) {
             Toast.makeText(this, "Stop the current recording before changing mode.", Toast.LENGTH_SHORT).show()
             return
         }
-        if (!videoMode && ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        videoMode = false
+        photoButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF80CDBF.toInt()))
+        photoButton.setTextColor(0xFF102124.toInt())
+        videoButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF2D4146.toInt()))
+        videoButton.setTextColor(0xFFFFFFFF.toInt())
+        shutter.text = "●"
+        shutter.contentDescription = "Capture photo"
+        bindCameraSession()
+    }
+
+    private fun selectVideoMode() {
+        if (recording != null) {
+            Toast.makeText(this, "Stop the current recording before changing mode.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             audioPermissionRequest.launch(Manifest.permission.RECORD_AUDIO)
             return
         }
-        if (!videoMode) activateVideoMode(audioGranted = true) else {
-            videoMode = false
-            modeButton.text = "PHOTO ✓ · tap for VIDEO"
-            modeButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF2D4146.toInt()))
-            bindCameraSession()
-        }
+        activateVideoMode(audioGranted = true)
     }
 
     private fun activateVideoMode(audioGranted: Boolean) {
         videoMode = true
-        modeButton.text = "VIDEO ✓ · tap for PHOTO"
-        modeButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF80CDBF.toInt()))
+        photoButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF2D4146.toInt()))
+        photoButton.setTextColor(0xFFFFFFFF.toInt())
+        videoButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF80CDBF.toInt()))
+        videoButton.setTextColor(0xFF102124.toInt())
+        shutter.text = if (recording != null) "■" else "●"
+        shutter.contentDescription = "Start or stop video recording"
         if (dualMode) {
             dualMode = false
             bindCameraSession()
