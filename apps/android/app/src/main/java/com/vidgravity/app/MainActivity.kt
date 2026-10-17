@@ -150,7 +150,7 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
                                 finally { inspecting = false }
                             }
                         }
-                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Studio }, { startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java)) }, { showStudyTok = true })
+                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Studio }, { startActivity(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java)) }, { playingMedia = it }, { showStudyTok = true })
                     VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it })
                     // Camera opens a dedicated Activity from its navigation item.
                     // This branch keeps the enum dispatch exhaustive.
@@ -393,11 +393,26 @@ private fun VidGravityApp(openInboxInitially: Boolean = false) {
 }
 
 @Composable
-private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, openCamera: () -> Unit, openStudyTok: () -> Unit) {
+private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, openCamera: () -> Unit, onPlayRecent: (LibraryMedia) -> Unit, openStudyTok: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     val activity = context as? ComponentActivity
+    var recentMedia by remember { mutableStateOf(emptyList<LibraryMedia>()) }
+    suspend fun refreshRecentMedia() {
+        recentMedia = withContext(Dispatchers.IO) {
+            runCatching { MediaLibraryIndexer.list(context).take(4) }.getOrDefault(emptyList())
+        }
+    }
+    LaunchedEffect(Unit) { refreshRecentMedia() }
+    val recentLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(recentLifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) scope.launch { refreshRecentMedia() }
+        }
+        recentLifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { recentLifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     var clipboardSuggestion by remember { mutableStateOf<String?>(null) }
     fun detectClipboardUrl() {
         val raw = runCatching {
@@ -601,24 +616,51 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
                 }
             }
         item {
-            Text("MY RECENT PROJECTS", fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            Text("Your saved photos, videos and edits appear in Library.",
+            Text("MY RECENT MEDIA", fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            Text("Real captures and exports from your VidGravity Library",
                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(10.dp))
-            Surface(modifier = Modifier.fillMaxWidth().clickable(onClick = openCreate),
-                shape = RoundedCornerShape(18.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Icon(Icons.Default.VideoLibrary, null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Continue creating", fontWeight = FontWeight.Bold)
-                        Text("Open Studio to work with media from your Library",
-                            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (recentMedia.isEmpty()) {
+                Surface(modifier = Modifier.fillMaxWidth().clickable(onClick = openCamera),
+                    shape = RoundedCornerShape(18.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Default.PhotoCamera, null,
+                            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Your first creation starts here", fontWeight = FontWeight.Bold)
+                            Text("Capture a photo or video to populate your Library",
+                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Icon(Icons.Default.ChevronRight, null)
                     }
-                    Icon(Icons.Default.ChevronRight, null)
+                }
+            } else {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(recentMedia) { media ->
+                        Surface(modifier = Modifier.width(164.dp).clickable {
+                            if (media.mimeType.startsWith("video/") || media.mimeType.startsWith("audio/"))
+                                onPlayRecent(media)
+                            else openCreate()
+                        }, shape = RoundedCornerShape(18.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant) {
+                            Column(Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(if (media.mimeType.startsWith("video/")) Icons.Default.Movie
+                                    else if (media.mimeType.startsWith("audio/")) Icons.Default.MusicNote
+                                    else Icons.Default.Image, null,
+                                    modifier = Modifier.size(34.dp),
+                                    tint = MaterialTheme.colorScheme.primary)
+                                Text(media.displayName, maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                Text(if (media.mimeType.startsWith("image/")) "Open Studio"
+                                    else "Tap to play", fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
                 }
             }
         }
