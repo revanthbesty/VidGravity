@@ -548,6 +548,7 @@ private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Uni
         onDispose { lifecycle?.removeObserver(observer) }
     }
     LazyColumn(contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        item { StudioProjectSummary(onOpenStudio = openCreate) }
         if (clipboardSuggestion != null && url.isBlank()) item {
             Surface(
                 modifier = Modifier.fillMaxWidth().clickable {
@@ -2107,6 +2108,12 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
 
 @Composable
 private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, initialMedia: LibraryMedia? = null, openCamera: () -> Unit, onBusyChanged: (Boolean) -> Unit) {
+    var nativeStudio by remember { mutableStateOf(false) }
+    var nativeInitial by remember { mutableStateOf<LibraryMedia?>(null) }
+    if (nativeStudio) {
+        NativeStudioHub(nativeInitial, onClose = { nativeStudio = false }, onBusyChanged = onBusyChanged)
+        return
+    }
     val context = androidx.compose.ui.platform.LocalContext.current
     val scope = rememberCoroutineScope()
     var selectedMedia by remember(initialMedia) { mutableStateOf(initialMedia) }
@@ -2217,6 +2224,8 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
         return
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Button(enabled = !isRendering && segmentJob == null, onClick = { nativeInitial = null; nativeStudio = true },
+            modifier = Modifier.fillMaxWidth()) { Text("Projects & on-device editor") }
         OutlinedButton(onClick = openInbox, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {
             Icon(Icons.Default.Inbox, null)
             Spacer(Modifier.width(8.dp))
@@ -2295,6 +2304,10 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
                         }, modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
                             fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.primary)
+                    }
+                    if (media.mimeType.startsWith("video/")) {
+                        Button(enabled = !isRendering && segmentJob == null, onClick = { nativeInitial = media; nativeStudio = true },
+                            modifier = Modifier.fillMaxWidth()) { Text("Edit this video on device") }
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { onPlay(media) }, modifier = Modifier.weight(1f)) {

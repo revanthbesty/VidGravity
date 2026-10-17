@@ -79,8 +79,13 @@ internal class StartupHost(private val activity: ComponentActivity) : FrameLayou
         addView(recovery, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        milestone("window.attached hardwareAccelerated=$isHardwareAccelerated")
+    }
+
     fun start(content: @Composable () -> Unit) {
-        milestone("native.recovery.installed hardwareAccelerated=$isHardwareAccelerated")
+        milestone("native.recovery.installed")
         compose.viewTreeObserver.addOnDrawListener(drawListener)
         postDelayed(timeout, 10_000L)
         try {
