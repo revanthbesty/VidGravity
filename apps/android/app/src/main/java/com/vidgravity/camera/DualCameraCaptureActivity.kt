@@ -1,6 +1,9 @@
 package com.vidgravity.camera
 
 import android.Manifest
+import android.content.ContentValues
+import android.os.Build
+import android.provider.MediaStore
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Environment
@@ -22,6 +25,7 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.FileOutputOptions
+import androidx.camera.video.MediaStoreOutputOptions
 import androidx.camera.video.Quality
 import androidx.camera.video.QualitySelector
 import androidx.camera.video.Recorder
@@ -327,10 +331,28 @@ class DualCameraCaptureActivity : ComponentActivity() {
             Toast.makeText(this, "Video capture is unavailable for this camera. Try another camera or resolution.", Toast.LENGTH_LONG).show()
             return
         }
-        val directory = getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: filesDir
-        if (!directory.exists()) directory.mkdirs()
-        val target = File(directory, "vidgravity-${System.currentTimeMillis()}.mp4")
-        var pending = capture.output.prepareRecording(this, FileOutputOptions.Builder(target).build())
+        val fileName = "vidgravity-${System.currentTimeMillis()}.mp4"
+        // Android 10+: publish finished recordings in Movies/VidGravity so the
+        // MediaStore-backed library can discover them on its next refresh.
+        // Older devices retain the existing app-specific file fallback.
+        // CameraX overloads are typed by output destination; prepare each branch
+        // separately instead of passing a common OutputOptions supertype.
+        var pending = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, "Movies/VidGravity/")
+            }
+            val options = MediaStoreOutputOptions.Builder(
+                contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+            ).setContentValues(values).build()
+            capture.output.prepareRecording(this, options)
+        } else {
+            val directory = getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: filesDir
+            if (!directory.exists()) directory.mkdirs()
+            val options = FileOutputOptions.Builder(File(directory, fileName)).build()
+            capture.output.prepareRecording(this, options)
+        }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             pending = pending.withAudioEnabled()
         }
@@ -353,8 +375,8 @@ class DualCameraCaptureActivity : ComponentActivity() {
                         status.text = "Recording failed"
                         Toast.makeText(this, "Recording failed. Please retry.", Toast.LENGTH_LONG).show()
                     } else {
-                        status.text = "Video saved · ${target.name}"
-                        Toast.makeText(this, "Video saved to VidGravity: ${target.name}", Toast.LENGTH_LONG).show()
+                        status.text = "Video saved · ${fileName}"
+                        Toast.makeText(this, "Video saved to VidGravity: ${fileName}", Toast.LENGTH_LONG).show()
                     }
                 }
             }
