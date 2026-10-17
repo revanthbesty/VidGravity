@@ -9,6 +9,13 @@ ALLOW_LOCAL=False
 SERVER_HOST=os.environ.get('HOST','127.0.0.1')
 
 
+def _youtube_android_fallback_args(url):
+    """Return a one-shot alternate client only for YouTube URLs; leave normal extraction unchanged."""
+    host=(urllib.parse.urlsplit(url).hostname or '').lower().rstrip('.')
+    if host == 'youtu.be' or host == 'youtube.com' or host.endswith('.youtube.com'):
+        return ['--extractor-args','youtube:player_client=android']
+    return []
+
 def _yt_dlp_command(*args):
     """Build yt-dlp commands; browser cookies are opt-in and local-only."""
     command=['yt-dlp', *args]
@@ -26,6 +33,14 @@ _RATE_LIMITS={
     'download-cancel':(20,60), 'inspect':(30,60),
     'formats':(15,60), 'license':(10,60), 'direct-download':(5,60), 'media-export':(3,60),
 }
+
+def _export_diagnostic(event, **fields):
+    """Emit sanitized export diagnostics; never include media URLs, client IPs, or credentials."""
+    record = {"event": event, "time": round(time.time(), 3), **fields}
+    try:
+        print("VIDGRAVITY_EXPORT " + json.dumps(record, sort_keys=True, separators=(",", ":")), flush=True)
+    except Exception:
+        pass
 
 def _client_ip(handler):
     try: return handler.client_address[0]
@@ -171,8 +186,12 @@ def _init_job_store():
             message TEXT NOT NULL DEFAULT '', error TEXT, filename TEXT, output_path TEXT,
             completed_at REAL, created_at REAL NOT NULL, updated_at REAL NOT NULL,
             retry_of TEXT, url TEXT NOT NULL, format TEXT NOT NULL,
-            cancel_requested INTEGER NOT NULL DEFAULT 0
+            cancel_requested INTEGER NOT NULL DEFAULT 0,
+            audio_only INTEGER NOT NULL DEFAULT 0
         )''')
+        columns={row[1] for row in db.execute('PRAGMA table_info(download_jobs)').fetchall()}
+        if 'audio_only' not in columns:
+            db.execute('ALTER TABLE download_jobs ADD COLUMN audio_only INTEGER NOT NULL DEFAULT 0')
         db.commit()
     _recover_persisted_jobs()
 
@@ -182,18 +201,18 @@ def _persist_job(job):
     with _db_connect() as db:
         db.execute('BEGIN IMMEDIATE')
         db.execute('''INSERT INTO download_jobs
-            (id,state,progress,message,error,filename,output_path,completed_at,created_at,updated_at,retry_of,url,format,cancel_requested)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            (id,state,progress,message,error,filename,output_path,completed_at,created_at,updated_at,retry_of,url,format,cancel_requested,audio_only)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(id) DO UPDATE SET
               state=excluded.state, progress=excluded.progress, message=excluded.message,
               error=excluded.error, filename=excluded.filename, output_path=excluded.output_path,
               completed_at=excluded.completed_at, updated_at=excluded.updated_at,
               retry_of=excluded.retry_of, url=excluded.url, format=excluded.format,
-              cancel_requested=excluded.cancel_requested''',
+              cancel_requested=excluded.cancel_requested, audio_only=excluded.audio_only''',
             (snap['id'],snap.get('state','queued'),int(snap.get('progress',0)),str(snap.get('message','')),
              snap.get('error'),snap.get('filename'),snap.get('output_path'),snap.get('completed_at'),
              snap.get('created_at',time.time()),time.time(),snap.get('retry_of'),snap.get('url',''),
-             snap.get('format','bv*+ba/b'),int(bool(snap.get('cancel_requested')))))
+             snap.get('format','bv*+ba/b'),int(bool(snap.get('cancel_requested'))),int(bool(snap.get('audio_only')))))
         db.commit()
 
 def _load_persisted_jobs():
@@ -370,7 +389,7 @@ def _download_direct_media(url, job_id, job):
     _job_changed(job)
     return True
 
-def _run_download_job(job_id,url,fmt):
+def _run_download_job(job_id,url,fmt,audio_only=False):
     with DOWNLOAD_JOB_LOCK: job=DOWNLOAD_JOBS[job_id]
     if job.get('cancel_requested'): return
     with DOWNLOAD_JOB_LOCK: job.update({"state":"running","progress":0,"message":"Starting provider download"})
@@ -383,25 +402,44 @@ def _run_download_job(job_id,url,fmt):
         DOWNLOAD_OUTPUT_DIR.mkdir(parents=True,exist_ok=True)
         # Direct MP4/MP3/WebM links should use a plain HTTP stream first; this avoids
         # depending on extractor heuristics for files that are already directly hosted.
-        if _download_direct_media(url,job_id,job):
+        if not audio_only and _download_direct_media(url,job_id,job):
             return
         if shutil.which('yt-dlp') is None:
             _job_transition(job,"failed",error="yt-dlp is not installed",message="Provider unavailable")
             _job_changed(job); return
         out=str(DOWNLOAD_OUTPUT_DIR/(job_id+'.%(ext)s'))
-        p=subprocess.Popen(_yt_dlp_command('--no-playlist','-f',fmt or 'bv*+ba/b','-o',out,'--restrict-filenames','--newline',url),stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
-        with DOWNLOAD_JOB_LOCK: job['process']=p
-        for line in p.stdout:
-            line=line.strip()
-            m=re.search(r'(\d+(?:\.\d+)?)%',line)
-            if m: job["progress"]=max(1,min(99,int(float(m.group(1)))))
-            if line: job["message"]=line[-240:]
+        download_args=['--no-playlist','-f',fmt or 'bv*+ba/b']
+        if audio_only:
+            # Normalize audio-only selections (including Opus/WebM) to a broadly playable M4A.
+            download_args.extend(['-x','--audio-format','m4a','--audio-quality','0'])
+        download_args.extend(['-o',out,'--restrict-filenames','--newline',url])
+
+        def run_attempt(args):
+            process=subprocess.Popen(_yt_dlp_command(*args),stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
+            with DOWNLOAD_JOB_LOCK: job['process']=process
+            for line in process.stdout:
+                line=line.strip()
+                match=re.search(r'(\d+(?:\.\d+)?)%',line)
+                if match: job["progress"]=max(1,min(99,int(float(match.group(1)))))
+                if line: job["message"]=line[-240:]
+                _job_changed(job)
+                if job.get("cancel_requested"):
+                    _stop_download_process(process)
+                    break
+            code=process.wait()
+            with DOWNLOAD_JOB_LOCK: job.pop("process",None)
+            return code
+
+        rc=run_attempt(download_args)
+        fallback_args=_youtube_android_fallback_args(url)
+        if rc!=0 and fallback_args and not job.get("cancel_requested"):
+            for leftover in DOWNLOAD_OUTPUT_DIR.glob(job_id+'.*'):
+                try: leftover.unlink()
+                except OSError: pass
+            with DOWNLOAD_JOB_LOCK:
+                job.update({"progress":0,"message":"Default YouTube extraction failed; retrying with Android player client"})
             _job_changed(job)
-            if job.get("cancel_requested"):
-                _stop_download_process(p)
-                break
-        rc=p.wait()
-        with DOWNLOAD_JOB_LOCK: job.pop("process",None)
+            rc=run_attempt([*fallback_args,*download_args])
         if job.get("cancel_requested"):
             for leftover in DOWNLOAD_OUTPUT_DIR.glob(job_id+'.*'):
                 try: leftover.unlink()
@@ -411,7 +449,7 @@ def _run_download_job(job_id,url,fmt):
             for leftover in DOWNLOAD_OUTPUT_DIR.glob(job_id+'.*'):
                 try: leftover.unlink()
                 except OSError: pass
-            _job_transition(job,"failed",error=job.get("message") or "yt-dlp failed"); _job_changed(job); return
+            _job_transition(job,"failed",error=job.get('message') or "yt-dlp failed"); _job_changed(job); return
         files=[f for f in DOWNLOAD_OUTPUT_DIR.glob(job_id+'.*') if f.is_file()]
         if not files:
             _job_transition(job,"failed",error="No media file produced"); _job_changed(job); return
@@ -558,10 +596,20 @@ class Handler(SimpleHTTPRequestHandler):
             if shutil.which('yt-dlp') is None:
                 return self._json(200,{'source':'direct','formats':[],'message':'yt-dlp is not installed'})
             try:
-                p=subprocess.run(_yt_dlp_command('--no-playlist','-J','--skip-download','--no-warnings',url),capture_output=True,text=True,timeout=45)
+                p=subprocess.run(_yt_dlp_command('--no-playlist','-J','--skip-download','--no-warnings',url),capture_output=True,text=True,timeout=60)
             except subprocess.TimeoutExpired:
-                return self._json(504,{'error':'Format inspection timed out while contacting the provider'})
-            if p.returncode!=0:return self._json(502,{'error':p.stderr[-1200:] or 'format inspection failed'})
+                return self._json(504,{'error':'Format inspection timed out while contacting the provider. Try a single video URL rather than a playlist, then retry.'})
+            fallback_args=_youtube_android_fallback_args(url)
+            if p.returncode!=0 and fallback_args:
+                try:
+                    p=subprocess.run(_yt_dlp_command(*fallback_args,'--no-playlist','-J','--skip-download','--no-warnings',url),capture_output=True,text=True,timeout=45)
+                except subprocess.TimeoutExpired:
+                    return self._json(504,{'error':'YouTube format inspection timed out on both supported extraction attempts. Try again later or check whether the video is publicly accessible.'})
+            if p.returncode!=0:
+                detail=(p.stderr or p.stdout or 'format inspection failed')[-1200:]
+                if 'sign in to confirm you' in detail.lower() or 'login_required' in detail.lower() or ('bot' in detail.lower() and 'verification' in detail.lower()):
+                    return self._json(422,{'error':'YouTube requires verification that this hosted cloud server cannot complete. This video is unavailable through the cloud backend right now.','source':'youtube','details':detail})
+                return self._json(502,{'error':detail})
             try:
                 d=json.loads(p.stdout); rows=[]
                 for f in d.get('formats',[]):
@@ -778,7 +826,15 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path.startswith('/api/') and self._origin_rejected():
             return self._json(403,{'error':'Origin is not allowed'})
         if urllib.parse.urlsplit(self.path).path == '/api/media/export':
+            export_started = time.monotonic()
+            raw_mode = self.headers.get('X-VG-Mode', '')[:40]
+            raw_preset = self.headers.get('X-VG-Preset', '')[:60]
+            raw_length = self.headers.get('Content-Length', '0')
+            _export_diagnostic('request_start', mode=raw_mode, preset=raw_preset,
+                               content_length=raw_length if raw_length.isdigit() else 'invalid')
             if self._limited('media-export'):
+                _export_diagnostic('request_rejected', reason='rate_limit',
+                                   elapsed_ms=round((time.monotonic()-export_started)*1000))
                 return
             raw_length = self.headers.get('Content-Length', '0')
             if not raw_length.isdigit():
@@ -829,6 +885,11 @@ class Handler(SimpleHTTPRequestHandler):
                             chunk = handle.read(1024 * 1024)
                             if not chunk: break
                             digest.update(chunk)
+                    output_size = output.stat().st_size
+                    _export_diagnostic('export_success', mode=request['mode'], preset=request['preset'],
+                                       output_format=request['output_format'], input_bytes=length,
+                                       output_bytes=output_size,
+                                       elapsed_ms=round((time.monotonic()-export_started)*1000))
                     self.send_response(200)
                     self.send_header('Content-Type', 'image/webp' if request['output_format'] == 'webp' else 'video/mp4')
                     self.send_header('Content-Length', str(output.stat().st_size))
@@ -847,8 +908,16 @@ class Handler(SimpleHTTPRequestHandler):
             except ExportError as exc:
                 message = str(exc)
                 status = 400 if any(x in message.lower() for x in ('unsupported', 'invalid', 'must be', 'between', 'dimensions', 'source and output')) else 422
+                _export_diagnostic('export_failed', category='media_processing', status=status,
+                                   mode=request.get('mode', ''), preset=request.get('preset', ''),
+                                   elapsed_ms=round((time.monotonic()-export_started)*1000),
+                                   error_type=type(exc).__name__)
                 return self._json(status, {'error': message})
             except (OSError, ValueError) as exc:
+                _export_diagnostic('export_failed', category='server_io_or_validation', status=500,
+                                   mode=request.get('mode', ''), preset=request.get('preset', ''),
+                                   elapsed_ms=round((time.monotonic()-export_started)*1000),
+                                   error_type=type(exc).__name__)
                 return self._json(500, {'error': 'Media export failed safely: ' + str(exc)[:240]})
         if self.path=='/api/download-jobs' and self._limited('download-create'): return
         if self.path.endswith('/retry') and self._limited('download-retry'): return
@@ -880,10 +949,12 @@ class Handler(SimpleHTTPRequestHandler):
                 if len(DOWNLOAD_JOBS)>=DOWNLOAD_JOB_LIMIT:
                     return self._json(429,{'error':'Download job limit reached; active and retained jobs are not removed'})
                 job_id=__import__('uuid').uuid4().hex
-                DOWNLOAD_JOBS[job_id]={"id":job_id,"state":"queued","progress":0,"message":"Queued","url":url,"format":fmt,"created_at":time.time(),"updated_at":time.time()}
+                DOWNLOAD_JOBS[job_id]={"id":job_id,"state":"queued","progress":0,"message":"Queued","url":url,"format":fmt,"audio_only":bool(data.get('audio_only',False)),"created_at":time.time(),"updated_at":time.time()}
                 _persist_job(DOWNLOAD_JOBS[job_id])
             import threading
-            threading.Thread(target=_run_download_job,args=(job_id,url,fmt),daemon=True).start()
+            audio_only=bool(data.get('audio_only',False))
+            worker_args=(job_id,url,fmt,True) if audio_only else (job_id,url,fmt)
+            threading.Thread(target=_run_download_job,args=worker_args,daemon=True).start()
             return self._json(202,{"id":job_id,"state":"queued","progress":0})
         if self.path.startswith('/api/download-jobs/') and self.path.endswith('/retry'):
             job_id=self.path.split('/')[-2]
@@ -894,11 +965,13 @@ class Handler(SimpleHTTPRequestHandler):
                 _cleanup_job_store()
                 if len(DOWNLOAD_JOBS)>=DOWNLOAD_JOB_LIMIT:return self._json(429,{'error':'Download job limit reached; active and retained jobs are not removed'})
                 new_id=__import__('uuid').uuid4().hex
-                new_job={"id":new_id,"state":"queued","progress":0,"message":"Retry queued","url":old.get('url'),"format":old.get('format') or 'bv*+ba/b',"retry_of":job_id,"created_at":time.time(),"updated_at":time.time()}
+                new_job={"id":new_id,"state":"queued","progress":0,"message":"Retry queued","url":old.get('url'),"format":old.get('format') or 'bv*+ba/b',"audio_only":bool(old.get('audio_only',False)),"retry_of":job_id,"created_at":time.time(),"updated_at":time.time()}
                 DOWNLOAD_JOBS[new_id]=new_job
                 _persist_job(new_job)
             import threading
-            threading.Thread(target=_run_download_job,args=(new_id,new_job['url'],new_job['format']),daemon=True).start()
+            audio_only=bool(new_job.get('audio_only',False))
+            worker_args=(new_id,new_job['url'],new_job['format'],True) if audio_only else (new_id,new_job['url'],new_job['format'])
+            threading.Thread(target=_run_download_job,args=worker_args,daemon=True).start()
             return self._json(202,{"id":new_id,"state":"queued","retry_of":job_id})
         if self.path.startswith('/api/download-jobs/') and self.path.endswith('/cancel'):
             job_id=self.path.split('/')[-2]; job=DOWNLOAD_JOBS.get(job_id)

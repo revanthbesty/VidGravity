@@ -18,25 +18,44 @@ class ShareReceiverActivity : FragmentActivity(), FormatPickerBottomSheet.Listen
     private fun handleShare(intent: Intent?) {
         if (handled) return
         handled = true
-        val raw = if (intent?.action == Intent.ACTION_SEND) intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString() else null
-        val url = normalizeSharedUrl(raw)
-        if (url == null) {
+        val urls = extractSharedUrls(intent)
+        if (urls.isEmpty()) {
             Toast.makeText(this, "VidGravity could not find a supported public URL.", Toast.LENGTH_LONG).show()
             finish()
             return
         }
-        val title = friendlyTitle(url)
-        runCatching { ShareInboxStore.add(this, url, title) }
-            .onFailure {
-                Toast.makeText(this, "Could not save this link to the Share Inbox.", Toast.LENGTH_LONG).show()
-                finish()
-                return
+        val uniqueUrls = urls.distinct()
+        val preferences = SecureDownloadPreferences.load(this)
+        if (uniqueUrls.size > 1 || !preferences.instantDownloadSharedLinks) {
+            // Review & Select is the default for every share; multi-link shares always
+            // use it. Single-link shares can opt into instant download in Settings.
+            val prefs = getSharedPreferences("vg_clipboard_inbox", MODE_PRIVATE)
+            val current = runCatching {
+                val json = org.json.JSONArray(prefs.getString("urls", "[]") ?: "[]")
+                (0 until json.length()).mapNotNull { json.optString(it).takeIf(String::isNotBlank) }
+            }.getOrDefault(emptyList())
+            val merged = (current + uniqueUrls).distinct().take(100)
+            prefs.edit().putString("urls", org.json.JSONArray(merged).toString()).apply()
+            runCatching {
+                startActivity(Intent(this, ClipboardInboxActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }.onFailure {
+                Toast.makeText(this, "Links were saved, but the selection screen could not be opened.", Toast.LENGTH_LONG).show()
             }
-        Toast.makeText(this, "Saved to VidGravity Share Inbox. No download started.", Toast.LENGTH_LONG).show()
-        startActivity(Intent(this, MainActivity::class.java).apply {
-            putExtra(EXTRA_OPEN_INBOX, true)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-        })
+            finish()
+            return
+        }
+
+        val url = uniqueUrls.first()
+        val title = friendlyTitle(url)
+        runCatching {
+            DownloadNotifications.ensureChannel(this)
+            DownloadNotifications.analyzing(this, title)
+            DownloadWorker.enqueue(this, url, preferences.preferredFormatSelector, title, preferences.unmeteredOnly)
+        }.onSuccess {
+            Toast.makeText(this, "Added 1 link to VidGravity Downloads.", Toast.LENGTH_LONG).show()
+        }.onFailure {
+            Toast.makeText(this, "Could not queue this link. Please try again.", Toast.LENGTH_LONG).show()
+        }
         finish()
     }
 
@@ -59,12 +78,36 @@ class ShareReceiverActivity : FragmentActivity(), FormatPickerBottomSheet.Listen
         private val URL_PATTERN = Pattern.compile("(?i)(https?://[^\\s<>\\\"']+|(?:www\\.)?[a-z0-9][a-z0-9.-]+\\.[a-z]{2,}(?:/[^\\s<>\\\"']*)?)")
         private val TRAILING = Regex("[),.;!?\\]}]+$")
 
-        fun normalizeSharedUrl(raw: String?): String? {
+        fun extractSharedUrls(intent: Intent?): List<String> {
+            if (intent == null) return emptyList()
+            val texts = when (intent.action) {
+                Intent.ACTION_SEND -> listOfNotNull(intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString())
+                Intent.ACTION_SEND_MULTIPLE -> {
+                    val items = intent.getCharSequenceArrayListExtra(Intent.EXTRA_TEXT)?.map { it.toString() }.orEmpty()
+                    val streams = intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)?.map(Uri::toString).orEmpty()
+                    items + streams
+                }
+                else -> emptyList()
+            }
+            return texts.flatMap(::extractUrlsFromText).distinct().take(30)
+        }
+
+        fun extractUrlsFromText(raw: String?): List<String> {
             val text = raw?.take(MAX_SHARED_TEXT)?.replace("\\u0000", " ")?.trim().orEmpty()
-            if (text.isBlank()) return null
-            val match = URL_PATTERN.matcher(text)
-            if (!match.find()) return null
-            var candidate = match.group(1).trim().replace(TRAILING, "")
+            if (text.isBlank()) return emptyList()
+            val matcher = URL_PATTERN.matcher(text)
+            val urls = mutableListOf<String>()
+            while (matcher.find() && urls.size < 30) {
+                normalizeCandidate(matcher.group(1))?.let(urls::add)
+            }
+            return urls.distinct()
+        }
+
+        fun normalizeSharedUrl(raw: String?): String? = extractUrlsFromText(raw).firstOrNull()
+
+        private fun normalizeCandidate(rawCandidate: String?): String? {
+            var candidate = rawCandidate?.trim()?.replace(TRAILING, "") ?: return null
+            if (candidate.isBlank()) return null
             if (candidate.startsWith("www.", true) || !candidate.contains("://")) candidate = "https://" + candidate
             val uri = Uri.parse(candidate)
             val scheme = uri.scheme?.lowercase(Locale.ROOT) ?: return null
@@ -75,7 +118,15 @@ class ShareReceiverActivity : FragmentActivity(), FormatPickerBottomSheet.Listen
                 val ip = runCatching { InetAddress.getByName(host) }.getOrNull() ?: return null
                 if (ip.isAnyLocalAddress || ip.isLoopbackAddress || ip.isLinkLocalAddress || ip.isSiteLocalAddress || ip.isMulticastAddress) return null
             }
-            return uri.buildUpon().scheme("https").fragment(null).build().toString().takeIf { it.length <= 8192 }
+            val builder = uri.buildUpon().scheme("https").fragment(null)
+            if (host == "youtube.com" || host.endsWith(".youtube.com") || host == "youtu.be") {
+                // Tracking/share decoration is not needed for extraction and can confuse some providers.
+                builder.clearQuery()
+                uri.queryParameterNames
+                    .filterNot { it.lowercase(Locale.ROOT) in setOf("si", "feature") }
+                    .forEach { key -> uri.getQueryParameters(key).forEach { value -> builder.appendQueryParameter(key, value) } }
+            }
+            return builder.build().toString().takeIf { it.length <= 8192 }
         }
 
         fun friendlyTitle(url: String): String = Uri.parse(url).host?.removePrefix("www.")?.plus(" shared media") ?: "shared media"

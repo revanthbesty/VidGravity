@@ -14,7 +14,8 @@ import javax.crypto.spec.GCMParameterSpec
 data class DownloadPreferences(
     val autoDownloadWithPreferredPreset: Boolean = false,
     val preferredFormatSelector: String = "bv*+ba/b",
-    val unmeteredOnly: Boolean = false
+    val unmeteredOnly: Boolean = false,
+    val instantDownloadSharedLinks: Boolean = false
 )
 
 object SecureDownloadPreferences {
@@ -35,7 +36,8 @@ object SecureDownloadPreferences {
             DownloadPreferences(
                 autoDownloadWithPreferredPreset = json.optBoolean("autoDownloadWithPreferredPreset", false),
                 preferredFormatSelector = json.optString("preferredFormatSelector", "bv*+ba/b").take(200),
-                unmeteredOnly = json.optBoolean("unmeteredOnly", false)
+                unmeteredOnly = json.optBoolean("unmeteredOnly", false),
+                instantDownloadSharedLinks = json.optBoolean("instantDownloadSharedLinks", false)
             )
         }.getOrDefault(DownloadPreferences())
     }
@@ -49,6 +51,7 @@ object SecureDownloadPreferences {
                 .put("autoDownloadWithPreferredPreset", value.autoDownloadWithPreferredPreset)
                 .put("preferredFormatSelector", value.preferredFormatSelector.take(200))
                 .put("unmeteredOnly", value.unmeteredOnly)
+                .put("instantDownloadSharedLinks", value.instantDownloadSharedLinks)
                 .toString().toByteArray(Charsets.UTF_8)
         )
         context.getSharedPreferences(STORE, Context.MODE_PRIVATE).edit()
