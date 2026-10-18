@@ -38,12 +38,13 @@ class CreativeWorkspaceUiTest {
         compose.onNodeWithText("YouTube Shorts",substring=true).assertExists()
         compose.onNodeWithText("Sprint 4 editable template").assertExists()
         val projectName=compose.onNodeWithText("Project name").performScrollTo()
-        projectName.performTextReplacement("Sprint 4 editable template")
+        projectName.performTextReplacement("Sprint 4 template project")
         projectName.performImeAction()
         compose.onNodeWithText("Save project").performScrollTo().performClick()
         compose.onNodeWithText("Projects",substring=false).performScrollTo().performClick()
-        compose.reopenStudioProject("Sprint 4 editable template")
-        compose.onNodeWithText("Sprint 4 editable template").assertExists()
+        compose.reopenStudioProject("Sprint 4 template project")
+        compose.onNode(hasText("Project name") and hasText("Sprint 4 template project")).assertExists()
+        compose.onNode(hasText("Caption 1") and hasText("Sprint 4 editable template")).performScrollTo().assertIsDisplayed()
     }
     @Test fun offlineWritingSuggestionsAndThumbnailSettingsCanBeSavedAndReopened() {
         open()
