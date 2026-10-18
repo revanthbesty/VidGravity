@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.*
 
 @Composable
-internal fun ThumbnailPanel(project:StudioProject,clip:StudioClip,onBusy:(Boolean)->Unit,onStage:(String)->Unit) {
+internal fun ThumbnailPanel(project:StudioProject,clip:StudioClip,onBusy:(Boolean)->Unit,onStage:(String)->Unit,onSaveReady:((suspend ()->Unit)?)->Unit) {
     val context=LocalContext.current; val scope=rememberCoroutineScope(); val focus=LocalFocusManager.current
     val repository=remember(context) {ThumbnailRepository(context)}
     var thumb by remember {mutableStateOf(StudioThumbnail(projectId=project.id,source=clip.uri,durationMs=clip.sourceDurationMs,timeMs=clip.startMs,
@@ -33,9 +33,9 @@ internal fun ThumbnailPanel(project:StudioProject,clip:StudioClip,onBusy:(Boolea
     var exporting by remember {mutableStateOf(false)}
     var exportJob by remember {mutableStateOf<Job?>(null)}
     var currentExport by remember {mutableStateOf<Pair<StudioThumbnail,String>?>(null)}
-    fun edit(next:StudioThumbnail) {thumb=next.copy(updatedAt=System.currentTimeMillis())}
+    fun edit(next:StudioThumbnail) {thumb=next.copy(updatedAt=maxOf(System.currentTimeMillis(),thumb.updatedAt+1))}
     suspend fun reload() {saved=withContext(Dispatchers.IO) {repository.list(project.id)}}
-    LaunchedEffect(Unit) {try {reload()} catch(failure:Exception) {if(failure is CancellationException) throw failure; message="Saved thumbnails could not be read; existing files were preserved."}}
+    LaunchedEffect(Unit) {try {reload(); saved.firstOrNull()?.let {thumb=it}} catch(failure:Exception) {if(failure is CancellationException) throw failure; message="Saved thumbnails could not be read; existing files were preserved."}}
     LaunchedEffect(thumb) {
         delay(350); loading=true
         try {
@@ -46,10 +46,18 @@ internal fun ThumbnailPanel(project:StudioProject,clip:StudioClip,onBusy:(Boolea
         catch(failure:Exception) {message=failure.message ?: "Preview could not open. Saved settings were preserved."}
         finally {loading=false}
     }
+    val latestThumb by rememberUpdatedState(thumb)
+    DisposableEffect(Unit) {
+        onSaveReady {withContext(Dispatchers.IO) {repository.save(latestThumb)}}
+        onDispose {onSaveReady(null)}
+    }
     DisposableEffect(bitmap) {val captured=bitmap; onDispose {captured?.recycle()}}
     DisposableEffect(exporting) {onBusy(exporting); onDispose {}}
     DisposableEffect(Unit) {onDispose {exportJob?.cancel(); onBusy(false)}}
     Text("Thumbnail creator",style=MaterialTheme.typography.titleLarge)
+    Text("Your latest saved thumbnail opens automatically. Start a separate thumbnail to use the currently selected clip.",style=MaterialTheme.typography.labelSmall)
+    TextButton(enabled=!exporting,onClick={thumb=StudioThumbnail(projectId=project.id,source=clip.uri,durationMs=clip.sourceDurationMs,timeMs=clip.startMs,
+        title=project.title.take(100),frame=clip.frame,rotation=project.tools.rotation,brightness=project.tools.brightness,contrast=project.tools.contrast)}) {Text("New thumbnail from selected clip")}
     Text("Extract a real video frame, crop it, add your title and a vector badge, then save an editable image project. Original videos stay untouched.")
     if(loading) LinearProgressIndicator(Modifier.fillMaxWidth())
     bitmap?.let {Image(it.asImageBitmap(),"Editable thumbnail preview",Modifier.fillMaxWidth().heightIn(max=300.dp))}
@@ -100,7 +108,12 @@ internal fun ThumbnailPanel(project:StudioProject,clip:StudioClip,onBusy:(Boolea
     }) {Text("Share current thumbnail")}
     if(currentExport!=null && export==null) Text("Thumbnail changed. Export again before sharing.")
     Text("Saved thumbnail projects",style=MaterialTheme.typography.titleMedium)
-    TextButton(enabled=!exporting,onClick={scope.launch {reload()}}) {Text("Refresh saved thumbnails")}
-    saved.forEach {item -> TextButton(enabled=!exporting,onClick={thumb=item}) {Text("Reopen thumbnail: ${item.title}")}}
+    TextButton(enabled=!exporting,onClick={scope.launch {
+        try {reload()} catch(failure:Exception) {if(failure is CancellationException) throw failure; message="Saved thumbnails could not be refreshed; files were preserved."}
+    }}) {Text("Refresh saved thumbnails")}
+    saved.forEach {item -> TextButton(enabled=!exporting,onClick={scope.launch {
+        try {thumb=withContext(Dispatchers.IO) {repository.load(item.id)}}
+        catch(failure:Exception) {if(failure is CancellationException) throw failure; message="Thumbnail could not be reopened; its file was preserved."}
+    }}) {Text("Reopen thumbnail: ${item.title}")}}
     message?.let {Text(it,color=MaterialTheme.colorScheme.primary)}
 }

@@ -60,5 +60,11 @@ class CreativeWorkspaceUiTest {
         compose.onNodeWithText("Reopen thumbnail: Sprint 4 saved thumbnail").performScrollTo().performClick()
         compose.onNodeWithText("Sprint 4 saved thumbnail").assertExists()
         compose.onNodeWithText("Share current thumbnail").performScrollTo().assertIsNotEnabled()
+        val renamed=compose.onNodeWithText("Thumbnail title").performScrollTo()
+        renamed.performTextReplacement("Sprint 4 navigation autosave")
+        renamed.performImeAction()
+        compose.onNodeWithText("Assistant",substring=false).performScrollTo().performClick()
+        compose.onNodeWithText("Thumbnails",substring=false).performScrollTo().performClick()
+        compose.waitUntil(10_000) {compose.onAllNodesWithText("Reopen thumbnail: Sprint 4 navigation autosave").fetchSemanticsNodes().isNotEmpty()}
     }
 }

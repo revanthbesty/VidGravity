@@ -62,6 +62,9 @@ class CreativeIntegrationTest {
         var published:PublishedMedia?=null
         try {
             repository.save(t); assertEquals(t,repository.load(t.id)); assertTrue(repository.list(p.id).any {it.id==t.id})
+            val newer=t.copy(subtitle="Newer settings",updatedAt=t.updatedAt+1000)
+            repository.save(newer); repository.save(t)
+            assertEquals("Older autosave must not replace newer settings",newer,repository.load(t.id))
             val media=ThumbnailRenderer.publish(context,t); published=media
             context.contentResolver.openInputStream(media.uri)!!.use {input -> copied.outputStream().use {input.copyTo(it)}}
             assertEquals(media.sha256,DownloadApi.sha256(copied))

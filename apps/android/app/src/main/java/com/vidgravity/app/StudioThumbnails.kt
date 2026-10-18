@@ -45,17 +45,23 @@ internal object ThumbnailCodec {
     }
 }
 internal class ThumbnailRepository(context:Context) {
+    companion object {private val diskLock=Any()}
     private val root=File(context.filesDir,"studio-thumbnails")
     private fun file(id:String):File {require(id.matches(Regex("[a-fA-F0-9-]{36}"))); return File(root,"$id.json")}
-    fun save(t:StudioThumbnail) {
+    fun save(t:StudioThumbnail):Unit = synchronized(diskLock) {
+        val target=file(t.id)
+        if(target.exists() || File(target.path+".bak").exists()) {
+            val previous=load(t.id) // Unknown/corrupt versions are preserved rather than overwritten.
+            if(previous.updatedAt>t.updatedAt) return@synchronized
+        }
         val text=ThumbnailCodec.encode(t); check(root.exists() || root.mkdirs())
         val atomic=AtomicFile(file(t.id)); val stream=atomic.startWrite()
         try {stream.write(text.toByteArray(Charsets.UTF_8)); atomic.finishWrite(stream)} catch(failure:Exception) {atomic.failWrite(stream); throw failure}
     }
-    fun load(id:String)=ThumbnailCodec.decode(AtomicFile(file(id)).openRead().bufferedReader().use {it.readText()})
+    fun load(id:String)=synchronized(diskLock) {ThumbnailCodec.decode(AtomicFile(file(id)).openRead().bufferedReader().use {it.readText()})}
     fun list(projectId:String)=root.listFiles().orEmpty().map {it.name.removeSuffix(".bak").removeSuffix(".json")}.distinct()
         .mapNotNull {runCatching {load(it)}.getOrNull()}.filter {it.projectId==projectId}.sortedByDescending {it.updatedAt}
-    fun delete(id:String)=AtomicFile(file(id)).delete()
+    fun delete(id:String)=synchronized(diskLock) {AtomicFile(file(id)).delete()}
 }
 
 internal object ThumbnailRenderer {

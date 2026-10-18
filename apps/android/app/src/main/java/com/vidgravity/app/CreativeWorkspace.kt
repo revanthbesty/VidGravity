@@ -49,6 +49,7 @@ internal fun CreativeWorkspace(project:StudioProject,selected:Int,onClose:()->Un
     var stage by remember {mutableStateOf("")}
     var before by remember {mutableStateOf<Bitmap?>(null)}
     var after by remember {mutableStateOf<Bitmap?>(null)}
+    var saveThumbnail by remember {mutableStateOf<(suspend ()->Unit)?>(null)}
     var dictating by remember {mutableStateOf(false)}
     var captionAt by remember {mutableLongStateOf(project.clips.take(selected).sumOf {it.playbackDurationMs})}
     val latestProject by rememberUpdatedState(project); val applyLatest by rememberUpdatedState(onApply)
@@ -71,7 +72,19 @@ internal fun CreativeWorkspace(project:StudioProject,selected:Int,onClose:()->Un
     }
     DisposableEffect(working,dictating) {onBusy(working || dictating); onDispose {}}
     DisposableEffect(before,after) {val a=before; val b=after; onDispose {a?.recycle(); if(b!==a) b?.recycle()}}
-    fun close() {job?.cancel(); speech.close(); dictating=false; onClose()}
+    fun leave(next:()->Unit) {
+        job?.cancel(); speech.close(); dictating=false
+        val flush=saveThumbnail
+        if(flush==null) {next(); return}
+        job=scope.launch {
+            working=true; stage="Saving thumbnail settings…"; progress=-1f
+            try {flush(); next()}
+            catch(cancelled:CancellationException) {throw cancelled}
+            catch(failure:Exception) {message="Thumbnail settings could not be saved. Correct the title or retry before leaving."}
+            finally {working=false}
+        }
+    }
+    fun close() {leave(onClose)}
     BackHandler {close()}
     fun runTask(action:suspend ()->Unit) {
         job=scope.launch {working=true; message=null
@@ -88,7 +101,7 @@ internal fun CreativeWorkspace(project:StudioProject,selected:Int,onClose:()->Un
         Text("Offline by default · review every suggestion",style=MaterialTheme.typography.labelMedium)
         val tabs=listOf("Smart","Templates","Assistant","Thumbnails","Captions")
         ScrollableTabRow(selectedTabIndex=tab,edgePadding=0.dp) {
-            tabs.forEachIndexed {i,label -> Tab(selected=tab==i,onClick={job?.cancel(); speech.close(); dictating=false; tab=i},text={Text(label)})}
+            tabs.forEachIndexed {i,label -> Tab(selected=tab==i,onClick={leave {tab=i}},text={Text(label)})}
         }
         if(working) {
             if(progress>=0) LinearProgressIndicator(progress={progress.coerceIn(0f,1f)},modifier=Modifier.fillMaxWidth())
@@ -145,21 +158,21 @@ internal fun CreativeWorkspace(project:StudioProject,selected:Int,onClose:()->Un
                 }
                 1 -> CreativeTemplatePanel(project,!working,onCreate)
                 2 -> CreativeAssistantPanel(project,!working,onApply)
-                3 -> ThumbnailPanel(project,clip,onBusy={working=it},onStage={stage=it; progress=-1f})
+                3 -> ThumbnailPanel(project,clip,onBusy={working=it},onStage={stage=it; progress=-1f},onSaveReady={saveThumbnail=it})
                 4 -> {
                     Text("Caption tools",style=MaterialTheme.typography.titleLarge)
                     Text("The editor already supports timed captions, three fonts, colors, size, vertical position, SRT import/export and burned-in video captions.")
                     Text("Automatic video-file transcription is not installed. No language model is bundled and no paid API is required. Manual editing works offline.",modifier=Modifier.testTag("speech_fallback"))
                     Text(if(available) "This device offers optional on-device English microphone dictation." else "This device has no available on-device speech recognizer. Use manual captions or import SRT.")
                     StudioLongField("Dictated cue start (ms)",captionAt,!working) {captionAt=it.coerceIn(0,project.durationMs-1)}
-                    Button(enabled=available && !working && project.tools.captions.size<100,onClick={
+                    Button(enabled=available && !working && !dictating && project.tools.captions.size<100,onClick={
                         if(ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED) speech.start()
                         else permission.launch(Manifest.permission.RECORD_AUDIO)
                     }) {Text("Dictate English caption · microphone")}
                     TextButton(onClick={speech.close(); dictating=false}) {Text("Stop dictation")}
                     if(Build.VERSION.SDK_INT>=34 && available) {
                         Text("Optional English model: download size and storage are chosen by your device's speech provider, not included in this APK. Download only when you choose; consider Wi-Fi. Projects do not require this model.")
-                        OutlinedButton(enabled=!working,onClick={speech.downloadEnglishModel()}) {Text("Request English model download")}
+                        OutlinedButton(enabled=!working && !dictating,onClick={speech.downloadEnglishModel()}) {Text("Request English model download")}
                     }
                     Button(onClick=::close) {Text("Return to manual caption editor")}
                     Text("Dictation listens to your microphone; it does NOT transcribe an existing video. Review words and cue times before export.",style=MaterialTheme.typography.labelSmall)

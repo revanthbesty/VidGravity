@@ -62,6 +62,8 @@ Portrait 720p exports request aligned 720×1280 (1080p:1080×1920;
 still determine support; there is no silent preset fallback.
 
 Thumbnail settings autosave atomically in a separate directory and can reopen.
+Tab/back navigation flushes valid settings; serialized writes reject stale autosaves
+so an older preview/export snapshot cannot replace newer editing settings.
 Each image project stores source URI, frame time, crop, text, font, color, badge
 and adjustment settings. Rendering and PNG publication run on IO, checksum the
 actual output and use existing MediaStore/Library publication. Sharing requires
