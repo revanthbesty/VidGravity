@@ -164,6 +164,9 @@ jobs:
                       for location in issue.findall('location'):
                           print(location.get('file'), 'line', location.get('line'))
           PY
+      - name: Summarize JVM and lint reports
+        if: always()
+        run: python scripts/android_test_summary.py
       - name: Run export and Android share tests
         run: |
           python -m unittest discover -s tests -p "test_media_export.py" -v

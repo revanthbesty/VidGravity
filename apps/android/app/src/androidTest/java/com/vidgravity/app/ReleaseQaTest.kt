@@ -40,6 +40,7 @@ class ReleaseQaTest {
                 val timestamps=mutableListOf<Long>()
                 while(extractor.sampleTime>=0) {timestamps.add(extractor.sampleTime);assertTrue(extractor.sampleSize>0);if(!extractor.advance()) break}
                 metric("export-fullhd-diagnostics",JSONObject().put("render_ms",elapsed).put("bytes",out.length()).put("format",format.toString()).put("timestamps_us",org.json.JSONArray(timestamps)))
+                assertTrue("One-second trim must preserve its video tail: $format",format.getLong(MediaFormat.KEY_DURATION) in 900_000L..1_100_000L)
                 assertTrue("Expected approximately 15 encoded samples, got ${timestamps.size}: $timestamps",timestamps.size in 14..17)
                 assertTrue(timestamps.zipWithNext().all {(a,b)->b>a})
                 val deltas=timestamps.zipWithNext {a,b->b-a}.sorted()
@@ -52,6 +53,26 @@ class ReleaseQaTest {
             val evidence=File(context.getExternalFilesDir(null),"smoke-evidence").apply {mkdirs()}
             if(out.isFile) out.copyTo(File(evidence,"fps-failure.mp4"),overwrite=true)
             throw failure
+        } finally {out.delete()}
+    }
+    @Test fun higherRateSourceStillDropsToRequestedCap():Unit=runBlocking {
+        val source=studioFixture("native-fast.mp4");val hash=DownloadApi.sha256(source)
+        val clip=StudioMediaImports.video(context,MediaLibraryIndexer.localUri(context,source)).copy(endMs=1000)
+        val p=StudioProject(title="30 to 15 FPS",clips=listOf(clip),tools=StudioTools(frameRate=15))
+        val out=File(context.cacheDir,"release-frame-cap.mp4")
+        try {
+            withTimeout(120_000) {NativeStudioRenderer.render(context,p,out) {}}
+            val extractor=MediaExtractor()
+            try {
+                extractor.setDataSource(out.path)
+                val track=(0 until extractor.trackCount).first {extractor.getTrackFormat(it).getString(MediaFormat.KEY_MIME)!!.startsWith("video/")}
+                extractor.selectTrack(track);val times=mutableListOf<Long>()
+                while(extractor.sampleTime>=0) {times.add(extractor.sampleTime);if(!extractor.advance()) break}
+                metric("export-frame-cap",JSONObject().put("samples",times.size).put("timestamps_us",org.json.JSONArray(times)))
+                assertTrue("30FPS source must be reduced near15FPS, got $times",times.size in 14..17)
+                assertTrue(times.zipWithNext().all {(a,b)->b-a in 60_000L..74_000L})
+                assertEquals(hash,DownloadApi.sha256(source))
+            } finally {extractor.release()}
         } finally {out.delete()}
     }
     @Test fun cancelledEncoderReleasesResourcesAndNextRenderSucceeds():Unit=runBlocking {

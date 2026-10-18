@@ -26,6 +26,9 @@ jobs:
         run: |
           cp tests/fixtures/google-services.synthetic.json apps/android/app/google-services.json
           gradle -p apps/android -PVG_FIREBASE_ENABLED=true assembleDebug testDebugUnitTest lintDebug compileDebugAndroidTestKotlin --console=plain
+      - name: Summarize JVM and lint reports
+        if: always()
+        run: python scripts/android_test_summary.py
       - name: Record resolved dependency inventory
         run: |
           gradle -p apps/android -PVG_FIREBASE_ENABLED=true :app:dependencies --configuration debugRuntimeClasspath > account-dependencies.txt

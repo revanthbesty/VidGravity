@@ -26,3 +26,9 @@ subprocess.run([
     str(output / "creative-source.mp4")
 ], check=True)
 print("Generated scene-change and silence fixtures")
+subprocess.run([
+    "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+    "testsrc2=size=160x90:rate=30", "-t", "2", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+    str(output / "native-fast.mp4")
+], check=True)
+print("Generated 30 FPS source for frame-cap regression")

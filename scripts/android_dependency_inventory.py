@@ -41,3 +41,6 @@ if __name__ == '__main__':
     a.output.parent.mkdir(parents=True, exist_ok=True)
     a.output.write_text(json.dumps(report, indent=2) + '\n')
     print('RESOLVED_DEPENDENCIES', len(report['dependencies']), 'UNKNOWN_LICENSES', sum(not row['licenses'] for row in report['dependencies']))
+    for row in report['dependencies']:
+        if not row['licenses']:
+            print('LICENSE_FOLLOW_UP', row['coordinate'])

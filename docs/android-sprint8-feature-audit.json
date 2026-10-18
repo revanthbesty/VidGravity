@@ -226,8 +226,8 @@
         "apps/android/app/src/androidTest/java/com/vidgravity/app/ReleaseQaTest.kt"
       ],
       "coverage": "automated cases listed; final run conclusions in PR #69",
-      "defects_or_limits": "4K depends on encoder; exactly-once MediaStore publication after process death not guaranteed",
-      "recommended_fix": "Test supported codec devices; add durable publication reconciliation before exactly-once claim"
+      "defects_or_limits": "4K depends on encoder; exactly-once MediaStore publication after process death not guaranteed; Sprint8 QA found redundant FPS dropper tail truncation: source-rate-aware bypass plus unchanged/stronger real-output assertions added, final CI required",
+      "recommended_fix": "Verify final cadence/tail and higher-rate downsample regressions; preserve encoder support limits and durable publication follow-up"
     },
     {
       "area": "Studio",
