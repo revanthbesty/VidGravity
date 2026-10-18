@@ -58,7 +58,7 @@ data class StudioProject(
 object StudioProjectCodec {
     fun encode(project: StudioProject): String {
         project.validate()
-        return JSONObject().put("schema", 3).put("tools", StudioToolsCodec.encode(project.tools)).put("id", project.id).put("title", project.title)
+        return JSONObject().put("schema", 4).put("tools", StudioToolsCodec.encode(project.tools)).put("id", project.id).put("title", project.title)
             .put("updatedAt", project.updatedAt).put("overlay", project.overlay)
             .put("filter", project.filter.name).put("resolution", project.resolution.name)
             .put("fadeEdges", project.fadeEdges).put("originalVolume", project.originalVolume)
@@ -73,7 +73,7 @@ object StudioProjectCodec {
     fun decode(raw: String): StudioProject {
         require(raw.length <= 256_000) { "Project file is too large." }
         val json = JSONObject(raw)
-        require(json.getInt("schema") in 1..3) { "This project needs a newer VidGravity version." }
+        require(json.getInt("schema") in 1..4) { "This project needs a newer VidGravity version." }
         val rows = json.getJSONArray("clips")
         require(rows.length() in 1..12)
         return StudioProject(id = json.getString("id"), title = json.getString("title"),

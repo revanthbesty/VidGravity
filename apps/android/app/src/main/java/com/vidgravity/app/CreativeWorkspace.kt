@@ -260,10 +260,10 @@ private fun CreativeAssistantPanel(project:StudioProject,enabled:Boolean,onApply
         Text("Titles",style=MaterialTheme.typography.titleMedium)
         copy.titles.forEach {title -> Text(title); TextButton(enabled=enabled,onClick={onApply(project.copy(title=title.take(100)))}) {Text("Use title: ${title.take(35)}")}}
         Text("Description: ${copy.description}"); Text(copy.hashtags.joinToString(" ")); Text("Hook: ${copy.hook}")
-        copy.script.forEach {Text(it)}; Text("Thumbnail text: ${copy.thumbnail}"); Text(copy.workflow)
+        copy.script.forEach {Text(it)}; Text("Thumbnail text: ${copy.thumbnail}"); Text(copy.workflow); Text("Call to action: ${copy.cta}"); Text("Repurpose: ${copy.repurpose}")
         TextButton(enabled=enabled && project.tools.captions.size<100,onClick={onApply(project.copy(tools=project.tools.copy(captions=project.tools.captions+StudioCaption(0,minOf(3000,project.durationMs),copy.hook))))}) {Text("Add hook as editable caption")}
         TextButton(onClick={
-            (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("VidGravity writing suggestions",(copy.titles+listOf(copy.description,copy.hashtags.joinToString(" "),copy.hook)+copy.script+listOf(copy.thumbnail,copy.workflow)).joinToString("\n\n")))
+            (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager).setPrimaryClip(ClipData.newPlainText("VidGravity writing suggestions",(copy.titles+listOf(copy.description,copy.hashtags.joinToString(" "),copy.hook)+copy.script+listOf(copy.thumbnail,copy.workflow,copy.cta,copy.repurpose)).joinToString("\n\n")))
         }) {Text("Copy writing pack")}
     }
     error?.let {Text(it,color=MaterialTheme.colorScheme.error)}

@@ -42,7 +42,7 @@ class StudioProjectTest {
         rejected { source.copy(clips = source.clips.map { it.copy(uri = "https://example.com/video.mp4") }).validate() }
         rejected { source.copy(originalVolume = Float.NaN).validate() }
         rejected { source.clips.single().split(0) }
-        rejected { StudioProjectCodec.decode(StudioProjectCodec.encode(source).replace("\"schema\":3", "\"schema\":99")) }
+        rejected { StudioProjectCodec.decode(StudioProjectCodec.encode(source).replace("\"schema\":4", "\"schema\":99")) }
     }
     @Test fun fadeIsBoundedAndReachesBlackAtBothEdges() {
         assertEquals(0f, StudioFade.gain(0, 1_000_000), 0.0001f)

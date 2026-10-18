@@ -18,6 +18,10 @@ class NativeStudioExportWorker(context: Context, params: WorkerParameters) : Cor
         try {
             val project = repository.request(id.toString())
             output.delete()
+            SocialCreator.requireSpace(android.os.StatFs(applicationContext.cacheDir.path).availableBytes,SocialCreator.estimatedBytes(project))
+            (project.clips.map {it.uri}+listOfNotNull(project.musicUri,project.voiceUri,project.tools.social.logo)+project.tools.audio.map {it.uri}).distinct().forEach { source ->
+                applicationContext.contentResolver.openAssetFileDescriptor(android.net.Uri.parse(source),"r")?.use {} ?: error("Source media is missing. Relink media in Studio and retry.")
+            }
             setForeground(getForegroundInfo())
             setProgress(workDataOf("stage" to "Rendering on device"))
             NativeStudioRenderer.render(applicationContext, project, output) { progress ->
@@ -63,17 +67,22 @@ class NativeStudioExportWorker(context: Context, params: WorkerParameters) : Cor
 
     companion object {
         /** Call on IO. Keep an immutable request so later project edits cannot alter a running render. */
-        fun enqueue(context: Context, project: StudioProject): UUID {
+        @Synchronized fun enqueue(context: Context, project: StudioProject): UUID {
             project.validate()
             val manager = WorkManager.getInstance(context)
             val name = "studio-export-${project.id}"
-            check(manager.getWorkInfosForUniqueWork(name).get().none { !it.state.isFinished }) { "This project already has an export running." }
-            val request = OneTimeWorkRequestBuilder<NativeStudioExportWorker>().addTag("vidgravity-studio-export").build()
+            check(manager.getWorkInfosByTag(name).get().none { !it.state.isFinished } && manager.getWorkInfosForUniqueWork(name).get().none { !it.state.isFinished }) { "This project already has an export queued or running." }
+            val previous=StudioRepository(context).record(project.id)
+            if(previous?.uri!=null && previous.fingerprint==project.fingerprint()) {
+                val readable=runCatching {context.contentResolver.openAssetFileDescriptor(android.net.Uri.parse(previous.uri),"r")?.use {true} ?: false}.getOrDefault(false)
+                if(readable && manager.getWorkInfoById(UUID.fromString(previous.workId)).get()?.state==WorkInfo.State.SUCCEEDED) return UUID.fromString(previous.workId)
+            }
+            val request = OneTimeWorkRequestBuilder<NativeStudioExportWorker>().addTag("vidgravity-studio-export").addTag(name).build()
             val repository = StudioRepository(context)
             repository.save(project)
             repository.saveRequest(request.id.toString(), project)
             repository.setRecord(project.id, StudioExportRecord(request.id.toString(), project.fingerprint()))
-            manager.enqueueUniqueWork(name, ExistingWorkPolicy.KEEP, request).result.get()
+            manager.enqueueUniqueWork("vidgravity-native-render-queue", ExistingWorkPolicy.APPEND_OR_REPLACE, request).result.get()
             return request.id
         }
     }

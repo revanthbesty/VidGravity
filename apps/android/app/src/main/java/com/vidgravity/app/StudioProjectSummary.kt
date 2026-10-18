@@ -31,7 +31,7 @@ internal fun StudioProjectSummary(onOpenStudio: () -> Unit) {
                 projects!!.isEmpty() -> Text("Trim, arrange, add sound and export on your device.")
                 else -> Text("${projects!!.size} saved project(s) · Latest: ${projects!!.first().title}")
             }
-            Text("Smart editing · templates · captions · thumbnails",style=MaterialTheme.typography.labelMedium)
+            Text("Social Creator · brand kit · multi-format exports",style=MaterialTheme.typography.labelMedium)
             FilledTonalButton(onClick = onOpenStudio) { Text("Open Studio") }
         }
     }

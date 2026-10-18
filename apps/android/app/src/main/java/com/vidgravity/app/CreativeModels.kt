@@ -103,7 +103,7 @@ object CreativeTemplates {
 }
 
 data class CreativeBrief(val topic:String,val audience:String="viewers",val style:String="Helpful")
-data class CreativeCopy(val titles:List<String>,val description:String,val hashtags:List<String>,val hook:String,val script:List<String>,val thumbnail:String,val workflow:String)
+data class CreativeCopy(val titles:List<String>,val description:String,val hashtags:List<String>,val hook:String,val script:List<String>,val thumbnail:String,val workflow:String,val cta:String="",val repurpose:String="")
 interface CreativeTextProvider {
     val label:String
     val genuineInference:Boolean
@@ -120,7 +120,7 @@ class OfflineCreativeRules:CreativeTextProvider {
             "Explore $topic with a ${brief.style.lowercase()} guide for $audience. Save this video and share what you would try next.",
             (tags+listOf("#VideoCreator","#LearnAndCreate")).distinct(),"What if $topic could be simpler?",
             listOf("0–3s: Show the result and ask one clear question.","3–12s: Demonstrate one practical idea about $topic for $audience.","12–20s: Show the outcome, add captions, and invite a specific next step."),
-            topic.take(35),"Choose a clear opening frame, remove pauses after reviewing silence suggestions, keep captions readable, preview the result and export a short test first.")
+            topic.take(35),"Choose a clear opening frame, remove pauses after reviewing silence suggestions, keep captions readable, preview the result and export a short test first.","Save this guide to $topic and share one thing you will try.","Turn one clear point about $topic into a short clip; use Social Creator to review fit/framing for vertical, square and landscape versions.")
     }
 }
 object CreativeCapabilities {
