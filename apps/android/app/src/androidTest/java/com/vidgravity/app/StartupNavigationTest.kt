@@ -34,12 +34,21 @@ class StartupNavigationTest {
             compose.waitUntil(15_000) { compose.activity.window.decorView.hasWindowFocus() }
         } catch (failure: Throwable) {
             val instrumentation=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
-            val descriptor=instrumentation.uiAutomation.executeShellCommand("dumpsys window windows")
-            android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).bufferedReader().useLines { lines ->
-                lines.filter { it.contains("Focus") || it.contains("Window{") || it.contains("mHasSurface") || it.contains("isOnScreen") }
-                    .forEach { android.util.Log.e("VGSmoke","focus.diagnostic $it") }
+            fun shell(command:String):String {
+                val descriptor=instrumentation.uiAutomation.executeShellCommand(command)
+                return android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).bufferedReader().use { it.readText() }
             }
-            throw failure
+            val windows=shell("dumpsys window windows")
+            windows.lineSequence().filter { it.contains("Focus") || it.contains("Window{") || it.contains("mHasSurface") || it.contains("isOnScreen") }
+                .forEach { android.util.Log.e("VGSmoke","focus.diagnostic $it") }
+            // API35's emulator launcher can ANR between test Activities. Recover
+            // only that verified external overlay; never dismiss an app ANR.
+            if(windows.contains("Application Not Responding: com.google.android.apps.nexuslauncher") &&
+                !windows.contains("Application Not Responding: com.vidgravity.app")) {
+                android.util.Log.w("VGSmoke","focus.recover.external-launcher-anr")
+                shell("am force-stop com.google.android.apps.nexuslauncher")
+                compose.waitUntil(15_000) { compose.activity.window.decorView.hasWindowFocus() }
+            } else throw failure
         }
 
         compose.waitUntil(15_000) {
