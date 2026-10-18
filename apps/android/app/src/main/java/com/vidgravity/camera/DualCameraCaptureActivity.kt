@@ -95,7 +95,10 @@ class DualCameraCaptureActivity : ComponentActivity() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             startCameras()
         } else {
-            permissionRequest.launch(permissions)
+            AlertDialog.Builder(this).setTitle("Create with your camera")
+                .setMessage("Camera access is needed to capture photos and videos. Microphone access is optional for recorded sound. Captures are saved to Library and can open in Studio.")
+                .setPositiveButton("Continue") {_,_->permissionRequest.launch(permissions)}
+                .setNegativeButton("Not now") {_,_->finish()}.show()
         }
     }
 
@@ -121,9 +124,9 @@ class DualCameraCaptureActivity : ComponentActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(8), dp(10), dp(8))
-            setBackgroundColor(0xAA101014.toInt())
+            setBackgroundColor(0xAA101521.toInt())
         }
-        val close = controlButton("✕") { finish() }
+        val close = controlButton("✕") { finish() }.apply {contentDescription="Close camera"}
         flashButton = controlButton("Flash off") { toggleFlash() }
         val flip = controlButton("Flip") { toggleFacing() }
         dualButton = controlButton("Dual off") { toggleDualMode() }
@@ -139,7 +142,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(dp(16), dp(12), dp(16), dp(24))
-            setBackgroundColor(0xCC101014.toInt())
+            setBackgroundColor(0xCC101521.toInt())
         }
         status = TextView(this).apply {
             text = "Preparing camera…"
@@ -182,6 +185,8 @@ class DualCameraCaptureActivity : ComponentActivity() {
         }
         modeButton = controlButton("PHOTO  |  VIDEO") { toggleMode() }
         shutter = controlButton("●  Capture") { onShutterPressed() }.apply {
+            isEnabled=false
+            contentDescription="Capture photo or start and stop video recording"
             textSize = 17f
             setTextColor(0xFFFFFFFF.toInt())
             setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF7657D8.toInt()))
@@ -213,7 +218,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
             textSize = 11f
             isAllCaps = false
             setTextColor(0xFFFFFFFF.toInt())
-            setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xCC2A2832.toInt()))
+            setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xCC293449.toInt()))
             setOnClickListener { action() }
         }
 
@@ -275,6 +280,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
                 status.text = "Dual-camera preview · Photo mode"
                 flashButton.isEnabled = false
                 flashButton.text = "Flash n/a"
+                shutter.isEnabled=true
                 shutter.text = "●  Capture"
                 zoom.isEnabled = false
                 zoomLabel.text = "Zoom unavailable in dual preview"
@@ -321,6 +327,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
         updateFlashLabel()
         status.text = if (frontFacing) "Front camera · ${if (videoMode) "Video" else "Photo"} mode"
             else "Rear camera · ${if (videoMode) "Video" else "Photo"} mode"
+        shutter.isEnabled=true
         shutter.text = if (videoMode) "●  Record" else "●  Capture"
     }
 
@@ -603,15 +610,18 @@ class DualCameraCaptureActivity : ComponentActivity() {
     }
 
     private fun finishWithMessage(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-        finish()
+        status.text=message
+        shutter.isEnabled=false
+        AlertDialog.Builder(this).setTitle("Camera unavailable").setMessage(message+" Your saved media is unchanged.")
+            .setPositiveButton("Retry") {_,_->if(ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED) startCameras() else permissionRequest.launch(arrayOf(Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO))}
+            .setNegativeButton("Back") {_,_->finish()}.show()
     }
 
     override fun onStop() {
         photoTimer?.let { shutter.removeCallbacks(it) }
         photoTimer = null
         pendingPhoto = false
-        shutter.isEnabled = true
+        shutter.isEnabled=imageCapture!=null || videoCapture!=null
         recording?.stop()
         super.onStop()
     }

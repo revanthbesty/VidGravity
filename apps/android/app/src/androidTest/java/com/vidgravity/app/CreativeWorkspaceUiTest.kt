@@ -36,6 +36,7 @@ class CreativeWorkspaceUiTest {
         compose.onNodeWithTag("create_template").performScrollTo().performClick()
         compose.waitUntil(10_000) {compose.onAllNodesWithText("Project name").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("YouTube Shorts",substring=true).assertExists()
+        compose.clickStudioToolbar("Tools: Captions")
         compose.onNodeWithText("Sprint 4 editable template").assertExists()
         val projectName=compose.onNodeWithText("Project name").performScrollTo()
         projectName.performTextReplacement("Sprint 4 template project")
@@ -44,6 +45,7 @@ class CreativeWorkspaceUiTest {
         compose.onNodeWithText("Projects",substring=false).performScrollTo().performClick()
         compose.reopenStudioProject("Sprint 4 template project")
         compose.onNode(hasText("Project name") and hasText("Sprint 4 template project")).assertExists()
+        compose.clickStudioToolbar("Tools: Captions")
         compose.onNode(hasText("Caption 1") and hasText("Sprint 4 editable template")).performScrollTo().assertIsDisplayed()
     }
     @Test fun offlineWritingSuggestionsAndThumbnailSettingsCanBeSavedAndReopened() {

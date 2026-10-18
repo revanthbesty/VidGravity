@@ -27,12 +27,12 @@ import android.graphics.Bitmap
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun SocialCreatorWorkspace(project:StudioProject,selected:Int,onClose:()->Unit,onApply:(StudioProject)->Unit,onCreate:(StudioProject)->Unit,onBusy:(Boolean)->Unit) {
+internal fun SocialCreatorWorkspace(project:StudioProject,selected:Int,onClose:()->Unit,onApply:(StudioProject)->Unit,onCreate:(StudioProject)->Unit,onBusy:(Boolean)->Unit,initialRecipeId:String?=null) {
     val context=LocalContext.current;val scope=rememberCoroutineScope();val focus=LocalFocusManager.current
     val brands=remember {CreatorBrandRepository(context)};val repository=remember {StudioRepository(context)}
     var tab by remember {mutableIntStateOf(0)};var busy by remember {mutableStateOf(false)};var message by remember {mutableStateOf<String?>(null)}
     var brand by remember {mutableStateOf(CreatorBrand())};var brandLoaded by remember {mutableStateOf(false)}
-    var recipe by remember {mutableStateOf(SocialCreator.workflows.first())};var title by remember {mutableStateOf(project.title)}
+    var recipe by remember {mutableStateOf(SocialCreator.templates.firstOrNull {it.id==initialRecipeId} ?: SocialCreator.workflows.first())};var title by remember {mutableStateOf(project.title)}
     var seconds by remember {mutableIntStateOf(30)};var useBrand by remember {mutableStateOf(false)}
     var fit by remember {mutableStateOf(CreatorFit.FIT)};var targets by remember {mutableStateOf(setOf(StudioAspect.PORTRAIT))}
     var resolution by remember {mutableStateOf(project.resolution)};var fps by remember {mutableIntStateOf(if(project.tools.frameRate==0) 30 else project.tools.frameRate)}

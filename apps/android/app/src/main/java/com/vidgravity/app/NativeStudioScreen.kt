@@ -62,10 +62,13 @@ internal object StudioMediaImports {
 }
 
 @Composable
-internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> Unit, onBusyChanged: (Boolean) -> Unit) {
+internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> Unit, onBusyChanged:(Boolean)->Unit,requestedProjectId:String?=null,autoImport:Boolean=false,initialWorkspace:String?=null,
+    onEditingChanged:(String?)->Unit={},onSaveReady:((suspend ()->Unit)?)->Unit={}) {
     val context = LocalContext.current
     val repository = remember(context) { StudioRepository(context) }
     val scope = rememberCoroutineScope()
+    var ready by remember {mutableStateOf(false)}
+    var workspace by remember {mutableStateOf(initialWorkspace)}
     var projects by remember { mutableStateOf(emptyList<StudioProject>()) }
     var trashed by remember { mutableStateOf(emptyList<StudioProject>()) }
     var editing by remember { mutableStateOf<StudioProject?>(null) }
@@ -100,11 +103,20 @@ internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> 
         }
     }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let(::importVideo) }
-    LaunchedEffect(Unit) { reload(); initialMedia?.takeIf { it.mimeType.startsWith("video/") }?.let { importVideo(it.uri) } }
+    LaunchedEffect(Unit) {
+        reload()
+        if(requestedProjectId!=null) {
+            try {editing=withContext(Dispatchers.IO) {repository.load(requestedProjectId)}}
+            catch(failure:Exception) {if(failure is CancellationException) throw failure;message="The active project could not reopen. Its files were preserved; choose a saved project or restore from trash."}
+        } else if(initialMedia?.mimeType?.startsWith("video/")==true) importVideo(initialMedia.uri)
+        else if(autoImport) picker.launch(arrayOf("video/*"))
+        ready=true
+    }
+    LaunchedEffect(ready,editing?.id) {if(ready) onEditingChanged(editing?.id)}
     val project = editing
     if (project != null) {
         NativeStudioEditor(project, repository, onClose = { editing = null; scope.launch { reload() } }, onBusyChanged = onBusyChanged,
-            onCreateProject = { next -> editing=next })
+            onCreateProject={next->editing=next},initialWorkspace=workspace,onWorkspaceOpened={workspace=null},onSaveReady=onSaveReady)
         return
     }
     BackHandler(onBack = onClose)
@@ -154,7 +166,7 @@ internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NativeStudioEditor(initial: StudioProject, repository: StudioRepository, onClose: () -> Unit, onBusyChanged: (Boolean) -> Unit, onCreateProject: (StudioProject) -> Unit) {
+private fun NativeStudioEditor(initial: StudioProject, repository: StudioRepository, onClose: () -> Unit, onBusyChanged: (Boolean) -> Unit, onCreateProject:(StudioProject)->Unit,initialWorkspace:String?=null,onWorkspaceOpened:()->Unit={},onSaveReady:((suspend ()->Unit)?)->Unit={}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val manager = remember(context) { WorkManager.getInstance(context) }
@@ -168,9 +180,11 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
     }}
     var project by remember(initial.id) { mutableStateOf(initial) }
     var selected by remember(initial.id) { mutableIntStateOf(0) }
-    var socialOpen by remember(initial.id) {mutableStateOf(false)}
+    var socialOpen by remember(initial.id) {mutableStateOf(initialWorkspace?.startsWith("template:")==true)}
     var creativeOpen by remember(initial.id) {mutableStateOf(false)}
     var creativeBusy by remember(initial.id) {mutableStateOf(false)}
+    val initialRecipe=remember(initial.id) {initialWorkspace?.substringAfter("template:")}
+    LaunchedEffect(initial.id) {onWorkspaceOpened()}
     var positionMs by remember(initial.id) { mutableLongStateOf(0) }
     var seekRequest by remember(initial.id) { mutableLongStateOf(0) }
     val history=remember(initial.id) { StudioHistory() }
@@ -193,7 +207,7 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
             next.validate()
             if(next.copy(updatedAt=0)==project.copy(updatedAt=0)) return
             if(next.clips.size!=project.clips.size) android.util.Log.i("VGStudio","timeline.clips=${next.clips.size}")
-            history.record(project,group); project = next.copy(updatedAt = System.currentTimeMillis()); saveStatus = "Saving…"
+            history.record(project,group); project = next.copy(updatedAt=maxOf(System.currentTimeMillis(),project.updatedAt+1)); saveStatus = "Saving…"
             canUndo=history.canUndo; canRedo=history.canRedo
             selected=selected.coerceIn(project.clips.indices); positionMs=positionMs.coerceIn(0,project.durationMs)
         } catch(failure: IllegalArgumentException) { message=failure.message ?: "This edit would create an invalid timeline." }
@@ -215,6 +229,8 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
         try { withContext(Dispatchers.IO) { repository.save(project) }; saveStatus = "Saved on this device" }
         catch (failure: Exception) { if (failure is CancellationException) throw failure; saveStatus = "Save failed — retry with Save project" }
     }
+    val latestProject by rememberUpdatedState(project)
+    DisposableEffect(Unit) {onSaveReady {withContext(Dispatchers.IO) {repository.save(latestProject)}};onDispose {onSaveReady(null)}}
     DisposableEffect(busy) { onBusyChanged(busy); onDispose { } }
     DisposableEffect(Unit) { onDispose { onBusyChanged(false) } }
     fun close() {
@@ -322,7 +338,7 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
             onCreate={next -> scope.launch {
                 try {withContext(Dispatchers.IO) {repository.save(project);repository.save(next)};onCreateProject(next)}
                 catch(failure:Exception) {if(failure is CancellationException) throw failure;message="Social project could not be saved; source preserved.";socialOpen=false;creativeBusy=false}
-            }},onBusy={creativeBusy=it})
+            }},onBusy={creativeBusy=it},initialRecipeId=initialRecipe)
         return
     }
     if(creativeOpen) {
@@ -347,8 +363,10 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
             TextButton(enabled=!busy && canUndo,onClick={saveStatus="Saving…"; project=history.undo(project).copy(updatedAt=System.currentTimeMillis()); canUndo=history.canUndo; canRedo=history.canRedo; selected=selected.coerceIn(project.clips.indices)}) {Text("Undo")}
             TextButton(enabled=!busy && canRedo,onClick={saveStatus="Saving…"; project=history.redo(project).copy(updatedAt=System.currentTimeMillis()); canUndo=history.canUndo; canRedo=history.canRedo; selected=selected.coerceIn(project.clips.indices)}) {Text("Redo")}
         }
+        VgDisclosure("Create tools · Social & Creative",initiallyOpen=true) {
         Button(enabled=!busy,onClick={focus.clearFocus();keyboard?.hide();socialOpen=true},modifier=Modifier.fillMaxWidth().testTag("social_creator")) {Text("Open Social Creator")}
         FilledTonalButton(enabled=!busy,onClick={focus.clearFocus(); keyboard?.hide(); creativeOpen=true},modifier=Modifier.fillMaxWidth().testTag("creative_studio")) {Text("Open Creative Studio")}
+        }
         NativeClipPreview(project, clip,seekRequest) {positionMs=it}
         StudioTimeline(project,selected,positionMs,!busy,{selected=it},::seek,::edit)
         StudioLongField("Seek timeline (ms)",positionMs,!busy,::seek)
@@ -410,6 +428,7 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
                 onClick = { edit(project.copy(filter = filter)) }, label = { Text(filter.name.lowercase().replaceFirstChar { it.uppercase() }) }) }
         }
         Row { Switch(project.fadeEdges, { edit(project.copy(fadeEdges = it)) }, enabled = !busy); Text("Fade through black at clip edges") }
+        VgDisclosure("Sound · music & voiceover") {
         Text("Original audio: ${(project.originalVolume * 100).toInt()}%")
         Slider(project.originalVolume, { edit(project.copy(originalVolume = it)) }, enabled = !busy)
         Button(enabled = !busy, onClick = { musicPicker.launch(arrayOf("audio/*")) }) { Text(if (project.musicUri == null) "Add music" else "Replace music") }
@@ -425,6 +444,7 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
             Text("Voiceover: ${(project.voiceVolume * 100).toInt()}%")
             Slider(project.voiceVolume, { edit(project.copy(voiceVolume = it)) }, enabled = !busy)
             TextButton(enabled = !busy, onClick = { edit(project.copy(voiceUri = null)) }) { Text("Remove voiceover") }
+        }
         }
         StudioToolsPanel(project,!busy,::edit,{audioPicker.launch(arrayOf("audio/*"))},
             {srtPicker.launch(arrayOf("application/x-subrip","text/*","application/octet-stream"))},

@@ -184,8 +184,8 @@ jobs:
           (apk.parent / 'build-provenance.json').write_text(json.dumps({
               'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
               'apk': apk.name, 'sha256': sha, 'build_type': 'debug',
-              'application_id': 'com.vidgravity.app', 'version_code': 183,
-              'version_name': '1.4.0-sprint5',
+              'application_id': 'com.vidgravity.app', 'version_code': 184,
+              'version_name': '1.5.0-sprint6',
               'emulator_validation': 'See API35 smoke job; Android 17/API37.2 unverified'
           }, indent=2) + '\n')
           PY

@@ -38,6 +38,7 @@ class NativeStudioProjectUiTest {
 
 /** Bring the horizontal toolbar into the vertical viewport before scrolling to its action. */
 internal fun ComposeContentTestRule.clickStudioToolbar(label: String) {
+    if(label=="Add title cue") clickStudioToolbar("Tools: Captions")
     val action = onNodeWithText(label)
     action.onParent().performScrollTo()
     action.performScrollTo().assertIsDisplayed().performClick()

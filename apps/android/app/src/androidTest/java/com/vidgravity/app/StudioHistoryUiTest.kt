@@ -52,6 +52,7 @@ class StudioHistoryUiTest {
         compose.onNodeWithText("Save project").performScrollTo().performClick()
         compose.onNodeWithText("Projects",substring=false).performScrollTo().performClick()
         compose.reopenStudioProject("Sprint 3 history")
+        compose.clickStudioToolbar("Tools: Captions")
         compose.onNodeWithText("Sprint 3 caption").performScrollTo().assertExists()
         compose.onNodeWithText("Share current export").performScrollTo().assertIsNotEnabled()
     }

@@ -12,12 +12,20 @@ data class StudioExportRecord(val workId: String, val fingerprint: String, val u
 
 /** Call on IO. Project content and runtime export records are separate to avoid autosave races. */
 class StudioRepository(context: Context) {
+    companion object {private val diskLock=Any()}
     private val root = File(context.filesDir, "studio-projects")
     private fun file(id: String, suffix: String = ".json"): File {
         require(id.matches(Regex("[a-fA-F0-9-]{36}"))) { "Invalid project identifier." }
         return File(root, id + suffix)
     }
-    @Synchronized fun save(project: StudioProject) = write(file(project.id), StudioProjectCodec.encode(project))
+    fun save(project:StudioProject):Unit=synchronized(diskLock) {
+        val target=file(project.id)
+        if(target.exists() || File(target.path+".bak").exists()) {
+            val previous=StudioProjectCodec.decode(read(target))
+            if(previous.updatedAt>project.updatedAt) return@synchronized
+        }
+        write(target,StudioProjectCodec.encode(project))
+    }
     @Synchronized fun load(id: String): StudioProject = StudioProjectCodec.decode(read(file(id)))
     @Synchronized fun list(): List<StudioProject> = scan().projects
     @Synchronized fun scan(): StudioProjectListing {
@@ -67,8 +75,8 @@ class StudioRepository(context: Context) {
             .put("fingerprint", record.fingerprint).put("uri", record.uri ?: JSONObject.NULL)
             .put("width", record.width).put("height", record.height).toString())
     }
-    private fun read(file: File): String = AtomicFile(file).openRead().bufferedReader().use { it.readText() }
-    private fun write(file: File, content: String) {
+    private fun read(file:File):String=synchronized(diskLock) {AtomicFile(file).openRead().bufferedReader().use {it.readText()}}
+    private fun write(file: File, content: String):Unit=synchronized(diskLock) {
         check(file.parentFile!!.exists() || file.parentFile!!.mkdirs()) { "Project storage is unavailable." }
         val atomic = AtomicFile(file)
         val stream = atomic.startWrite()
