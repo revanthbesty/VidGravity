@@ -20,13 +20,15 @@ class StudioRepository(context: Context) {
     }
     fun save(project:StudioProject):Unit=synchronized(diskLock) {
         val target=file(project.id)
+        // Validate the complete serialized document before touching either last-good copy.
+        val encoded=StudioProjectCodec.encode(project)
         if(target.exists() || File(target.path+".bak").exists()) {
             val previous=StudioProjectCodec.decode(read(target))
             require(previous.id==project.id) { "Project identity mismatch. Existing file was preserved." }
             if(previous.updatedAt>project.updatedAt) return@synchronized
             write(File(root,"recovery/${target.name}"),StudioProjectCodec.encode(previous))
         }
-        write(target,StudioProjectCodec.encode(project))
+        write(target,encoded)
     }
     @Synchronized fun load(id: String): StudioProject = StudioProjectCodec.decode(read(file(id))).also {
         require(it.id == id) { "Project identity does not match its file. Files were preserved." }

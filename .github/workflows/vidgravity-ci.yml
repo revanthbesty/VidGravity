@@ -170,25 +170,12 @@ jobs:
           python -m unittest -v test_p174_android_share_pipeline.py
           python -m unittest discover -s tests -p "test_android_*.py" -v
 
-      - name: Verify APK signature and record provenance
+      - name: Record resolved dependency and license inventory
         run: |
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose apps/android/app/build/outputs/apk/debug/app-debug.apk
-          python - <<'PY'
-          import hashlib, json, pathlib, subprocess
-          apk = pathlib.Path('apps/android/app/build/outputs/apk/debug/app-debug.apk')
-          sha = hashlib.sha256(apk.read_bytes()).hexdigest()
-          (apk.parent / 'SHA256SUMS.txt').write_text(sha + '  app-debug.apk\n')
-          subprocess.run(['sha256sum', '--check', 'SHA256SUMS.txt'], cwd=apk.parent, check=True)
-          print('APK_SHA256=' + sha)
-          print('APK_BYTES=' + str(apk.stat().st_size))
-          (apk.parent / 'build-provenance.json').write_text(json.dumps({
-              'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
-              'apk': apk.name, 'sha256': sha, 'build_type': 'debug',
-              'application_id': 'com.vidgravity.app', 'version_code': 185,
-              'version_name': '1.6.0-sprint7',
-              'emulator_validation': 'See API35 smoke job; Android 17/API37.2 unverified'
-          }, indent=2) + '\n')
-          PY
+          gradle -p apps/android :app:writeRuntimeCoordinates
+          python scripts/android_dependency_inventory.py
+      - name: Verify APK structure, identity, debug signature, hashes and provenance
+        run: python scripts/android_apk_verify.py
       - name: Upload Android test and lint reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -207,6 +194,8 @@ jobs:
             apps/android/app/build/outputs/apk/debug/app-debug.apk
             apps/android/app/build/outputs/apk/debug/SHA256SUMS.txt
             apps/android/app/build/outputs/apk/debug/build-provenance.json
+            apps/android/app/build/outputs/apk/debug/signature.txt
+            apps/android/app/build/outputs/apk/debug/badging.txt
           if-no-files-found: error
           retention-days: 14
 

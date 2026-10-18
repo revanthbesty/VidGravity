@@ -24,8 +24,8 @@ android {
         minSdk = 26
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         targetSdk = 35
-        versionCode = 185
-        versionName = "1.6.0-sprint7"
+        versionCode = 186
+        versionName = "1.7.0-sprint8"
         buildConfigField("String", "VG_API_BASE_URL", "\"$safeApi\"")
     }
     sourceSets.getByName("main").java.srcDir(if (firebaseEnabled) "src/firebase/java" else "src/guest/java")
@@ -78,4 +78,14 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("com.google.android.material:material:1.12.0")
+}
+// Resolved guest/configured runtime coordinates, including transitive dependencies.
+// License metadata is reported separately; absent/inherited POM licenses remain unknown.
+tasks.register("writeRuntimeCoordinates") {
+    doLast {
+        val coordinates=configurations.getByName("debugRuntimeClasspath").resolvedConfiguration.resolvedArtifacts
+            .map {it.moduleVersion.id.toString()}.distinct().sorted()
+        val out=layout.buildDirectory.file("reports/dependencies/runtime-coordinates.txt").get().asFile
+        out.parentFile.mkdirs();out.writeText(coordinates.joinToString("\n",postfix="\n"))
+    }
 }

@@ -50,4 +50,14 @@ class StudioProjectTest {
         assertEquals(0f, StudioFade.gain(1_000_000, 1_000_000), 0.0001f)
         assertEquals(0f, StudioFade.gain(-1, 1_000_000), 0.0001f)
     }
+    @Test fun encoderNeverProducesAnUnreadableOversizeProject() {
+        val source=project()
+        val ordinary=source.copy(clips=source.clips.map {it.copy(name="🎬".repeat(1000))})
+        assertEquals(ordinary,StudioProjectCodec.decode(StudioProjectCodec.encode(ordinary)))
+        val oversized=source.copy(clips=source.clips.map {it.copy(name="x".repeat(256_000))})
+        assertThrows(IllegalArgumentException::class.java) {StudioProjectCodec.encode(oversized)}
+        // JSON escaping, not just the input character count, determines the storage limit.
+        val escaped=source.copy(clips=source.clips.map {it.copy(name="\u0001".repeat(50_000))})
+        assertThrows(IllegalArgumentException::class.java) {StudioProjectCodec.encode(escaped)}
+    }
 }
