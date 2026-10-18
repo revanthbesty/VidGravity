@@ -16,7 +16,7 @@ data class StudioThumbnail(
     val id:String=UUID.randomUUID().toString(),val projectId:String,val source:String,val durationMs:Long,val timeMs:Long,
     val title:String="Your story",val subtitle:String="",val badge:String="PLAY",val aspect:StudioAspect=StudioAspect.WIDE,
     val zoom:Float=0f,val brightness:Float=0f,val contrast:Float=0f,val color:Int=-1,val textY:Float=0.72f,val font:String="sans-serif",
-    val frame:StudioFrame=StudioFrame(),val rotation:Int=0,val updatedAt:Long=System.currentTimeMillis()
+    val frame:StudioFrame=StudioFrame(),val rotation:Int=0,val updatedAt:Long=System.currentTimeMillis(),val background:Int=0xB3000000.toInt()
 ) {
     fun validate() {
         require(id.matches(Regex("[a-fA-F0-9-]{36}")) && projectId.matches(Regex("[a-fA-F0-9-]{36}")))
@@ -29,19 +29,19 @@ data class StudioThumbnail(
 internal object ThumbnailCodec {
     fun encode(t:StudioThumbnail):String {
         t.validate()
-        return JSONObject().put("schema",1).put("id",t.id).put("projectId",t.projectId).put("source",t.source).put("duration",t.durationMs).put("time",t.timeMs)
+        return JSONObject().put("schema",2).put("id",t.id).put("projectId",t.projectId).put("source",t.source).put("duration",t.durationMs).put("time",t.timeMs)
             .put("title",t.title).put("subtitle",t.subtitle).put("badge",t.badge).put("aspect",t.aspect.name).put("zoom",t.zoom).put("brightness",t.brightness)
             .put("contrast",t.contrast).put("color",t.color).put("textY",t.textY).put("font",t.font).put("rotation",t.rotation).put("updatedAt",t.updatedAt)
-            .put("frame",JSONObject().put("left",t.frame.left).put("top",t.frame.top).put("right",t.frame.right).put("bottom",t.frame.bottom)).toString()
+            .put("background",t.background).put("frame",JSONObject().put("left",t.frame.left).put("top",t.frame.top).put("right",t.frame.right).put("bottom",t.frame.bottom)).toString()
     }
     fun decode(raw:String):StudioThumbnail {
         require(raw.length<24_000)
-        val j=JSONObject(raw); require(j.getInt("schema")==1)
+        val j=JSONObject(raw); require(j.getInt("schema") in 1..2)
         val f=j.getJSONObject("frame")
         return StudioThumbnail(j.getString("id"),j.getString("projectId"),j.getString("source"),j.getLong("duration"),j.getLong("time"),
             j.getString("title"),j.getString("subtitle"),j.getString("badge"),StudioAspect.valueOf(j.getString("aspect")),j.getDouble("zoom").toFloat(),
             j.getDouble("brightness").toFloat(),j.getDouble("contrast").toFloat(),j.getInt("color"),j.getDouble("textY").toFloat(),j.getString("font"),
-            StudioFrame(f.getDouble("left").toFloat(),f.getDouble("top").toFloat(),f.getDouble("right").toFloat(),f.getDouble("bottom").toFloat()),j.getInt("rotation"),j.getLong("updatedAt")).also {it.validate()}
+            StudioFrame(f.getDouble("left").toFloat(),f.getDouble("top").toFloat(),f.getDouble("right").toFloat(),f.getDouble("bottom").toFloat()),j.getInt("rotation"),j.getLong("updatedAt"),j.optInt("background",0xB3000000.toInt())).also {it.validate()}
     }
 }
 internal class ThumbnailRepository(context:Context) {
@@ -109,7 +109,7 @@ internal object ThumbnailRenderer {
             if(line.isNotEmpty()) lines+=line
             val shown=lines.take(3); val lineHeight=text.textSize*1.2f
             val start=(height*t.textY).coerceAtMost(height-lineHeight*(shown.size+1))
-            paint.colorFilter=null; paint.color=0xB3000000.toInt()
+            paint.colorFilter=null; paint.color=t.background
             canvas.drawRoundRect(width*0.04f,start-text.textSize,width*0.96f,minOf(height.toFloat(),start+lineHeight*(shown.size+1)),height*0.02f,height*0.02f,paint)
             shown.forEachIndexed {i,value -> canvas.drawText(value,width*0.08f,start+i*lineHeight,text)}
             if(t.subtitle.isNotBlank()) {text.textSize*=0.48f; text.typeface=Typeface.create(t.font,Typeface.NORMAL); canvas.drawText(t.subtitle.take(60),width*0.08f,start+shown.size*lineHeight,text)}

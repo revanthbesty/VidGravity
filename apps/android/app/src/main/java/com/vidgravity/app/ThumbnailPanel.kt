@@ -14,6 +14,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
@@ -26,6 +31,7 @@ internal fun ThumbnailPanel(project:StudioProject,clip:StudioClip,onBusy:(Boolea
     val repository=remember(context) {ThumbnailRepository(context)}
     var thumb by remember {mutableStateOf(StudioThumbnail(projectId=project.id,source=clip.uri,durationMs=clip.sourceDurationMs,timeMs=clip.startMs,
         title=project.title.take(100),frame=clip.frame,rotation=project.tools.rotation,brightness=project.tools.brightness,contrast=project.tools.contrast))}
+    var guides by remember {mutableStateOf(false)}
     var saved by remember {mutableStateOf(emptyList<StudioThumbnail>())}
     var bitmap by remember {mutableStateOf<Bitmap?>(null)}
     var message by remember {mutableStateOf<String?>(null)}
@@ -60,7 +66,17 @@ internal fun ThumbnailPanel(project:StudioProject,clip:StudioClip,onBusy:(Boolea
         title=project.title.take(100),frame=clip.frame,rotation=project.tools.rotation,brightness=project.tools.brightness,contrast=project.tools.contrast)}) {Text("New thumbnail from selected clip")}
     Text("Extract a real video frame, crop it, add your title and a vector badge, then save an editable image project. Original videos stay untouched.")
     if(loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-    bitmap?.let {Image(it.asImageBitmap(),"Editable thumbnail preview",Modifier.fillMaxWidth().heightIn(max=300.dp))}
+    bitmap?.let {Image(it.asImageBitmap(),"Editable thumbnail preview",Modifier.fillMaxWidth().heightIn(max=300.dp).drawWithContent {drawContent();if(guides) drawRect(Color.Yellow,Offset(size.width*0.1f,size.height*0.15f),Size(size.width*0.8f,size.height*0.65f),style=Stroke(2f))})}
+    Row {Checkbox(guides,{guides=it});Text("Cover safe-area guide · preview only")}
+    Text("Conservative framing guide, not a platform UI guarantee.",style=MaterialTheme.typography.labelSmall)
+    Row(Modifier.horizontalScroll(rememberScrollState())) {
+        TextButton(enabled=!exporting,onClick={edit(thumb.copy(textY=0.32f,badge="NEW",background=0xCC1E1B4B.toInt()))}) {Text("Cover: announcement")}
+        TextButton(enabled=!exporting,onClick={edit(thumb.copy(textY=0.72f,badge="NONE",background=0x99000000.toInt()))}) {Text("Cover: minimal")}
+        TextButton(enabled=!exporting,onClick={scope.launch {try {val b=withContext(Dispatchers.IO) {CreatorBrandRepository(context).load()};edit(thumb.copy(color=b.color,font=b.font,subtitle=b.name))} catch(e:Exception) {if(e is CancellationException) throw e;message="Brand kit unavailable."}}}) {Text("Apply cover brand style")}
+    }
+    Row(Modifier.horizontalScroll(rememberScrollState())) {
+        listOf(0xCC1E1B4B.toInt() to "Indigo",0xCC000000.toInt() to "Black",0 to "Clear").forEach {(color,name)->TextButton(enabled=!exporting,onClick={edit(thumb.copy(background=color))}) {Text("Text background: $name")}}
+    }
     Text("Frame time: ${thumb.timeMs} ms")
     Slider(thumb.timeMs.toFloat(),{edit(thumb.copy(timeMs=it.toLong()))},enabled=!exporting,valueRange=0f..(thumb.durationMs-1).toFloat())
     StudioLongField("Thumbnail frame (ms)",thumb.timeMs,!exporting) {edit(thumb.copy(timeMs=it.coerceIn(0,thumb.durationMs-1)))}
@@ -69,7 +85,7 @@ internal fun ThumbnailPanel(project:StudioProject,clip:StudioClip,onBusy:(Boolea
     OutlinedTextField(thumb.subtitle,{edit(thumb.copy(subtitle=it.take(120)))},enabled=!exporting,label={Text("Thumbnail subtitle")},modifier=Modifier.fillMaxWidth(),
         keyboardOptions=KeyboardOptions(imeAction=ImeAction.Done),keyboardActions=KeyboardActions(onDone={focus.clearFocus()}))
     Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-        listOf(StudioAspect.WIDE,StudioAspect.PORTRAIT,StudioAspect.SQUARE).forEach {aspect -> FilterChip(thumb.aspect==aspect,{edit(thumb.copy(aspect=aspect))},enabled=!exporting,label={Text(aspect.label)})}
+        StudioAspect.entries.filter {it!=StudioAspect.SOURCE}.forEach {aspect -> FilterChip(thumb.aspect==aspect,{edit(thumb.copy(aspect=aspect))},enabled=!exporting,label={Text(aspect.label)})}
     }
     StudioAdjustment("Thumbnail crop zoom",thumb.zoom,0f..0.4f,!exporting) {edit(thumb.copy(zoom=it))}
     StudioAdjustment("Thumbnail brightness",thumb.brightness,-1f..1f,!exporting) {edit(thumb.copy(brightness=it))}

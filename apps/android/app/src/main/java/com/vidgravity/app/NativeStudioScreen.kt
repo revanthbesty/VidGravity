@@ -132,7 +132,7 @@ internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> 
                         }}) { Text("Duplicate project") }
                         TextButton(enabled=!loading,onClick={scope.launch {
                             try { withContext(Dispatchers.IO) {
-                                check(WorkManager.getInstance(context).getWorkInfosForUniqueWork("studio-export-${saved.id}").get().none { !it.state.isFinished }) { "Cancel or finish this project's export before moving it to trash." }
+                                check(WorkManager.getInstance(context).getWorkInfosByTag("studio-export-${saved.id}").get().none { !it.state.isFinished } && WorkManager.getInstance(context).getWorkInfosForUniqueWork("studio-export-${saved.id}").get().none { !it.state.isFinished }) { "Cancel or finish this project's export before moving it to trash." }
                                 repository.trash(saved.id)
                             }; reload() }
                             catch (failure: Exception) { if(failure is CancellationException) throw failure; message=failure.message ?: "Project was preserved." }
@@ -168,6 +168,7 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
     }}
     var project by remember(initial.id) { mutableStateOf(initial) }
     var selected by remember(initial.id) { mutableIntStateOf(0) }
+    var socialOpen by remember(initial.id) {mutableStateOf(false)}
     var creativeOpen by remember(initial.id) {mutableStateOf(false)}
     var creativeBusy by remember(initial.id) {mutableStateOf(false)}
     var positionMs by remember(initial.id) { mutableLongStateOf(0) }
@@ -316,6 +317,14 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
         }
     }
     val clip = project.clips[selected.coerceIn(project.clips.indices)]
+    if(socialOpen) {
+        SocialCreatorWorkspace(project,selected,onClose={socialOpen=false;creativeBusy=false},onApply={edit(it)},
+            onCreate={next -> scope.launch {
+                try {withContext(Dispatchers.IO) {repository.save(project);repository.save(next)};onCreateProject(next)}
+                catch(failure:Exception) {if(failure is CancellationException) throw failure;message="Social project could not be saved; source preserved.";socialOpen=false;creativeBusy=false}
+            }},onBusy={creativeBusy=it})
+        return
+    }
     if(creativeOpen) {
         CreativeWorkspace(project,selected,onClose={creativeOpen=false; creativeBusy=false},onApply={edit(it)},
             onCreate={next -> scope.launch {
@@ -338,6 +347,7 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
             TextButton(enabled=!busy && canUndo,onClick={saveStatus="Saving…"; project=history.undo(project).copy(updatedAt=System.currentTimeMillis()); canUndo=history.canUndo; canRedo=history.canRedo; selected=selected.coerceIn(project.clips.indices)}) {Text("Undo")}
             TextButton(enabled=!busy && canRedo,onClick={saveStatus="Saving…"; project=history.redo(project).copy(updatedAt=System.currentTimeMillis()); canUndo=history.canUndo; canRedo=history.canRedo; selected=selected.coerceIn(project.clips.indices)}) {Text("Redo")}
         }
+        Button(enabled=!busy,onClick={focus.clearFocus();keyboard?.hide();socialOpen=true},modifier=Modifier.fillMaxWidth().testTag("social_creator")) {Text("Open Social Creator")}
         FilledTonalButton(enabled=!busy,onClick={focus.clearFocus(); keyboard?.hide(); creativeOpen=true},modifier=Modifier.fillMaxWidth().testTag("creative_studio")) {Text("Open Creative Studio")}
         NativeClipPreview(project, clip,seekRequest) {positionMs=it}
         StudioTimeline(project,selected,positionMs,!busy,{selected=it},::seek,::edit)
@@ -461,25 +471,34 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
 @Composable
 private fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequest: Long, onPosition: (Long)->Unit) {
     val context = LocalContext.current
+    var previewError by remember {mutableStateOf<String?>(null)}
     val player = remember(clip.id) { ExoPlayer.Builder(context).build() }
     LaunchedEffect(clip, project.filter, project.overlay, project.fadeEdges, project.originalVolume, project.tools) {
+        withContext(Dispatchers.Main.immediate) {
         delay(150)
         player.setMediaItem(MediaItem.Builder().setUri(clip.uri).setClippingConfiguration(
             MediaItem.ClippingConfiguration.Builder().setStartPositionMs(clip.startMs).setEndPositionMs(clip.endMs).build()).build())
-        player.setVideoEffects(NativeStudioRenderer.videoEffects(project, clip, resize = false))
+        val effects=try {withContext(Dispatchers.IO) {NativeStudioRenderer.videoEffects(project,clip,resize=false,context=context)}.also {previewError=null}}
+            catch(cancelled:CancellationException) {throw cancelled}
+            catch(failure:Exception) {previewError="Some preview effects are unavailable. Relink source/branding before export.";emptyList<androidx.media3.common.Effect>()}
+        player.setVideoEffects(effects)
         player.setPlaybackSpeed(clip.speed)
         player.volume = project.originalVolume
         player.prepare()
+        }
     }
     val positionCallback by rememberUpdatedState(onPosition)
     val offset=project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs}
     LaunchedEffect(player,seekRequest,clip) {
         delay(200) // Apply after the debounced media/effect preparation.
-        player.pause()
-        player.seekTo(((seekRequest-offset).coerceIn(0,clip.playbackDurationMs)*clip.speed).toLong())
+        withContext(Dispatchers.Main.immediate) {
+            player.pause()
+            player.seekTo(((seekRequest-offset).coerceIn(0,clip.playbackDurationMs)*clip.speed).toLong())
+        }
     }
-    LaunchedEffect(player,offset,clip.speed) {while(true) {delay(200); positionCallback(offset+(player.currentPosition/clip.speed).toLong())}}
+    LaunchedEffect(player,offset,clip.speed) {while(true) {delay(200); withContext(Dispatchers.Main.immediate) {positionCallback(offset+(player.currentPosition/clip.speed).toLong())}}}
     DisposableEffect(player) { onDispose { player.release() } }
+    previewError?.let {Text(it,color=MaterialTheme.colorScheme.error)}
     AndroidView(factory = { PlayerView(it).apply { this.player = player; useController = true } },
         update = { it.player = player }, modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f))
 }

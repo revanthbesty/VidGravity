@@ -18,6 +18,8 @@ import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.BaseAudioProcessor
 import androidx.media3.effect.*
 import androidx.media3.transformer.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -30,7 +32,8 @@ import kotlin.coroutines.resumeWithException
 
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 internal object NativeStudioRenderer {
-    fun videoEffects(project: StudioProject, clip: StudioClip, resize: Boolean = true): List<Effect> {
+    private val renderMutex=Mutex()
+    fun videoEffects(project: StudioProject, clip: StudioClip, resize: Boolean = true, context: Context? = null): List<Effect> {
         val effects = mutableListOf<Effect>()
         val tools = project.tools
         if (resize && clip.speed != 1f) effects += SpeedChangeEffect(clip.speed)
@@ -41,7 +44,7 @@ internal object NativeStudioRenderer {
         if (tools.brightness != 0f) effects += Brightness(tools.brightness)
         if (tools.contrast != 0f) effects += Contrast(tools.contrast)
         if (tools.saturation != 0f) effects += HslAdjustment.Builder().adjustSaturation(tools.saturation).build()
-        if (tools.aspect != StudioAspect.SOURCE) effects += Presentation.createForAspectRatio(tools.aspect.ratio, Presentation.LAYOUT_SCALE_TO_FIT)
+        if (tools.aspect != StudioAspect.SOURCE) effects += Presentation.createForAspectRatio(tools.aspect.ratio, if(tools.social.fit==CreatorFit.FILL) Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP else Presentation.LAYOUT_SCALE_TO_FIT)
         if (resize && tools.frameRate > 0) effects += FrameDropEffect.createDefaultFrameDropEffect(tools.frameRate.toFloat())
         when (project.filter) {
             StudioFilter.MONO -> effects += RgbFilter.createGrayscaleFilter()
@@ -67,10 +70,11 @@ internal object NativeStudioRenderer {
                         setSpan(TypefaceSpan(tools.captionFont),0,length,Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     }
                 }
-                override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings = OverlaySettings.Builder()
-                    .setBackgroundFrameAnchor(0f,tools.captionY).setOverlayFrameAnchor(0f,0f).build()
+                override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings = CreatorOverlays.captionSettings(project,offset+(presentationTimeUs/1000/if(resize) 1f else clip.speed).toLong())
             }))
         }
+        val graphics=CreatorOverlays.overlays(context,project,project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs},if(resize) 1f else clip.speed)
+        if(graphics.isNotEmpty()) effects+=OverlayEffect(graphics)
         if (project.fadeEdges) effects += RgbMatrix { timeUs, _ ->
             val gain = StudioFade.gain(timeUs, (if (resize) clip.playbackDurationMs else clip.durationMs) * 1000)
             floatArrayOf(gain,0f,0f,0f, 0f,gain,0f,0f, 0f,0f,gain,0f, 0f,0f,0f,1f)
@@ -81,6 +85,8 @@ internal object NativeStudioRenderer {
                 StudioAspect.PORTRAIT -> Presentation.createForWidthAndHeight(size, size*16/9, Presentation.LAYOUT_SCALE_TO_FIT)
                 StudioAspect.SQUARE -> Presentation.createForWidthAndHeight(size,size,Presentation.LAYOUT_SCALE_TO_FIT)
                 StudioAspect.WIDE -> Presentation.createForWidthAndHeight(size*16/9,size,Presentation.LAYOUT_SCALE_TO_FIT)
+                StudioAspect.FEED -> Presentation.createForWidthAndHeight(size,size*5/4,Presentation.LAYOUT_SCALE_TO_FIT)
+                StudioAspect.CLASSIC -> Presentation.createForWidthAndHeight(size*4/3,size,Presentation.LAYOUT_SCALE_TO_FIT)
                 StudioAspect.SOURCE -> Presentation.createForHeight(size)
             }
         }
@@ -89,7 +95,7 @@ internal object NativeStudioRenderer {
 
     private fun audioEffects(volume: Float) = listOf<AudioProcessor>(StudioVolumeProcessor(volume))
 
-    fun composition(project: StudioProject): Composition {
+    fun composition(project: StudioProject, context: Context? = null): Composition {
         project.validate()
         val clips = project.clips.map { clip ->
             val audio = audioEffects(project.originalVolume).toMutableList()
@@ -101,7 +107,7 @@ internal object NativeStudioRenderer {
                 MediaItem.ClippingConfiguration.Builder().setStartPositionMs(clip.startMs)
                     .setEndPositionMs(clip.endMs).build()).build()
             EditedMediaItem.Builder(source).setRemoveAudio(project.originalVolume == 0f)
-                .setEffects(Effects(audio, videoEffects(project, clip))).build()
+                .setEffects(Effects(audio, videoEffects(project, clip,context=context))).build()
         }
         val sequences = mutableListOf(EditedMediaItemSequence.Builder(clips).build())
         fun addAudio(uri: String?, volume: Float, loop: Boolean) {
@@ -129,8 +135,9 @@ internal object NativeStudioRenderer {
             .setHdrMode(Composition.HDR_MODE_TONE_MAP_HDR_TO_SDR_USING_OPEN_GL).build()
     }
 
-    suspend fun render(context: Context, project: StudioProject, output: File, onProgress: (Int?) -> Unit) {
+    suspend fun render(context: Context, project: StudioProject, output: File, onProgress: (Int?) -> Unit) = renderMutex.withLock {
         project.validate()
+        val prepared=withContext(Dispatchers.IO) {composition(project,context)}
         var transformer: Transformer? = null
         val handler = Handler(Looper.getMainLooper())
         try {
@@ -154,7 +161,7 @@ internal object NativeStudioRenderer {
                             }
                         }).build()
                     try {
-                        transformer!!.start(composition(project), output.absolutePath)
+                        transformer!!.start(prepared, output.absolutePath)
                         val poll = object : Runnable {
                             override fun run() {
                                 if (!continuation.isActive) return
