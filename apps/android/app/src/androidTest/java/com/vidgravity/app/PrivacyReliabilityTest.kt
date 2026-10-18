@@ -37,11 +37,17 @@ class PrivacyReliabilityTest {
         val fake=RecordingAccounts();val prefs=PrivacyPreferences(context);val old=prefs.load()
         val media=File(context.cacheDir,"privacy-kept.mp4").apply {writeText("not a disposable thumbnail")}
         val thumbnail=File(context.cacheDir,"thumbnails/temporary.png").apply {parentFile!!.mkdirs();writeText("thumbnail")}
+        val privateFile=File(context.filesDir,"privacy-kept.bin").apply {writeBytes(ByteArray(128))}
+        val link=File(thumbnail.parentFile,"protected-link")
+        android.system.Os.symlink(privateFile.path,link.path)
         try {
+            val overview=PrivacyStorage.overview(context)
+            assertTrue("Private files must be measured through Android's canonical data path",overview.privateBytes>=128)
+            assertTrue(overview.cacheBytes>=thumbnail.length())
             prefs.save(PrivacyChoices(true,true),fake);assertEquals(PrivacyChoices(true,true),PrivacyPreferences(context).load());assertTrue(fake.analytics && fake.crashes)
             prefs.save(PrivacyChoices(),fake);assertFalse(fake.analytics || fake.crashes)
-            PrivacyStorage.clearThumbnails(context);assertFalse(thumbnail.exists());assertTrue(media.exists())
-        } finally {prefs.save(old,fake);media.delete()}
+            PrivacyStorage.clearThumbnails(context);assertFalse(thumbnail.exists());assertTrue(media.exists());assertTrue(privateFile.exists())
+        } finally {prefs.save(old,fake);media.delete();link.delete();privateFile.delete()}
     }
     @Test fun providerRejectsSensitiveMetadataAndWriteAccessButAllowsMediaReads() {
         val secret=File(context.cacheDir,"privacy-private.json").apply {writeText("private metadata")}
