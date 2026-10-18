@@ -133,7 +133,7 @@ private fun VidGravityApp(inboxRequest: Int = 0) {
     }
     fun navigate(tab:VgTab) {
         if(studioBusy) {notice="Finish or cancel the active Studio operation before leaving.";return}
-        scope.launch {
+        scope.launch(Dispatchers.Main.immediate) {
             try {saveStudio?.invoke();playingMedia=null;showStudyTok=false;showInbox=false;showHelp=false;selected=tab}
             catch(c:kotlinx.coroutines.CancellationException) {throw c}
             catch(e:Exception) {notice="Studio could not save. Your editor stays open; retry Save project."}
@@ -173,7 +173,7 @@ private fun VidGravityApp(inboxRequest: Int = 0) {
     }
     val openCamera: () -> Unit = camera@{
         if (studioBusy) { notice = "Wait for the Studio export to finish or cancel the clip split."; return@camera }
-        scope.launch {try {saveStudio?.invoke();cameraLauncher.launch(Intent(context,com.vidgravity.camera.DualCameraCaptureActivity::class.java))}
+        scope.launch(Dispatchers.Main.immediate) {try {saveStudio?.invoke();cameraLauncher.launch(Intent(context,com.vidgravity.camera.DualCameraCaptureActivity::class.java))}
             catch(e:Exception) {notice="Camera could not open or Studio could not save. Retry."}}
     }
     VgTheme(dark) {

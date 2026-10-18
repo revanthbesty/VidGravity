@@ -33,13 +33,13 @@ internal fun SocialCreatorWorkspace(project:StudioProject,selected:Int,onClose:(
     var tab by remember {mutableIntStateOf(0)};var busy by remember {mutableStateOf(false)};var message by remember {mutableStateOf<String?>(null)}
     var brand by remember {mutableStateOf(CreatorBrand())};var brandLoaded by remember {mutableStateOf(false)}
     var recipe by remember {mutableStateOf(SocialCreator.templates.firstOrNull {it.id==initialRecipeId} ?: SocialCreator.workflows.first())};var title by remember {mutableStateOf(project.title)}
-    var seconds by remember {mutableIntStateOf(30)};var useBrand by remember {mutableStateOf(false)}
+    var seconds by remember {mutableIntStateOf(recipe.seconds)};var useBrand by remember {mutableStateOf(false)}
     var fit by remember {mutableStateOf(CreatorFit.FIT)};var targets by remember {mutableStateOf(setOf(StudioAspect.PORTRAIT))}
     var resolution by remember {mutableStateOf(project.resolution)};var fps by remember {mutableIntStateOf(if(project.tools.frameRate==0) 30 else project.tools.frameRate)}
     var bitrate by remember {mutableIntStateOf(if(project.tools.bitrate==0) 5_000_000 else project.tools.bitrate)}
     var bpm by remember {mutableLongStateOf(120)};var safe by remember {mutableStateOf(true)}
     var variantTitles by remember {mutableStateOf(emptyMap<StudioAspect,String>())}
-    var previewAspect by remember {mutableStateOf(StudioAspect.PORTRAIT)};var preview by remember {mutableStateOf<Bitmap?>(null)}
+    var previewAspect by remember {mutableStateOf(recipe.aspect)};var preview by remember {mutableStateOf<Bitmap?>(null)}
     val clip=project.clips[selected.coerceIn(project.clips.indices)]
     val manager=remember {WorkManager.getInstance(context)}
     val jobs by remember {manager.getWorkInfosByTagLiveData("vidgravity-studio-export")}.observeAsState(emptyList())

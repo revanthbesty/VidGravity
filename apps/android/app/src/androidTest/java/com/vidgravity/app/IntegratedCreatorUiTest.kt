@@ -29,6 +29,13 @@ class IntegratedCreatorUiTest {
             compose.onNodeWithTag("nav_Studio").performClick()
             compose.waitUntil(10_000) {compose.onAllNodes(hasText("Project name") and hasText("Sprint 6 preserved")).fetchSemanticsNodes().isNotEmpty()}
             compose.onNode(hasText("Project name") and hasText("Sprint 6 preserved")).assertExists()
+            compose.onNodeWithTag("nav_Home").performClick()
+            compose.onNodeWithTag("home_dashboard").performScrollToNode(hasText("Product promotion"))
+            compose.onNodeWithText("Product promotion").performClick()
+            compose.waitUntil(10_000) {compose.onAllNodesWithText("Social Creator",substring=false).fetchSemanticsNodes().isNotEmpty()}
+            compose.onNodeWithText("Selected: Product promotion").performScrollTo().assertIsDisplayed()
+            compose.onNodeWithText("Back to editor").performClick()
+            compose.onNodeWithTag("nav_Home").performClick()
         } finally {repository.delete(p.id)}
     }
     @Test fun populatedLibraryGridSearchPreviewAndThemeToggleWork() {
