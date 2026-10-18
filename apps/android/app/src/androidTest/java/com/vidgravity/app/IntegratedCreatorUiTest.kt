@@ -9,7 +9,7 @@ import org.junit.Test
 
 class IntegratedCreatorUiTest {
     @get:Rule val compose=createAndroidComposeRule<MainActivity>()
-    private fun focused() {compose.waitUntil(15_000) {compose.activity.window.decorView.hasWindowFocus()}}
+    private fun focused() {compose.awaitVidGravityFocus()}
     @Test fun homeContinueSavesBeforeTabNavigationAndReopensTheActiveProject() {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val source=studioFixture("native-source.mp4")
