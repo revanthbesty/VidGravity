@@ -474,6 +474,7 @@ private fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequ
     var previewError by remember {mutableStateOf<String?>(null)}
     val player = remember(clip.id) { ExoPlayer.Builder(context).build() }
     LaunchedEffect(clip, project.filter, project.overlay, project.fadeEdges, project.originalVolume, project.tools) {
+        withContext(Dispatchers.Main.immediate) {
         delay(150)
         player.setMediaItem(MediaItem.Builder().setUri(clip.uri).setClippingConfiguration(
             MediaItem.ClippingConfiguration.Builder().setStartPositionMs(clip.startMs).setEndPositionMs(clip.endMs).build()).build())
@@ -484,15 +485,18 @@ private fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequ
         player.setPlaybackSpeed(clip.speed)
         player.volume = project.originalVolume
         player.prepare()
+        }
     }
     val positionCallback by rememberUpdatedState(onPosition)
     val offset=project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs}
     LaunchedEffect(player,seekRequest,clip) {
         delay(200) // Apply after the debounced media/effect preparation.
-        player.pause()
-        player.seekTo(((seekRequest-offset).coerceIn(0,clip.playbackDurationMs)*clip.speed).toLong())
+        withContext(Dispatchers.Main.immediate) {
+            player.pause()
+            player.seekTo(((seekRequest-offset).coerceIn(0,clip.playbackDurationMs)*clip.speed).toLong())
+        }
     }
-    LaunchedEffect(player,offset,clip.speed) {while(true) {delay(200); positionCallback(offset+(player.currentPosition/clip.speed).toLong())}}
+    LaunchedEffect(player,offset,clip.speed) {while(true) {delay(200); withContext(Dispatchers.Main.immediate) {positionCallback(offset+(player.currentPosition/clip.speed).toLong())}}}
     DisposableEffect(player) { onDispose { player.release() } }
     previewError?.let {Text(it,color=MaterialTheme.colorScheme.error)}
     AndroidView(factory = { PlayerView(it).apply { this.player = player; useController = true } },
