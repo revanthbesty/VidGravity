@@ -34,6 +34,8 @@ internal object NativeStudioRenderer {
         val effects = mutableListOf<Effect>()
         val tools = project.tools
         if (resize && clip.speed != 1f) effects += SpeedChangeEffect(clip.speed)
+        if (clip.frame != StudioFrame()) effects += Crop(clip.frame.left*2-1,clip.frame.right*2-1,1-clip.frame.bottom*2,1-clip.frame.top*2)
+        if (tools.soften > 0f) effects += GaussianBlur(tools.soften)
         if (tools.crop > 0) effects += Crop(-1f+tools.crop*2,1f-tools.crop*2,-1f+tools.crop*2,1f-tools.crop*2)
         if (tools.rotation != 0) effects += ScaleAndRotateTransformation.Builder().setRotationDegrees(tools.rotation.toFloat()).build()
         if (tools.brightness != 0f) effects += Brightness(tools.brightness)
@@ -73,7 +75,15 @@ internal object NativeStudioRenderer {
             val gain = StudioFade.gain(timeUs, (if (resize) clip.playbackDurationMs else clip.durationMs) * 1000)
             floatArrayOf(gain,0f,0f,0f, 0f,gain,0f,0f, 0f,0f,gain,0f, 0f,0f,0f,1f)
         }
-        if (resize) effects += Presentation.createForHeight(project.resolution.height)
+        if (resize) {
+            val size=project.resolution.height
+            effects += when(tools.aspect) {
+                StudioAspect.PORTRAIT -> Presentation.createForWidthAndHeight(size, size*16/9, Presentation.LAYOUT_SCALE_TO_FIT)
+                StudioAspect.SQUARE -> Presentation.createForWidthAndHeight(size,size,Presentation.LAYOUT_SCALE_TO_FIT)
+                StudioAspect.WIDE -> Presentation.createForWidthAndHeight(size*16/9,size,Presentation.LAYOUT_SCALE_TO_FIT)
+                StudioAspect.SOURCE -> Presentation.createForHeight(size)
+            }
+        }
         return effects
     }
 

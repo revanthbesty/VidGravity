@@ -17,11 +17,12 @@ data class StudioTools(
     val rotation: Int = 0, val crop: Float = 0f, val aspect: StudioAspect = StudioAspect.SOURCE,
     val captionColor: Int = -1, val captionSize: Int = 32, val captionY: Float = -0.7f,
     val captionFont: String = "sans-serif", val captions: List<StudioCaption> = emptyList(),
-    val audio: List<StudioAudioLane> = emptyList(), val frameRate: Int = 0, val bitrate: Int = 0
+    val audio: List<StudioAudioLane> = emptyList(), val frameRate: Int = 0, val bitrate: Int = 0, val soften: Float = 0f
 ) {
     fun validate(duration: Long) {
         require(brightness.isFinite() && brightness in -1f..1f && contrast.isFinite() && contrast in -0.9f..0.9f)
         require(saturation.isFinite() && saturation in -100f..100f && crop.isFinite() && crop in 0f..0.4f)
+        require(soften.isFinite() && soften in 0f..3f)
         require(rotation in listOf(0,90,180,270) && captionSize in 16..64)
         require(captionY.isFinite() && captionY in -0.8f..0.8f && captionFont in listOf("sans-serif","serif","monospace"))
         require(frameRate in listOf(0,15,24,30) && bitrate in listOf(0,2_000_000,5_000_000,10_000_000,20_000_000))
@@ -40,7 +41,7 @@ internal object StudioToolsCodec {
         put("brightness",t.brightness); put("contrast",t.contrast); put("saturation",t.saturation)
         put("rotation",t.rotation); put("crop",t.crop); put("aspect",t.aspect.name)
         put("captionColor",t.captionColor); put("captionSize",t.captionSize); put("captionY",t.captionY); put("captionFont",t.captionFont)
-        put("frameRate",t.frameRate); put("bitrate",t.bitrate)
+        put("soften",t.soften); put("frameRate",t.frameRate); put("bitrate",t.bitrate)
         put("captions",JSONArray().apply { t.captions.forEach { put(JSONObject().put("start",it.startMs).put("end",it.endMs).put("text",it.text)) } })
         put("audio",JSONArray().apply { t.audio.forEach { a -> put(JSONObject().put("id",a.id).put("uri",a.uri).put("name",a.name)
             .put("duration",a.sourceDurationMs).put("start",a.startMs).put("end",a.endMs).put("offset",a.offsetMs)
@@ -54,7 +55,7 @@ internal object StudioToolsCodec {
             (0 until c.length()).map { c.getJSONObject(it).let { r -> StudioCaption(r.getLong("start"),r.getLong("end"),r.getString("text")) } },
             (0 until a.length()).map { a.getJSONObject(it).let { r -> StudioAudioLane(r.getString("id"),r.getString("uri"),r.getString("name"),
                 r.getLong("duration"),r.getLong("start"),r.getLong("end"),r.getLong("offset"),r.getDouble("volume").toFloat(),r.getLong("fadeIn"),r.getLong("fadeOut")) } },
-            j.getInt("frameRate"),j.getInt("bitrate"))
+            j.getInt("frameRate"),j.getInt("bitrate"),j.optDouble("soften",0.0).toFloat())
     }
 }
 
