@@ -52,3 +52,6 @@ node_modules/
 
 # Generated synthetic Android encoder fixtures (CI/local only)
 apps/android/app/src/androidTest/assets/generated/
+
+# Owner-supplied Firebase configuration is never committed
+apps/android/app/google-services.json

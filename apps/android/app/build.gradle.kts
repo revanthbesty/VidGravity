@@ -4,6 +4,13 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val firebaseEnabled = providers.gradleProperty("VG_FIREBASE_ENABLED").orElse("false").get().toBooleanStrict()
+if (firebaseEnabled) {
+    check(file("google-services.json").isFile) { "Supply private google-services.json before enabling accounts" }
+    apply(plugin = "com.google.gms.google-services")
+    apply(plugin = "com.google.firebase.crashlytics")
+}
+
 // Keep this aligned with the public cloud endpoint used by the PWA in site/app.js.
 // Override with -PVG_API_BASE_URL=https://your-service.onrender.com for a different deployment.
 // The API is mounted at the service root (/api/formats, /api/download-jobs); do not append /api/v1.
@@ -17,10 +24,11 @@ android {
         minSdk = 26
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         targetSdk = 35
-        versionCode = 184
-        versionName = "1.5.0-sprint6"
+        versionCode = 185
+        versionName = "1.6.0-sprint7"
         buildConfigField("String", "VG_API_BASE_URL", "\"$safeApi\"")
     }
+    sourceSets.getByName("main").java.srcDir(if (firebaseEnabled) "src/firebase/java" else "src/guest/java")
     buildFeatures { compose = true; buildConfig = true }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -29,6 +37,13 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 dependencies {
+    if (firebaseEnabled) {
+        // Reuse #64's validated Kotlin 2.0.21 compatibility baseline; SDK upgrades require a toolchain audit.
+        implementation(platform("com.google.firebase:firebase-bom:33.16.0"))
+        implementation("com.google.firebase:firebase-auth")
+        implementation("com.google.firebase:firebase-analytics")
+        implementation("com.google.firebase:firebase-crashlytics")
+    }
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

@@ -22,11 +22,15 @@ class StudioRepository(context: Context) {
         val target=file(project.id)
         if(target.exists() || File(target.path+".bak").exists()) {
             val previous=StudioProjectCodec.decode(read(target))
+            require(previous.id==project.id) { "Project identity mismatch. Existing file was preserved." }
             if(previous.updatedAt>project.updatedAt) return@synchronized
+            write(File(root,"recovery/${target.name}"),StudioProjectCodec.encode(previous))
         }
         write(target,StudioProjectCodec.encode(project))
     }
-    @Synchronized fun load(id: String): StudioProject = StudioProjectCodec.decode(read(file(id)))
+    @Synchronized fun load(id: String): StudioProject = StudioProjectCodec.decode(read(file(id))).also {
+        require(it.id == id) { "Project identity does not match its file. Files were preserved." }
+    }
     @Synchronized fun list(): List<StudioProject> = scan().projects
     @Synchronized fun scan(): StudioProjectListing {
         var unreadable = 0
@@ -34,10 +38,19 @@ class StudioRepository(context: Context) {
             .map { File(root, it.name.removeSuffix(".bak")) }.distinctBy { it.name }
             .filter { it.name.endsWith(".json") && !it.name.endsWith(".export.json") && !it.name.endsWith(".request.json") }
             .mapNotNull { file ->
-                try { StudioProjectCodec.decode(read(file)) }
+                try { StudioProjectCodec.decode(read(file)).also { require(file.name == it.id + ".json") } }
                 catch (failure: Exception) { unreadable++; null }
             }.sortedByDescending { it.updatedAt }
         return StudioProjectListing(projects, unreadable)
+    }
+    /** Recovery is explicit and creates a new project; corrupted originals are never overwritten. */
+    @Synchronized fun recoverable(): List<StudioProject> = File(root,"recovery").listFiles().orEmpty()
+        .map {File(it.parentFile,it.name.removeSuffix(".bak"))}.distinctBy {it.name}
+        .filter {it.name.endsWith(".json")}.mapNotNull {runCatching {StudioProjectCodec.decode(read(it))}.getOrNull()}
+    @Synchronized fun recoverAsCopy(id:String):StudioProject {
+        val previous=StudioProjectCodec.decode(read(File(root,"recovery/${file(id).name}")))
+        require(previous.id==id)
+        return previous.copy(id=java.util.UUID.randomUUID().toString(),title=(previous.title.take(85)+" recovered"),updatedAt=System.currentTimeMillis()).also {save(it)}
     }
     @Synchronized fun duplicate(project: StudioProject): StudioProject = project.copy(
         id = java.util.UUID.randomUUID().toString(), title = (project.title.take(90) + " copy"), updatedAt = System.currentTimeMillis()).also { save(it) }
@@ -75,7 +88,19 @@ class StudioRepository(context: Context) {
             .put("fingerprint", record.fingerprint).put("uri", record.uri ?: JSONObject.NULL)
             .put("width", record.width).put("height", record.height).toString())
     }
-    private fun read(file:File):String=synchronized(diskLock) {AtomicFile(file).openRead().bufferedReader().use {it.readText()}}
+    private fun read(file:File):String=synchronized(diskLock) {
+        AtomicFile(file).openRead().use { stream ->
+            val output=java.io.ByteArrayOutputStream()
+            val buffer=ByteArray(8192)
+            while(true) {
+                val count=stream.read(buffer)
+                if(count<0) break
+                require(output.size()+count<=1_024_000) { "Project metadata is too large. Original file was preserved." }
+                output.write(buffer,0,count)
+            }
+            output.toByteArray().toString(Charsets.UTF_8)
+        }
+    }
     private fun write(file: File, content: String):Unit=synchronized(diskLock) {
         check(file.parentFile!!.exists() || file.parentFile!!.mkdirs()) { "Project storage is unavailable." }
         val atomic = AtomicFile(file)

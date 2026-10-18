@@ -43,7 +43,7 @@ import java.util.UUID
 
 internal object StudioMediaImports {
     fun video(context: Context, uri: Uri): StudioClip {
-        require(uri.scheme == "content" && context.contentResolver.getType(uri)?.startsWith("video/") == true) {
+        require(LocalMediaPolicy.validUri(uri.toString()) && context.contentResolver.getType(uri)?.startsWith("video/") == true) {
             "Select a local video file."
         }
         val retriever = MediaMetadataRetriever()
@@ -92,7 +92,7 @@ internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> 
                 val project = withContext(Dispatchers.IO) {
                     StudioMediaImports.retain(context, uri)
                     val clip = StudioMediaImports.video(context, uri)
-                    StudioProject(title = clip.name.substringBeforeLast('.').take(100).ifBlank { "New project" }, clips = listOf(clip))
+                    StudioProject(title = clip.name.substringBeforeLast('.').take(100).ifBlank { "New project" }, clips = listOf(clip), resolution = runCatching { StudioResolution.valueOf(context.getSharedPreferences("vg-export",0).getString("resolution","HD")!!) }.getOrDefault(StudioResolution.HD))
                         .also { repository.save(it) }
                 }
                 editing = project
