@@ -38,6 +38,8 @@ class IntegratedCreatorUiTest {
             compose.onNodeWithText("Selected: Product promotion").performScrollTo().assertIsDisplayed()
             compose.onNodeWithText("Back to editor").performClick()
             compose.onNodeWithTag("nav_Home").performClick()
+            compose.waitUntil(10_000) {compose.onAllNodesWithTag("home_dashboard").fetchSemanticsNodes().isNotEmpty()}
+            compose.onNodeWithTag("nav_Home").assertIsSelected()
         } finally {repository.delete(p.id)}
     }
     @Test fun populatedLibraryGridSearchPreviewAndThemeToggleWork() {
