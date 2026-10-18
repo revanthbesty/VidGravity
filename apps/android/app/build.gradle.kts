@@ -17,8 +17,8 @@ android {
         minSdk = 26
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         targetSdk = 35
-        versionCode = 183
-        versionName = "1.4.0-sprint5"
+        versionCode = 184
+        versionName = "1.5.0-sprint6"
         buildConfigField("String", "VG_API_BASE_URL", "\"$safeApi\"")
     }
     buildFeatures { compose = true; buildConfig = true }

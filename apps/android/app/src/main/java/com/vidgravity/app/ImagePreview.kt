@@ -35,6 +35,7 @@ internal fun ImagePreview(media: LibraryMedia, onBack: () -> Unit) {
         } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (failure: Exception) { error = "This image could not be opened." }
     }
+    DisposableEffect(bitmap) {val b=bitmap;onDispose {b?.recycle()}}
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         Text(media.displayName, style = MaterialTheme.typography.titleMedium)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

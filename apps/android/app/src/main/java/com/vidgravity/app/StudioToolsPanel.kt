@@ -16,9 +16,15 @@ import androidx.compose.ui.unit.dp
 @Composable
 internal fun StudioToolsPanel(project: StudioProject, enabled: Boolean, onEdit: (StudioProject,String?) -> Unit,
     onAddAudio: () -> Unit, onImportSrt: () -> Unit, onExportSrt: () -> Unit) {
+    var section by remember {mutableStateOf("Color")}
     val t=project.tools
     val focus=LocalFocusManager.current
     fun tools(next: StudioTools, group: String?=null) = onEdit(project.copy(tools=next),group)
+    Text("Editor tools",style=MaterialTheme.typography.titleLarge)
+    Row(Modifier.horizontalScroll(rememberScrollState())) {
+        listOf("Color","Audio lanes","Captions","Encoding").forEach {name -> FilterChip(section==name,{focus.clearFocus();section=name},label={Text("Tools: $name")},modifier=Modifier.heightIn(min=48.dp))}
+    }
+    if(section=="Color") {
     Text("Color & framing",style=MaterialTheme.typography.titleLarge)
     StudioAdjustment("Brightness",t.brightness,-1f..1f,enabled) { tools(t.copy(brightness=it),"brightness") }
     StudioAdjustment("Contrast",t.contrast,-0.9f..0.9f,enabled) { tools(t.copy(contrast=it),"contrast") }
@@ -33,6 +39,8 @@ internal fun StudioToolsPanel(project: StudioProject, enabled: Boolean, onEdit: 
     Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
         StudioAspect.entries.forEach { a -> FilterChip(t.aspect==a,{tools(t.copy(aspect=a))},enabled=enabled,label={Text(a.label)}) }
     }
+    }
+    if(section=="Audio lanes") {
     Text("Independent audio lanes",style=MaterialTheme.typography.titleLarge)
     Button(enabled=enabled && t.audio.size<4,onClick=onAddAudio) { Text("Import audio lane") }
     t.audio.forEachIndexed { index,lane ->
@@ -48,6 +56,8 @@ internal fun StudioToolsPanel(project: StudioProject, enabled: Boolean, onEdit: 
             TextButton(enabled=enabled,onClick={tools(t.copy(audio=t.audio.filterIndexed { i,_ -> i!=index }))}) {Text("Remove lane ${index+1}")}
         } }
     }
+    }
+    if(section=="Captions") {
     Text("Captions & titles",style=MaterialTheme.typography.titleLarge)
     Row(Modifier.horizontalScroll(rememberScrollState())) {
         TextButton(enabled=enabled,onClick=onImportSrt) {Text("Import SRT")}
@@ -71,6 +81,8 @@ internal fun StudioToolsPanel(project: StudioProject, enabled: Boolean, onEdit: 
             TextButton(enabled=enabled,onClick={tools(t.copy(captions=t.captions.filterIndexed { i,_ -> i!=index }))}) {Text("Delete cue ${index+1}")}
         } }
     }
+    }
+    if(section=="Encoding") {
     Text("Export encoding",style=MaterialTheme.typography.titleLarge)
     Text("Maximum frame rate · frame dropping only; lower-rate sources are not interpolated",style=MaterialTheme.typography.labelSmall)
     Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
@@ -78,6 +90,7 @@ internal fun StudioToolsPanel(project: StudioProject, enabled: Boolean, onEdit: 
     }
     Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
         listOf(0,2,5,10,20).forEach { mbps -> FilterChip(t.bitrate==mbps*1_000_000,{tools(t.copy(bitrate=mbps*1_000_000))},enabled=enabled,label={Text(if(mbps==0) "Auto bitrate" else "$mbps Mbps")}) }
+    }
     }
 }
 

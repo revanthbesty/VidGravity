@@ -82,9 +82,8 @@ class MainActivity : ComponentActivity() {
 }
 
 private enum class VgTab(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Home("Home", Icons.Default.Home), Downloads("Downloads", Icons.Default.Download),
-    Camera("Camera", Icons.Default.PhotoCamera), Studio("Studio", Icons.Default.AutoAwesome),
-    Library("Library", Icons.Default.VideoLibrary), Settings("Settings", Icons.Default.Settings)
+    Home("Home", Icons.Default.Home), Studio("Studio", Icons.Default.AutoAwesome),
+    Camera("Camera", Icons.Default.PhotoCamera), Library("Library", Icons.Default.VideoLibrary), Downloads("Downloads", Icons.Default.Download), Settings("Settings", Icons.Default.Settings)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -111,6 +110,11 @@ private fun VidGravityApp(inboxRequest: Int = 0) {
     }
     var selected by rememberSaveable { mutableStateOf(VgTab.Home) }
     var showInbox by rememberSaveable { mutableStateOf(inboxRequest > 0) }
+    var showHelp by rememberSaveable {mutableStateOf(false)}
+    var activeProjectId by rememberSaveable {mutableStateOf<String?>(null)}
+    var studioLaunch by rememberSaveable {mutableStateOf("projects")}
+    var studioRequest by rememberSaveable {mutableIntStateOf(0)}
+    var saveStudio by remember {mutableStateOf<(suspend ()->Unit)?>(null)}
     var showStudyTok by remember { mutableStateOf(false) }
     var creatorInitialMedia by remember { mutableStateOf<LibraryMedia?>(null) }
     var playingMedia by remember { mutableStateOf<LibraryMedia?>(null) }
@@ -123,19 +127,35 @@ private fun VidGravityApp(inboxRequest: Int = 0) {
     LaunchedEffect(inboxRequest) {
         if (inboxRequest > 0) {
             if (studioBusy) notice = "Link saved to Share Inbox. Finish the current export before opening it."
-            else { playingMedia = null; showStudyTok = false; showInbox = true }
+            else try {saveStudio?.invoke();playingMedia=null;showStudyTok=false;showHelp=false;showInbox=true}
+            catch(failure:Exception) {notice="Studio could not save. Retry saving before opening Inbox."}
         }
     }
-    fun navigate(tab: VgTab) {
-        if (studioBusy) { notice = "Wait for the Studio export to finish or cancel the clip split."; return }
-        playingMedia = null
-        showStudyTok = false
-        showInbox = false
-        selected = tab
+    fun navigate(tab:VgTab) {
+        if(studioBusy) {notice="Finish or cancel the active Studio operation before leaving.";return}
+        scope.launch(Dispatchers.Main.immediate) {
+            try {saveStudio?.invoke();playingMedia=null;showStudyTok=false;showInbox=false;showHelp=false;selected=tab}
+            catch(c:kotlinx.coroutines.CancellationException) {throw c}
+            catch(e:Exception) {notice="Studio could not save. Your editor stays open; retry Save project."}
+        }
     }
-    BackHandler(enabled = playingMedia != null || showStudyTok || showInbox || selected != VgTab.Home) {
+    fun openStudio(mode:String,id:String?=activeProjectId) {
+        studioLaunch=mode;studioRequest++;activeProjectId=if(mode=="new") null else id;creatorInitialMedia=null;navigate(VgTab.Studio)
+    }
+    val mediaImport=rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) {uri ->
+        if(uri!=null) scope.launch {
+            try {val media=withContext(Dispatchers.IO) {
+                StudioMediaImports.retain(context,uri)
+                val name=context.contentResolver.query(uri,arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),null,null,null)?.use {if(it.moveToFirst()) it.getString(0) else null} ?: "Imported media"
+                LibraryMedia(uri,name,0,context.contentResolver.getType(uri) ?: "application/octet-stream",System.currentTimeMillis())
+            };activeProjectId=null;studioLaunch="media";studioRequest++;creatorInitialMedia=media;navigate(VgTab.Studio)}
+            catch(e:Exception) {notice="Media could not be opened. Choose a readable local file."}
+        }
+    }
+    BackHandler(enabled = playingMedia != null || showHelp || showStudyTok || showInbox || selected != VgTab.Home) {
         when {
             playingMedia != null -> playingMedia = null
+            showHelp -> showHelp=false
             showStudyTok -> showStudyTok = false
             showInbox -> showInbox = false
             else -> navigate(VgTab.Home)
@@ -144,39 +164,21 @@ private fun VidGravityApp(inboxRequest: Int = 0) {
     val cameraLauncher = rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        val data = result.data
-        val uri = data?.data
-        if (result.resultCode == android.app.Activity.RESULT_OK && uri?.scheme == "content") {
-            val mime = data.type.orEmpty()
-            creatorInitialMedia = LibraryMedia(uri, data.getStringExtra(Intent.EXTRA_TITLE) ?: "Camera capture",
-                0L, mime, System.currentTimeMillis())
-            selected = VgTab.Studio
+        val media=CameraResultMedia.read(result.resultCode,result.data)
+        if(media!=null) {
+            creatorInitialMedia=media
+            activeProjectId=null;studioLaunch="media";studioRequest++;selected=VgTab.Studio
         }
+
     }
     val openCamera: () -> Unit = camera@{
         if (studioBusy) { notice = "Wait for the Studio export to finish or cancel the clip split."; return@camera }
-        runCatching { cameraLauncher.launch(Intent(context, com.vidgravity.camera.DualCameraCaptureActivity::class.java)) }
-            .onFailure { notice = "Could not open camera. Please try again." }
+        scope.launch(Dispatchers.Main.immediate) {try {saveStudio?.invoke();cameraLauncher.launch(Intent(context,com.vidgravity.camera.DualCameraCaptureActivity::class.java))}
+            catch(e:Exception) {notice="Camera could not open or Studio could not save. Retry."}}
     }
-    // Premium cinematic palette: low-glare navy/slate with teal, violet and amber accents.
-    val scheme = if (dark) darkColorScheme(
-        primary = Color(0xFF43D8CA), onPrimary = Color(0xFF141A2B),
-        secondary = Color(0xFFA28AFF), onSecondary = Color(0xFF260047),
-        tertiary = Color(0xFFFFC66B), onTertiary = Color(0xFF402000),
-        background = Color(0xFF141A2B), surface = Color(0xFF222C43),
-        surfaceVariant = Color(0xFF2B3751), onBackground = Color(0xFFF7F8FC),
-        onSurface = Color(0xFFF7F8FC), onSurfaceVariant = Color(0xFFB6C1D4),
-        outline = Color(0xFF354861)
-    ) else lightColorScheme(
-        primary = Color(0xFF147A73), onPrimary = Color.White,
-        secondary = Color(0xFF6853B5), onSecondary = Color.White,
-        tertiary = Color(0xFF985300), onTertiary = Color.White,
-        background = Color(0xFFF6F8FC), surface = Color(0xFFFFFFFF),
-        surfaceVariant = Color(0xFFE9EDF5), onSurfaceVariant = Color(0xFF4A5C70),
-        outline = Color(0xFFB9C7D8)
-    )
-    MaterialTheme(colorScheme = scheme) {
+    VgTheme(dark) {
         Scaffold(
+            modifier=Modifier.testTag(if(dark) "theme_dark" else "theme_light"),
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
                 Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 20.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -227,6 +229,8 @@ private fun VidGravityApp(inboxRequest: Int = 0) {
             Column(Modifier.fillMaxSize().padding(padding)) {
                 if (playingMedia != null) {
                     PlayerScreen(media = playingMedia!!, onBack = { playingMedia = null })
+                } else if(showHelp) {
+                    CreatorHelp({showHelp=false},{showHelp=false;openStudio("new",null)},openCamera,{mediaImport.launch(arrayOf("video/*","audio/*","image/*"))})
                 } else if (showStudyTok) {
                     StudyTokScreen(
                         onBack = { showStudyTok = false },
@@ -235,39 +239,32 @@ private fun VidGravityApp(inboxRequest: Int = 0) {
                 } else if (showInbox) {
                     ShareInboxContent(
                         onBack = { showInbox = false },
-                        onInspect = { sharedUrl -> url = sharedUrl; showInbox = false; selected = VgTab.Home },
+                        onInspect = {sharedUrl->url=sharedUrl;showInbox=false;selected=VgTab.Downloads},
                         onOpen = { sharedUrl ->
                             runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(sharedUrl))) }
                                 .onFailure { notice = "Could not open this link in another app." }
                         }
                     )
                 } else when (selected) {
-                    VgTab.Home -> HomeContent(url, { url = it }, {
-                        if (url.isBlank()) notice = "Paste a public media URL first."
-                        else {
-                            inspecting = true
-                            scope.launch {
-                                try { analysis = withContext(Dispatchers.IO) { DownloadApi.analyzeSource(url.trim()) } }
-                                catch (failure: Exception) { notice = friendlyNetworkError(failure) }
-                                finally { inspecting = false }
-                            }
-                        }
-                    }, { notice = it }, { showInbox = true }, { selected = VgTab.Downloads }, { selected = VgTab.Studio }, { runCatching { openCamera() }.onFailure { notice = "Could not open camera: ${it.message ?: "try again"}" } }, { playingMedia = it }, { creatorInitialMedia = it; selected = VgTab.Studio }, { selected = VgTab.Library }, { showStudyTok = true })
-                    VgTab.Downloads -> DownloadsContent(onPlay = { playingMedia = it },
-                        onEdit = { creatorInitialMedia = it; selected = VgTab.Studio })
+                    VgTab.Home -> HomeDashboard(onCreate={openStudio("new",null)},onResume={openStudio("project",it)},onCamera=openCamera,
+                        onImport={mediaImport.launch(arrayOf("video/*","audio/*","image/*"))},onTemplate={openStudio("template:$it")},
+                        onLibrary={navigate(VgTab.Library)},onDownloads={navigate(VgTab.Downloads)},onPlay={playingMedia=it},onHelp={showHelp=true})
+                    VgTab.Downloads -> DownloadsContent(onPlay={playingMedia=it},onEdit={creatorInitialMedia=it;activeProjectId=null;studioLaunch="media";studioRequest++;selected=VgTab.Studio},
+                        sourcePanel={DownloadSourcePanel(url,{url=it},{if(url.isNotBlank()) {inspecting=true;scope.launch {try {analysis=withContext(Dispatchers.IO) {DownloadApi.analyzeSource(url.trim())}} catch(e:Exception) {notice=friendlyNetworkError(e)} finally {inspecting=false}}}},{notice=it},{showInbox=true},{},{showStudyTok=true})})
                     // Camera opens a dedicated Activity from its navigation item.
                     // This branch keeps the enum dispatch exhaustive.
-                    VgTab.Camera -> Unit
+                    VgTab.Camera -> VgSection("Camera","Record a photo or video, then send it to Studio.") {Button(onClick=openCamera) {Text("Open Camera")}}
                     VgTab.Library -> LibraryContent(
                         onPlay = { playingMedia = it },
-                        onCreateWithMedia = { media -> creatorInitialMedia = media; selected = VgTab.Studio }
+                        onCreateWithMedia = {media -> creatorInitialMedia=media;activeProjectId=null;studioLaunch="media";studioRequest++;selected=VgTab.Studio}
                     )
-                    VgTab.Studio -> CreateStudioContent(
+                    VgTab.Studio -> key(studioRequest) {CreateStudioContent(
                         onPlay = { playingMedia = it }, notify = { notice = it }, openInbox = { showInbox = true },
                         initialMedia = creatorInitialMedia, openCamera = openCamera,
-                        onBusyChanged = { studioBusy = it }
-                    )
-                    VgTab.Settings -> SettingsContent(dark, { dark = it; prefs?.edit()?.putBoolean("dark", it)?.apply() })
+                        onBusyChanged={studioBusy=it},resumeProjectId=activeProjectId,launchMode=studioLaunch,
+                        onActiveProject={activeProjectId=it},onSaveReady={saveStudio=it},onLaunchConsumed={studioLaunch="projects"}
+                    )}
+                    VgTab.Settings -> SettingsContent(dark, {dark=it;prefs?.edit()?.putBoolean("dark",it)?.apply()},onHelp={showHelp=true})
                 }
             }
         }
@@ -497,379 +494,7 @@ private fun VidGravityApp(inboxRequest: Int = 0) {
 }
 
 @Composable
-private fun HomeContent(url: String, onUrl: (String) -> Unit, inspect: () -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, onBatchQueued: () -> Unit, openCreate: () -> Unit, openCamera: () -> Unit, onPlayRecent: (LibraryMedia) -> Unit, onEditRecent: (LibraryMedia) -> Unit, openLibrary: () -> Unit, openStudyTok: () -> Unit) {
-    val clipboard = LocalClipboardManager.current
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val scope = rememberCoroutineScope()
-    val activity = context as? ComponentActivity
-    var recentMedia by remember { mutableStateOf(emptyList<LibraryMedia>()) }
-    suspend fun refreshRecentMedia() {
-        recentMedia = withContext(Dispatchers.IO) {
-            runCatching { MediaLibraryIndexer.list(context).take(8) }.getOrDefault(emptyList())
-        }
-    }
-    LaunchedEffect(Unit) { refreshRecentMedia() }
-    val recentLifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
-    DisposableEffect(recentLifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) scope.launch { refreshRecentMedia() }
-        }
-        recentLifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { recentLifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-    var clipboardSuggestion by remember { mutableStateOf<String?>(null) }
-    fun detectClipboardUrl() {
-        val raw = runCatching {
-            val manager = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            if (manager.hasPrimaryClip() && manager.primaryClipDescription?.hasMimeType("text/plain") == true) {
-                manager.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString()
-            } else null
-        }.getOrNull()?.trim().orEmpty()
-        val candidate = raw.lineSequence().firstOrNull { it.startsWith("https://", true) || it.startsWith("http://", true) }
-            ?.takeIf { it.length <= 4096 && (it.contains("://youtu") || it.contains("instagram.com") || it.contains("tiktok.com") || it.contains("facebook.com") || it.contains("twitter.com") || it.contains("x.com") || it.contains("vimeo.com") || it.contains("soundcloud.com") || it.contains("youtube.com") || it.contains("youtu.be")) }
-        clipboardSuggestion = candidate?.takeIf { it != url }
-    }
-    // Clipboard binder access is optional: defer it until after a rendered frame.
-    LaunchedEffect(activity) {
-        withFrameNanos { }
-        withFrameNanos { }
-        detectClipboardUrl()
-    }
-    DisposableEffect(activity) {
-        val lifecycle = activity?.lifecycle
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) scope.launch {
-                withFrameNanos { }
-                withFrameNanos { }
-                detectClipboardUrl()
-            }
-        }
-        lifecycle?.addObserver(observer)
-        onDispose { lifecycle?.removeObserver(observer) }
-    }
-    LazyColumn(contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item { StudioProjectSummary(onOpenStudio = openCreate) }
-        if (clipboardSuggestion != null && url.isBlank()) item {
-            Surface(
-                modifier = Modifier.fillMaxWidth().clickable {
-                    onUrl(clipboardSuggestion.orEmpty())
-                    clipboardSuggestion = null
-                    notify("Clipboard link pasted. Tap Inspect link to view available formats.")
-                },
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
-            ) {
-                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.ContentPaste, null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Shared URL found in clipboard", fontWeight = FontWeight.SemiBold)
-                        Text("Tap to paste and inspect", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Icon(Icons.Default.ChevronRight, null)
-                }
-            }
-        }
-        item {
-            Surface(shape = RoundedCornerShape(26.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
-                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text("VIDGRAVITY  /  CREATE ANYTHING", fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp,
-                        color = MaterialTheme.colorScheme.primary)
-                    Text("Create. Download.\nEdit. Share.", fontSize = 36.sp,
-                        lineHeight = 40.sp, fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = (-0.8).sp)
-                    Text("All your video and audio tools in one powerful app.",
-                        fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("CAPTURE", "CREATE", "SHARE").forEach { label ->
-                            Surface(shape = RoundedCornerShape(50),
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))) {
-                                Text(label, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
-                                    fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                                    letterSpacing = 0.8.sp,
-                                    color = MaterialTheme.colorScheme.onSurface)
-                            }
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.fillMaxWidth()) {
-                        Surface(modifier = Modifier.weight(1f).height(112.dp)
-                            .clickable(onClick = openCreate),
-                            shape = RoundedCornerShape(18.dp),
-                            color = Color.Transparent) {
-                            Column(Modifier.fillMaxSize().background(Brush.horizontalGradient(
-                                listOf(Color(0xFFD728C0), Color(0xFF6559FF)))).padding(14.dp),
-                                verticalArrangement = Arrangement.SpaceBetween) {
-                                Icon(Icons.Default.ContentCut, null, tint = Color.White)
-                                Text("Creator Studio", color = Color.White,
-                                    fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                Text("Edit videos & reels", color = Color.White.copy(alpha = 0.85f),
-                                    fontSize = 11.sp)
-                            }
-                        }
-                        Surface(modifier = Modifier.weight(1f).height(112.dp)
-                            .clickable(onClick = openCamera),
-                            shape = RoundedCornerShape(18.dp),
-                            color = Color.Transparent) {
-                            Column(Modifier.fillMaxSize().background(Brush.horizontalGradient(
-                                listOf(Color(0xFF366BFA), Color(0xFF00A6EA)))).padding(14.dp),
-                                verticalArrangement = Arrangement.SpaceBetween) {
-                                Icon(Icons.Default.PhotoCamera, null, tint = Color.White)
-                                Text("Pro Camera", color = Color.White,
-                                    fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                                Text("Capture your story", color = Color.White.copy(alpha = 0.85f),
-                                    fontSize = 11.sp)
-                            }
-                        }
-                    }
-                    Text("EXPLORE TOOLS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(end = 4.dp)) {
-                        items(listOf(
-                            Triple("Download", Icons.Default.Download, { notify("Paste a link below to download authorized media.") }),
-                            Triple("Camera", Icons.Default.PhotoCamera, openCamera),
-                            Triple("Edit Video", Icons.Default.ContentCut, openCreate),
-                            Triple("Audio", Icons.Default.MusicNote, openCreate),
-                            Triple("Stories", Icons.Default.AutoAwesome, openCreate),
-                            Triple("My Library", Icons.Default.VideoLibrary, openLibrary)
-                        )) { (label, icon, action) ->
-                            Column(Modifier.width(70.dp).clickable(onClick = action),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Surface(shape = RoundedCornerShape(16.dp),
-                                    color = MaterialTheme.colorScheme.surfaceVariant) {
-                                    Icon(icon, null, modifier = Modifier.padding(14.dp).size(24.dp),
-                                        tint = MaterialTheme.colorScheme.secondary)
-                                }
-                                Text(label, fontSize = 10.sp, maxLines = 1,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
-                    Text("DOWNLOAD FROM A LINK", fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold, letterSpacing = 1.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    OutlinedTextField(value = url, onValueChange = onUrl, modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Paste one link or multiple links (one per line)") }, leadingIcon = { Icon(Icons.Default.Link, null) },
-                        trailingIcon = { IconButton(onClick = { clipboard.getText()?.text?.let(onUrl) }) { Icon(Icons.Default.ContentPaste, "Paste") } },
-                        shape = RoundedCornerShape(16.dp), minLines = 1, maxLines = 4)
-                    OutlinedButton(
-                        onClick = {
-                            val candidates = Regex("https?://[^\\s<>\\\"']+", RegexOption.IGNORE_CASE)
-                                .findAll(url)
-                                .mapNotNull { ShareReceiverActivity.normalizeSharedUrl(it.value.trimEnd(',', ';', ')', ']', '.')) }
-                                .distinctBy { it.lowercase() }
-                                .take(11)
-                                .toList()
-                            if (candidates.isEmpty()) {
-                                notify("Paste at least one complete public URL. Put each link on a new line.")
-                            } else if (candidates.size > 10) {
-                                notify("Please queue up to 10 links at a time.")
-                            } else {
-                                var queued = 0
-                                val preferences = SecureDownloadPreferences.load(context)
-                                candidates.forEach { link ->
-                                    runCatching {
-                                        DownloadWorker.enqueue(context, link, preferences.preferredFormatSelector,
-                                            ShareReceiverActivity.friendlyTitle(link), preferences.unmeteredOnly)
-                                    }.onSuccess { queued++ }
-                                }
-                                if (queued > 0) {
-                                    onBatchQueued()
-                                    notify("${queued} of ${candidates.size} links added to Downloads using best available quality.")
-                                } else notify("No links could be queued. Please check the URLs and try again.")
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Icon(Icons.Default.PlaylistAdd, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Queue multiple links · best quality")
-                    }
-                    Button(onClick = { if (url.startsWith("http://") || url.startsWith("https://")) inspect() else notify("Enter a complete public URL starting with https://") },
-                        modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(16.dp)) {
-                        Icon(Icons.Default.Search, null); Spacer(Modifier.width(8.dp)); Text("Inspect link")
-                    }
-                    Text("QUICK ACTIONS  ·  DOWNLOAD & CREATE", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    LazyRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            contentPadding = PaddingValues(end = 4.dp)
-                        ) {
-                            items(listOf("⚡ Grab Best Video", "♫ Sound Only", "✂ Status Clip Splitter", "✦ StudyTok AI")) { action ->
-                                Surface(
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
-                                    shape = RoundedCornerShape(18.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.32f)),
-                                    modifier = Modifier.width(170.dp).heightIn(min = 116.dp).clickable {
-                                        if (action.contains("Status Clip")) {
-                                            openCreate()
-                                            notify("In Creator Studio, choose a local video and select a 30, 60, 90, or 120-second clip target.")
-                                        } else if (action.contains("StudyTok")) {
-                                            openStudyTok()
-                                        } else if (url.isBlank()) {
-                                            notify("Paste a media URL first, then choose " + action + ".")
-                                        } else if (!url.trim().startsWith("https://", ignoreCase = true) &&
-                                            !url.trim().startsWith("http://", ignoreCase = true)) {
-                                            notify("Enter a complete public URL starting with https:// before downloading.")
-                                        } else if (action.contains("Sound")) {
-                                            scope.launch {
-                                                try {
-                                                    val result = withContext(Dispatchers.IO) { DownloadApi.analyzeSource(url.trim()) }
-                                                    val audio = result.formats.firstOrNull { it.hasAudio && !it.hasVideo }
-                                                    if (audio == null) notify("No audio-only stream was found for this link.")
-                                                    else {
-                                                        val prefs = SecureDownloadPreferences.load(context)
-                                                        DownloadWorker.enqueue(context, url.trim(), audio.selector, result.title + " — Audio", prefs.unmeteredOnly)
-                                                        notify("Audio download added to queue. Open Downloads to track progress.")
-                                                    }
-                                                } catch (failure: Exception) {
-                                                    notify("Could not prepare audio: " + (failure.message ?: "Please try again."))
-                                                }
-                                            }
-                                        } else inspect()
-                                    }
-                                ) {
-                                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Text(action.substringBefore(" "), fontSize = 24.sp)
-                                        Text(action.substringAfter(" "), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                        Text("Tap to start", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("MY RECENT MEDIA", modifier = Modifier.weight(1f), fontSize = 17.sp, fontWeight = FontWeight.Bold)
-                androidx.compose.material3.TextButton(onClick = openLibrary) { Text("See all") }
-            }
-            Text("Real captures and exports from your VidGravity Library",
-                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(10.dp))
-            if (recentMedia.isEmpty()) {
-                Surface(modifier = Modifier.fillMaxWidth().clickable(onClick = openCamera),
-                    shape = RoundedCornerShape(18.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant) {
-                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Icon(Icons.Default.PhotoCamera, null,
-                            tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text("Your first creation starts here", fontWeight = FontWeight.Bold)
-                            Text("Capture a photo or video to populate your Library",
-                                fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Icon(Icons.Default.ChevronRight, null)
-                    }
-                }
-            } else {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(recentMedia) { media ->
-                        Surface(modifier = Modifier.width(164.dp).clickable {
-                            if (media.mimeType.startsWith("video/") || media.mimeType.startsWith("audio/"))
-                                onPlayRecent(media)
-                            else onEditRecent(media)
-                        }, shape = RoundedCornerShape(18.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant) {
-                            var thumbnail by remember(media.uri) {
-                                mutableStateOf<android.graphics.Bitmap?>(null)
-                            }
-                            LaunchedEffect(media.uri) {
-                                thumbnail = withContext(Dispatchers.IO) {
-                                    runCatching {
-                                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                                            context.contentResolver.loadThumbnail(
-                                                media.uri, android.util.Size(320, 200), null
-                                            )
-                                        } else if (media.mimeType.startsWith("image/")) {
-                                            context.contentResolver.openInputStream(media.uri)?.use { stream ->
-                                                android.graphics.BitmapFactory.decodeStream(stream)
-                                            }
-                                        } else null
-                                    }.getOrNull()
-                                }
-                            }
-                            Column(Modifier.padding(10.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (thumbnail != null) {
-                                    Image(bitmap = thumbnail!!.asImageBitmap(),
-                                        contentDescription = "Preview of " + media.displayName,
-                                        modifier = Modifier.fillMaxWidth().height(92.dp),
-                                        contentScale = ContentScale.Crop)
-                                } else {
-                                    Icon(if (media.mimeType.startsWith("video/")) Icons.Default.Movie
-                                        else if (media.mimeType.startsWith("audio/")) Icons.Default.MusicNote
-                                        else Icons.Default.Image, null,
-                                        modifier = Modifier.size(34.dp),
-                                        tint = MaterialTheme.colorScheme.primary)
-                                }
-                                Text(media.displayName, maxLines = 2,
-                                    overflow = TextOverflow.Ellipsis,
-                                    fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                                Text(if (media.mimeType.startsWith("image/")) "Open Studio"
-                                    else "Tap to play", fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        item {
-            Surface(shape = RoundedCornerShape(20.dp),
-                color = Color(0xFF352066),
-                modifier = Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.WorkspacePremium, null, tint = Color(0xFFFFC66B),
-                        modifier = Modifier.size(36.dp))
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("VidGravity Pro", color = Color.White, fontWeight = FontWeight.Bold)
-                        Text("Premium creator tools are coming soon",
-                            fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
-                    }
-                }
-            }
-        }
-        item {
-            Text("CREATE IN THREE STEPS", fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                letterSpacing = 0.8.sp)
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(
-                    Triple("01", "Capture", "Camera"),
-                    Triple("02", "Edit", "Studio"),
-                    Triple("03", "Share", "Export")
-                ).forEach { (number, label, detail) ->
-                    Surface(modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant) {
-                        Column(Modifier.padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(number, fontSize = 18.sp, fontWeight = FontWeight.Black,
-                                color = MaterialTheme.colorScheme.primary)
-                            Text(label, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            Text(detail, fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onEdit: (LibraryMedia) -> Unit) {
+private fun DownloadsContent(onPlay:(LibraryMedia)->Unit,onEdit:(LibraryMedia)->Unit,sourcePanel:@Composable ()->Unit={}) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboard = LocalClipboardManager.current
     var expandedErrors by remember { mutableStateOf(setOf<java.util.UUID>()) }
@@ -888,6 +513,7 @@ private fun DownloadsContent(onPlay: (LibraryMedia) -> Unit, onEdit: (LibraryMed
             work.id.toString() in hiddenHistoryIds
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        sourcePanel()
         Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surface,
             modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.fillMaxWidth().padding(20.dp),
@@ -1597,7 +1223,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    val filteredMedia = media.filter { item ->
+    val filteredMedia = remember(media,filter,sizeFilter,searchQuery) {media.filter { item ->
         val matchesCategory = when (filter) {
             "Video" -> item.mimeType.startsWith("video/")
             "Audio" -> item.mimeType.startsWith("audio/")
@@ -1615,7 +1241,8 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         }
         matchesCategory && matchesSize && item.displayName.contains(searchQuery.trim(), ignoreCase = true)
     }
-    val visibleMedia = when (sortBy) {
+    }
+    val visibleMedia = remember(filteredMedia,sortBy) {when (sortBy) {
         "Oldest" -> filteredMedia.sortedBy { it.createdAtMs }
         "Name A-Z" -> filteredMedia.sortedBy { it.displayName.lowercase() }
         "Largest" -> filteredMedia.sortedByDescending { it.sizeBytes }
@@ -1623,6 +1250,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         "Type" -> filteredMedia.sortedWith(compareBy<LibraryMedia> { it.mimeType.substringBefore("/") }.thenBy { it.displayName.lowercase() })
         "Extension" -> filteredMedia.sortedWith(compareBy<LibraryMedia> { it.displayName.substringAfterLast('.', "").lowercase() }.thenBy { it.displayName.lowercase() })
         else -> filteredMedia.sortedByDescending { it.createdAtMs }
+    }
     }
     // Drop selections for items that have been deleted or are no longer indexed.
     LaunchedEffect(media) {
@@ -1646,7 +1274,11 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         )
         return
     }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    var grid by rememberSaveable {mutableStateOf(false)}
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    val columns=if(!grid || androidx.compose.ui.platform.LocalDensity.current.fontScale>1.3f) 1 else if(maxWidth>=840.dp) 3 else if(maxWidth>=360.dp) 2 else 1
+    LazyColumn(Modifier.fillMaxSize().testTag("library_list"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    item {Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
         libraryError?.let { message ->
             Text(message, color = MaterialTheme.colorScheme.error)
             TextButton(onClick = { scope.launch { refreshMedia() } }) { Text("Retry library") }
@@ -1688,6 +1320,18 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 }
             }
         }
+        OutlinedTextField(
+            value = searchQuery, onValueChange = { searchQuery = it },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            label = {Text("Search media")},
+            shape = RoundedCornerShape(16.dp)
+        )
+        Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            FilterChip(!grid,{grid=false},label={Text("List view")},modifier=Modifier.heightIn(min=48.dp))
+            FilterChip(grid,{grid=true},label={Text("Grid view")},modifier=Modifier.heightIn(min=48.dp))
+        }
+        VgDisclosure("Library organization & bulk actions") {
         Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(16.dp)) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1939,13 +1583,8 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 Text("Delete selected (${visibleMedia.count { it.uri.toString() in selectedUris }})")
             }
         }
-        OutlinedTextField(
-            value = searchQuery, onValueChange = { searchQuery = it },
-            modifier = Modifier.fillMaxWidth(), singleLine = true,
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-            placeholder = { Text("Search your downloads") },
-            shape = RoundedCornerShape(16.dp)
-        )
+        }
+        VgDisclosure("Library filters & sorting") {
         OutlinedButton(
             enabled = searchQuery.isNotBlank() || filter != "All Media" || sizeFilter != "Any size" || sortBy != "Newest",
             onClick = {
@@ -1997,55 +1636,22 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
                 }
             }
         }
-        if (visibleMedia.isEmpty()) {
-            InfoCard(
-                if (searchQuery.isNotBlank()) "No matching media" else if (filter == "Favorites") "No favorites yet" else "Your library is empty",
-                if (searchQuery.isNotBlank()) "Try another title or clear the search." else "Completed downloads saved by VidGravity will appear here. Use Downloads to check failed transfers.",
-                Icons.Default.VideoLibrary, Modifier.fillMaxWidth()
-            )
-        } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                items(visibleMedia, key = { it.uri.toString() }) { item ->
-                    Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp),
-                        modifier = Modifier.fillMaxWidth().clickable { onPlay(item) }) {
-                        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Checkbox(
-                                checked = item.uri.toString() in selectedUris,
-                                onCheckedChange = { checked ->
-                                    selectedUris = if (checked) selectedUris + item.uri.toString() else selectedUris - item.uri.toString()
-                                }
-                            )
-                            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(12.dp)) {
-                                Icon(if (item.mimeType.startsWith("audio/")) Icons.Default.MusicNote else Icons.Default.PlayArrow,
-                                    null, modifier = Modifier.padding(14.dp), tint = MaterialTheme.colorScheme.primary)
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(item.displayName, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Text(String.format("%.1f MB", item.sizeBytes / 1_000_000.0), fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = {
-                                    scope.launch {
-                                        withContext(Dispatchers.IO) { MediaLibraryIndexer.setFavorite(context, item.uri, !item.isFavorite) }
-                                        refreshMedia()
-                                    }
-                                }) { Icon(if (item.isFavorite) Icons.Default.Star else Icons.Default.StarBorder, "Favorite", tint = if (item.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant) }
-                                IconButton(onClick = { renameTarget = item; renameText = item.displayName.substringBeforeLast(".", item.displayName) }) { Icon(Icons.Default.Edit, "Rename") }
-                                IconButton(onClick = { deleteTarget = item }) { Icon(Icons.Default.Delete, "Delete") }
-                                IconButton(onClick = {
-                                    val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply { type = item.mimeType; putExtra(android.content.Intent.EXTRA_STREAM, item.uri); addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-                                    context.startActivity(android.content.Intent.createChooser(share, "Share media"))
-                                }) { Icon(Icons.Default.Share, "Share") }
-                                IconButton(onClick = { onPlay(item) }) { Icon(Icons.Default.PlayCircle, "Play", tint = MaterialTheme.colorScheme.primary) }
-                            }
-                        }
-                    }
-                }
-            }
         }
+    }}
+    if(visibleMedia.isEmpty()) item {
+        InfoCard(if(searchQuery.isNotBlank()) "No matching media" else "Your library is empty","Import, record or finish a download. Missing files are removed from this index; relink affected Studio clips.",Icons.Default.VideoLibrary)
+    } else items(visibleMedia.chunked(columns),key={row->row.first().uri.toString()}) {row ->
+        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {row.forEach {item ->
+            LibraryMediaCard(item,item.uri.toString() in selectedUris,grid,
+                onSelected={checked->selectedUris=if(checked) selectedUris+item.uri.toString() else selectedUris-item.uri.toString()},
+                onOpen={onPlay(item)},onEdit={onCreateWithMedia(item)},
+                onFavorite={scope.launch {try {withContext(Dispatchers.IO) {MediaLibraryIndexer.setFavorite(context,item.uri,!item.isFavorite)};refreshMedia()} catch(e:Exception) {libraryError="Favorite could not be saved. Retry."}}},
+                onRename={renameTarget=item;renameText=item.displayName.substringBeforeLast(".",item.displayName)},onDelete={deleteTarget=item},
+                onShare={runCatching {context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {type=item.mimeType;putExtra(Intent.EXTRA_STREAM,item.uri);clipData=android.content.ClipData.newUri(context.contentResolver,item.displayName,item.uri);addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)},"Share media"))}.onFailure {libraryError="Sharing could not open. Check that the file is still available."}},
+                modifier=Modifier.weight(1f))
+        }}
     }
+    }}
     renameTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { renameTarget = null },
@@ -2107,11 +1713,15 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
 }
 
 @Composable
-private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, initialMedia: LibraryMedia? = null, openCamera: () -> Unit, onBusyChanged: (Boolean) -> Unit) {
-    var nativeStudio by remember { mutableStateOf(false) }
-    var nativeInitial by remember { mutableStateOf<LibraryMedia?>(null) }
+private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String) -> Unit, openInbox: () -> Unit, initialMedia: LibraryMedia? = null, openCamera: () -> Unit,onBusyChanged:(Boolean)->Unit,resumeProjectId:String?=null,launchMode:String="projects",onActiveProject:(String?)->Unit={},onSaveReady:((suspend ()->Unit)?)->Unit={},onLaunchConsumed:()->Unit={}) {
+    val initialMode=remember {launchMode}
+    var nativeStudio by remember {mutableStateOf(resumeProjectId!=null || initialMode=="new" || initialMode.startsWith("template:") || initialMedia?.mimeType?.startsWith("video/")==true)}
+    var nativeInitial by remember {mutableStateOf<LibraryMedia?>(initialMedia)}
     if (nativeStudio) {
-        NativeStudioHub(nativeInitial, onClose = { nativeStudio = false }, onBusyChanged = onBusyChanged)
+        NativeStudioHub(nativeInitial,onClose={nativeStudio=false;onActiveProject(null)},onBusyChanged=onBusyChanged,
+            requestedProjectId=resumeProjectId,autoImport=initialMode=="new" || initialMode.startsWith("template:") && resumeProjectId==null,
+            initialWorkspace=initialMode.takeIf {it.startsWith("template:")},onEditingChanged=onActiveProject,onSaveReady=onSaveReady)
+        LaunchedEffect(Unit) {onLaunchConsumed()}
         return
     }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -2554,7 +2164,7 @@ private fun SimpleCollectionScreen(title: String, subtitle: String, icon: androi
 }
 
 @Composable
-private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
+private fun SettingsContent(dark:Boolean,onDark:(Boolean)->Unit,onHelp:()->Unit={}) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboard = LocalClipboardManager.current
     val deviceId = remember {
@@ -2580,6 +2190,7 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Settings", fontSize = 27.sp, fontWeight = FontWeight.Bold)
         Text("Make VidGravity work your way.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        OutlinedButton(onClick=onHelp,modifier=Modifier.fillMaxWidth()) {Text("Help & getting started")}
         Text("APPEARANCE", fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
         Surface(color = MaterialTheme.colorScheme.surface, shape = RoundedCornerShape(18.dp)) {
             Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -2651,7 +2262,7 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
                     TextButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(deviceId)) }) { Text("Copy") }
                 }
                 OutlinedButton(onClick = { showActivation = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Enter license key")
+                    Text("Licensing availability")
                 }
             }
         }
@@ -2674,15 +2285,11 @@ private fun SettingsContent(dark: Boolean, onDark: (Boolean) -> Unit) {
             title = { Text("License activation") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Enter the license key issued for your account.")
-                    OutlinedTextField(value = activationKey, onValueChange = { activationKey = it.take(160) },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("License key") })
-                    Text("Activation requires the licensing API integration, which is not yet connected in this build.",
-                        fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Paid activation is not connected in this build. Offline Studio, Creative and Social tools do not require a license key.")
                 }
             },
             confirmButton = { TextButton(onClick = { showActivation = false; activationKey = "" }) { Text("Close") } },
-            dismissButton = { TextButton(onClick = { clipboard.setText(androidx.compose.ui.text.AnnotatedString(activationKey)) }) { Text("Copy key") } }
+            dismissButton = {}
         )
     }
 }
