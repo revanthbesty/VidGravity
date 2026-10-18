@@ -182,12 +182,20 @@ object MediaLibraryIndexer {
             put(MediaStore.MediaColumns.DISPLAY_NAME, safeName)
             put(MediaStore.MediaColumns.MIME_TYPE, mime)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.MediaColumns.RELATIVE_PATH, if (mime.startsWith("audio/")) "Music/VidGravity" else "Movies/VidGravity")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, when {
+                    mime.startsWith("audio/") -> "Music/VidGravity"
+                    mime.startsWith("image/") -> "Pictures/VidGravity"
+                    else -> "Movies/VidGravity"
+                })
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
         }
-        // Save into the matching media collection so Android indexes it as playable audio/video.
-        val collection = if (mime.startsWith("audio/")) MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        // MIME type, collection and directory must agree, including PNG/JPEG/WebP images.
+        val collection = when {
+            mime.startsWith("audio/") -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+            mime.startsWith("image/") -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+            else -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        }
         val uri = context.contentResolver.insert(collection, values)
             ?: throw IllegalStateException("MediaStore could not create the download item.")
         try {

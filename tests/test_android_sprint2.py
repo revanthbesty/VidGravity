@@ -20,7 +20,7 @@ class Sprint2Contracts(unittest.TestCase):
     def test_versions_and_native_encoder_are_declared(self):
         gradle = (ROOT / "apps/android/app/build.gradle.kts").read_text()
         self.assertRegex(gradle, r'versionCode = (18[1-9]|19[0-9]|[2-9][0-9]{2,})')
-        self.assertIn('versionName = "1.2.0-sprint3"', gradle)
+        self.assertIn('versionName = "1.3.0-sprint4"', gradle)
         self.assertIn('media3-transformer:1.5.1', gradle)
         manifest = ET.parse(ROOT / "apps/android/app/src/main/AndroidManifest.xml")
         ns = '{http://schemas.android.com/apk/res/android}'

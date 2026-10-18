@@ -29,8 +29,7 @@ class NativeStudioProjectUiTest {
         compose.onNodeWithText("Mono").assertIsSelected()
         compose.onNodeWithText("Save project").performScrollTo().performClick()
         compose.onNodeWithText("Projects", substring = false).performScrollTo().performClick()
-        compose.waitUntil(10_000) { compose.onAllNodesWithText("Sprint 2 saved project").fetchSemanticsNodes().isNotEmpty() }
-        compose.onAllNodesWithText("Continue editing").onFirst().performClick()
+        compose.reopenStudioProject("Sprint 2 saved project")
         compose.onNodeWithText("Sprint 2 saved project").assertExists()
         compose.onNodeWithText("Saved caption").performScrollTo().assertExists()
         compose.onNodeWithText("Share current export").performScrollTo().assertIsNotEnabled()
@@ -42,4 +41,11 @@ internal fun ComposeContentTestRule.clickStudioToolbar(label: String) {
     val action = onNodeWithText(label)
     action.onParent().performScrollTo()
     action.performScrollTo().assertIsDisplayed().performClick()
+}
+
+/** Wait for the saved card, not the identically named field in the closing editor. */
+internal fun ComposeContentTestRule.reopenStudioProject(title: String) {
+    val action = hasText("Continue editing") and hasAnySibling(hasText(title))
+    waitUntil(10_000) { onAllNodes(action).fetchSemanticsNodes().size == 1 }
+    onNode(action).performScrollTo().assertIsDisplayed().performClick()
 }

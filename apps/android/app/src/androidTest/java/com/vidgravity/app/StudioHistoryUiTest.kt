@@ -20,8 +20,7 @@ class StudioHistoryUiTest {
         repository.save(project)
         try {
             compose.setContent {MaterialTheme {NativeStudioHub(onClose={},onBusyChanged={})}}
-            compose.waitUntil(10_000) {compose.onAllNodesWithText("Drag timeline").fetchSemanticsNodes().isNotEmpty()}
-            compose.onAllNodesWithText("Continue editing").onFirst().performClick()
+            compose.reopenStudioProject("Drag timeline")
             compose.onNodeWithContentDescription("Video clip 1: First").performScrollTo().performTouchInput {
                 down(center); advanceEventTime(700); moveBy(Offset(width.toFloat()*1.5f,0f)); advanceEventTime(100); up()
             }
@@ -52,8 +51,7 @@ class StudioHistoryUiTest {
         captionField.performImeAction()
         compose.onNodeWithText("Save project").performScrollTo().performClick()
         compose.onNodeWithText("Projects",substring=false).performScrollTo().performClick()
-        compose.waitUntil(10_000) {compose.onAllNodesWithText("Sprint 3 history").fetchSemanticsNodes().isNotEmpty()}
-        compose.onAllNodesWithText("Continue editing").onFirst().performClick()
+        compose.reopenStudioProject("Sprint 3 history")
         compose.onNodeWithText("Sprint 3 caption").performScrollTo().assertExists()
         compose.onNodeWithText("Share current export").performScrollTo().assertIsNotEnabled()
     }
