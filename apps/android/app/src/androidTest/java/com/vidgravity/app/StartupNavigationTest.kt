@@ -20,6 +20,18 @@ class StartupNavigationTest {
     @get:Rule val compose = createAndroidComposeRule<MainActivity>()
 
     @Test fun startupDrawsHomeAndCoreTabsNavigate() {
+        // Native analysis may run without an Activity before this case. Restore a
+        // visible, focused CI window without changing production launch behavior.
+        compose.activityRule.scenario.onActivity { activity ->
+            val keyguard=activity.getSystemService(android.content.Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+            val power=activity.getSystemService(android.content.Context.POWER_SERVICE) as android.os.PowerManager
+            android.util.Log.i("VGSmoke","display.preflight locked=${keyguard.isKeyguardLocked} interactive=${power.isInteractive}")
+            activity.setShowWhenLocked(true)
+            activity.setTurnScreenOn(true)
+            keyguard.requestDismissKeyguard(activity,null)
+        }
+        compose.waitUntil(15_000) { compose.activity.window.decorView.hasWindowFocus() }
+
         compose.waitUntil(15_000) {
             compose.onAllNodesWithText("YOUR CREATOR UNIVERSE").fetchSemanticsNodes().isNotEmpty()
         }

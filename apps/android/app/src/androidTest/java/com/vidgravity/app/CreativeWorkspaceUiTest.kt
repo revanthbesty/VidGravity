@@ -22,6 +22,10 @@ class CreativeWorkspaceUiTest {
         open()
         compose.onNodeWithText("Captions",substring=false).performScrollTo().performClick()
         compose.onNodeWithTag("speech_fallback").assertExists()
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        if(!OfflineDictation.available(context)) {
+            compose.onNodeWithText("Dictate English caption · microphone").assertIsNotEnabled()
+        }
         compose.onNodeWithText("Return to manual caption editor").performScrollTo().performClick()
         compose.onNodeWithTag("creative_studio").performScrollTo().performClick()
         compose.onNodeWithText("Templates",substring=false).performScrollTo().performClick()
