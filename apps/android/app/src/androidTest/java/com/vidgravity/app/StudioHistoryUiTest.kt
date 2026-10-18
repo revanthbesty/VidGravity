@@ -52,8 +52,11 @@ class StudioHistoryUiTest {
         captionField.performImeAction()
         compose.onNodeWithText("Save project").performScrollTo().performClick()
         compose.onNodeWithText("Projects",substring=false).performScrollTo().performClick()
-        compose.waitUntil(10_000) {compose.onAllNodesWithText("Sprint 3 history").fetchSemanticsNodes().isNotEmpty()}
-        compose.onAllNodesWithText("Continue editing").onFirst().performClick()
+        // Projects closes the editor only after its asynchronous save. The title
+        // also exists in the editor, so wait for the saved card's actual action.
+        val reopen = hasText("Continue editing") and hasAnySibling(hasText("Sprint 3 history"))
+        compose.waitUntil(10_000) {compose.onAllNodes(reopen).fetchSemanticsNodes().size == 1}
+        compose.onNode(reopen).performScrollTo().assertIsDisplayed().performClick()
         compose.onNodeWithText("Sprint 3 caption").performScrollTo().assertExists()
         compose.onNodeWithText("Share current export").performScrollTo().assertIsNotEnabled()
     }
