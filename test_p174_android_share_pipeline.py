@@ -23,7 +23,10 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
   ns="{http://schemas.android.com/apk/res/android}"
   activity=next(x for x in manifest.find("application").findall("activity") if x.attrib.get(ns+"name")==".MainActivity")
   self.assertIn("fun DownloadsContent",main);self.assertIn("fun LibraryContent",main)
-  self.assertGreaterEqual(main.count("verticalScroll(rememberScrollState())"),4)
+  settings=(app/"CreatorSettings.kt").read_text()
+  self.assertIn("VgTab.Settings -> CreatorSettings",main)
+  self.assertIn("verticalScroll(rememberScrollState())",settings)
+  self.assertGreaterEqual((main+settings).count("verticalScroll(rememberScrollState())"),4)
   self.assertIn("onCreateWithMedia",main)
   self.assertNotIn("Sticker renderer integration is not available yet",main)
   self.assertNotIn("30-second status splitting is not available yet",main)
@@ -82,7 +85,7 @@ class P174AndroidSharePipelineTests(unittest.TestCase):
  def test_simple_collection_screen_supports_vertical_scrolling(self):
   main=(ANDROID/"app/src/main/java/com/vidgravity/app/MainActivity.kt").read_text()
   start=main.index("fun SimpleCollectionScreen(")
-  end=main.index("\n@Composable",start)
+  end=main.index("\nprivate fun friendlyNetworkError",start)
   screen=main[start:end]
   self.assertIn("verticalScroll(rememberScrollState())",screen)
   self.assertIn("rows.forEach { row ->",screen)

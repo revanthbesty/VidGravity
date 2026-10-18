@@ -58,7 +58,7 @@ internal fun SocialCreatorWorkspace(project:StudioProject,selected:Int,onClose:(
             try {SocialPreview.draw(source,clip.frame,previewAspect,fit,safe)} finally {source.recycle()}}}
         catch(c:CancellationException) {throw c} catch(e:Exception) {preview=null;message="Preview unavailable. Relink missing media before export."}
     }
-    DisposableEffect(preview) {val b=preview;onDispose {b?.recycle()}}
+    // Published preview bitmaps remain owned by Compose/RenderThread until references are released.
     Column(Modifier.fillMaxSize().padding(12.dp)) {
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {Text("Social Creator",style=MaterialTheme.typography.headlineSmall);TextButton(enabled=!busy,onClick=onClose) {Text("Back to editor")}}
         Text("Create once. Adapt with care.",style=MaterialTheme.typography.labelMedium)

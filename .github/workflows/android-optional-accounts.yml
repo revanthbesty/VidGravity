@@ -1,0 +1,39 @@
+name: Android optional account build
+on:
+  pull_request:
+    paths: ['apps/android/**', '.github/workflows/android-optional-accounts.yml', 'tests/fixtures/google-services.synthetic.json']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  configured-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          log-accepted-android-sdk-licenses: false
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Compile configured account boundary using demo identifiers, without contacting Firebase
+        run: |
+          cp tests/fixtures/google-services.synthetic.json apps/android/app/google-services.json
+          gradle -p apps/android -PVG_FIREBASE_ENABLED=true assembleDebug testDebugUnitTest lintDebug compileDebugAndroidTestKotlin --console=plain
+      - name: Record resolved dependency inventory
+        run: gradle -p apps/android -PVG_FIREBASE_ENABLED=true :app:dependencies --configuration debugRuntimeClasspath > account-dependencies.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-optional-account-checks
+          path: |
+            apps/android/app/build/reports/
+            apps/android/app/build/test-results/
+            account-dependencies.txt
+          if-no-files-found: warn

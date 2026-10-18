@@ -71,7 +71,7 @@ internal fun CreativeWorkspace(project:StudioProject,selected:Int,onClose:()->Un
         onDispose {lifecycle?.removeObserver(observer); job?.cancel(); speech.close(); onBusy(false)}
     }
     DisposableEffect(working,dictating) {onBusy(working || dictating); onDispose {}}
-    DisposableEffect(before,after) {val a=before; val b=after; onDispose {a?.recycle(); if(b!==a) b?.recycle()}}
+    // Published preview bitmaps remain owned by Compose/RenderThread until references are released.
     fun leave(next:()->Unit) {
         job?.cancel(); speech.close(); dictating=false
         val flush=saveThumbnail
@@ -216,7 +216,7 @@ private fun CreativeTemplatePanel(project:StudioProject,enabled:Boolean,onCreate
             } finally {source.recycle()}
         }} catch(cancelled:CancellationException) {throw cancelled} catch(failure:Exception) {preview=null}
     }
-    DisposableEffect(preview) {val b=preview; onDispose {b?.recycle()}}
+    // Do not recycle a bitmap still referenced by Compose display lists.
 
     Text("Editable templates",style=MaterialTheme.typography.titleLarge)
     Text("Built-in layouts and text only; no downloaded music or licensed stock footage. Every template uses your clips and exports through Studio.")

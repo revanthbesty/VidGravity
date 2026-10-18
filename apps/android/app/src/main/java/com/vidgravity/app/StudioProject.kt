@@ -41,12 +41,12 @@ data class StudioProject(
         require(durationMs in 100..1_800_000) { "Projects must be between 0.1 seconds and 30 minutes." }
         for (clip in clips) {
             clip.frame.validate()
-            require(clip.uri.startsWith("content://") && clip.uri.length <= 8192) { "Choose readable local media." }
+            require(LocalMediaPolicy.validUri(clip.uri)) { "Choose readable local media." }
             require(clip.speed.isFinite() && clip.speed in listOf(0.5f,1f,1.5f,2f))
             require(clip.startMs >= 0 && clip.endMs <= clip.sourceDurationMs && clip.durationMs >= 100) { "Invalid clip trim range." }
         }
         tools.validate(durationMs)
-        for (uri in listOfNotNull(musicUri, voiceUri)) require(uri.startsWith("content://") && uri.length <= 8192)
+        for (uri in listOfNotNull(musicUri, voiceUri)) require(LocalMediaPolicy.validUri(uri))
         for (volume in listOf(originalVolume, musicVolume, voiceVolume)) require(volume.isFinite() && volume in 0f..1f)
     }
     fun fingerprint(): String = MessageDigest.getInstance("SHA-256")

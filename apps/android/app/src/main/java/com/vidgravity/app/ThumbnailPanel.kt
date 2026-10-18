@@ -57,7 +57,7 @@ internal fun ThumbnailPanel(project:StudioProject,clip:StudioClip,onBusy:(Boolea
         onSaveReady {withContext(Dispatchers.IO) {repository.save(latestThumb)}}
         onDispose {onSaveReady(null)}
     }
-    DisposableEffect(bitmap) {val captured=bitmap; onDispose {captured?.recycle()}}
+    // Published preview bitmaps remain owned by Compose/RenderThread until references are released.
     DisposableEffect(exporting) {onBusy(exporting); onDispose {}}
     DisposableEffect(Unit) {onDispose {exportJob?.cancel(); onBusy(false)}}
     Text("Thumbnail creator",style=MaterialTheme.typography.titleLarge)

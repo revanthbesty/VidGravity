@@ -9,7 +9,7 @@ import org.junit.Test
 
 class IntegratedCreatorUiTest {
     @get:Rule val compose=createAndroidComposeRule<MainActivity>()
-    private fun focused() {compose.waitUntil(15_000) {compose.activity.window.decorView.hasWindowFocus()}}
+    private fun focused() {compose.awaitVidGravityFocus()}
     @Test fun homeContinueSavesBeforeTabNavigationAndReopensTheActiveProject() {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val source=studioFixture("native-source.mp4")
@@ -30,12 +30,18 @@ class IntegratedCreatorUiTest {
             compose.waitUntil(10_000) {compose.onAllNodes(hasText("Project name") and hasText("Sprint 6 preserved")).fetchSemanticsNodes().isNotEmpty()}
             compose.onNode(hasText("Project name") and hasText("Sprint 6 preserved")).assertExists()
             compose.onNodeWithTag("nav_Home").performClick()
+            compose.waitUntil(10_000) {compose.onAllNodesWithTag("home_dashboard").fetchSemanticsNodes().isNotEmpty()}
+            compose.onNodeWithTag("nav_Home").assertIsSelected()
+            compose.waitUntil(10_000) {compose.onAllNodesWithTag("home_loading").fetchSemanticsNodes().isEmpty()}
             compose.onNodeWithTag("home_dashboard").performScrollToNode(hasText("Product promotion"))
+            compose.onNodeWithText("Product promotion").assertIsDisplayed()
             compose.onNodeWithText("Product promotion").performClick()
             compose.waitUntil(10_000) {compose.onAllNodesWithText("Social Creator",substring=false).fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithText("Selected: Product promotion").performScrollTo().assertIsDisplayed()
             compose.onNodeWithText("Back to editor").performClick()
             compose.onNodeWithTag("nav_Home").performClick()
+            compose.waitUntil(10_000) {compose.onAllNodesWithTag("home_dashboard").fetchSemanticsNodes().isNotEmpty()}
+            compose.onNodeWithTag("nav_Home").assertIsSelected()
         } finally {repository.delete(p.id)}
     }
     @Test fun populatedLibraryGridSearchPreviewAndThemeToggleWork() {

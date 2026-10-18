@@ -1,0 +1,8 @@
+{
+  "project_info": { "project_number": "123456789012", "project_id": "demo-vidgravity", "storage_bucket": "demo-vidgravity.appspot.com" },
+  "client": [{
+    "client_info": { "mobilesdk_app_id": "1:123456789012:android:0123456789abcdef012345", "android_client_info": { "package_name": "com.vidgravity.app" } },
+    "api_key": [{ "current_key": "synthetic-build-test-not-a-real-api-key" }]
+  }],
+  "configuration_version": "1"
+}
