@@ -55,20 +55,20 @@ class SocialCreatorIntegrationTest {
         val ids=withContext(Dispatchers.IO) {variants.map {NativeStudioExportWorker.enqueue(context,it)}}
         try {
             withTimeout(180_000) {while(true) {
-                val works=withContext(Dispatchers.IO) {ids.map {manager.getWorkInfoById(it).get()}}
+                val works=withContext(Dispatchers.IO) {ids.map {checkNotNull(manager.getWorkInfoById(it).get()) {"Queued work record is missing"}}}
                 assertTrue("Native encoders must run serially",works.count {it.state==WorkInfo.State.RUNNING}<=1)
                 if(works.all {it.state.isFinished}) {works.forEach {assertEquals(it.outputData.getString("error"),WorkInfo.State.SUCCEEDED,it.state)};break};delay(500)
             }}
             val again=withContext(Dispatchers.IO) {NativeStudioExportWorker.enqueue(context,variants[0])};assertEquals(ids[0],again)
             withContext(Dispatchers.IO) {variants.forEach {p ->val record=repository.record(p.id)!!;assertNotNull(record.uri);assertEquals(p.fingerprint(),record.fingerprint)
-                context.contentResolver.openInputStream(android.net.Uri.parse(record.uri))!!.use {input ->val copy=File(context.cacheDir,"queue-hash.mp4");try {copy.outputStream().use {input.copyTo(it)};assertEquals(manager.getWorkInfoById(UUID.fromString(record.workId)).get().outputData.getString("sha256"),DownloadApi.sha256(copy))} finally {copy.delete()}}}}
+                context.contentResolver.openInputStream(android.net.Uri.parse(record.uri))!!.use {input ->val copy=File(context.cacheDir,"queue-hash.mp4");try {copy.outputStream().use {input.copyTo(it)};assertEquals(checkNotNull(manager.getWorkInfoById(UUID.fromString(record.workId)).get()).outputData.getString("sha256"),DownloadApi.sha256(copy))} finally {copy.delete()}}}}
         } finally {withContext(Dispatchers.IO) {ids.forEach {manager.cancelWorkById(it).result.get()};variants.forEach {p ->repository.record(p.id)?.uri?.let {context.contentResolver.delete(android.net.Uri.parse(it),null,null)};repository.delete(p.id)}}}
     }
     @Test fun missingMediaFailsWithoutPublishingAndPreservesProject():Unit=runBlocking {
         val context=InstrumentationRegistry.getInstrumentation().targetContext;val repository=StudioRepository(context);val manager=WorkManager.getInstance(context)
         val p=StudioProject(title="Missing media",clips=listOf(StudioClip(uri="content://com.vidgravity.app.files/legacy_media/missing-${UUID.randomUUID()}.mp4",name="Missing",sourceDurationMs=1000)))
         val id=withContext(Dispatchers.IO) {NativeStudioExportWorker.enqueue(context,p)}
-        try {withTimeout(30_000) {while(true) {val w=withContext(Dispatchers.IO) {manager.getWorkInfoById(id).get()};if(w.state.isFinished) {assertEquals(WorkInfo.State.FAILED,w.state);assertNull(w.outputData.getString("content_uri"));break};delay(250)}}
+        try {withTimeout(30_000) {while(true) {val w=withContext(Dispatchers.IO) {checkNotNull(manager.getWorkInfoById(id).get()) {"Queued work record is missing"}};if(w.state.isFinished) {assertEquals(WorkInfo.State.FAILED,w.state);assertNull(w.outputData.getString("content_uri"));break};delay(250)}}
             assertEquals(p,withContext(Dispatchers.IO) {repository.load(p.id)})
         } finally {withContext(Dispatchers.IO) {manager.cancelWorkById(id).result.get();repository.delete(p.id)}}
     }

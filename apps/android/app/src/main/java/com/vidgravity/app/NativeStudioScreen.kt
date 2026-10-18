@@ -132,7 +132,7 @@ internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> 
                         }}) { Text("Duplicate project") }
                         TextButton(enabled=!loading,onClick={scope.launch {
                             try { withContext(Dispatchers.IO) {
-                                check(WorkManager.getInstance(context).getWorkInfosByTag("studio-export-${saved.id}").get().none { !it.state.isFinished }) { "Cancel or finish this project's export before moving it to trash." }
+                                check(WorkManager.getInstance(context).getWorkInfosByTag("studio-export-${saved.id}").get().none { !it.state.isFinished } && WorkManager.getInstance(context).getWorkInfosForUniqueWork("studio-export-${saved.id}").get().none { !it.state.isFinished }) { "Cancel or finish this project's export before moving it to trash." }
                                 repository.trash(saved.id)
                             }; reload() }
                             catch (failure: Exception) { if(failure is CancellationException) throw failure; message=failure.message ?: "Project was preserved." }
