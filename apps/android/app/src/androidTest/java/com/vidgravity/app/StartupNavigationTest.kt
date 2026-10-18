@@ -30,7 +30,17 @@ class StartupNavigationTest {
             activity.setTurnScreenOn(true)
             keyguard.requestDismissKeyguard(activity,null)
         }
-        compose.waitUntil(15_000) { compose.activity.window.decorView.hasWindowFocus() }
+        try {
+            compose.waitUntil(15_000) { compose.activity.window.decorView.hasWindowFocus() }
+        } catch (failure: Throwable) {
+            val instrumentation=androidx.test.platform.app.InstrumentationRegistry.getInstrumentation()
+            val descriptor=instrumentation.uiAutomation.executeShellCommand("dumpsys window windows")
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(descriptor).bufferedReader().useLines { lines ->
+                lines.filter { it.contains("Focus") || it.contains("Window{") || it.contains("mHasSurface") || it.contains("isOnScreen") }
+                    .forEach { android.util.Log.e("VGSmoke","focus.diagnostic $it") }
+            }
+            throw failure
+        }
 
         compose.waitUntil(15_000) {
             compose.onAllNodesWithText("YOUR CREATOR UNIVERSE").fetchSemanticsNodes().isNotEmpty()

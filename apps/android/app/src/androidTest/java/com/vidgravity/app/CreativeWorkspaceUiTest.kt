@@ -37,6 +37,9 @@ class CreativeWorkspaceUiTest {
         compose.waitUntil(10_000) {compose.onAllNodesWithText("Project name").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithText("YouTube Shorts",substring=true).assertExists()
         compose.onNodeWithText("Sprint 4 editable template").assertExists()
+        val projectName=compose.onNodeWithText("Project name").performScrollTo()
+        projectName.performTextReplacement("Sprint 4 editable template")
+        projectName.performImeAction()
         compose.onNodeWithText("Save project").performScrollTo().performClick()
         compose.onNodeWithText("Projects",substring=false).performScrollTo().performClick()
         compose.reopenStudioProject("Sprint 4 editable template")
