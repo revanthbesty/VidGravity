@@ -21,7 +21,7 @@ class OfflineGuestExportTest {
             shell("svc wifi disable");shell("svc data disable")
             withTimeout(15_000) {while(network.activeNetwork!=null) delay(100)}
             assertNull("Offline verification requires no active network",network.activeNetwork)
-            assertFalse(AccountRuntime.get(context).available)
+            assertNull(AccountRuntime.get(context).profile.value)
             val source=studioFixture("native-source.mp4");val original=DownloadApi.sha256(source)
             val clip=StudioMediaImports.video(context,MediaLibraryIndexer.localUri(context,source)).copy(endMs=1000)
             project=StudioProject(title="Offline guest",clips=clip.split(500),overlay="Offline caption")

@@ -54,7 +54,7 @@ class PrivacyReliabilityTest {
         } finally {secret.delete();media.delete()}
     }
 }
-internal class RecordingAccounts:AccountService {
+internal open class RecordingAccounts:AccountService {
     override val available=true
     override val profile=MutableStateFlow<AccountProfile?>(null)
     var analytics=false;var crashes=false
