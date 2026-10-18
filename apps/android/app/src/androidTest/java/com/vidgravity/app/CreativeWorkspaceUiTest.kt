@@ -39,7 +39,7 @@ class CreativeWorkspaceUiTest {
         compose.onNodeWithText("Sprint 4 editable template").assertExists()
         compose.onNodeWithText("Save project").performScrollTo().performClick()
         compose.onNodeWithText("Projects",substring=false).performScrollTo().performClick()
-        compose.onAllNodesWithText("Continue editing").onFirst().performClick()
+        compose.reopenStudioProject("Sprint 4 editable template")
         compose.onNodeWithText("Sprint 4 editable template").assertExists()
     }
     @Test fun offlineWritingSuggestionsAndThumbnailSettingsCanBeSavedAndReopened() {
