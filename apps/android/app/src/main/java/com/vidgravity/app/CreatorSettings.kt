@@ -1,7 +1,6 @@
 package com.vidgravity.app
 
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -19,14 +18,14 @@ import androidx.compose.ui.unit.dp
     var download by remember {mutableStateOf(SecureDownloadPreferences.load(context))}
     val exportPrefs=remember {context.getSharedPreferences("vg-export",0)}
     var resolution by remember {mutableStateOf(exportPrefs.getString("resolution","HD"))}
-    if(privacy && true) {PrivacyDataScreen(accounts) {privacy=false};return}
+    if(privacy) {PrivacyDataScreen(accounts) {privacy=false};return}
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)) {
         Text("Settings",style=MaterialTheme.typography.headlineMedium)
         Text("Make VidGravity work your way.")
         VgDisclosure("Account",initiallyOpen=false) {AccountPanel(accounts)}
-        OutlinedButton(onClick={privacy=true},enabled=true,modifier=Modifier.fillMaxWidth()) {Text("Privacy & Data")}
+        OutlinedButton(onClick={privacy=true},modifier=Modifier.fillMaxWidth()) {Text("Privacy & Data")}
         if(accountFailure) Text("Optional account services failed to initialize. Reopen Settings to retry; local editing is unchanged.")
-        VgDisclosure("Storage",initiallyOpen=false) {Text("Project files are app-private. Public captures/exports use Android MediaStore. Use Privacy & Data for a measured storage overview and safe thumbnail cleanup.");OutlinedButton(enabled=true,onClick={privacy=true}) {Text("Manage local data")}}
+        VgDisclosure("Storage",initiallyOpen=false) {Text("Project files are app-private. Public captures/exports use Android MediaStore. Use Privacy & Data for a measured storage overview and safe thumbnail cleanup.");OutlinedButton(onClick={privacy=true}) {Text("Manage local data")}}
         VgDisclosure("Export Preferences",initiallyOpen=false) {
             Text("Default resolution for new imported-video projects. Existing projects retain their own encoding settings. Device codec support still applies.")
             StudioResolution.values().forEach {preset ->FilterChip(selected=resolution==preset.name,onClick={resolution=preset.name;exportPrefs.edit().putString("resolution",preset.name).apply()},label={Text(preset.label)})}

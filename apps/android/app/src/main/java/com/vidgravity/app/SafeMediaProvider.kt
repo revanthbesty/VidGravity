@@ -19,10 +19,10 @@ class SafeMediaProvider:FileProvider() {
             require(target.path.startsWith(root.path+File.separator) && target.extension.lowercase() in setOf("mp4","webm","mkv","jpg","jpeg","png","webp","m4a","mp3","wav","flac")) {"Only cached media can be shared"}
         }
     }
-    override fun openFile(uri:Uri,mode:String):ParcelFileDescriptor {
+    override fun openFile(uri:Uri,mode:String):ParcelFileDescriptor? {
         validate(uri);require(mode=="r") {"Shared media is read-only"};return super.openFile(uri,mode)
     }
-    override fun query(uri:Uri,projection:Array<out String>?,selection:String?,selectionArgs:Array<out String>?,sortOrder:String?):Cursor? {
+    override fun query(uri:Uri,projection:Array<out String>?,selection:String?,selectionArgs:Array<out String>?,sortOrder:String?):Cursor {
         validate(uri);return super.query(uri,projection,selection,selectionArgs,sortOrder)
     }
     override fun getType(uri:Uri):String? {validate(uri);return super.getType(uri)}

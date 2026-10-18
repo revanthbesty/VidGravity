@@ -33,3 +33,5 @@ See `android-sprint7-rules-audit.json`. Firestore owners only at users/{uid}; id
 
 ## Validation
 Existing tests remain enabled. Added pure URI/free entitlement/error-redaction cases, guest privacy UI, fake-provider account UI, consent persistence/provider application, protected cache behavior, bounded corruption/recovery/identity/traversal tests. Existing real native render/reopen/undo/redo/navigation/export tests remain the offline core regression gate. API37/37.2 only runs if SDK discovery finds a compatible image; API29/35 success is not Android17 certification. No physical-device tests claimed.
+
+A dedicated offline regression disables emulator Wi-Fi/mobile data, requires ConnectivityManager.activeNetwork to be null, imports and splits a real fixture, saves/reopens and renders a captioned MP4, validates video metadata and source hash, then restores connectivity. Results must be read from the actual CI run.
