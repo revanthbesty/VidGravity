@@ -39,7 +39,8 @@ class ReleaseQaTest {
                 extractor.selectTrack(video)
                 val timestamps=mutableListOf<Long>()
                 while(extractor.sampleTime>=0) {timestamps.add(extractor.sampleTime);assertTrue(extractor.sampleSize>0);if(!extractor.advance()) break}
-                assertTrue("Expected approximately 15 encoded samples",timestamps.size in 14..17)
+                metric("export-fullhd-diagnostics",JSONObject().put("render_ms",elapsed).put("bytes",out.length()).put("format",format.toString()).put("timestamps_us",org.json.JSONArray(timestamps)))
+                assertTrue("Expected approximately 15 encoded samples, got ${timestamps.size}: $timestamps",timestamps.size in 14..17)
                 assertTrue(timestamps.zipWithNext().all {(a,b)->b>a})
                 val deltas=timestamps.zipWithNext {a,b->b-a}.sorted()
                 val median=deltas[deltas.size/2]
@@ -47,6 +48,10 @@ class ReleaseQaTest {
                 assertEquals(sourceHash,DownloadApi.sha256(source))
                 metric("export-fullhd",JSONObject().put("render_ms",elapsed).put("bytes",out.length()).put("samples",timestamps.size).put("median_sample_us",median).put("sha256",DownloadApi.sha256(out)))
             } finally {extractor.release()}
+        } catch(failure:AssertionError) {
+            val evidence=File(context.getExternalFilesDir(null),"smoke-evidence").apply {mkdirs()}
+            if(out.isFile) out.copyTo(File(evidence,"fps-failure.mp4"),overwrite=true)
+            throw failure
         } finally {out.delete()}
     }
     @Test fun cancelledEncoderReleasesResourcesAndNextRenderSucceeds():Unit=runBlocking {
