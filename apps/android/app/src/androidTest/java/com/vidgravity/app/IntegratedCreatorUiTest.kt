@@ -30,6 +30,8 @@ class IntegratedCreatorUiTest {
             compose.waitUntil(10_000) {compose.onAllNodes(hasText("Project name") and hasText("Sprint 6 preserved")).fetchSemanticsNodes().isNotEmpty()}
             compose.onNode(hasText("Project name") and hasText("Sprint 6 preserved")).assertExists()
             compose.onNodeWithTag("nav_Home").performClick()
+            compose.waitUntil(10_000) {compose.onAllNodesWithTag("home_dashboard").fetchSemanticsNodes().isNotEmpty()}
+            compose.onNodeWithTag("nav_Home").assertIsSelected()
             compose.onNodeWithTag("home_dashboard").performScrollToNode(hasText("Product promotion"))
             compose.onNodeWithText("Product promotion").performClick()
             compose.waitUntil(10_000) {compose.onAllNodesWithText("Social Creator",substring=false).fetchSemanticsNodes().isNotEmpty()}
