@@ -109,7 +109,7 @@ internal fun CreativeWorkspace(project:StudioProject,selected:Int,onClose:()->Un
                         val images=withContext(Dispatchers.IO) {
                             val original=ThumbnailRenderer.frame(context,clip.uri,sample,640)
                             val t=StudioThumbnail(projectId=project.id,source=clip.uri,durationMs=clip.sourceDurationMs,timeMs=sample,title="Preview",badge="NONE",
-                                aspect=StudioAspect.PORTRAIT,brightness=(project.tools.brightness+r.exposure).coerceIn(-1f,1f),
+                                aspect=StudioAspect.PORTRAIT,brightness=r.exposure,
                                 frame=CreativeRules.portraitFrame(r.frames.first().aspect,r.dominantFace?.faceX ?: 0.5f,r.dominantFace?.faceY ?: 0.5f))
                             // A plain transformed sample, without title graphics, for an honest framing/exposure comparison.
                             val preview=creativeComparison(original,t.frame,t.brightness)
@@ -128,10 +128,10 @@ internal fun CreativeWorkspace(project:StudioProject,selected:Int,onClose:()->Un
                         Button(enabled=!working,onClick={
                             val face=r.dominantFace; val frame=CreativeRules.portraitFrame(r.frames.first().aspect,face?.faceX ?: 0.5f,face?.faceY ?: 0.5f)
                             onApply(project.copy(clips=project.clips.map {if(it.id==clip.id) it.copy(frame=frame) else it},
-                                tools=project.tools.copy(aspect=StudioAspect.PORTRAIT,brightness=(project.tools.brightness+r.exposure).coerceIn(-1f,1f))))
+                                tools=project.tools.copy(aspect=StudioAspect.PORTRAIT,brightness=r.exposure)))
                             message=if(face!=null) "Face-guided static portrait framing applied. Undo is available in the editor." else "Center portrait framing applied; no face was found. Undo is available in the editor."
                         }) {Text("Apply framing + auto brightness")}
-                        Button(enabled=!working,onClick={onApply(project.copy(tools=project.tools.copy(brightness=(project.tools.brightness+r.exposure).coerceIn(-1f,1f)))); message="Brightness suggestion applied. Undo is available in the editor."}) {Text("Apply brightness only")}
+                        Button(enabled=!working,onClick={onApply(project.copy(tools=project.tools.copy(brightness=r.exposure))); message="Brightness suggestion applied. Undo is available in the editor."}) {Text("Apply brightness only")}
                         Text("Highlight candidate: ${r.highlight.startMs}–${r.highlight.endMs} ms of the analyzed source range")
                         Text("Derived cuts create a NEW project with video and original audio. Timed captions, music and voiceover stay in your source project.",style=MaterialTheme.typography.labelSmall)
                         Button(enabled=!working,onClick={onCreate(CreativeRules.derivedCut(project,clip,listOf(r.highlight),"Highlight"))}) {Text("Create highlight project")}

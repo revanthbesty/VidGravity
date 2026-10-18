@@ -19,6 +19,7 @@ internal object CreativeAnalyzer {
         val limit=minOf(clip.durationMs,if(lowRam) 15_000L else 60_000L)
         val count=((limit+1999)/2000).toInt().coerceAtLeast(1)
         val frames=mutableListOf<FrameObservation>(); var previous:FloatArray?=null
+        val faces=FaceSession()
         var faceStatus=if(lowRam) "Face detection disabled on this low-RAM device; center framing remains available." else "Android framework face detector · frontal faces, static framing only."
         val reader=MediaMetadataRetriever()
         try {
@@ -41,7 +42,7 @@ internal object CreativeAnalyzer {
                     val diff=if(before==null) 0f else values.indices.map {abs(values[it]-before[it])}.average().toFloat()
                     var face:PointF?=null
                     if(!lowRam && i%3==0) {
-                        try {face=detectFace(bitmap)}
+                        try {face=faces.detect(bitmap)}
                         catch(failure:RuntimeException) {faceStatus="Framework face detection unavailable; center framing remains available."}
                         catch(failure:LinkageError) {faceStatus="Framework face detection unavailable; center framing remains available."}
                     }
@@ -61,17 +62,26 @@ internal object CreativeAnalyzer {
     }
 
     /** Platform model inference, not subject segmentation or face identity recognition. */
-    fun detectFace(bitmap:Bitmap):PointF? {
+    private class FaceSession {
+        private var detector:FaceDetector?=null
+        private var lastWidth=0
+        private var lastHeight=0
+        fun detect(bitmap:Bitmap):PointF? {
         val width=bitmap.width-bitmap.width%2
         if(width<2) return null
         val rgb=Bitmap.createBitmap(width,bitmap.height,Bitmap.Config.RGB_565)
         return try {
             android.graphics.Canvas(rgb).drawBitmap(bitmap,0f,0f,null)
             val faces=arrayOfNulls<FaceDetector.Face>(3)
-            FaceDetector(width,rgb.height,3).findFaces(rgb,faces)
+            if(detector==null || width!=lastWidth || rgb.height!=lastHeight) {
+                detector=FaceDetector(width,rgb.height,3); lastWidth=width; lastHeight=rgb.height
+            }
+            detector!!.findFaces(rgb,faces)
             val best=faces.filterNotNull().filter {it.confidence()>=0.4f}.maxByOrNull {it.eyesDistance()*it.confidence()}
             best?.let {val point=PointF(); it.getMidPoint(point); PointF(point.x/width,point.y/rgb.height)}
         } finally {rgb.recycle()}
+    }
+
     }
 
     private suspend fun decodeAudio(context:Context,clip:StudioClip,limit:Long,onProgress:(Float)->Unit):List<AudioObservation> {

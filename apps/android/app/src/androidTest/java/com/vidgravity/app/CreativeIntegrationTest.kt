@@ -23,7 +23,9 @@ class CreativeIntegrationTest {
         val cut=CreativeRules.derivedCut(source,clip,CreativeRules.keepAudible(analysis.analyzedMs,analysis.silence),"Smart cut")
         assertNotEquals(source.id,cut.id); assertTrue(cut.durationMs<source.durationMs)
         assertEquals(hash,DownloadApi.sha256(file))
-        val cancel=launch(Dispatchers.IO) {CreativeAnalyzer.analyze(context,clip) {_,_ ->}}
+        val started=CompletableDeferred<Unit>()
+        val cancel=launch(Dispatchers.IO) {CreativeAnalyzer.analyze(context,clip) {_,_ -> started.complete(Unit)}}
+        withTimeout(10_000) {started.await()}
         cancel.cancelAndJoin(); assertTrue(cancel.isCancelled); assertEquals(hash,DownloadApi.sha256(file))
     }
     @Test fun editablePortraitTemplateAndSoftFocusRenderAtAligned720By1280():Unit=runBlocking {
