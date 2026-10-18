@@ -32,7 +32,9 @@ class IntegratedCreatorUiTest {
             compose.onNodeWithTag("nav_Home").performClick()
             compose.waitUntil(10_000) {compose.onAllNodesWithTag("home_dashboard").fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithTag("nav_Home").assertIsSelected()
+            compose.waitUntil(10_000) {compose.onAllNodesWithTag("home_loading").fetchSemanticsNodes().isEmpty()}
             compose.onNodeWithTag("home_dashboard").performScrollToNode(hasText("Product promotion"))
+            compose.onNodeWithText("Product promotion").assertIsDisplayed()
             compose.onNodeWithText("Product promotion").performClick()
             compose.waitUntil(10_000) {compose.onAllNodesWithText("Social Creator",substring=false).fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithText("Selected: Product promotion").performScrollTo().assertIsDisplayed()
