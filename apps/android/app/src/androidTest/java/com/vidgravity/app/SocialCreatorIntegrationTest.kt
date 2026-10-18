@@ -15,13 +15,21 @@ class SocialCreatorIntegrationTest {
         val context=InstrumentationRegistry.getInstrumentation().targetContext;val repository=CreatorBrandRepository(context)
         val previous=repository.load();val fixture=studioFixture("native-source.mp4")
         val p=StudioProject(title="Social persistence",clips=listOf(StudioMediaImports.video(context,MediaLibraryIndexer.localUri(context,fixture))))
-        val kit=CreatorBrand(name="Local creator",intro="Welcome",outro="Follow",color=0xFFFFFF00.toInt(),font="serif")
+        val logoFile=File(context.cacheDir,"social-test-logo.png")
+        val image=android.graphics.Bitmap.createBitmap(1024,256,android.graphics.Bitmap.Config.ARGB_8888)
+        image.eraseColor(android.graphics.Color.CYAN)
+        try {logoFile.outputStream().use {image.compress(android.graphics.Bitmap.CompressFormat.PNG,100,it)}} finally {image.recycle()}
+        val logo=try {repository.importLogo(MediaLibraryIndexer.localUri(context,logoFile))} finally {logoFile.delete()}
+        val bounds=android.graphics.BitmapFactory.Options().apply {inJustDecodeBounds=true}
+        context.contentResolver.openInputStream(android.net.Uri.parse(logo))!!.use {android.graphics.BitmapFactory.decodeStream(it,null,bounds)}
+        assertTrue(bounds.outWidth<=512 && bounds.outHeight<=512)
+        val kit=CreatorBrand(name="Local creator",logo=logo,intro="Welcome",outro="Follow",color=0xFFFFFF00.toInt(),font="serif")
         val projects=StudioRepository(context);var saved:StudioProject?=null
         try {
             repository.save(kit);assertEquals(kit,repository.load())
             val next=kit.apply(SocialCreator.create(p,SocialCreator.templates.first(),"Your hook",2));saved=next
             projects.save(next);assertEquals(next,projects.load(next.id));assertEquals("Local creator",projects.load(next.id).tools.social.watermark)
-        } finally {repository.save(previous);saved?.let {projects.delete(it.id)}}
+        } finally {repository.save(previous);saved?.let {projects.delete(it.id)};context.contentResolver.delete(android.net.Uri.parse(logo),null,null)}
     }
     @Test fun realFeedAndClassicExportsContainGraphicsAndPreserveSource():Unit=runBlocking {
         val context=InstrumentationRegistry.getInstrumentation().targetContext;val fixture=studioFixture("native-source.mp4");val hash=DownloadApi.sha256(fixture)

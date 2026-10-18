@@ -52,7 +52,8 @@ Applying branding twice appends intro/outro cues; remove unwanted duplicate cues
 with undo or the existing caption controls.
 
 Repurpose selects up to five aspects and saves a separate editable variant for
-each before queueing immutable WorkManager snapshots. Jobs are chained serially;
+each before queueing immutable WorkManager snapshots. Per-format titles are editable;
+Save variants for individual editing supports captions/music/covers before export. Jobs are chained serially;
 a shared render mutex also protects older jobs/direct calls. Queue state/progress
 survives app restart, with cancel/retry and Library results. A failed/cancelled
 predecessor may block/cancel descendants via WorkManager dependency semantics;

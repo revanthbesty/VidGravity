@@ -38,6 +38,7 @@ internal fun SocialCreatorWorkspace(project:StudioProject,selected:Int,onClose:(
     var resolution by remember {mutableStateOf(project.resolution)};var fps by remember {mutableIntStateOf(if(project.tools.frameRate==0) 30 else project.tools.frameRate)}
     var bitrate by remember {mutableIntStateOf(if(project.tools.bitrate==0) 5_000_000 else project.tools.bitrate)}
     var bpm by remember {mutableLongStateOf(120)};var safe by remember {mutableStateOf(true)}
+    var variantTitles by remember {mutableStateOf(emptyMap<StudioAspect,String>())}
     var previewAspect by remember {mutableStateOf(StudioAspect.PORTRAIT)};var preview by remember {mutableStateOf<Bitmap?>(null)}
     val clip=project.clips[selected.coerceIn(project.clips.indices)]
     val manager=remember {WorkManager.getInstance(context)}
@@ -46,7 +47,7 @@ internal fun SocialCreatorWorkspace(project:StudioProject,selected:Int,onClose:(
     fun task(block:suspend ()->Unit) {scope.launch {busy=true;message=null;try {block()} catch(c:CancellationException) {throw c} catch(e:Exception) {message=e.message ?: "Operation failed. Saved projects are preserved."} finally {busy=false}}}
     fun settings(p:StudioProject)=p.copy(resolution=resolution,tools=p.tools.copy(frameRate=fps,bitrate=bitrate,social=p.tools.social.copy(fit=fit)))
     LaunchedEffect(Unit) {try {brand=withContext(Dispatchers.IO) {brands.load()};brandLoaded=true} catch(e:Exception) {if(e is CancellationException) throw e;message="Brand kit could not be read. Its file was preserved."}}
-    LaunchedEffect(jobs) {queueProjects=withContext(Dispatchers.IO) {repository.list().mapNotNull {p -> repository.record(p.id)?.let {it.workId to p}}.toMap()}}
+    LaunchedEffect(jobs) {try {queueProjects=withContext(Dispatchers.IO) {repository.list().mapNotNull {p -> repository.record(p.id)?.let {it.workId to p}}.toMap()}} catch(e:Exception) {if(e is CancellationException) throw e;message="Export history could not be read. Saved projects are preserved."}}
     DisposableEffect(busy) {onBusy(busy);onDispose {}}
     DisposableEffect(Unit) {onDispose {onBusy(false)}}
     BackHandler(enabled=!busy,onBack=onClose)
@@ -108,14 +109,21 @@ internal fun SocialCreatorWorkspace(project:StudioProject,selected:Int,onClose:(
                     preview?.let {Image(it.asImageBitmap(),"${previewAspect.label} framing and safe area preview",Modifier.fillMaxWidth().heightIn(max=280.dp))}
                     Row {Checkbox(safe,{safe=it});Text("Show conservative safe-area guide")}
                     Text("Guide is preview-only, not a platform guarantee. Platform UI and upload limits vary; verify current publishing requirements.",style=MaterialTheme.typography.labelSmall)
+                    targets.forEach {a -> CreatorField("${a.label} output title",variantTitles[a] ?: (project.title.take(85)+" · "+a.label),!busy) {value->variantTitles=variantTitles+(a to value.take(100))}}
+                    Text("After saving variants, use each project’s existing caption and cover editor for individual styling. Queueing captures its current settings.",style=MaterialTheme.typography.labelSmall)
                     CreatorExportOptions(resolution,fps,bitrate,!busy,{resolution=it},{fps=it},{bitrate=it})
                     Text("Approx. ${SocialCreator.estimatedBytes(settings(project))/1_000_000} MB per output; codec, audio and source rate affect actual size. Frame rate is capped by source; no frame interpolation.")
                     Button(enabled=!busy && targets.isNotEmpty(),onClick={task {
-                        val variants=SocialCreator.variants(settings(project),targets.toList(),fit)
+                        val variants=SocialCreator.variants(settings(project),targets.toList(),fit).map {v->v.copy(title=variantTitles[v.tools.aspect]?.takeIf {it.isNotBlank()} ?: v.title)}
                         withContext(Dispatchers.IO) {SocialCreator.requireSpace(android.os.StatFs(context.cacheDir.path).availableBytes,variants.sumOf {SocialCreator.estimatedBytes(it)})
                             variants.forEach {repository.save(it);NativeStudioExportWorker.enqueue(context,it)}}
                         message="${variants.size} editable exports queued. Find projects in Studio and completed files in Library."
                     }},modifier=Modifier.testTag("social_queue")) {Text("Queue selected formats")}
+                    OutlinedButton(enabled=!busy && targets.isNotEmpty(),onClick={task {
+                        val variants=SocialCreator.variants(settings(project),targets.toList(),fit).map {v->v.copy(title=variantTitles[v.tools.aspect]?.takeIf {it.isNotBlank()} ?: v.title)}
+                        withContext(Dispatchers.IO) {variants.forEach {repository.save(it)}}
+                        message="Editable variants saved. Back to Projects to customize captions, music and covers before exporting."
+                    }}) {Text("Save variants for individual editing")}
                     Text("Export queue",style=MaterialTheme.typography.titleLarge)
                     jobs.sortedBy {it.id.toString()}.forEach {w -> val p=queueProjects[w.id.toString()]
                         OutlinedCard(Modifier.fillMaxWidth()) {Column(Modifier.padding(10.dp)) {
