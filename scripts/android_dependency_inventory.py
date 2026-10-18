@@ -34,7 +34,7 @@ def inventory(coordinates, cache):
 if __name__ == '__main__':
     p = argparse.ArgumentParser()
     p.add_argument('--coordinates', type=Path, default=Path('apps/android/app/build/reports/dependencies/runtime-coordinates.txt'))
-    p.add_argument('--cache', type=Path, default=Path.home() / '.gradle/caches/modules-2/files-2.1')
+    p.add_argument('--cache', type=Path, default=Path('apps/android/app/build/reports/dependencies/poms'))
     p.add_argument('--output', type=Path, default=Path('apps/android/app/build/reports/dependencies/licenses.json'))
     a = p.parse_args()
     report = inventory(a.coordinates.read_text(), a.cache)

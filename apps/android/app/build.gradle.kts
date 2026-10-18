@@ -1,3 +1,8 @@
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.artifacts.result.ResolvedArtifactResult
+import org.gradle.maven.MavenModule
+import org.gradle.maven.MavenPomArtifact
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -87,5 +92,16 @@ tasks.register("writeRuntimeCoordinates") {
             .map {it.moduleVersion.id.toString()}.distinct().sorted()
         val out=layout.buildDirectory.file("reports/dependencies/runtime-coordinates.txt").get().asFile
         out.parentFile.mkdirs();out.writeText(coordinates.joinToString("\n",postfix="\n"))
+        val components=configurations.getByName("debugRuntimeClasspath").incoming.resolutionResult.allComponents
+            .map {it.id}.filterIsInstance<ModuleComponentIdentifier>()
+        val poms=dependencies.createArtifactResolutionQuery().forComponents(components)
+            .withArtifacts(MavenModule::class.java,MavenPomArtifact::class.java).execute()
+        poms.resolvedComponents.forEach {component ->
+            val id=component.id as? ModuleComponentIdentifier ?: return@forEach
+            component.getArtifacts(MavenPomArtifact::class.java).filterIsInstance<ResolvedArtifactResult>().forEach {artifact ->
+                val target=layout.buildDirectory.file("reports/dependencies/poms/${id.group}/${id.module}/${id.version}/resolved/${id.module}.pom").get().asFile
+                target.parentFile.mkdirs();artifact.file.copyTo(target,overwrite=true)
+            }
+        }
     }
 }
