@@ -37,7 +37,9 @@ class StudioHistoryUiTest {
         val media=LibraryMedia(MediaLibraryIndexer.localUri(context,source),source.name,source.length(),"video/mp4",0)
         compose.setContent {MaterialTheme {NativeStudioHub(media,onClose={},onBusyChanged={})}}
         compose.waitUntil(10_000) {compose.onAllNodesWithText("Project name").fetchSemanticsNodes().isNotEmpty()}
-        compose.onNodeWithText("Project name").performTextReplacement("Sprint 3 history").performImeAction()
+        val nameField = compose.onNodeWithText("Project name")
+        nameField.performTextReplacement("Sprint 3 history")
+        nameField.performImeAction()
         compose.onNodeWithText("Duplicate clip").performScrollTo().performClick()
         compose.onNodeWithText("2. native-source.mp4",substring=true).assertExists(compose.onRoot(useUnmergedTree=true).printToString())
         compose.onNodeWithText("Undo").performScrollTo().performClick()
@@ -45,7 +47,9 @@ class StudioHistoryUiTest {
         compose.onNodeWithText("Redo").performClick()
         compose.onNodeWithText("2. native-source.mp4",substring=true).assertExists(compose.onRoot(useUnmergedTree=true).printToString())
         compose.onNodeWithText("Add title cue").performScrollTo().performClick()
-        compose.onNodeWithText("Caption 1").performScrollTo().performTextReplacement("Sprint 3 caption").performImeAction()
+        val captionField = compose.onNodeWithText("Caption 1").performScrollTo()
+        captionField.performTextReplacement("Sprint 3 caption")
+        captionField.performImeAction()
         compose.onNodeWithText("Save project").performScrollTo().performClick()
         compose.onNodeWithText("Projects",substring=false).performScrollTo().performClick()
         compose.waitUntil(10_000) {compose.onAllNodesWithText("Sprint 3 history").fetchSemanticsNodes().isNotEmpty()}
