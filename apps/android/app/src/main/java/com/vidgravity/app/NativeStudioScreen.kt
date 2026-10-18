@@ -21,6 +21,13 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.input.nestedscroll.*
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -60,6 +67,7 @@ internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> 
     val repository = remember(context) { StudioRepository(context) }
     val scope = rememberCoroutineScope()
     var projects by remember { mutableStateOf(emptyList<StudioProject>()) }
+    var trashed by remember { mutableStateOf(emptyList<StudioProject>()) }
     var editing by remember { mutableStateOf<StudioProject?>(null) }
     var loading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -68,6 +76,7 @@ internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> 
         try {
             val listing = withContext(Dispatchers.IO) { repository.scan() }
             projects = listing.projects
+            trashed = withContext(Dispatchers.IO) { repository.trashed() }
             message = if (listing.unreadableCount > 0) "${listing.unreadableCount} project file(s) could not be opened. Their files were preserved." else null
         }
         catch (failure: Exception) { if (failure is CancellationException) throw failure; message = "Projects could not be read. Existing files were preserved." }
@@ -114,8 +123,29 @@ internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> 
                     Text(saved.title, style = MaterialTheme.typography.titleMedium)
                     Text("${saved.clips.size} clips · ${saved.durationMs / 1000f}s · ${saved.resolution.label}")
                     TextButton(onClick = { editing = saved }) { Text("Continue editing") }
+                    Row {
+                        TextButton(enabled=!loading,onClick={scope.launch {
+                            try { withContext(Dispatchers.IO) { repository.duplicate(saved) }; reload() }
+                            catch (failure: Exception) { if(failure is CancellationException) throw failure; message="Project could not be duplicated." }
+                        }}) { Text("Duplicate project") }
+                        TextButton(enabled=!loading,onClick={scope.launch {
+                            try { withContext(Dispatchers.IO) {
+                                check(WorkManager.getInstance(context).getWorkInfosForUniqueWork("studio-export-${saved.id}").get().none { !it.state.isFinished }) { "Cancel or finish this project's export before moving it to trash." }
+                                repository.trash(saved.id)
+                            }; reload() }
+                            catch (failure: Exception) { if(failure is CancellationException) throw failure; message=failure.message ?: "Project was preserved." }
+                        }}) { Text("Move to trash") }
+                    }
                 }
             }
+        }
+        if(trashed.isNotEmpty()) {
+            Text("Recoverable trash",style=MaterialTheme.typography.titleLarge)
+            Text("Original media is never deleted. Trashed projects can be restored here.")
+            trashed.forEach { saved -> TextButton(onClick={scope.launch {
+                try { withContext(Dispatchers.IO) { repository.restore(saved.id) }; reload() }
+                catch (failure: Exception) { if(failure is CancellationException) throw failure; message="Restore failed; the saved copy was preserved." }
+            }}) {Text("Restore ${saved.title}")} }
         }
     }
 }
@@ -126,8 +156,21 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val manager = remember(context) { WorkManager.getInstance(context) }
+    val focus=LocalFocusManager.current
+    val keyboard=LocalSoftwareKeyboardController.current
+    val editorScroll=remember(focus,keyboard) { object: NestedScrollConnection {
+        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+            if(source==NestedScrollSource.UserInput && kotlin.math.abs(available.y)>1f) {focus.clearFocus(); keyboard?.hide()}
+            return Offset.Zero
+        }
+    }}
     var project by remember(initial.id) { mutableStateOf(initial) }
     var selected by remember(initial.id) { mutableIntStateOf(0) }
+    var positionMs by remember(initial.id) { mutableLongStateOf(0) }
+    var seekRequest by remember(initial.id) { mutableLongStateOf(0) }
+    val history=remember(initial.id) { StudioHistory() }
+    var canUndo by remember {mutableStateOf(false)}
+    var canRedo by remember {mutableStateOf(false)}
     var message by remember { mutableStateOf<String?>(null) }
     var saveStatus by remember { mutableStateOf("Saving…") }
     var record by remember { mutableStateOf<StudioExportRecord?>(null) }
@@ -140,8 +183,26 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
     val work = workLiveData?.observeAsState()?.value
     val exporting = work?.state?.let { !it.isFinished } == true || queueing
     val busy = exporting || recorder != null
-    fun edit(next: StudioProject) { project = next.copy(updatedAt = System.currentTimeMillis()); saveStatus = "Saving…" }
-    suspend fun reloadRecord() { record = withContext(Dispatchers.IO) { repository.record(project.id) } }
+    fun edit(next: StudioProject, group: String? = null) {
+        try {
+            next.validate()
+            if(next.copy(updatedAt=0)==project.copy(updatedAt=0)) return
+            if(next.clips.size!=project.clips.size) android.util.Log.i("VGStudio","timeline.clips=${next.clips.size}")
+            history.record(project,group); project = next.copy(updatedAt = System.currentTimeMillis()); saveStatus = "Saving…"
+            canUndo=history.canUndo; canRedo=history.canRedo
+            selected=selected.coerceIn(project.clips.indices); positionMs=positionMs.coerceIn(0,project.durationMs)
+        } catch(failure: IllegalArgumentException) { message=failure.message ?: "This edit would create an invalid timeline." }
+    }
+    fun seek(value: Long) {
+        val target=value.coerceIn(0,project.durationMs-1)
+        var total=0L
+        selected=project.clips.indexOfFirst { total+=it.playbackDurationMs; target<total }.coerceAtLeast(0)
+        seekRequest=target; positionMs=target
+    }
+    suspend fun reloadRecord() {
+        try { record = withContext(Dispatchers.IO) { repository.record(project.id) } }
+        catch(failure: Exception) { if(failure is CancellationException) throw failure; record=null; message="Export history could not be read. Your project is preserved; export again to recover." }
+    }
     LaunchedEffect(project.id) { reloadRecord() }
     LaunchedEffect(work?.state) { reloadRecord() }
     LaunchedEffect(project) {
@@ -170,6 +231,43 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
     }
     val musicPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) { StudioMediaImports.retain(context, uri); edit(project.copy(musicUri = uri.toString())) }
+    }
+    val relinkPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if(uri!=null) scope.launch {
+            try { val replacement=withContext(Dispatchers.IO) {StudioMediaImports.retain(context,uri); StudioMediaImports.video(context,uri)}
+                edit(StudioEdits.relink(project,selected,replacement)); message="Selected clip relinked; existing trims were preserved."
+            } catch(failure: Exception) {if(failure is CancellationException) throw failure; message=failure.message ?: "Relink failed; original reference was preserved."}
+        }
+    }
+    val audioPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if(uri!=null) scope.launch {
+            try { val lane=withContext(Dispatchers.IO) {
+                StudioMediaImports.retain(context,uri)
+                require(context.contentResolver.getType(uri)?.startsWith("audio/")==true) {"Choose an audio file."}
+                val reader=MediaMetadataRetriever()
+                val duration=try {reader.setDataSource(context,uri); reader.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0} finally {reader.release()}
+                require(duration in 100..1_800_000) {"Audio must be between 0.1 seconds and 30 minutes."}
+                val name=context.contentResolver.query(uri,arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),null,null,null)?.use {if(it.moveToFirst()) it.getString(0) else null} ?: "Audio"
+                StudioAudioLane(uri=uri.toString(),name=name,sourceDurationMs=duration)
+            }; edit(project.copy(tools=project.tools.copy(audio=project.tools.audio+lane))) }
+            catch(failure: Exception) {if(failure is CancellationException) throw failure; message=failure.message ?: "Audio could not be imported."}
+        }
+    }
+    val srtPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if(uri!=null) scope.launch {
+            try { val captions=withContext(Dispatchers.IO) {context.contentResolver.openInputStream(uri)!!.bufferedReader().use { reader ->
+                val buffer=CharArray(64_001); var count=0
+                while(count<buffer.size) {val n=reader.read(buffer,count,buffer.size-count); if(n<0) break; count+=n}
+                require(count<=64_000) {"SRT must be smaller than 64 KB."}; StudioSrt.parse(String(buffer,0,count),project.durationMs)
+            }}; edit(project.copy(tools=project.tools.copy(captions=captions))); message="Imported ${captions.size} caption cues." }
+            catch(failure: Exception) {if(failure is CancellationException) throw failure; message=failure.message ?: "SRT could not be read; existing cues were preserved."}
+        }
+    }
+    val srtWriter=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/x-subrip")) {uri ->
+        if(uri!=null) scope.launch {
+            try { withContext(Dispatchers.IO) {context.contentResolver.openOutputStream(uri,"wt")!!.bufferedWriter().use {it.write(StudioSrt.encode(project.tools.captions))}}; message="SRT saved." }
+            catch(failure: Exception) {if(failure is CancellationException) throw failure; message="SRT could not be saved. Retry to another location."}
+        }
     }
     val microphone = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         message = if (granted) "Microphone allowed. Tap Record voiceover to start." else "Microphone permission was denied. You can still import music."
@@ -215,14 +313,24 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
     }
     val clip = project.clips[selected.coerceIn(project.clips.indices)]
     val currentExport = record?.takeIf { it.uri != null && it.fingerprint == project.fingerprint() }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxSize().nestedScroll(editorScroll).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = { close() }) { Text("Projects") }
             Text(saveStatus, style = MaterialTheme.typography.labelSmall)
         }
         OutlinedTextField(project.title, { edit(project.copy(title = it.take(100))) }, enabled = !busy,
-            label = { Text("Project name") }, modifier = Modifier.fillMaxWidth())
-        NativeClipPreview(project, clip)
+            label = { Text("Project name") }, singleLine=true,
+            keyboardOptions=KeyboardOptions(imeAction=ImeAction.Done), keyboardActions=KeyboardActions(onDone={focus.clearFocus(); keyboard?.hide()}),
+            modifier = Modifier.fillMaxWidth())
+        Row {
+            TextButton(enabled=!busy && canUndo,onClick={saveStatus="Saving…"; project=history.undo(project).copy(updatedAt=System.currentTimeMillis()); canUndo=history.canUndo; canRedo=history.canRedo; selected=selected.coerceIn(project.clips.indices)}) {Text("Undo")}
+            TextButton(enabled=!busy && canRedo,onClick={saveStatus="Saving…"; project=history.redo(project).copy(updatedAt=System.currentTimeMillis()); canUndo=history.canUndo; canRedo=history.canRedo; selected=selected.coerceIn(project.clips.indices)}) {Text("Redo")}
+        }
+        NativeClipPreview(project, clip,seekRequest) {positionMs=it}
+        StudioTimeline(project,selected,positionMs,!busy,{selected=it},::seek,::edit)
+        StudioLongField("Seek timeline (ms)",positionMs,!busy,::seek)
+        TextButton(enabled=!busy,onClick={relinkPicker.launch(arrayOf("video/*"))}) {Text("Relink selected video")}
+        Text("Relink to a matching video if a source moved. The saved trim range must fit the replacement.",style=MaterialTheme.typography.labelSmall)
         Text("Selected clip preview · Music and voiceover are mixed during export", style = MaterialTheme.typography.labelSmall)
         Text("Timeline · ${project.durationMs / 1000f}s", style = MaterialTheme.typography.titleLarge)
         project.clips.forEachIndexed { index, item ->
@@ -242,6 +350,11 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
             }
         }
         Text("Trim: ${clip.startMs / 1000f}s → ${clip.endMs / 1000f}s")
+        StudioLongField("Video source in (ms)",clip.startMs,!busy) {value -> edit(project.copy(clips=project.clips.map {if(it.id==clip.id) it.copy(startMs=value) else it}))}
+        StudioLongField("Video source out (ms)",clip.endMs,!busy) {value -> edit(project.copy(clips=project.clips.map {if(it.id==clip.id) it.copy(endMs=value) else it}))}
+        Row(Modifier.horizontalScroll(rememberScrollState())) {
+            listOf(0.5f,1f,1.5f,2f).forEach {speed -> FilterChip(clip.speed==speed,{edit(project.copy(clips=project.clips.map {if(it.id==clip.id) it.copy(speed=speed) else it}))},enabled=!busy,label={Text("${speed}×")}) }
+        }
         RangeSlider(value = clip.startMs / 1000f..clip.endMs / 1000f, enabled = !busy,
             valueRange = 0f..(clip.sourceDurationMs / 1000f), onValueChange = { range ->
                 val start = (range.start * 1000).toLong().coerceIn(0, clip.sourceDurationMs - 100)
@@ -255,8 +368,20 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
                 edit(project.copy(clips = project.clips.flatMap { if (it.id == clip.id) pieces else listOf(it) }))
             }) { Text("Split at midpoint") }
         }
+        Row(Modifier.horizontalScroll(rememberScrollState())) {
+            TextButton(enabled=!busy && project.clips.size<12,onClick={try {edit(StudioEdits.duplicate(project,selected))} catch(failure:IllegalArgumentException) {message=failure.message}}) {Text("Duplicate clip")}
+            TextButton(enabled=!busy && selected<project.clips.lastIndex,onClick={try {edit(StudioEdits.mergeNext(project,selected))} catch(failure:IllegalArgumentException) {message=failure.message}}) {Text("Merge adjacent source ranges")}
+            TextButton(enabled=!busy && project.clips.size<12,onClick={
+                try {val start=project.clips.take(selected).sumOf {it.playbackDurationMs}
+                    val pieces=clip.split(((positionMs-start)*clip.speed).toLong())
+                    edit(project.copy(clips=project.clips.flatMap {if(it.id==clip.id) pieces else listOf(it)}))
+                } catch(failure:IllegalArgumentException) {message=failure.message}
+            }) {Text("Split at playhead")}
+        }
         OutlinedTextField(project.overlay, { edit(project.copy(overlay = it.take(160))) }, enabled = !busy,
-            label = { Text("Centered text overlay") }, modifier = Modifier.fillMaxWidth())
+            label = { Text("Centered text overlay") },
+            keyboardOptions=KeyboardOptions(imeAction=ImeAction.Done), keyboardActions=KeyboardActions(onDone={focus.clearFocus(); keyboard?.hide()}),
+            modifier = Modifier.fillMaxWidth())
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StudioFilter.entries.forEach { filter -> FilterChip(selected = project.filter == filter, enabled = !busy,
                 onClick = { edit(project.copy(filter = filter)) }, label = { Text(filter.name.lowercase().replaceFirstChar { it.uppercase() }) }) }
@@ -278,6 +403,9 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
             Slider(project.voiceVolume, { edit(project.copy(voiceVolume = it)) }, enabled = !busy)
             TextButton(enabled = !busy, onClick = { edit(project.copy(voiceUri = null)) }) { Text("Remove voiceover") }
         }
+        StudioToolsPanel(project,!busy,::edit,{audioPicker.launch(arrayOf("audio/*"))},
+            {srtPicker.launch(arrayOf("application/x-subrip","text/*","application/octet-stream"))},
+            {srtWriter.launch("${project.title.take(60)}.srt")})
         Text("Export size", style = MaterialTheme.typography.titleMedium)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             StudioResolution.entries.forEach { resolution -> FilterChip(selected = project.resolution == resolution, enabled = !busy,
@@ -318,17 +446,26 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
 
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 @Composable
-private fun NativeClipPreview(project: StudioProject, clip: StudioClip) {
+private fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequest: Long, onPosition: (Long)->Unit) {
     val context = LocalContext.current
     val player = remember(clip.id) { ExoPlayer.Builder(context).build() }
-    LaunchedEffect(clip, project.filter, project.overlay, project.fadeEdges, project.originalVolume) {
+    LaunchedEffect(clip, project.filter, project.overlay, project.fadeEdges, project.originalVolume, project.tools) {
         delay(150)
         player.setMediaItem(MediaItem.Builder().setUri(clip.uri).setClippingConfiguration(
             MediaItem.ClippingConfiguration.Builder().setStartPositionMs(clip.startMs).setEndPositionMs(clip.endMs).build()).build())
         player.setVideoEffects(NativeStudioRenderer.videoEffects(project, clip, resize = false))
+        player.setPlaybackSpeed(clip.speed)
         player.volume = project.originalVolume
         player.prepare()
     }
+    val positionCallback by rememberUpdatedState(onPosition)
+    val offset=project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs}
+    LaunchedEffect(player,seekRequest,clip) {
+        delay(200) // Apply after the debounced media/effect preparation.
+        player.pause()
+        player.seekTo(((seekRequest-offset).coerceIn(0,clip.playbackDurationMs)*clip.speed).toLong())
+    }
+    LaunchedEffect(player,offset,clip.speed) {while(true) {delay(200); positionCallback(offset+(player.currentPosition/clip.speed).toLong())}}
     DisposableEffect(player) { onDispose { player.release() } }
     AndroidView(factory = { PlayerView(it).apply { this.player = player; useController = true } },
         update = { it.player = player }, modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f))

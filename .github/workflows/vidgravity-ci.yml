@@ -181,8 +181,8 @@ jobs:
           (apk.parent / 'build-provenance.json').write_text(json.dumps({
               'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
               'apk': apk.name, 'sha256': sha, 'build_type': 'debug',
-              'application_id': 'com.vidgravity.app', 'version_code': 180,
-              'version_name': '1.1.0-sprint2',
+              'application_id': 'com.vidgravity.app', 'version_code': 181,
+              'version_name': '1.2.0-sprint3',
               'emulator_validation': 'See API35 smoke job; Android 17/API37.2 unverified'
           }, indent=2) + '\n')
           PY
@@ -209,7 +209,11 @@ jobs:
 
 
   android-ui-smoke:
-    name: Android API 35 startup and navigation smoke
+    name: Android API ${{ matrix.api }} startup and editing tests
+    strategy:
+      fail-fast: false
+      matrix:
+        api: [29, 35]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -234,7 +238,7 @@ jobs:
       - name: Run automated launch, navigation and image preview tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 35
+          api-level: ${{ matrix.api }}
           target: google_apis
           arch: x86_64
           profile: pixel_7
@@ -245,7 +249,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: vidgravity-android-api35-smoke-evidence
+          name: vidgravity-android-api${{ matrix.api }}-smoke-evidence
           path: |
             work/android-smoke/
             apps/android/app/build/reports/androidTests/
