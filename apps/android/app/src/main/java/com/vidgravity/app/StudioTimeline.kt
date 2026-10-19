@@ -129,6 +129,22 @@ internal fun StudioTimeline(project: StudioProject, selected: Int, positionMs: L
                 }
             }
         }
+        if(project.clips.any {it.smart!=null}) {
+            val sceneColor=MaterialTheme.colorScheme.tertiary
+            val silenceColor=MaterialTheme.colorScheme.error.copy(alpha=0.35f)
+            Text("Saved AI markers · lines: scenes · shaded: low energy",style=MaterialTheme.typography.labelSmall)
+            Canvas(Modifier.width(totalWidth.dp).height(32.dp).semantics {contentDescription="Saved scene and silence analysis markers"}) {
+                var offset=0L
+                project.clips.forEach {clip->
+                    fun x(source:Long)=timelineX(offset+((source-clip.startMs).coerceIn(0,clip.durationMs)/clip.speed).toLong())*density
+                    clip.smart?.let {notes->
+                        notes.silence.forEach {r->val a=maxOf(r.startMs,clip.startMs);val b=minOf(r.endMs,clip.endMs)
+                            if(b>a) drawRect(silenceColor,Offset(x(a),0f),androidx.compose.ui.geometry.Size((x(b)-x(a)).coerceAtLeast(1f),size.height))}
+                        notes.scenes.filter {it in clip.startMs until clip.endMs}.forEach {s->drawLine(sceneColor,Offset(x(s),0f),Offset(x(s),size.height),2*density)}
+                    };offset+=clip.playbackDurationMs
+                }
+            }
+        }
       }
       val playheadColor=MaterialTheme.colorScheme.primary
       Canvas(Modifier.matchParentSize()) {

@@ -39,3 +39,16 @@ subprocess.run([
     str(output / "native-portrait-silent.mp4")
 ], check=True)
 print("Generated silent 9:16 source for odd-width AVC canvas regression")
+
+subprocess.run([
+    "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+    "color=c=blue:size=320x180:rate=15:duration=2,drawbox=x=160:y=0:w=160:h=180:color=red:t=fill",
+    "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p", str(output / "smart-pan.mp4")
+], check=True)
+subprocess.run([
+    "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+    "color=c=gray:size=160x90:rate=15:duration=2", "-f", "lavfi", "-i",
+    "sine=frequency=440:sample_rate=44100:duration=2", "-af", "volume=0.25",
+    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-t", "2", str(output / "smart-quiet.mp4")
+], check=True)
+print("Generated two-color pan and quiet PCM/AAC normalization fixtures")

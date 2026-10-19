@@ -26,10 +26,10 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.*
 
 @Composable
-internal fun ThumbnailPanel(project:StudioProject,clip:StudioClip,onBusy:(Boolean)->Unit,onStage:(String)->Unit,onSaveReady:((suspend ()->Unit)?)->Unit) {
+internal fun ThumbnailPanel(project:StudioProject,clip:StudioClip,onBusy:(Boolean)->Unit,onStage:(String)->Unit,onSaveReady:((suspend ()->Unit)?)->Unit,initialTimeMs:Long?=null) {
     val context=LocalContext.current; val scope=rememberCoroutineScope(); val focus=LocalFocusManager.current
     val repository=remember(context) {ThumbnailRepository(context)}
-    var thumb by remember {mutableStateOf(StudioThumbnail(projectId=project.id,source=clip.uri,durationMs=clip.sourceDurationMs,timeMs=clip.startMs,
+    var thumb by remember {mutableStateOf(StudioThumbnail(projectId=project.id,source=clip.uri,durationMs=clip.sourceDurationMs,timeMs=initialTimeMs?.coerceIn(clip.startMs,clip.endMs-1) ?: clip.startMs,
         title=project.title.take(100),frame=clip.frame,rotation=project.tools.rotation,brightness=project.tools.brightness,contrast=project.tools.contrast))}
     var guides by remember {mutableStateOf(false)}
     var saved by remember {mutableStateOf(emptyList<StudioThumbnail>())}
@@ -41,7 +41,7 @@ internal fun ThumbnailPanel(project:StudioProject,clip:StudioClip,onBusy:(Boolea
     var currentExport by remember {mutableStateOf<Pair<StudioThumbnail,String>?>(null)}
     fun edit(next:StudioThumbnail) {thumb=next.copy(updatedAt=maxOf(System.currentTimeMillis(),thumb.updatedAt+1))}
     suspend fun reload() {saved=withContext(Dispatchers.IO) {repository.list(project.id)}}
-    LaunchedEffect(Unit) {try {reload(); saved.firstOrNull()?.let {thumb=it}} catch(failure:Exception) {if(failure is CancellationException) throw failure; message="Saved thumbnails could not be read; existing files were preserved."}}
+    LaunchedEffect(Unit) {try {reload(); if(initialTimeMs==null) saved.firstOrNull()?.let {thumb=it}} catch(failure:Exception) {if(failure is CancellationException) throw failure; message="Saved thumbnails could not be read; existing files were preserved."}}
     LaunchedEffect(thumb) {
         delay(350); loading=true
         try {

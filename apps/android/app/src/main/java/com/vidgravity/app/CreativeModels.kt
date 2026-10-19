@@ -14,7 +14,7 @@ data class StudioFrame(val left: Float = 0f, val top: Float = 0f, val right: Flo
 data class CreativeRange(val startMs: Long, val endMs: Long) { val durationMs get() = endMs-startMs }
 data class FrameObservation(val timeMs: Long, val luma: Float, val contrast: Float, val difference: Float,
     val faceX: Float? = null, val faceY: Float? = null, val aspect: Float = 16f/9f)
-data class AudioObservation(val startMs: Long, val endMs: Long, val rms: Float)
+data class AudioObservation(val startMs: Long, val endMs: Long, val rms: Float, val peak: Float = 1f)
 data class CreativeAnalysis(val sourceClipId: String, val analyzedMs: Long, val frames: List<FrameObservation>,
     val audio: List<AudioObservation>, val audioStatus: String, val faceStatus: String) {
     val scenes get() = frames.filter {it.difference>0.18f}.map {it.timeMs}
