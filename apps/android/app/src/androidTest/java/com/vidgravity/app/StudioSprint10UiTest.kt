@@ -19,6 +19,11 @@ class StudioSprint10UiTest {
         val audio=studioFixture("native-music.wav")
         val p=StudioProject(title="Sprint 10 layers",clips=listOf(source.copy(endMs=2000)),tools=StudioTools(audio=listOf(StudioAudioLane(uri=MediaLibraryIndexer.localUri(context,audio).toString(),name="Music",sourceDurationMs=1000))))
         repository.save(p)
+        val trash=hasText("Move to trash") and hasAnyAncestor(hasTestTag("studio_project_${p.id}"))
+        fun awaitProjectList() {
+            // Closing the editor saves on IO, then reloads cards before enabling their actions.
+            compose.waitUntil(10_000) {compose.onAllNodes(trash and isEnabled()).fetchSemanticsNodes().size==1}
+        }
         try {
             compose.setContent {MaterialTheme {NativeStudioHub(onClose={},onBusyChanged={})}}
             compose.reopenStudioProject(p.title)
@@ -50,12 +55,13 @@ class StudioSprint10UiTest {
             compose.waitUntil(10_000) {repository.load(p.id).tools.textLayers.single().startMs==0L}
             compose.onNodeWithText("Redo").performScrollTo().performClick()
             compose.onNodeWithText("Projects",substring=false).performScrollTo().performClick()
+            awaitProjectList()
             compose.reopenStudioProject(p.title)
             compose.clickStudioToolbar("Tools: Text layers")
             compose.onNodeWithTag("studio_layer_text").performScrollTo().assertTextContains("Independent title")
             assertEquals(moved,repository.load(p.id).tools.textLayers.single())
             compose.onNodeWithText("Projects",substring=false).performScrollTo().performClick()
-            val trash=hasText("Move to trash") and hasAnyAncestor(hasTestTag("studio_project_${p.id}"))
+            awaitProjectList()
             compose.onNode(trash).performScrollTo().performClick()
             compose.onNodeWithText("Keep project").performClick()
             assertEquals(moved,repository.load(p.id).tools.textLayers.single())
@@ -68,6 +74,7 @@ class StudioSprint10UiTest {
             }
             compose.onNodeWithText("Restore ${p.title}").performScrollTo().performClick()
             compose.waitUntil(10_000) {repository.list().any {it.id==p.id}}
+            awaitProjectList()
             assertEquals(moved,repository.load(p.id).tools.textLayers.single())
         } catch(failure:Throwable) {
             runCatching {compose.onRoot(useUnmergedTree=true).printToString().chunked(3000).forEach {Log.i("VGSmoke","sprint10.ui.failure.tree=$it")}}
