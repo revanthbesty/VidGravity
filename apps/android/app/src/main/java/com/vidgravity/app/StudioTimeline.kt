@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -14,6 +15,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -109,12 +113,19 @@ internal fun StudioTimeline(project: StudioProject, selected: Int, positionMs: L
                 onEdit(project.copy(tools=project.tools.copy(textLayers=project.tools.textLayers.map {if(it.id==layer.id) it.copy(startMs=moved,endMs=moved+duration) else it})),null)
             }
         }
-        project.tools.captions.forEachIndexed {i,cue ->
-            Row(Modifier.width(totalWidth.dp).height(24.dp)) {
-                Spacer(Modifier.width(timelineX(cue.startMs).dp))
-                Text("C${i+1} · ${cue.text.take(24)}",maxLines=1,style=MaterialTheme.typography.labelSmall,modifier=Modifier
-                    .width((timelineX(cue.endMs)-timelineX(cue.startMs)).coerceAtLeast(1f).dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant).clickable(enabled=enabled) {seek(cue.startMs)})
+        if(project.tools.captions.isNotEmpty()) {
+            val cueColor=MaterialTheme.colorScheme.tertiary
+            val cueTextColor=MaterialTheme.colorScheme.onTertiary.toArgb()
+            val cuePaint=remember(cueTextColor,density) {android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {color=cueTextColor;textSize=12*density}}
+            val captionSeek by rememberUpdatedState<(Float)->Unit>({x ->seek(timelineTime(x/density))})
+            Canvas(Modifier.width(totalWidth.dp).height(40.dp).semantics {contentDescription="Caption track: ${project.tools.captions.size} cues"}
+                .pointerInput(enabled) {if(enabled) detectTapGestures {captionSeek(it.x)}}) {
+                project.tools.captions.forEachIndexed {i,cue ->
+                    val left=timelineX(cue.startMs)*density
+                    val right=timelineX(cue.endMs)*density
+                    drawRect(cueColor,Offset(left,2*density),androidx.compose.ui.geometry.Size((right-left).coerceAtLeast(1f),36*density))
+                    if(right-left>24*density) drawIntoCanvas {it.nativeCanvas.drawText("C${i+1}",left+3*density,24*density,cuePaint)}
+                }
             }
         }
       }

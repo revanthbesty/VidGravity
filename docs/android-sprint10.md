@@ -13,6 +13,8 @@ not main. Prior integration branches, Firebase and Cloudflare configuration are 
 - Existing sequential video lane and four independently mixed audio lanes gain
   text/caption timing rows, visible playhead, draggable audio/text timing,
   boundary/playhead snapping, drag feedback, zoom and frame-grid seek steps.
+  Up to 100 subtitle cues share one lightweight drawn track rather than expanding
+  into 100 vertical lanes. Accessible caption editing remains in the tools panel.
   Logical frame steps default to 30 fps or the chosen export cap. Actual decoded
   seek precision still depends on the source and decoder.
 - Selected-clip audio monitoring includes music, voice and independent lanes,
