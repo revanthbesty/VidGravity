@@ -150,7 +150,7 @@ jobs:
         with:
           gradle-version: "8.10.2"
       - name: Build native Android APK
-        run: gradle -p apps/android assembleDebug testDebugUnitTest lintDebug
+        run: gradle -p apps/android assembleDebug testDebugUnitTest lintDebug :app:compileDebugAndroidTestKotlin :app:assembleRelease :app:lintRelease
       - name: Summarize Android lint errors
         if: always()
         run: |
@@ -238,7 +238,7 @@ jobs:
           arch: x86_64
           profile: pixel_7
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back emulated -camera-front emulated
           script: bash scripts/android_ui_smoke.sh
       - name: Upload automated UI evidence
         if: always()
@@ -301,7 +301,7 @@ jobs:
           arch: x86_64
           profile: pixel_7
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back emulated -camera-front emulated
           script: bash scripts/android_ui_smoke.sh
       - name: Upload Android 17 availability and test evidence
         if: always()

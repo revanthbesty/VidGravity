@@ -18,7 +18,7 @@ class AndroidWorkflowBatchTests(unittest.TestCase):
         self.assertTrue(any(p.attrib.get("path") == "Pictures/" for p in paths.getroot()))
         camera = (MAIN / "java/com/vidgravity/camera/DualCameraCaptureActivity.kt").read_text()
         self.assertIn("MediaLibraryIndexer.register", camera)
-        self.assertIn("Use capture in Studio", camera)
+        self.assertIn("View capture in Library", camera)
         self.assertIn("setResult(RESULT_OK", camera)
 
     def test_image_preview_and_camera_result_reach_workspace(self):
