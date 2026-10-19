@@ -92,6 +92,9 @@ internal object NativeStudioRenderer {
                 StudioAspect.CLASSIC -> Presentation.createForWidthAndHeight(size*4/3,size,Presentation.LAYOUT_SCALE_TO_FIT)
                 StudioAspect.SOURCE -> Presentation.createForHeight(size)
             }
+            // E.g. 9:16 at height720 becomes405px wide. Align the final GL canvas
+            // before strict AVC encoding, without enabling a silent quality fallback.
+            effects += StudioEncoderCanvas()
         }
         return effects
     }
@@ -179,6 +182,8 @@ internal object NativeStudioRenderer {
                                 if (continuation.isActive) continuation.resume(Unit)
                             }
                             override fun onError(composition: Composition, exportResult: ExportResult, exportException: ExportException) {
+                                val codec=generateSequence<Throwable>(exportException) {it.cause}.take(8).filterIsInstance<android.media.MediaCodec.CodecException>().firstOrNull()
+                                android.util.Log.w("VGStudio","render.failed code=${exportException.errorCode} cause=${exportException.cause?.javaClass?.simpleName} codec=${codec?.diagnosticInfo}")
                                 handler.removeCallbacksAndMessages(null)
                                 if (continuation.isActive) continuation.resumeWithException(IllegalStateException(
                                     "Device export failed (code ${exportException.errorCode}). Try 720p or another H.264 source.", exportException))
