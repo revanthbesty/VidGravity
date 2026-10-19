@@ -15,7 +15,8 @@ class StudioSprint10UiTest {
         val context=InstrumentationRegistry.getInstrumentation().targetContext
         val repository=StudioRepository(context)
         val source=StudioMediaImports.video(context,MediaLibraryIndexer.localUri(context,studioFixture("native-source.mp4")))
-        val p=StudioProject(title="Sprint 10 layers",clips=listOf(source.copy(endMs=2000)))
+        val audio=studioFixture("native-music.wav")
+        val p=StudioProject(title="Sprint 10 layers",clips=listOf(source.copy(endMs=2000)),tools=StudioTools(audio=listOf(StudioAudioLane(uri=MediaLibraryIndexer.localUri(context,audio).toString(),name="Music",sourceDurationMs=1000))))
         repository.save(p)
         try {
             compose.setContent {MaterialTheme {NativeStudioHub(onClose={},onBusyChanged={})}}
@@ -27,11 +28,15 @@ class StudioSprint10UiTest {
             compose.onNodeWithText("Text end (ms)").performScrollTo().performTextReplacement("1000")
             compose.onNodeWithText("Apply Text end (ms)").performClick()
             compose.clickStudioToolbar("Background: Navy")
+            compose.onNodeWithContentDescription("Timeline A1 · Music").performScrollTo().performTouchInput {
+                down(center);advanceEventTime(700);moveBy(Offset(width.toFloat()*0.5f,0f));advanceEventTime(100);up()
+            }
             compose.onNodeWithContentDescription("Timeline T1 · Independent title").performScrollTo().performTouchInput {
                 down(center);advanceEventTime(700);moveBy(Offset(width.toFloat()*0.5f,0f));advanceEventTime(100);up()
             }
             compose.onNodeWithText("Save project").performScrollTo().performClick()
             compose.waitUntil(10_000) {repository.load(p.id).tools.textLayers.singleOrNull()?.startMs?.let {it>100}==true}
+            assertTrue(repository.load(p.id).tools.audio.single().offsetMs>100)
             val moved=repository.load(p.id).tools.textLayers.single()
             assertEquals(1000L,moved.endMs-moved.startMs)
             compose.onNodeWithText("Undo").performScrollTo().performClick()

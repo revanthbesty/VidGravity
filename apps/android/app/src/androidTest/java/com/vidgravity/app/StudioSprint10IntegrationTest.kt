@@ -35,14 +35,15 @@ class StudioSprint10IntegrationTest {
         try {check(bitmap)} finally {bitmap.recycle()}
     }
     @Test fun scenarioATrimOpacityAndAdjustableFadeReachEncodedPixels():Unit=runBlocking {
-        val source=clip("creative-source.mp4").copy(startMs=500,endMs=1500,opacity=0.5f)
-        val hash=DownloadApi.sha256(studioFixture("creative-source.mp4"))
+        val file=studioFixture("creative-source.mp4")
+        val source=StudioMediaImports.video(context,MediaLibraryIndexer.localUri(context,file)).copy(startMs=500,endMs=1500,opacity=0.5f)
+        val hash=DownloadApi.sha256(file)
         render(StudioProject(title="A trim fade",clips=listOf(source),fadeEdges=true,originalVolume=0f,tools=StudioTools(fadeDurationMs=400))) {r,_ ->
             assertTrue(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)!!.toLong() in 800..1200)
             read(r,500_000) {assertTrue("Opacity missing",brightness(it) in 165.0..200.0)}
             read(r,100_000) {assertTrue("Adjustable fade missing",brightness(it)<130)}
         }
-        assertEquals(hash,DownloadApi.sha256(studioFixture("creative-source.mp4")))
+        assertEquals(hash,DownloadApi.sha256(file))
     }
     @Test fun scenarioBSplitAndRearrangeChangeActualRenderedSceneOrder():Unit=runBlocking {
         val source=clip("creative-source.mp4").copy(endMs=4000)
@@ -79,6 +80,23 @@ class StudioSprint10IntegrationTest {
                 assertTrue("Music did not reach actual PCM: $levels",levels.second>0.01)
             }
         } finally {repository.delete(p.id)}
+    }
+    @Test fun overlappingTextLayersRespectTheSavedFrontToBackOrder():Unit=runBlocking {
+        val source=clip("native-source.mp4").copy(endMs=1000)
+        val back=StudioTextLayer(text="ORDER",endMs=1000,size=64,color=Color.RED,background=Color.BLACK)
+        val front=back.copy(id=UUID.randomUUID().toString(),color=Color.CYAN)
+        val p=StudioProject(title="Layer order",clips=listOf(source),filter=StudioFilter.MONO,originalVolume=0f,tools=StudioTools(textLayers=listOf(back,front)))
+        for((layers,cyanExpected) in listOf(listOf(back,front) to true,listOf(front,back) to false)) {
+            render(p.copy(tools=p.tools.copy(textLayers=layers))) {r,_ ->read(r,500_000) {b ->
+                var red=0;var cyan=0
+                for(y in 0 until b.height step 2) for(x in 0 until b.width step 2) {val c=b.getPixel(x,y)
+                    if(Color.red(c)>170 && Color.green(c)<100 && Color.blue(c)<100) red++
+                    if(Color.red(c)<100 && Color.green(c)>170 && Color.blue(c)>170) cyan++
+                }
+                if(cyanExpected) {assertTrue("Front cyan layer missing",cyan>40);assertEquals("Back layer leaked through",0,red)}
+                else {assertTrue("Front red layer missing",red>40);assertEquals("Reordered back layer leaked through",0,cyan)}
+            }}
+        }
     }
     @Test fun waveformUsesTrimmedDecodedPcmRatherThanDecorativePeaks():Unit=runBlocking {
         val file=studioFixture("creative-source.mp4")
