@@ -36,11 +36,13 @@ class SmartEditingIntegrationTest {
         val notes=withTimeout(90_000) {SmartAnalyzer.analyze(context,c) {_,_->}}
         assertTrue(notes.silence.isNotEmpty());assertTrue(notes.scenes.isNotEmpty())
         val p=StudioProject(title="Silence review",clips=listOf(c.copy(smart=notes)))
-        assertEquals(5000L,p.durationMs)
+        // AAC priming/padding can make container duration 5023 ms for the nominal 5 s fixture.
+        // Before approval, preserve the exact imported source duration rather than assuming 5000.
+        assertEquals(c.playbackDurationMs,p.durationMs)
         val next=SmartCuts.remove(p,0,notes.silence);val repository=StudioRepository(context)
         try {
             repository.save(next);val saved=repository.load(next.id);assertEquals(next,saved)
-            assertTrue(saved.durationMs<5000);assertEquals(c.endMs,saved.clips.last().endMs)
+            assertTrue(saved.durationMs<c.playbackDurationMs);assertEquals(c.endMs,saved.clips.last().endMs)
             render(saved) {r,_->
                 val actual=r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)!!.toLong()
                 assertTrue("Wrong reviewed-cut duration $actual vs ${saved.durationMs}",kotlin.math.abs(actual-saved.durationMs)<350)

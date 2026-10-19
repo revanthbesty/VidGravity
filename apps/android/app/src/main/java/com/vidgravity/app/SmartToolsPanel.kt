@@ -54,6 +54,7 @@ internal fun SmartToolsPanel(project:StudioProject,selected:Int,onApply:(StudioP
     var progress by remember {mutableFloatStateOf(0f)}
     var status by remember {mutableStateOf("Available · offline, review before applying")}
     var selection by remember(clip.id,notes) {mutableStateOf(emptySet<Int>())}
+    var dismissedHighlights by remember(clip.id,notes) {mutableStateOf(emptySet<Int>())}
     var pending by remember {mutableStateOf<List<CreativeRange>?>(null)}
     var frame by remember {mutableStateOf<Bitmap?>(null)}
     var frameTime by remember {mutableLongStateOf(clip.startMs)}
@@ -98,7 +99,14 @@ internal fun SmartToolsPanel(project:StudioProject,selected:Int,onApply:(StudioP
             Column(Modifier.padding(12.dp)) {
                 Icon(when(entry) {SmartTool.AUDIO->Icons.Default.GraphicEq;SmartTool.SCENES->Icons.Default.Movie;SmartTool.CAPTIONS->Icons.Default.Subtitles;else->Icons.Default.AutoAwesome},contentDescription=null)
                 Text(entry.title,style=MaterialTheme.typography.titleSmall)
-                Text(if(working) "Processing" else if(entry==SmartTool.CAPTIONS) "Manual available · video transcription unsupported" else if(notes!=null) "Completed · review saved analysis" else "Available",style=MaterialTheme.typography.labelSmall)
+                Text(when {
+                    entry==SmartTool.CAPTIONS -> "Manual available · video transcription unsupported"
+                    android.os.Build.VERSION.SDK_INT<27 -> "Unsupported · analysis needs API27+"
+                    working -> "Processing"
+                    entry in listOf(SmartTool.SILENCE,SmartTool.AUDIO) && notes?.audio?.isEmpty()==true -> "Unsupported · no readable source audio"
+                    notes!=null -> "Completed · review saved analysis"
+                    else -> "Available"
+                },style=MaterialTheme.typography.labelSmall)
             }
         }
     }}}
@@ -145,6 +153,7 @@ internal fun SmartToolsPanel(project:StudioProject,selected:Int,onApply:(StudioP
         SmartTool.TRIM,SmartTool.HIGHLIGHTS -> if(r!=null) {
             Text("Ranked heuristic suggestions · choose and adjust a range. No edit is applied until confirmation.")
             r.highlights.filter {it.startMs>=clip.startMs && it.endMs<=clip.endMs}.forEachIndexed {i,suggestion->
+              if(i !in dismissedHighlights) {
                 var start by remember(suggestion) {mutableLongStateOf(suggestion.startMs)};var end by remember(suggestion) {mutableLongStateOf(suggestion.endMs)}
                 Text("${i+1}. ${suggestion.startMs}–${suggestion.endMs} ms · score ${"%.2f".format(suggestion.score)}")
                 Text(suggestion.reason,style=MaterialTheme.typography.bodySmall)
@@ -153,6 +162,8 @@ internal fun SmartToolsPanel(project:StudioProject,selected:Int,onApply:(StudioP
                 Button(enabled=!working && end-start>=100 && (start>clip.startMs || end<clip.endMs),onClick={pending=buildList {
                     if(start>clip.startMs) add(CreativeRange(clip.startMs,start));if(end<clip.endMs) add(CreativeRange(end,clip.endMs))
                 }}) {Text("Review keeping highlight ${i+1}")}
+                TextButton(enabled=!working,onClick={dismissedHighlights=dismissedHighlights+i}) {Text("Reject highlight ${i+1}")}
+              }
             }
         }
         SmartTool.CAPTIONS -> {
