@@ -37,7 +37,8 @@ adb shell dumpsys power > work/android-smoke/power.txt
 python - <<'PY_REPORT'
 from pathlib import Path
 import xml.etree.ElementTree as ET
-for report in Path('apps/android/app/build/outputs/androidTest-results').rglob('*.xml'):
+reports=list(Path('apps/android/app/build/outputs/androidTest-results').rglob('*.xml'))+list(Path('work/android-smoke/permission-phase').rglob('*.xml'))
+for report in reports:
     try:
         tree = ET.parse(report)
     except ET.ParseError:

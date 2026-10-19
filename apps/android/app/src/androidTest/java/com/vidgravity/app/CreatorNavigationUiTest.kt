@@ -7,7 +7,7 @@ import org.junit.Test
 
 class CreatorNavigationUiTest {
     @get:Rule val compose=createAndroidComposeRule<MainActivity>()
-    private fun back()=compose.activityRule.scenario.onActivity {it.onBackPressedDispatcher.onBackPressed()}
+    private fun back() {compose.waitForIdle();compose.activityRule.scenario.onActivity {it.onBackPressedDispatcher.onBackPressed()};compose.waitForIdle()}
 
     @Test fun fiveCoreDestinationsNestedBackAndLibraryStateSurviveNavigationAndRecreation() {
         compose.awaitVidGravityFocus()
@@ -35,6 +35,7 @@ class CreatorNavigationUiTest {
         compose.onNodeWithText("Search media").assertTextContains(query)
         compose.onNodeWithTag("library_list").performScrollToNode(hasText("Swipe Feed"))
         compose.onNodeWithText("Swipe Feed").performClick()
+        compose.onNodeWithText("Back to Library").assertExists()
         back()
         compose.onNodeWithTag("library_list").assertExists()
         compose.onNodeWithTag("nav_Library").assertIsSelected()
@@ -53,8 +54,9 @@ class CreatorNavigationUiTest {
             compose.awaitVidGravityFocus();compose.onNodeWithTag("nav_Library").performClick()
             compose.onNodeWithTag("library_list").performScrollToNode(hasText("Search media"))
             compose.onNodeWithText("Search media").performTextReplacement(file.name)
-            compose.onNodeWithTag("library_list").performScrollToNode(hasText(file.name))
-            compose.onNodeWithText(file.name).performClick()
+            val mediaCard=hasText(file.name) and hasSetTextAction().not()
+            compose.onNodeWithTag("library_list").performScrollToNode(mediaCard)
+            compose.onNode(mediaCard).performClick()
             compose.waitUntil(15_000) {compose.onAllNodesWithTag("player_error").fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithText("Retry playback").assertIsEnabled()
             compose.onNodeWithTag("player_share").assertIsNotEnabled()

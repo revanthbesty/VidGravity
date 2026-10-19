@@ -33,7 +33,10 @@ class CameraPermissionRecoveryTest {
         compose.awaitVidGravityFocus()
         compose.onNodeWithTag("nav_Camera").performClick();compose.onNodeWithTag("camera_open").performClick()
         onView(withText("Create with your camera")).check(matches(viewDisplayed()))
-        onView(withText("Continue")).perform(click())
+        // Espresso cannot wait for an app window to regain focus while a system
+        // permission dialog deliberately owns it. Cross that boundary via accessibility.
+        val continueButton=instrumentation.uiAutomation.rootInActiveWindow.findAccessibilityNodeInfosByText("Continue").single()
+        assertTrue(continueButton.performAction(AccessibilityNodeInfo.ACTION_CLICK))
         val deadline=SystemClock.elapsedRealtime()+20_000
         var recovered=false;var denials=0
         while(SystemClock.elapsedRealtime()<deadline && !recovered) {
@@ -56,7 +59,8 @@ class CameraPermissionRecoveryTest {
         onView(withText("App settings")).check(matches(viewDisplayed()))
         // Exercise the real Settings Activity round trip. The permission grant is
         // automated at the Android boundary; no provider/camera is mocked.
-        onView(withText("App settings")).perform(click())
+        val settingsButton=instrumentation.uiAutomation.rootInActiveWindow.findAccessibilityNodeInfosByText("App settings").single()
+        assertTrue(settingsButton.performAction(AccessibilityNodeInfo.ACTION_CLICK))
         val settingsDeadline=SystemClock.elapsedRealtime()+10_000
         while(instrumentation.uiAutomation.rootInActiveWindow?.packageName?.toString()!="com.android.settings" && SystemClock.elapsedRealtime()<settingsDeadline) SystemClock.sleep(100)
         assertEquals("com.android.settings",instrumentation.uiAutomation.rootInActiveWindow?.packageName?.toString())

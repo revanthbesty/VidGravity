@@ -179,6 +179,8 @@ internal object NativeStudioRenderer {
                                 if (continuation.isActive) continuation.resume(Unit)
                             }
                             override fun onError(composition: Composition, exportResult: ExportResult, exportException: ExportException) {
+                                val codec=generateSequence<Throwable>(exportException) {it.cause}.take(8).filterIsInstance<android.media.MediaCodec.CodecException>().firstOrNull()
+                                android.util.Log.w("VGStudio","render.failed code=${exportException.errorCode} cause=${exportException.cause?.javaClass?.simpleName} codec=${codec?.diagnosticInfo}")
                                 handler.removeCallbacksAndMessages(null)
                                 if (continuation.isActive) continuation.resumeWithException(IllegalStateException(
                                     "Device export failed (code ${exportException.errorCode}). Try 720p or another H.264 source.", exportException))

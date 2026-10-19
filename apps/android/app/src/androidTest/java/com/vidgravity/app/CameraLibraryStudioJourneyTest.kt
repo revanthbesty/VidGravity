@@ -82,9 +82,15 @@ class CameraLibraryStudioJourneyTest {
             compose.waitUntil(10_000) {compose.onAllNodes(hasTestTag("nav_Library") and isSelected()).fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithTag("nav_Studio").performClick()
             compose.waitUntil(15_000) {compose.onAllNodes(hasText("Project name") and hasText(title)).fetchSemanticsNodes().isNotEmpty()}
-            compose.onNodeWithTag("native_export").performScrollTo().performClick()
-            compose.waitUntil(120_000) {repository.record(saved.id)?.uri!=null}
+            compose.onNodeWithTag("native_export").performScrollTo().assertIsEnabled().performClick()
+            compose.waitUntil(15_000) {repository.record(saved.id)!=null}
+            val queued=repository.record(saved.id)!!
+            val manager=androidx.work.WorkManager.getInstance(context)
+            compose.waitUntil(120_000) {manager.getWorkInfoById(java.util.UUID.fromString(queued.workId)).get()?.state?.isFinished==true}
+            val finished=manager.getWorkInfoById(java.util.UUID.fromString(queued.workId)).get()!!
+            assertEquals("Camera export failed: ${finished.outputData}",androidx.work.WorkInfo.State.SUCCEEDED,finished.state)
             val record=repository.record(saved.id)!!
+            assertNotNull("Completed export must publish a Library URI",record.uri)
             assertEquals(repository.load(saved.id).fingerprint(),record.fingerprint)
             val uri=Uri.parse(record.uri!!)
             exported=MediaLibraryIndexer.list(context).first {it.uri==uri}

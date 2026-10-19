@@ -48,6 +48,7 @@ class NativeStudioExportWorker(context: Context, params: WorkerParameters) : Cor
             repository.deleteRequest(id.toString())
             throw cancelled
         } catch (failure: Exception) {
+            android.util.Log.w("VGStudio","export.failed type=${failure.javaClass.simpleName} cause=${failure.cause?.javaClass?.simpleName}")
             repository.deleteRequest(id.toString())
             Result.failure(workDataOf("error" to (failure.message ?: "Export failed. Try a smaller preset.").take(240)))
         } finally { output.delete() }
