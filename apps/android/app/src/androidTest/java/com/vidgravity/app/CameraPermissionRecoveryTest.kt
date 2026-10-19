@@ -10,7 +10,8 @@ import androidx.core.content.ContextCompat
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.assertion.ViewAssertions.matches
-import androidx.test.espresso.matcher.ViewMatchers.*
+import androidx.test.espresso.matcher.ViewMatchers.withText
+import androidx.test.espresso.matcher.ViewMatchers.isDisplayed as viewDisplayed
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.*
 import org.junit.Rule
@@ -26,7 +27,7 @@ class CameraPermissionRecoveryTest {
         assertEquals("Permission phase requires a fresh install",PackageManager.PERMISSION_DENIED,ContextCompat.checkSelfPermission(context,Manifest.permission.CAMERA))
         compose.awaitVidGravityFocus()
         compose.onNodeWithTag("nav_Camera").performClick();compose.onNodeWithTag("camera_open").performClick()
-        onView(withText("Create with your camera")).check(matches(isDisplayed()))
+        onView(withText("Create with your camera")).check(matches(viewDisplayed()))
         onView(withText("Continue")).perform(click())
         val deadline=SystemClock.elapsedRealtime()+20_000
         var recovered=false;var denials=0
@@ -39,15 +40,15 @@ class CameraPermissionRecoveryTest {
                 if(button!=null && button.performAction(AccessibilityNodeInfo.ACTION_CLICK)) denials++
             }
             if(pkg==context.packageName) {
-                recovered=runCatching {onView(withText("Camera unavailable")).check(matches(isDisplayed()))}.isSuccess
+                recovered=runCatching {onView(withText("Camera unavailable")).check(matches(viewDisplayed()))}.isSuccess
             }
             if(!recovered) SystemClock.sleep(100)
         }
         assertTrue("No Android permission denial was performed",denials>0)
         assertTrue("Camera denial did not reach recoverable UI",recovered)
         assertEquals(PackageManager.PERMISSION_DENIED,ContextCompat.checkSelfPermission(context,Manifest.permission.CAMERA))
-        onView(withText("Retry")).check(matches(isDisplayed()))
-        onView(withText("App settings")).check(matches(isDisplayed()))
+        onView(withText("Retry")).check(matches(viewDisplayed()))
+        onView(withText("App settings")).check(matches(viewDisplayed()))
         onView(withText("Back")).perform(click())
         compose.waitUntil(10_000) {compose.onAllNodesWithTag("camera_workspace").fetchSemanticsNodes().isNotEmpty()}
         compose.onNodeWithTag("nav_Camera").assertIsSelected()

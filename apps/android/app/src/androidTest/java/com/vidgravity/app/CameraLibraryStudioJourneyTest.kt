@@ -13,9 +13,12 @@ import androidx.test.espresso.action.ViewActions.click
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.intent.Intents
 import androidx.test.espresso.intent.matcher.IntentMatchers.hasAction
-import androidx.test.espresso.matcher.ViewMatchers.*
+import androidx.test.espresso.matcher.ViewMatchers.withText
+import androidx.test.espresso.matcher.ViewMatchers.isDisplayed as viewDisplayed
+import androidx.test.espresso.matcher.ViewMatchers.isEnabled as viewEnabled
 import androidx.test.platform.app.InstrumentationRegistry
-import org.hamcrest.Matchers.matchesPattern
+import org.hamcrest.TypeSafeMatcher
+import org.hamcrest.Description
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -46,11 +49,14 @@ class CameraLibraryStudioJourneyTest {
             compose.awaitVidGravityFocus()
             compose.onNodeWithTag("nav_Camera").performClick()
             compose.onNodeWithTag("camera_open").performClick()
-            awaitView {onView(withText("●  Record")).check(matches(isEnabled()))}
+            awaitView {onView(withText("●  Record")).check(matches(viewEnabled()))}
             onView(withText("●  Record")).perform(click())
-            awaitView {onView(withText(matchesPattern("Recording · [2-9][0-9]*s"))).check(matches(isDisplayed()))}
+            awaitView {onView(withText(object:TypeSafeMatcher<String>() {
+                override fun describeTo(description:Description) {description.appendText("recorded at least two seconds")}
+                override fun matchesSafely(value:String)=Regex("Recording · ([0-9]+)s").matchEntire(value)?.groupValues?.get(1)?.toLongOrNull()?.let {it>=2} ?: false
+            })).check(matches(viewDisplayed()))}
             onView(withText("■  Stop")).perform(click())
-            awaitView {onView(withText("View capture in Library")).check(matches(isEnabled()))}
+            awaitView {onView(withText("View capture in Library")).check(matches(viewEnabled()))}
             onView(withText("View capture in Library")).perform(click())
             compose.waitUntil(15_000) {compose.onAllNodesWithTag("capture_edit").fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithTag("nav_Library").assertIsSelected()
