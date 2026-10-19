@@ -62,6 +62,10 @@ class StudioSprint10UiTest {
             compose.onNode(trash).performClick()
             compose.onNodeWithText("Confirm move to trash").performClick()
             compose.waitUntil(10_000) {repository.trashed().any {it.id==p.id}}
+            // The IO write completes before the hub reload publishes its Compose state.
+            compose.waitUntil(10_000) {
+                compose.onAllNodesWithText("Restore ${p.title}").fetchSemanticsNodes().size==1
+            }
             compose.onNodeWithText("Restore ${p.title}").performScrollTo().performClick()
             compose.waitUntil(10_000) {repository.list().any {it.id==p.id}}
             assertEquals(moved,repository.load(p.id).tools.textLayers.single())
