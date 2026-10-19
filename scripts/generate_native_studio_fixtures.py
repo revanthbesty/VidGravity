@@ -32,3 +32,10 @@ subprocess.run([
     str(output / "native-fast.mp4")
 ], check=True)
 print("Generated 30 FPS source for frame-cap regression")
+
+subprocess.run([
+    "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+    "testsrc2=size=90x160:rate=15", "-t", "2", "-an", "-c:v", "libx264", "-pix_fmt", "yuv420p",
+    str(output / "native-portrait-silent.mp4")
+], check=True)
+print("Generated silent 9:16 source for odd-width AVC canvas regression")

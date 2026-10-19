@@ -92,6 +92,9 @@ internal object NativeStudioRenderer {
                 StudioAspect.CLASSIC -> Presentation.createForWidthAndHeight(size*4/3,size,Presentation.LAYOUT_SCALE_TO_FIT)
                 StudioAspect.SOURCE -> Presentation.createForHeight(size)
             }
+            // E.g. 9:16 at height720 becomes405px wide. Align the final GL canvas
+            // before strict AVC encoding, without enabling a silent quality fallback.
+            effects += StudioEncoderCanvas()
         }
         return effects
     }
