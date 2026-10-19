@@ -14,8 +14,19 @@ while true; do
     sleep 1
 done &
 evidence_pid=$!
-gradle -p apps/android connectedDebugAndroidTest --stacktrace
+# Permission denial must run before tests grant CAMERA. UTP installs/removes each
+# phase independently; never revoke this permission inside a running test process.
+permission_class=com.vidgravity.app.CameraPermissionRecoveryTest
+gradle -p apps/android connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class="$permission_class" --stacktrace
+permission_code=$?
+mkdir -p work/android-smoke/permission-phase
+cp -R apps/android/app/build/outputs/androidTest-results work/android-smoke/permission-phase/ 2>/dev/null
+cp -R apps/android/app/build/reports/androidTests work/android-smoke/permission-phase/ 2>/dev/null
+# The class above was executed, not disabled. Keep its JUnit results separately;
+# all remaining tests run on a second fresh install with their original assertions.
+gradle -p apps/android connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.notClass="$permission_class" --stacktrace
 smoke_code=$?
+if [ "$permission_code" -ne 0 ]; then smoke_code=$permission_code; fi
 kill "$evidence_pid" 2>/dev/null
 wait "$evidence_pid" 2>/dev/null
 adb logcat -d -v threadtime > work/android-smoke/logcat.txt

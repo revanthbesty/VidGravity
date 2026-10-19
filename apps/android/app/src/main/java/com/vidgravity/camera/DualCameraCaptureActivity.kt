@@ -8,6 +8,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.vidgravity.app.MediaLibraryIndexer
+import com.vidgravity.app.CameraResultMedia
+import com.vidgravity.app.LibraryMedia
 import android.content.ContentValues
 import android.os.Build
 import android.provider.MediaStore
@@ -117,9 +119,6 @@ class DualCameraCaptureActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         dark=intent.getBooleanExtra(EXTRA_DARK,true)
-        applyOverrideConfiguration(android.content.res.Configuration().apply {
-            uiMode=if(dark) android.content.res.Configuration.UI_MODE_NIGHT_YES else android.content.res.Configuration.UI_MODE_NIGHT_NO
-        })
         super.onCreate(savedInstanceState)
         videoMode=savedInstanceState?.getBoolean("videoMode",true) ?: true
         frontFacing=savedInstanceState?.getBoolean("frontFacing",false) ?: false
@@ -139,7 +138,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             startCameras()
         } else {
-            AlertDialog.Builder(this).setTitle("Create with your camera")
+            AlertDialog.Builder(this,if(dark) android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert).setTitle("Create with your camera")
                 .setMessage("Camera access is needed to capture photos and videos. Microphone access is optional for recorded sound. Captures are saved to Library and can open in Studio.")
                 .setPositiveButton("Continue") {_,_->permissionRequest.launch(permissions)}
                 .setNegativeButton("Not now") {_,_->finish()}.show()
@@ -524,23 +523,18 @@ class DualCameraCaptureActivity : ComponentActivity() {
                     pauseRecording.isEnabled = false; recordingPaused = false
                     shutter.text = "●  Record"
                     Log.i(TAG,"recording.finalized error=${event.error}")
-                    if (event.hasError()) {
+                    val interrupted=event.hasError() && event.error==VideoRecordEvent.Finalize.ERROR_SOURCE_INACTIVE && event.recordingStats.recordedDurationNanos>0
+                    if (event.hasError() && !interrupted) {
                         shutter.isEnabled=true;closeAfterSave=false
-                        // CameraX may leave a failed MediaStore row. Remove only this failed output.
-                        val failedUri=event.outputResults.outputUri
-                        lifecycleScope.launch(Dispatchers.IO) {
-                            runCatching {
-                                if(failedUri!=Uri.EMPTY) contentResolver.delete(failedUri,null,null)
-                                else if(Build.VERSION.SDK_INT<29) File(getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: File(filesDir,"media"),fileName).delete()
-                            }
-                        }
-                        status.text = "Recording failed"
-                        Toast.makeText(this, "Recording failed. Please retry.", Toast.LENGTH_LONG).show()
+                        // An error code is not proof that every recorded byte is unusable.
+                        // Preserve output; never discard a user's recording automatically.
+                        status.text = "Recording could not finish. Check Library for recoverable media, then retry."
+                        Toast.makeText(this, "Recording could not finish. Your saved media was preserved.", Toast.LENGTH_LONG).show()
                     } else {
                         completedCapture(event.outputResults.outputUri.takeIf { it != Uri.EMPTY },
                             File(getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: File(filesDir, "media"), fileName),
-                            fileName, "video/mp4")
-                        status.text = "Video saved · ${fileName}"
+                            fileName, "video/mp4",interrupted)
+                        status.text = "Checking saved video…"
                         Toast.makeText(this, "Video saved to VidGravity: ${fileName}", Toast.LENGTH_LONG).show()
                     }
                 }
@@ -553,17 +547,13 @@ class DualCameraCaptureActivity : ComponentActivity() {
         }
     }
 
-    private fun completedCapture(savedUri: Uri?, file: File, name: String, mime: String) {
+    private fun completedCapture(savedUri: Uri?, file: File, name: String, mime: String, interrupted:Boolean=false) {
         indexingCapture=true;shutter.isEnabled=false;useCapture.isEnabled=false
         lifecycleScope.launch {
             try {
                 val uri = withContext(Dispatchers.IO) {
                     val readable = savedUri ?: MediaLibraryIndexer.localUri(this@DualCameraCaptureActivity, file)
-                    val size = contentResolver.openAssetFileDescriptor(readable, "r")?.use { it.length }
-                        ?: error("Capture is unavailable")
-                    require(size!=0L) {"Capture is empty"}
-                    MediaLibraryIndexer.register(this@DualCameraCaptureActivity, readable, name, mime, size)
-                    readable
+                    CameraResultMedia.verify(this@DualCameraCaptureActivity,LibraryMedia(readable,name,0,mime,System.currentTimeMillis())).uri
                 }
                 lastCapture=Intent().setDataAndType(uri, mime).apply {
                     putExtra(Intent.EXTRA_TITLE, name)
@@ -572,7 +562,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
                 setResult(RESULT_OK,lastCapture)
                 indexingCapture=false;shutter.isEnabled=true;useCapture.isEnabled=true
                 Log.i(TAG,"capture.indexed mime=$mime")
-                status.text = "Saved to Library · Ready for Studio"
+                status.text = if(interrupted) "Recording interrupted · Available video saved to Library" else "Saved to Library · Ready for Studio"
                 if(closeAfterSave) finish()
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (failure: Exception) {
@@ -640,7 +630,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
             "Photo timer: ${if (timerSeconds == 0) "Off" else "${timerSeconds}s"}",
             "Dual-camera mode: ${if (dualSupported) "Supported" else "Not supported by device"}"
         )
-        AlertDialog.Builder(this)
+        AlertDialog.Builder(this,if(dark) android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert)
             .setTitle("Camera settings")
             .setItems(items) { _, which ->
                 when (which) {
@@ -655,7 +645,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
 
     private fun chooseVideoQuality() {
         val qualities = arrayOf("SD · 480p", "HD · 720p", "Full HD · 1080p", "Highest available")
-        AlertDialog.Builder(this)
+        AlertDialog.Builder(this,if(dark) android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert)
             .setTitle("Video quality")
             .setSingleChoiceItems(qualities, when (videoQuality) {
                 Quality.SD -> 0
@@ -679,7 +669,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
 
     private fun chooseTimer() {
         val choices = arrayOf("Off", "3 seconds", "5 seconds", "10 seconds")
-        AlertDialog.Builder(this)
+        AlertDialog.Builder(this,if(dark) android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert)
             .setTitle("Photo timer")
             .setSingleChoiceItems(choices, when (timerSeconds) { 3 -> 1; 5 -> 2; 10 -> 3; else -> 0 }) { dialog, which ->
                 timerSeconds = when (which) { 1 -> 3; 2 -> 5; 3 -> 10; else -> 0 }
@@ -700,7 +690,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private fun finishWithMessage(message: String) {
         status.text=message
         shutter.isEnabled=false
-        AlertDialog.Builder(this).setTitle("Camera unavailable").setMessage(message+" Your saved media is unchanged.")
+        AlertDialog.Builder(this,if(dark) android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert).setTitle("Camera unavailable").setMessage(message+" Your saved media is unchanged.")
             .setPositiveButton("Retry") {_,_->if(ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED) startCameras() else permissionRequest.launch(arrayOf(Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO))}
             .setNeutralButton("App settings") {_,_->startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:$packageName")))}
             .setNegativeButton("Back") {_,_->finish()}.show()

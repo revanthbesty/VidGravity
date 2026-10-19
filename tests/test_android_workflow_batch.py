@@ -17,7 +17,8 @@ class AndroidWorkflowBatchTests(unittest.TestCase):
         paths = ET.parse(MAIN / "res/xml/file_paths.xml")
         self.assertTrue(any(p.attrib.get("path") == "Pictures/" for p in paths.getroot()))
         camera = (MAIN / "java/com/vidgravity/camera/DualCameraCaptureActivity.kt").read_text()
-        self.assertIn("MediaLibraryIndexer.register", camera)
+        self.assertIn("CameraResultMedia.verify", camera)
+        self.assertIn("MediaLibraryIndexer.register", (APP / "CameraResultMedia.kt").read_text())
         self.assertIn("View capture in Library", camera)
         self.assertIn("setResult(RESULT_OK", camera)
 

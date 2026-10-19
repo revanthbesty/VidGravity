@@ -1,0 +1,59 @@
+package com.vidgravity.app
+
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.SystemClock
+import android.view.accessibility.AccessibilityNodeInfo
+import androidx.compose.ui.test.*
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.core.content.ContextCompat
+import androidx.test.espresso.Espresso.onView
+import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.assertion.ViewAssertions.matches
+import androidx.test.espresso.matcher.ViewMatchers.*
+import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.*
+import org.junit.Rule
+import org.junit.Test
+import java.io.File
+
+/** CI runs this class on its own fresh install before the camera-granted suite. */
+class CameraPermissionRecoveryTest {
+    @get:Rule val compose=createAndroidComposeRule<MainActivity>()
+
+    @Test fun systemCameraDenialOffersRecoveryAndReturnsToCameraWithoutLosingNavigation() {
+        val instrumentation=InstrumentationRegistry.getInstrumentation();val context=instrumentation.targetContext
+        assertEquals("Permission phase requires a fresh install",PackageManager.PERMISSION_DENIED,ContextCompat.checkSelfPermission(context,Manifest.permission.CAMERA))
+        compose.awaitVidGravityFocus()
+        compose.onNodeWithTag("nav_Camera").performClick();compose.onNodeWithTag("camera_open").performClick()
+        onView(withText("Create with your camera")).check(matches(isDisplayed()))
+        onView(withText("Continue")).perform(click())
+        val deadline=SystemClock.elapsedRealtime()+20_000
+        var recovered=false;var denials=0
+        while(SystemClock.elapsedRealtime()<deadline && !recovered) {
+            val root=instrumentation.uiAutomation.rootInActiveWindow
+            val pkg=root?.packageName?.toString()
+            if(pkg!=null && pkg.endsWith("permissioncontroller")) {
+                val button=root?.findAccessibilityNodeInfosByViewId("$pkg:id/permission_deny_button")?.firstOrNull()
+                    ?: root?.findAccessibilityNodeInfosByViewId("$pkg:id/permission_deny_and_dont_ask_again_button")?.firstOrNull()
+                if(button!=null && button.performAction(AccessibilityNodeInfo.ACTION_CLICK)) denials++
+            }
+            if(pkg==context.packageName) {
+                recovered=runCatching {onView(withText("Camera unavailable")).check(matches(isDisplayed()))}.isSuccess
+            }
+            if(!recovered) SystemClock.sleep(100)
+        }
+        assertTrue("No Android permission denial was performed",denials>0)
+        assertTrue("Camera denial did not reach recoverable UI",recovered)
+        assertEquals(PackageManager.PERMISSION_DENIED,ContextCompat.checkSelfPermission(context,Manifest.permission.CAMERA))
+        onView(withText("Retry")).check(matches(isDisplayed()))
+        onView(withText("App settings")).check(matches(isDisplayed()))
+        onView(withText("Back")).perform(click())
+        compose.waitUntil(10_000) {compose.onAllNodesWithTag("camera_workspace").fetchSemanticsNodes().isNotEmpty()}
+        compose.onNodeWithTag("nav_Camera").assertIsSelected()
+        compose.onNodeWithTag("nav_Library").performClick().assertIsSelected()
+        val evidence=File(context.getExternalFilesDir(null),"smoke-evidence").apply {mkdirs()}
+        File(evidence,"camera-permission-recovery.json").writeText("""{"system_denials":$denials,"camera_permission":"denied","recovery_ui":"passed","return_navigation":"passed"}""")
+        android.util.Log.i("VGSmoke","sprint9.system-permission-denial-recovery.passed denials=$denials")
+    }
+}

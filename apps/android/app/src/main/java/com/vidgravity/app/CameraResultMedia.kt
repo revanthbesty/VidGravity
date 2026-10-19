@@ -25,6 +25,18 @@ internal object CameraResultMedia {
         require(size!=0L) { "Capture is empty." }
         context.contentResolver.openInputStream(media.uri)?.use {require(it.read()!=-1) {"Capture is empty."}}
             ?: error("Capture is unavailable.")
+        if(actual.startsWith("video/")) {
+            val reader=android.media.MediaMetadataRetriever()
+            try {
+                reader.setDataSource(context,media.uri)
+                require(reader.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO)=="yes" &&
+                    (reader.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0)>0) {"Capture contains no video."}
+            } finally {reader.release()}
+        } else {
+            val bounds=android.graphics.BitmapFactory.Options().apply {inJustDecodeBounds=true}
+            context.contentResolver.openInputStream(media.uri)?.use {android.graphics.BitmapFactory.decodeStream(it,null,bounds)}
+            require(bounds.outWidth>0 && bounds.outHeight>0) {"Capture contains no image."}
+        }
         MediaLibraryIndexer.register(context,media.uri,media.displayName,actual,size)
         return media.copy(sizeBytes=size.coerceAtLeast(0))
     }

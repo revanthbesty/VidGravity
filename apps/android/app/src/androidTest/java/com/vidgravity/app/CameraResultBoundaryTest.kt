@@ -19,10 +19,12 @@ class CameraResultBoundaryTest {
         }
         assertNull(CameraResultMedia.read(Activity.RESULT_OK,Intent().setDataAndType(uri,"text/plain")))
         val empty=File(context.cacheDir,"sprint9-empty.mp4").apply {writeBytes(byteArrayOf())}
+        val invalid=File(context.cacheDir,"sprint9-invalid-result.mp4").apply {writeText("not encoded video")}
         val missing=File(context.cacheDir,"sprint9-missing.mp4").apply {delete()}
         try {
             for(media in listOf(
-                LibraryMedia(uri,"Mismatch","0".toLong(),"image/png",0),
+                LibraryMedia(uri,"Mismatch",0,"image/png",0),
+                LibraryMedia(MediaLibraryIndexer.localUri(context,invalid),invalid.name,invalid.length(),"video/mp4",0),
                 LibraryMedia(MediaLibraryIndexer.localUri(context,empty),empty.name,0,"video/mp4",0),
                 LibraryMedia(MediaLibraryIndexer.localUri(context,missing),missing.name,0,"video/mp4",0))) {
                 assertTrue("Invalid result accepted: ${media.displayName}",runCatching {CameraResultMedia.verify(context,media)}.isFailure)
@@ -32,6 +34,6 @@ class CameraResultBoundaryTest {
             val verified=CameraResultMedia.verify(context,result)
             assertEquals(source.length(),verified.sizeBytes)
             assertTrue(MediaLibraryIndexer.list(context).any {it.uri==uri})
-        } finally {empty.delete();MediaLibraryIndexer.delete(context,LibraryMedia(uri,source.name,source.length(),"video/mp4",0))}
+        } finally {empty.delete();invalid.delete();MediaLibraryIndexer.delete(context,LibraryMedia(uri,source.name,source.length(),"video/mp4",0))}
     }
 }
