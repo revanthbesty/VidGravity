@@ -26,6 +26,9 @@ class CameraPermissionRecoveryTest {
 
     @Test fun systemCameraDenialOffersRecoveryAndReturnsToCameraWithoutLosingNavigation() {
         val instrumentation=InstrumentationRegistry.getInstrumentation();val context=instrumentation.targetContext
+        val service=instrumentation.uiAutomation.serviceInfo
+        service.flags=service.flags or android.accessibilityservice.AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
+        instrumentation.uiAutomation.serviceInfo=service
         assertEquals("Permission phase requires a fresh install",PackageManager.PERMISSION_DENIED,ContextCompat.checkSelfPermission(context,Manifest.permission.CAMERA))
         compose.awaitVidGravityFocus()
         compose.onNodeWithTag("nav_Camera").performClick();compose.onNodeWithTag("camera_open").performClick()

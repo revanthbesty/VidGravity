@@ -180,7 +180,7 @@ private fun VidGravityApp(inboxRequest: Int = 0) {
                 recentCaptureUri=verified.uri.toString()
                 playingMedia=null;showInbox=false;showHelp=false;showStudyTok=false
                 selected=VgTab.Library
-                notice="Capture saved to Library. Preview it or choose Open in Studio."
+                notice=null // The Library review card communicates success without blocking its actions.
             } catch(cancelled:kotlinx.coroutines.CancellationException) {throw cancelled}
             catch(failure:Exception) {notice="Capture could not be opened. Check Library or retry the camera; saved files were preserved."}
             finally {verifyingCapture=false}
