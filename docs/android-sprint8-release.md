@@ -40,6 +40,7 @@ Declared baseline families: AndroidX Compose1.7.6/Material3 1.3.1, Activity1.10.
 - Protect current and recovery projects from oversized serialized saves, including JSON-escaped metadata.
 - Validate independent audio source URIs consistently with other local media.
 - Avoid a redundant buffered FPS dropper on already-at/below-target video, preserving the trimmed tail; retain higher-rate downsampling.
+- Limit API29 native export decoder surface backpressure to one pending frame to prevent the verified early-frame loss; final regression runs without diagnostic tracing.
 - Fail closed when optional consent persistence/provider application fails, with error-path unit coverage.
 - Add real1080p/15FPS cadence, encoder cancel/retry and maximum-timeline/60-project checks, emulator launch/memory observations.
 - Produce dependency/license evidence and verify APK structure/package/version/debug signature/head SHA/hash before uploading.

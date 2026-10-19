@@ -164,6 +164,10 @@ internal object NativeStudioRenderer {
             withContext(Dispatchers.Main.immediate) {
                 suspendCancellableCoroutine<Unit> { continuation ->
                     transformer = Transformer.Builder(context.applicationContext)
+                        .apply {
+                            if(android.os.Build.VERSION.SDK_INT==29) setAssetLoaderFactory(DefaultAssetLoaderFactory(
+                                context.applicationContext,StudioExportDecoders(context.applicationContext),androidx.media3.common.util.Clock.DEFAULT))
+                        }
                         .setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC)
                         .setPortraitEncodingEnabled(true)
                         .setEncoderFactory(DefaultEncoderFactory.Builder(context).setEnableFallback(false).apply {

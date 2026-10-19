@@ -18,10 +18,12 @@ import java.io.File
 class ReleaseQaTest {
     @get:Rule val testName=TestName()
     @Before fun startPipelineTrace() {
-        androidx.media3.effect.DebugTraceUtil.enableTracing=true
-        androidx.media3.effect.DebugTraceUtil.reset()
+        // Explicit opt-in only: normal verification must not depend on diagnostic timing overhead.
+        androidx.media3.effect.DebugTraceUtil.enableTracing=InstrumentationRegistry.getArguments().getString("vgPipelineTrace")=="true"
+        if(androidx.media3.effect.DebugTraceUtil.enableTracing) androidx.media3.effect.DebugTraceUtil.reset()
     }
     @After fun retainPipelineTrace() {
+        if(!androidx.media3.effect.DebugTraceUtil.enableTracing) return
         try {
             val dir=File(context.getExternalFilesDir(null),"smoke-evidence").apply {mkdirs()}
             File(dir,"${testName.methodName}-pipeline.tsv").writer().use {androidx.media3.effect.DebugTraceUtil.dumpTsv(it)}

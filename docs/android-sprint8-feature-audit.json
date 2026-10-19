@@ -218,7 +218,8 @@
       "source": [
         "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioExportWorker.kt",
         "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioRenderer.kt",
-        "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt"
+        "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/StudioExportDecoders.kt"
       ],
       "tests": [
         "apps/android/app/src/androidTest/java/com/vidgravity/app/NativeStudioWorkerTest.kt",
@@ -226,7 +227,7 @@
         "apps/android/app/src/androidTest/java/com/vidgravity/app/ReleaseQaTest.kt"
       ],
       "coverage": "automated cases listed; final run conclusions in PR #69",
-      "defects_or_limits": "4K depends on encoder; exactly-once MediaStore publication after process death not guaranteed; Sprint8 QA found redundant FPS dropper tail truncation: source-rate-aware bypass plus unchanged/stronger real-output assertions added, final CI required",
+      "defects_or_limits": "4K depends on encoder; exactly-once MediaStore publication after process death not guaranteed; Sprint8 QA found redundant FPS dropper tail truncation: source-rate-aware bypass plus unchanged/stronger real-output assertions added, final CI required; API29 trace proved decoder-to-surface frame loss with five pending frames; one-frame export backpressure added, awaiting final CI",
       "recommended_fix": "Verify final cadence/tail and higher-rate downsample regressions; preserve encoder support limits and durable publication follow-up"
     },
     {
