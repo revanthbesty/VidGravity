@@ -26,7 +26,7 @@ class ReleaseArtifactQa(unittest.TestCase):
                     archive.writestr(name, 'fixture')
             with patch.object(module.subprocess, 'check_output', side_effect=[
                 'Signer #1 certificate DN: CN=Android Debug',
-                "package: name='other.app' versionCode='188' versionName='1.9.0-sprint10'\napplication-debuggable"]):
+                "package: name='other.app' versionCode='189' versionName='1.10.0-sprint11'\napplication-debuggable"]):
                 with self.assertRaisesRegex(ValueError, 'identity'):
                     module.verify(apk, Path(tmp))
             apk.write_bytes(b'not an APK')
@@ -43,7 +43,7 @@ class ReleaseArtifactQa(unittest.TestCase):
                 for name in ('AndroidManifest.xml', 'classes.dex', 'resources.arsc'):
                     archive.writestr(name, 'fixture')
             outputs = ['Signer #1 certificate DN: CN=Android Debug',
-                       "package: name='com.vidgravity.app' versionCode='188' versionName='1.9.0-sprint10'\napplication-debuggable", 'merge-checkout\n', 'checkout-tree\n']
+                       "package: name='com.vidgravity.app' versionCode='189' versionName='1.10.0-sprint11'\napplication-debuggable", 'merge-checkout\n', 'checkout-tree\n']
             with patch.dict(module.os.environ, {'GITHUB_EVENT_PATH': str(event)}), patch.object(module.subprocess, 'check_output', side_effect=outputs):
                 module.verify(apk, Path(tmp))  # GNU sha256sum is deliberately real.
             provenance = json.loads((apk.parent / 'build-provenance.json').read_text())

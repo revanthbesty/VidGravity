@@ -71,6 +71,12 @@ class CameraLibraryStudioJourneyTest {
             compose.clickStudioToolbar("Duplicate clip")
             compose.onNodeWithText("Undo",substring=false).performScrollTo().performClick()
             compose.onNodeWithText("Redo",substring=false).performClick()
+            compose.onNodeWithTag("creative_studio").performScrollTo().performClick()
+            compose.onNodeWithTag("ai_tools").assertExists()
+            compose.onNodeWithTag("ai_tool_scenes").performScrollTo().performClick()
+            compose.onNodeWithTag("ai_analyze").performScrollTo().performClick()
+            compose.waitUntil(90_000) {repository.scan().projects.any {it.title==title && it.clips.any {c->c.smart!=null}}}
+            compose.onNodeWithText("Back to editor",substring=false).performClick()
             val overlay=compose.onNodeWithText("Centered text overlay").performScrollTo()
             overlay.performTextReplacement("CAPTURE TO CREATE");overlay.performImeAction()
             compose.clickStudioToolbar("Mono")
