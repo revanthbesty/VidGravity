@@ -48,6 +48,7 @@ internal fun StudioToolsPanel(project: StudioProject, enabled: Boolean, onEdit: 
         fun laneEdit(next: StudioAudioLane, group: String?=null) = tools(t.copy(audio=t.audio.mapIndexed { i,a -> if(i==index) next else a }),group)
         OutlinedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp)) {
             Text("A${index+1} · ${lane.name}")
+            StudioWaveform(lane,enabled)
             StudioAdjustment("Lane ${index+1} volume",lane.volume,0f..1f,enabled) {laneEdit(lane.copy(volume=it),"volume-${lane.id}")}
             StudioAdjustment("Lane ${index+1} start on timeline (ms)",lane.offsetMs.toFloat(),0f..(project.durationMs-1).toFloat(),enabled) {laneEdit(lane.copy(offsetMs=it.toLong()),"offset-${lane.id}")}
             StudioLongField("Audio source in (ms)",lane.startMs,enabled) {laneEdit(lane.copy(startMs=it))}

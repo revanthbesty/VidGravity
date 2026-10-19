@@ -80,6 +80,13 @@ class StudioSprint10IntegrationTest {
             }
         } finally {repository.delete(p.id)}
     }
+    @Test fun waveformUsesTrimmedDecodedPcmRatherThanDecorativePeaks():Unit=runBlocking {
+        val file=studioFixture("creative-source.mp4")
+        val samples=withTimeout(30_000) {CreativeAnalyzer.waveform(context,StudioAudioLane(uri=MediaLibraryIndexer.localUri(context,file).toString(),name="Trimmed tone",sourceDurationMs=5000,startMs=500,endMs=1500))}
+        assertEquals(5,samples.size)
+        assertTrue("Tone missing from waveform",samples.take(2).all {it.rms>0.05f})
+        assertTrue("Silent tail did not decode as silence",samples.last().rms<0.005f)
+    }
     @Test fun freezeFrameCreatesEditableSilentVideoAndRetainsTheSameImage():Unit=runBlocking {
         val original=clip("native-source.mp4")
         val frozen=withTimeout(120_000) {StudioFreezeFrame.create(context,original,800)}

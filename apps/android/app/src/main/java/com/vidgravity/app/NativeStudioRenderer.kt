@@ -54,6 +54,11 @@ internal object NativeStudioRenderer {
             StudioFilter.INVERT -> effects += RgbFilter.createInvertedFilter()
             else -> Unit
         }
+        // Opacity belongs to video; independent text layers keep their own appearance.
+        if(clip.opacity<1f) effects+=RgbMatrix {_,_ ->
+            val g=clip.opacity
+            floatArrayOf(g,0f,0f,0f, 0f,g,0f,0f, 0f,0f,g,0f, 0f,0f,0f,1f)
+        }
         if (project.overlay.isNotBlank()) {
             val text = SpannableString(project.overlay).apply {
                 setSpan(ForegroundColorSpan(android.graphics.Color.WHITE), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -77,12 +82,11 @@ internal object NativeStudioRenderer {
             }))
         }
         val textLayers=StudioTextOverlays.overlays(tools.textLayers,project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs},if(resize) 1f else clip.speed)
-        if(textLayers.isNotEmpty()) effects+=OverlayEffect(textLayers)
         val graphics=CreatorOverlays.overlays(context,project,project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs},if(resize) 1f else clip.speed)
         if(graphics.isNotEmpty()) effects+=OverlayEffect(graphics)
-        if (project.fadeEdges || clip.opacity < 1f) effects += RgbMatrix { timeUs, _ ->
-            val gain = clip.opacity * if(project.fadeEdges) StudioFade.gain(
-                (timeUs / if(resize) 1f else clip.speed).toLong(),clip.playbackDurationMs*1000,tools.fadeDurationMs*1000) else 1f
+        if (project.fadeEdges) effects += RgbMatrix { timeUs, _ ->
+            val gain = StudioFade.gain(
+                (timeUs / if(resize) 1f else clip.speed).toLong(),clip.playbackDurationMs*1000,tools.fadeDurationMs*1000)
             floatArrayOf(gain,0f,0f,0f, 0f,gain,0f,0f, 0f,0f,gain,0f, 0f,0f,0f,1f)
         }
         if (resize) {
@@ -98,6 +102,11 @@ internal object NativeStudioRenderer {
             // E.g. 9:16 at height720 becomes405px wide. Align the final GL canvas
             // before strict AVC encoding, without enabling a silent quality fallback.
             effects += StudioEncoderCanvas()
+        }
+        if(textLayers.isNotEmpty()) {
+            // Render titles at output scale rather than rasterizing them onto a tiny import.
+            if(!resize) effects+=Presentation.createForHeight(720)
+            effects+=OverlayEffect(textLayers)
         }
         return effects
     }

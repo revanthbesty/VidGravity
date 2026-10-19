@@ -19,6 +19,9 @@ not main. Prior integration branches, Firebase and Cloudflare configuration are 
   trimming, offsets, gain and fades. Companion players follow output time and
   pause with the video, including app backgrounding. This monitor resynchronizes
   within a 120 ms drift budget; the exported composition uses the media pipeline.
+- Audio properties can decode real PCM RMS waveforms in 200 ms bins, with gain
+  and fades visualized. Explicit loading, one concurrent decoder, and a 60-second
+  bound keep analysis off the UI thread and cap memory/work.
 - Clip opacity over black; configurable 50–2000 ms fades through black at clip
   boundaries, capped at half the clip duration. Existing color, crop, rotation,
   aspect, speed, splitting, duplicate and undo/redo remain integrated.
@@ -72,8 +75,7 @@ account-config compilation. No live account or production infrastructure changes
   dissolve, slide/wipe/zoom video transitions and reverse decoding are not exposed
   as selectable tools. Gaussian soften is an existing global adjustment.
 - Audio monitoring is approximate, not sample-accurate multitrack preview; the
-  selected video does not automatically play through all timeline clips. Waveform
-  extraction and DAW-grade scrubbing are not implemented.
+  selected video does not automatically play through all timeline clips. DAW-grade scrubbing and full-song sample-resolution waveforms are not implemented.
 - Timeline rendering is bounded (12 clips, 4 audio lanes, 16 text layers, 100 cues),
   without per-frame media decoding. It is not an unbounded lazy timeline engine.
 - 720p/1080p/4K encoder availability remains device-dependent; unsupported exports
@@ -87,7 +89,7 @@ account-config compilation. No live account or production infrastructure changes
 ## Sprint 11 recommendations
 
 Prioritize continuous composition playback with one synchronized audio/video
-clock, supported overlapping video compositing/transitions, waveform caching,
+clock, supported overlapping video compositing/transitions, long-form waveform caching,
 asset-aware project cleanup/portable backup, and real hardware/API37 validation.
 Keep unsupported features absent from selectable controls until actual exported
 pixels/audio are covered by tests.
