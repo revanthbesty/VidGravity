@@ -30,9 +30,12 @@ class StudioSprint10UiTest {
             compose.onNodeWithText("Apply Text end (ms)").performClick()
             compose.waitUntil(10_000) {repository.load(p.id).tools.textLayers.singleOrNull()?.endMs==1000L}
             compose.clickStudioToolbar("Background: Navy")
+            // Bring the horizontal track container into the vertical viewport first.
+            compose.onNodeWithContentDescription("Timeline A1 · Music").onParent().performScrollTo()
             compose.onNodeWithContentDescription("Timeline A1 · Music").performScrollTo().assertIsDisplayed().performTouchInput {
                 swipe(start=center,end=center+Offset(width.toFloat()*0.75f,0f),durationMillis=450)
             }
+            compose.onNodeWithContentDescription("Timeline T1 · Independent title").onParent().performScrollTo()
             compose.onNodeWithContentDescription("Timeline T1 · Independent title").performScrollTo().assertIsDisplayed().performTouchInput {
                 swipe(start=center,end=center+Offset(width.toFloat()*0.75f,0f),durationMillis=450)
             }

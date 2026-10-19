@@ -17,9 +17,27 @@ class OfflineGuestExportTest {
         val network=context.getSystemService(ConnectivityManager::class.java)
         val repository=StudioRepository(context);var project:StudioProject?=null
         val output=File(context.cacheDir,"privacy-offline-render.mp4")
+        val regainedNetwork=java.util.concurrent.atomic.AtomicBoolean(false)
+        val callback=object:ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network:android.net.Network) {regainedNetwork.set(true);android.util.Log.i("VGSmoke","offline.unexpected-network=$network")}
+        }
+        var watching=false
         try {
             shell("svc wifi disable");shell("svc data disable")
-            withTimeout(15_000) {while(network.activeNetwork!=null) delay(100)}
+            // Radio shutdown is asynchronous and a handover can briefly report null
+            // before the other radio disconnects. Require a stable offline interval.
+            withTimeout(15_000) {
+                var offlineSince:Long?=null
+                while(true) {
+                    val now=android.os.SystemClock.elapsedRealtime()
+                    if(network.activeNetwork==null) {
+                        if(offlineSince==null) offlineSince=now
+                        if(now-offlineSince>=1000) break
+                    } else offlineSince=null
+                    delay(100)
+                }
+            }
+            network.registerDefaultNetworkCallback(callback);watching=true
             assertNull("Offline verification requires no active network",network.activeNetwork)
             assertNull(AccountRuntime.get(context).profile.value)
             val source=studioFixture("native-source.mp4");val original=DownloadApi.sha256(source)
@@ -32,7 +50,9 @@ class OfflineGuestExportTest {
             val retriever=android.media.MediaMetadataRetriever()
             try {retriever.setDataSource(output.path);assertEquals("yes",retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO))} finally {retriever.release()}
             assertEquals(original,DownloadApi.sha256(source));assertNull(network.activeNetwork)
+            assertFalse("Offline editing/export regained a default network",regainedNetwork.get())
         } finally {
+            if(watching) network.unregisterNetworkCallback(callback)
             project?.let {repository.delete(it.id)};output.delete()
             if(wifi) shell("svc wifi enable")
             if(data) shell("svc data enable")
