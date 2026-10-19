@@ -74,6 +74,7 @@ internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> 
     var editing by remember { mutableStateOf<StudioProject?>(null) }
     var loading by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var pendingTrash by remember {mutableStateOf<StudioProject?>(null)}
     suspend fun reload() {
         loading = true
         try {
@@ -119,6 +120,18 @@ internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> 
             onCreateProject={next->editing=next},initialWorkspace=workspace,onWorkspaceOpened={workspace=null},onSaveReady=onSaveReady,onPlayExport=onPlayExport)
         return
     }
+    pendingTrash?.let { saved -> AlertDialog(onDismissRequest={pendingTrash=null},title={Text("Move project to trash?")},
+        text={Text("${saved.title} can be restored from recoverable trash. Original media is preserved.")},
+        dismissButton={TextButton(onClick={pendingTrash=null}) {Text("Keep project")}},
+        confirmButton={TextButton(enabled=!loading,onClick={pendingTrash=null;scope.launch {
+            loading=true
+            try {withContext(Dispatchers.IO) {
+                check(WorkManager.getInstance(context).getWorkInfosByTag("studio-export-${saved.id}").get().none {!it.state.isFinished} &&
+                    WorkManager.getInstance(context).getWorkInfosForUniqueWork("studio-export-${saved.id}").get().none {!it.state.isFinished}) {"Cancel or finish this project's export before moving it to trash."}
+                repository.trash(saved.id)
+            };reload()} catch(failure:Exception) {if(failure is CancellationException) throw failure;message=failure.message ?: "Project was preserved."}
+            finally {loading=false}
+        }}) {Text("Confirm move to trash")}}) }
     BackHandler(onBack = onClose)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("On-device Studio", style = MaterialTheme.typography.headlineLarge)
@@ -132,7 +145,7 @@ internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> 
         Text("Saved projects", style = MaterialTheme.typography.titleLarge)
         if (!loading && projects.isEmpty()) Text("Import a video to start. Projects save automatically and can be reopened here.")
         projects.forEach { saved ->
-            OutlinedCard(Modifier.fillMaxWidth().animateContentSize()) {
+            OutlinedCard(Modifier.fillMaxWidth().animateContentSize().testTag("studio_project_${saved.id}")) {
                 Column(Modifier.padding(16.dp)) {
                     Text(saved.title, style = MaterialTheme.typography.titleMedium)
                     Text("${saved.clips.size} clips · ${saved.durationMs / 1000f}s · ${saved.resolution.label}")
@@ -142,13 +155,7 @@ internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> 
                             try { withContext(Dispatchers.IO) { repository.duplicate(saved) }; reload() }
                             catch (failure: Exception) { if(failure is CancellationException) throw failure; message="Project could not be duplicated." }
                         }}) { Text("Duplicate project") }
-                        TextButton(enabled=!loading,onClick={scope.launch {
-                            try { withContext(Dispatchers.IO) {
-                                check(WorkManager.getInstance(context).getWorkInfosByTag("studio-export-${saved.id}").get().none { !it.state.isFinished } && WorkManager.getInstance(context).getWorkInfosForUniqueWork("studio-export-${saved.id}").get().none { !it.state.isFinished }) { "Cancel or finish this project's export before moving it to trash." }
-                                repository.trash(saved.id)
-                            }; reload() }
-                            catch (failure: Exception) { if(failure is CancellationException) throw failure; message=failure.message ?: "Project was preserved." }
-                        }}) { Text("Move to trash") }
+                        TextButton(enabled=!loading,onClick={pendingTrash=saved}) { Text("Move to trash") }
                     }
                 }
             }
@@ -372,7 +379,7 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
         StudioLongField("Seek timeline (ms)",positionMs,!busy,::seek)
         TextButton(enabled=!busy,onClick={relinkPicker.launch(arrayOf("video/*"))}) {Text("Relink selected video")}
         Text("Relink to a matching video if a source moved. The saved trim range must fit the replacement.",style=MaterialTheme.typography.labelSmall)
-        Text("Selected clip preview · Music and voiceover are mixed during export", style = MaterialTheme.typography.labelSmall)
+        Text("Selected clip preview · Music, voiceover and audio lanes follow the playhead", style = MaterialTheme.typography.labelSmall)
         Text("Timeline · ${project.durationMs / 1000f}s", style = MaterialTheme.typography.titleLarge)
         project.clips.forEachIndexed { index, item ->
             OutlinedCard(Modifier.fillMaxWidth().animateContentSize()) {
@@ -390,6 +397,7 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
                 }
             }
         }
+        StudioAdjustment("Clip opacity over black",clip.opacity,0f..1f,!busy) {value -> edit(project.copy(clips=project.clips.map {if(it.id==clip.id) it.copy(opacity=value) else it}),"opacity-${clip.id}")}
         Text("Trim: ${clip.startMs / 1000f}s → ${clip.endMs / 1000f}s")
         StudioLongField("Video source in (ms)",clip.startMs,!busy) {value -> edit(project.copy(clips=project.clips.map {if(it.id==clip.id) it.copy(startMs=value) else it}))}
         StudioLongField("Video source out (ms)",clip.endMs,!busy) {value -> edit(project.copy(clips=project.clips.map {if(it.id==clip.id) it.copy(endMs=value) else it}))}
@@ -419,6 +427,19 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
                 } catch(failure:IllegalArgumentException) {message=failure.message}
             }) {Text("Split at playhead")}
         }
+        if(android.os.Build.VERSION.SDK_INT>=27) TextButton(enabled=!busy && project.clips.size<12,onClick={
+            focus.clearFocus();keyboard?.hide();creativeBusy=true
+            val source=clip;val offset=positionMs-project.clips.take(selected).sumOf {it.playbackDurationMs}
+            scope.launch {
+                try {
+                    val frozen=StudioFreezeFrame.create(context,source,offset)
+                    edit(project.copy(clips=project.clips.toMutableList().apply {add(selected+1,frozen)}))
+                    selected+=1;message="Added a two-second silent freeze clip. Trim or duplicate it to change the hold."
+                } catch(cancelled:CancellationException) {throw cancelled}
+                catch(failure:Exception) {message="Freeze frame failed. The original clip and project were preserved."}
+                finally {creativeBusy=false}
+            }
+        }) {Text(if(creativeBusy) "Creating freeze frame…" else "Insert freeze frame at playhead")}
         OutlinedTextField(project.overlay, { edit(project.copy(overlay = it.take(160))) }, enabled = !busy,
             label = { Text("Centered text overlay") },
             keyboardOptions=KeyboardOptions(imeAction=ImeAction.Done), keyboardActions=KeyboardActions(onDone={focus.clearFocus(); keyboard?.hide()}),
@@ -428,6 +449,7 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
                 onClick = { edit(project.copy(filter = filter)) }, label = { Text(filter.name.lowercase().replaceFirstChar { it.uppercase() }) }) }
         }
         Row { Switch(project.fadeEdges, { edit(project.copy(fadeEdges = it)) }, enabled = !busy); Text("Fade through black at clip edges") }
+        if(project.fadeEdges) StudioAdjustment("Fade duration (ms)",project.tools.fadeDurationMs.toFloat(),50f..2000f,!busy) {edit(project.copy(tools=project.tools.copy(fadeDurationMs=it.toLong())),"fade-duration")}
         VgDisclosure("Sound · music & voiceover") {
         Text("Original audio: ${(project.originalVolume * 100).toInt()}%")
         Slider(project.originalVolume, { edit(project.copy(originalVolume = it)) }, enabled = !busy)
@@ -499,6 +521,8 @@ private fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequ
     LaunchedEffect(clip, project.filter, project.overlay, project.fadeEdges, project.originalVolume, project.tools) {
         withContext(Dispatchers.Main.immediate) {
         delay(150)
+        val resumeAt=player.currentPosition.coerceAtLeast(0)
+        val resumePlayback=player.playWhenReady
         player.setMediaItem(MediaItem.Builder().setUri(clip.uri).setClippingConfiguration(
             MediaItem.ClippingConfiguration.Builder().setStartPositionMs(clip.startMs).setEndPositionMs(clip.endMs).build()).build())
         val effects=try {withContext(Dispatchers.IO) {NativeStudioRenderer.videoEffects(project,clip,resize=false,context=context)}.also {previewError=null}}
@@ -507,8 +531,17 @@ private fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequ
         player.setVideoEffects(effects)
         player.setPlaybackSpeed(clip.speed)
         player.volume = project.originalVolume
+        player.seekTo(resumeAt.coerceAtMost(clip.durationMs))
         player.prepare()
+        player.playWhenReady=resumePlayback
         }
+    }
+    StudioAudioPreview(project,clip,player)
+    val lifecycleOwner=androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(player,lifecycleOwner) {
+        val observer=androidx.lifecycle.LifecycleEventObserver {_,event -> if(event==androidx.lifecycle.Lifecycle.Event.ON_STOP) player.pause()}
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {lifecycleOwner.lifecycle.removeObserver(observer)}
     }
     val positionCallback by rememberUpdatedState(onPosition)
     val offset=project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs}

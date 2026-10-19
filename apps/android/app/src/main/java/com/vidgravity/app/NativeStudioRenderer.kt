@@ -76,10 +76,13 @@ internal object NativeStudioRenderer {
                 override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings = CreatorOverlays.captionSettings(project,offset+(presentationTimeUs/1000/if(resize) 1f else clip.speed).toLong())
             }))
         }
+        val textLayers=StudioTextOverlays.overlays(tools.textLayers,project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs},if(resize) 1f else clip.speed)
+        if(textLayers.isNotEmpty()) effects+=OverlayEffect(textLayers)
         val graphics=CreatorOverlays.overlays(context,project,project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs},if(resize) 1f else clip.speed)
         if(graphics.isNotEmpty()) effects+=OverlayEffect(graphics)
-        if (project.fadeEdges) effects += RgbMatrix { timeUs, _ ->
-            val gain = StudioFade.gain(timeUs, (if (resize) clip.playbackDurationMs else clip.durationMs) * 1000)
+        if (project.fadeEdges || clip.opacity < 1f) effects += RgbMatrix { timeUs, _ ->
+            val gain = clip.opacity * if(project.fadeEdges) StudioFade.gain(
+                (timeUs / if(resize) 1f else clip.speed).toLong(),clip.playbackDurationMs*1000,tools.fadeDurationMs*1000) else 1f
             floatArrayOf(gain,0f,0f,0f, 0f,gain,0f,0f, 0f,0f,gain,0f, 0f,0f,0f,1f)
         }
         if (resize) {
@@ -161,6 +164,17 @@ internal object NativeStudioRenderer {
     suspend fun render(context: Context, project: StudioProject, output: File, onProgress: (Int?) -> Unit) = renderMutex.withLock {
         project.validate()
         val prepared=withContext(Dispatchers.IO) {composition(project,context)}
+        renderPrepared(context,project.tools.bitrate,prepared,output,onProgress)
+    }
+
+    /** Encode a decoded still into a normal editable silent video; no permanent image decoder dependency. */
+    suspend fun renderStill(context: Context, image: File, output: File) = renderMutex.withLock {
+        val item=EditedMediaItem.Builder(MediaItem.Builder().setUri(android.net.Uri.fromFile(image)).setImageDurationMs(2000).build())
+            .setFrameRate(30).setRemoveAudio(true).setEffects(Effects(emptyList(),listOf(Presentation.createForHeight(720),StudioEncoderCanvas()))).build()
+        renderPrepared(context,0,Composition.Builder(EditedMediaItemSequence.Builder(item).build()).build(),output) {}
+    }
+
+    private suspend fun renderPrepared(context: Context, bitrate: Int, prepared: Composition, output: File, onProgress: (Int?)->Unit) {
         var transformer: Transformer? = null
         val handler = Handler(Looper.getMainLooper())
         try {
@@ -174,7 +188,7 @@ internal object NativeStudioRenderer {
                         .setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC)
                         .setPortraitEncodingEnabled(true)
                         .setEncoderFactory(DefaultEncoderFactory.Builder(context).setEnableFallback(false).apply {
-                            if (project.tools.bitrate > 0) setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(project.tools.bitrate).build())
+                            if (bitrate > 0) setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(bitrate).build())
                         }.build())
                         .addListener(object : Transformer.Listener {
                             override fun onCompleted(composition: Composition, exportResult: ExportResult) {

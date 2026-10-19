@@ -22,8 +22,9 @@ internal fun StudioToolsPanel(project: StudioProject, enabled: Boolean, onEdit: 
     fun tools(next: StudioTools, group: String?=null) = onEdit(project.copy(tools=next),group)
     Text("Editor tools",style=MaterialTheme.typography.titleLarge)
     Row(Modifier.horizontalScroll(rememberScrollState())) {
-        listOf("Color","Audio lanes","Captions","Encoding").forEach {name -> FilterChip(section==name,{focus.clearFocus();section=name},label={Text("Tools: $name")},modifier=Modifier.heightIn(min=48.dp))}
+        listOf("Color","Audio lanes","Captions","Text layers","Encoding").forEach {name -> FilterChip(section==name,{focus.clearFocus();section=name},label={Text("Tools: $name")},modifier=Modifier.heightIn(min=48.dp))}
     }
+    if(section=="Text layers") StudioTextPanel(project,enabled,onEdit)
     if(section=="Color") {
     Text("Color & framing",style=MaterialTheme.typography.titleLarge)
     StudioAdjustment("Brightness",t.brightness,-1f..1f,enabled) { tools(t.copy(brightness=it),"brightness") }
