@@ -23,6 +23,19 @@ class StudioSprint10IntegrationTest {
             assertEquals("yes",reader.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_VIDEO))
             assertEquals("720",reader.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT))
             check(reader,out)
+        } catch(failure:Throwable) {
+            // Preserve actual synthetic media output for diagnosis, before UTP removes the app.
+            runCatching {
+                val dir=File(context.getExternalFilesDir(null),"smoke-evidence/sprint10/${p.title.replace(Regex("[^a-zA-Z0-9-]"),"_")}-${UUID.randomUUID()}").apply {mkdirs()}
+                out.copyTo(File(dir,"failed-output.mp4"))
+                for(us in listOf(100_000L,500_000L,1_250_000L,2_200_000L)) {
+                    val b=reader.getFrameAtTime(us,MediaMetadataRetriever.OPTION_CLOSEST) ?: continue
+                    try {File(dir,"frame-$us.png").outputStream().use {b.compress(Bitmap.CompressFormat.PNG,100,it)}
+                        android.util.Log.i("VGSmoke","sprint10.failed-frame timeUs=$us brightness=${brightness(b)}")
+                    } finally {b.recycle()}
+                }
+            }
+            throw failure
         } finally {reader.release();out.delete()}
     }
     private fun brightness(frame: Bitmap): Double {
@@ -40,8 +53,8 @@ class StudioSprint10IntegrationTest {
         val hash=DownloadApi.sha256(file)
         render(StudioProject(title="A trim fade",clips=listOf(source),fadeEdges=true,originalVolume=0f,tools=StudioTools(fadeDurationMs=400))) {r,_ ->
             assertTrue(r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)!!.toLong() in 800..1200)
-            read(r,500_000) {assertTrue("Opacity missing",brightness(it) in 165.0..200.0)}
-            read(r,100_000) {assertTrue("Adjustable fade missing",brightness(it)<130)}
+            read(r,500_000) {val value=brightness(it);assertTrue("SDR opacity expected near 128, actual=$value",value in 105.0..145.0)}
+            read(r,100_000) {val value=brightness(it);assertTrue("Adjustable fade missing, actual=$value",value<80)}
         }
         assertEquals(hash,DownloadApi.sha256(file))
     }

@@ -27,6 +27,7 @@ class StudioSprint10UiTest {
             field.performTextReplacement("Independent title");field.performImeAction()
             compose.onNodeWithText("Text end (ms)").performScrollTo().performTextReplacement("1000")
             compose.onNodeWithText("Apply Text end (ms)").performClick()
+            compose.waitUntil(10_000) {repository.load(p.id).tools.textLayers.singleOrNull()?.endMs==1000L}
             compose.clickStudioToolbar("Background: Navy")
             compose.onNodeWithContentDescription("Timeline A1 · Music").performScrollTo().performTouchInput {
                 down(center);advanceEventTime(700);moveBy(Offset(width.toFloat()*0.5f,0f));advanceEventTime(100);up()
@@ -39,6 +40,7 @@ class StudioSprint10UiTest {
             assertTrue(repository.load(p.id).tools.audio.single().offsetMs>100)
             val moved=repository.load(p.id).tools.textLayers.single()
             assertEquals(1000L,moved.endMs-moved.startMs)
+            assertEquals(0xFF14245A.toInt(),moved.background)
             compose.onNodeWithText("Undo").performScrollTo().performClick()
             compose.onNodeWithText("Save project").performScrollTo().performClick()
             compose.waitUntil(10_000) {repository.load(p.id).tools.textLayers.single().startMs==0L}

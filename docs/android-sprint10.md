@@ -22,6 +22,10 @@ not main. Prior integration branches, Firebase and Cloudflare configuration are 
 - Audio properties can decode real PCM RMS waveforms in 200 ms bins, with gain
   and fades visualized. Explicit loading, one concurrent decoder, and a 60-second
   bound keep analysis off the UI thread and cap memory/work.
+- Timed effects share an explicit clock: Transformer already supplies composition
+  timestamps; clipped ExoPlayer preview retains the source in-point. This avoids
+  adding clip offsets twice to text/captions/graphics and fixes per-clip fades.
+  Drag callbacks read current project/layer state so later edits are preserved.
 - Clip opacity over black; configurable 50–2000 ms fades through black at clip
   boundaries, capped at half the clip duration. Existing color, crop, rotation,
   aspect, speed, splitting, duplicate and undo/redo remain integrated.
@@ -51,6 +55,8 @@ and adjustable fades. New instrumentation renders real synthetic assets for:
 - C/D: timed rotated/styled text and delayed audio, save/reopen/render, inspect
   decoded color windows and actual AAC PCM silence/audibility;
 - freeze insertion and export, inspect duration and image stability;
+- actual ExoPlayer trimmed-source frame timestamps before/after seeking;
+- overlapping layer order, inspect front/back colors in two rendered outputs;
 - Compose text creation, editing, drag timing, undo/redo, reopen, trash confirmation
   and recovery.
 

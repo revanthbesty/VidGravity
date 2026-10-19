@@ -35,8 +35,9 @@ data class StudioTextLayer(
 
 @androidx.annotation.OptIn(markerClass=[androidx.media3.common.util.UnstableApi::class])
 internal object StudioTextOverlays {
-    fun overlays(layers: List<StudioTextLayer>, offset: Long, speed: Float): List<TextOverlay> = layers.map { layer ->
+    fun overlays(layers: List<StudioTextLayer>, clock: StudioEffectClock): List<TextOverlay> = layers.map { layer ->
         object: TextOverlay() {
+            private var lastActive:Boolean?=null
             private var canvasScale=1f
             override fun configure(videoSize: androidx.media3.common.util.Size) {
                 super.configure(videoSize)
@@ -44,7 +45,7 @@ internal object StudioTextOverlays {
                 // for low-resolution imports, portrait video and higher-resolution exports.
                 canvasScale=videoSize.height/720f
             }
-            private fun time(us: Long) = offset + (us/1000/speed).toLong()
+            private fun time(us: Long) = clock.outputMs(us)
             private val styled = SpannableString(layer.text).apply {
                 setSpan(ForegroundColorSpan(layer.color),0,length,Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                 setSpan(BackgroundColorSpan(layer.background),0,length,Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -55,6 +56,7 @@ internal object StudioTextOverlays {
             override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings {
                 val t=time(presentationTimeUs)
                 val active=t in layer.startMs until layer.endMs
+                if(active!=lastActive) {android.util.Log.i("VGStudio","text.layer.active=$active timeMs=$t exporting=${clock.exporting}");lastActive=active}
                 val phase=((t-layer.startMs)/250f).coerceIn(0f,1f)
                 val alpha=if(!active) 0f else if(layer.animation==CreatorAnimation.FADE) phase else 1f
                 val scale=if(layer.animation==CreatorAnimation.POP) 0.75f+0.25f*phase else 1f

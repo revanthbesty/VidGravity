@@ -25,6 +25,8 @@ import kotlin.math.abs
 @Composable
 internal fun StudioTimeline(project: StudioProject, selected: Int, positionMs: Long, enabled: Boolean,
     onSelect: (Int) -> Unit, onSeek: (Long) -> Unit, onEdit: (StudioProject, String?) -> Unit) {
+    val latestProject by rememberUpdatedState(project)
+    val latestEdit by rememberUpdatedState(onEdit)
     var zoom by remember { mutableFloatStateOf(28f) }
     var snapping by remember {mutableStateOf(true)}
     val density = LocalDensity.current.density
@@ -77,7 +79,7 @@ internal fun StudioTimeline(project: StudioProject, selected: Int, positionMs: L
                             val center=widths.take(index).sum()+width/2+drag/density
                             var cursor=0f
                             val target=widths.indexOfFirst { cursor+=it; center<cursor }.let { if(it<0) widths.lastIndex else it }
-                            if(abs(drag)>12*density && target!=index) onEdit(StudioEdits.move(project,index,target),null)
+                            if(abs(drag)>12*density && target!=index) latestEdit(StudioEdits.move(latestProject,index,target),null)
                             drag=0f
                         }) { change,amount -> change.consume(); drag+=amount.x }
                     }.padding(8.dp).semantics { contentDescription="Video clip ${index+1}: ${clip.name}" }) {
@@ -93,6 +95,7 @@ internal fun StudioTimeline(project: StudioProject, selected: Int, positionMs: L
                 MaterialTheme.colorScheme.secondaryContainer,{onSeek(lane.offsetMs)}) {delta ->
                 val raw=timelineTime(timelineX(lane.offsetMs)+delta/density)
                 val moved=if(snapping) StudioTiming.snap(raw,anchors,project.durationMs-1) else raw.coerceIn(0,project.durationMs-1)
+                android.util.Log.i("VGStudio","timeline.audio.move fromMs=${lane.offsetMs} toMs=$moved")
                 onEdit(project.copy(tools=project.tools.copy(audio=project.tools.audio.map {if(it.id==lane.id) it.copy(offsetMs=moved) else it})),null)
             }
         }
@@ -102,6 +105,7 @@ internal fun StudioTimeline(project: StudioProject, selected: Int, positionMs: L
                 val duration=layer.endMs-layer.startMs
                 val raw=timelineTime(timelineX(layer.startMs)+delta/density)
                 val moved=if(snapping) StudioTiming.snap(raw,anchors,project.durationMs-duration) else raw.coerceIn(0,project.durationMs-duration)
+                android.util.Log.i("VGStudio","timeline.text.move fromMs=${layer.startMs} toMs=$moved durationMs=$duration")
                 onEdit(project.copy(tools=project.tools.copy(textLayers=project.tools.textLayers.map {if(it.id==layer.id) it.copy(startMs=moved,endMs=moved+duration) else it})),null)
             }
         }
@@ -133,14 +137,15 @@ internal fun StudioTimeline(project: StudioProject, selected: Int, positionMs: L
 @Composable
 private fun StudioTimedLane(label: String,start: Long,end: Long,totalWidth: Float,left: Float,right: Float,
     enabled: Boolean,color: Color,onClick: ()->Unit,onMove: (Float)->Unit) {
-    var drag by remember(label) {mutableFloatStateOf(0f)}
+    val latestMove by rememberUpdatedState(onMove)
+    var drag by remember {mutableFloatStateOf(0f)}
     Row(Modifier.width(totalWidth.dp).height(48.dp)) {
         Spacer(Modifier.width(left.dp))
         Text("$label · $start–$end ms",maxLines=1,modifier=Modifier
             .width((right-left).coerceAtLeast(24f).dp).fillMaxHeight().graphicsLayer {translationX=drag}
             .background(color).clickable(enabled=enabled,onClick=onClick)
             .pointerInput(start,end,totalWidth,enabled) {
-                if(enabled) detectDragGesturesAfterLongPress(onDragStart={drag=0f},onDragCancel={drag=0f},onDragEnd={onMove(drag);drag=0f}) {change,amount ->change.consume();drag+=amount.x}
+                if(enabled) detectDragGesturesAfterLongPress(onDragStart={drag=0f},onDragCancel={drag=0f},onDragEnd={latestMove(drag);drag=0f}) {change,amount ->change.consume();drag+=amount.x}
             }.padding(6.dp).semantics {contentDescription="Timeline $label"})
     }
 }

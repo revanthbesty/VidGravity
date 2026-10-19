@@ -36,6 +36,8 @@ internal object NativeStudioRenderer {
     fun videoEffects(project: StudioProject, clip: StudioClip, resize: Boolean = true, context: Context? = null, sourceFrameRate: Float? = null): List<Effect> {
         val effects = mutableListOf<Effect>()
         val tools = project.tools
+        val offset=project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs}
+        val clock=StudioEffectClock(offset,clip.startMs,clip.speed,resize)
         if (resize && clip.speed != 1f) effects += SpeedChangeEffect(clip.speed)
         if (clip.frame != StudioFrame()) effects += Crop(clip.frame.left*2-1,clip.frame.right*2-1,1-clip.frame.bottom*2,1-clip.frame.top*2)
         if (tools.soften > 0f) effects += GaussianBlur(tools.soften)
@@ -67,10 +69,9 @@ internal object NativeStudioRenderer {
             effects += OverlayEffect(listOf(TextOverlay.createStaticTextOverlay(text)))
         }
         if (tools.captions.isNotEmpty()) {
-            val offset = project.clips.takeWhile { it.id != clip.id }.sumOf { it.playbackDurationMs }
             effects += OverlayEffect(listOf(object : TextOverlay() {
                 override fun getText(presentationTimeUs: Long): SpannableString {
-                    val time = offset + (presentationTimeUs / 1000 / if (resize) 1f else clip.speed).toLong()
+                    val time = clock.outputMs(presentationTimeUs)
                     val value = tools.captions.filter { time >= it.startMs && time < it.endMs }.joinToString("\n") { it.text }.ifEmpty { " " }
                     return SpannableString(value).apply {
                         setSpan(ForegroundColorSpan(tools.captionColor),0,length,Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -78,15 +79,15 @@ internal object NativeStudioRenderer {
                         setSpan(TypefaceSpan(tools.captionFont),0,length,Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     }
                 }
-                override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings = CreatorOverlays.captionSettings(project,offset+(presentationTimeUs/1000/if(resize) 1f else clip.speed).toLong())
+                override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings = CreatorOverlays.captionSettings(project,clock.outputMs(presentationTimeUs))
             }))
         }
-        val textLayers=StudioTextOverlays.overlays(tools.textLayers,project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs},if(resize) 1f else clip.speed)
-        val graphics=CreatorOverlays.overlays(context,project,project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs},if(resize) 1f else clip.speed)
+        val textLayers=StudioTextOverlays.overlays(tools.textLayers,clock)
+        val graphics=CreatorOverlays.overlays(context,project,clock)
         if(graphics.isNotEmpty()) effects+=OverlayEffect(graphics)
         if (project.fadeEdges) effects += RgbMatrix { timeUs, _ ->
             val gain = StudioFade.gain(
-                (timeUs / if(resize) 1f else clip.speed).toLong(),clip.playbackDurationMs*1000,tools.fadeDurationMs*1000)
+                clock.clipUs(timeUs),clip.playbackDurationMs*1000,tools.fadeDurationMs*1000)
             floatArrayOf(gain,0f,0f,0f, 0f,gain,0f,0f, 0f,0f,gain,0f, 0f,0f,0f,1f)
         }
         if (resize) {
