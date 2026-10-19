@@ -36,6 +36,8 @@ internal object NativeStudioRenderer {
     fun videoEffects(project: StudioProject, clip: StudioClip, resize: Boolean = true, context: Context? = null, sourceFrameRate: Float? = null): List<Effect> {
         val effects = mutableListOf<Effect>()
         val tools = project.tools
+        val offset=project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs}
+        val clock=StudioEffectClock(offset,clip.speed,resize)
         if (resize && clip.speed != 1f) effects += SpeedChangeEffect(clip.speed)
         if (clip.frame != StudioFrame()) effects += Crop(clip.frame.left*2-1,clip.frame.right*2-1,1-clip.frame.bottom*2,1-clip.frame.top*2)
         if (tools.soften > 0f) effects += GaussianBlur(tools.soften)
@@ -54,6 +56,11 @@ internal object NativeStudioRenderer {
             StudioFilter.INVERT -> effects += RgbFilter.createInvertedFilter()
             else -> Unit
         }
+        // Opacity belongs to video; independent text layers keep their own appearance.
+        if(clip.opacity<1f) effects+=RgbMatrix {_,_ ->
+            val g=clip.opacity
+            floatArrayOf(g,0f,0f,0f, 0f,g,0f,0f, 0f,0f,g,0f, 0f,0f,0f,1f)
+        }
         if (project.overlay.isNotBlank()) {
             val text = SpannableString(project.overlay).apply {
                 setSpan(ForegroundColorSpan(android.graphics.Color.WHITE), 0, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -62,10 +69,9 @@ internal object NativeStudioRenderer {
             effects += OverlayEffect(listOf(TextOverlay.createStaticTextOverlay(text)))
         }
         if (tools.captions.isNotEmpty()) {
-            val offset = project.clips.takeWhile { it.id != clip.id }.sumOf { it.playbackDurationMs }
             effects += OverlayEffect(listOf(object : TextOverlay() {
                 override fun getText(presentationTimeUs: Long): SpannableString {
-                    val time = offset + (presentationTimeUs / 1000 / if (resize) 1f else clip.speed).toLong()
+                    val time = clock.outputMs(presentationTimeUs)
                     val value = tools.captions.filter { time >= it.startMs && time < it.endMs }.joinToString("\n") { it.text }.ifEmpty { " " }
                     return SpannableString(value).apply {
                         setSpan(ForegroundColorSpan(tools.captionColor),0,length,Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -73,13 +79,15 @@ internal object NativeStudioRenderer {
                         setSpan(TypefaceSpan(tools.captionFont),0,length,Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     }
                 }
-                override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings = CreatorOverlays.captionSettings(project,offset+(presentationTimeUs/1000/if(resize) 1f else clip.speed).toLong())
+                override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings = CreatorOverlays.captionSettings(project,clock.outputMs(presentationTimeUs))
             }))
         }
-        val graphics=CreatorOverlays.overlays(context,project,project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs},if(resize) 1f else clip.speed)
+        val textLayers=StudioTextOverlays.overlays(tools.textLayers,clock)
+        val graphics=CreatorOverlays.overlays(context,project,clock)
         if(graphics.isNotEmpty()) effects+=OverlayEffect(graphics)
         if (project.fadeEdges) effects += RgbMatrix { timeUs, _ ->
-            val gain = StudioFade.gain(timeUs, (if (resize) clip.playbackDurationMs else clip.durationMs) * 1000)
+            val gain = StudioFade.gain(
+                clock.clipUs(timeUs),clip.playbackDurationMs*1000,tools.fadeDurationMs*1000)
             floatArrayOf(gain,0f,0f,0f, 0f,gain,0f,0f, 0f,0f,gain,0f, 0f,0f,0f,1f)
         }
         if (resize) {
@@ -95,6 +103,11 @@ internal object NativeStudioRenderer {
             // E.g. 9:16 at height720 becomes405px wide. Align the final GL canvas
             // before strict AVC encoding, without enabling a silent quality fallback.
             effects += StudioEncoderCanvas()
+        }
+        if(textLayers.isNotEmpty()) {
+            // Render titles at output scale rather than rasterizing them onto a tiny import.
+            if(!resize) effects+=Presentation.createForHeight(720)
+            effects+=OverlayEffect(textLayers)
         }
         return effects
     }
@@ -161,6 +174,17 @@ internal object NativeStudioRenderer {
     suspend fun render(context: Context, project: StudioProject, output: File, onProgress: (Int?) -> Unit) = renderMutex.withLock {
         project.validate()
         val prepared=withContext(Dispatchers.IO) {composition(project,context)}
+        renderPrepared(context,project.tools.bitrate,prepared,output,onProgress)
+    }
+
+    /** Encode a decoded still into a normal editable silent video; no permanent image decoder dependency. */
+    suspend fun renderStill(context: Context, image: File, output: File) = renderMutex.withLock {
+        val item=EditedMediaItem.Builder(MediaItem.Builder().setUri(android.net.Uri.fromFile(image)).setImageDurationMs(2000).build())
+            .setFrameRate(30).setRemoveAudio(true).setEffects(Effects(emptyList(),listOf(Presentation.createForHeight(720),StudioEncoderCanvas()))).build()
+        renderPrepared(context,0,Composition.Builder(EditedMediaItemSequence.Builder(item).build()).build(),output) {}
+    }
+
+    private suspend fun renderPrepared(context: Context, bitrate: Int, prepared: Composition, output: File, onProgress: (Int?)->Unit) {
         var transformer: Transformer? = null
         val handler = Handler(Looper.getMainLooper())
         try {
@@ -174,7 +198,7 @@ internal object NativeStudioRenderer {
                         .setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC)
                         .setPortraitEncodingEnabled(true)
                         .setEncoderFactory(DefaultEncoderFactory.Builder(context).setEnableFallback(false).apply {
-                            if (project.tools.bitrate > 0) setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(project.tools.bitrate).build())
+                            if (bitrate > 0) setRequestedVideoEncoderSettings(VideoEncoderSettings.Builder().setBitrate(bitrate).build())
                         }.build())
                         .addListener(object : Transformer.Listener {
                             override fun onCompleted(composition: Composition, exportResult: ExportResult) {

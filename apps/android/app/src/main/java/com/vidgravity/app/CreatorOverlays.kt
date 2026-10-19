@@ -24,7 +24,7 @@ internal object CreatorOverlays {
                 if(s.animation==CreatorAnimation.POP) {val scale=0.75f+0.25f*phase;setScale(scale,scale)}
             }.build()
     }
-    fun overlays(context:Context?,p:StudioProject,offset:Long,speed:Float):List<TextureOverlay> {
+    fun overlays(context:Context?,p:StudioProject,clock:StudioEffectClock):List<TextureOverlay> {
         val s=p.tools.social; val result=mutableListOf<TextureOverlay>()
         if(s.watermark.isNotBlank()) result+=object:TextOverlay() {
             override fun getText(presentationTimeUs:Long)=text(s.watermark,p,18)
@@ -36,14 +36,14 @@ internal object CreatorOverlays {
             result+=BitmapOverlay.createStaticBitmapOverlay(bitmap,OverlaySettings.Builder().setScale(0.18f,0.18f).setBackgroundFrameAnchor(s.x,-s.y).build())
         }
         if(s.lowerThird.isNotBlank()) result+=object:TextOverlay() {
-            override fun getText(presentationTimeUs:Long)=text(if(offset+(presentationTimeUs/1000/speed).toLong()<5000) s.lowerThird else " ",p,24)
+            override fun getText(presentationTimeUs:Long)=text(if(clock.outputMs(presentationTimeUs)<5000) s.lowerThird else " ",p,24)
             override fun getOverlaySettings(presentationTimeUs:Long)=OverlaySettings.Builder().setBackgroundFrameAnchor(0f,-0.55f).build()
         }
         if(s.progress) result+=object:BitmapOverlay() {
             private val bitmap=Bitmap.createBitmap(512,8,Bitmap.Config.ARGB_8888)
             private val paint=Paint().apply {color=p.tools.captionColor}
             override fun getBitmap(presentationTimeUs:Long):Bitmap {
-                val fraction=((offset+presentationTimeUs/1000/speed)/p.durationMs).coerceIn(0f,1f)
+                val fraction=(clock.outputMs(presentationTimeUs).toFloat()/p.durationMs).coerceIn(0f,1f)
                 bitmap.eraseColor(Color.TRANSPARENT);Canvas(bitmap).drawRect(0f,0f,512*fraction,8f,paint);return bitmap
             }
             override fun getOverlaySettings(presentationTimeUs:Long)=OverlaySettings.Builder().setBackgroundFrameAnchor(0f,-0.94f).build()

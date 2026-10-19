@@ -70,6 +70,8 @@ class CreativeWorkspaceUiTest {
         renamed.performTextReplacement("Sprint 4 navigation autosave")
         renamed.performImeAction()
         compose.onNodeWithText("Assistant",substring=false).performScrollTo().performClick()
+        // Leaving Thumbnails flushes settings on IO before changing the selected tab.
+        compose.waitUntil(10_000) {compose.onAllNodes(hasText("Assistant") and isSelected()).fetchSemanticsNodes().size==1}
         compose.onNodeWithText("Thumbnails",substring=false).performScrollTo().performClick()
         compose.waitUntil(10_000) {compose.onAllNodesWithText("Reopen thumbnail: Sprint 4 navigation autosave").fetchSemanticsNodes().isNotEmpty()}
     }

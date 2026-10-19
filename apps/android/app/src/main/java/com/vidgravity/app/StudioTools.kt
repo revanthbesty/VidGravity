@@ -17,10 +17,14 @@ data class StudioTools(
     val rotation: Int = 0, val crop: Float = 0f, val aspect: StudioAspect = StudioAspect.SOURCE,
     val captionColor: Int = -1, val captionSize: Int = 32, val captionY: Float = -0.7f,
     val captionFont: String = "sans-serif", val captions: List<StudioCaption> = emptyList(),
-    val audio: List<StudioAudioLane> = emptyList(), val frameRate: Int = 0, val bitrate: Int = 0, val soften: Float = 0f, val social: CreatorStyle = CreatorStyle()
+    val audio: List<StudioAudioLane> = emptyList(), val frameRate: Int = 0, val bitrate: Int = 0, val soften: Float = 0f, val social: CreatorStyle = CreatorStyle(),
+    val textLayers: List<StudioTextLayer> = emptyList(), val fadeDurationMs: Long = 250
 ) {
     fun validate(duration: Long) {
         social.validate()
+        require(fadeDurationMs in 50..2000)
+        require(textLayers.size <= 16 && textLayers.map {it.id}.distinct().size==textLayers.size) { "Use up to sixteen independent text layers." }
+        textLayers.forEach {it.validate(duration)}
         require(brightness.isFinite() && brightness in -1f..1f && contrast.isFinite() && contrast in -0.9f..0.9f)
         require(saturation.isFinite() && saturation in -100f..100f && crop.isFinite() && crop in 0f..0.4f)
         require(soften.isFinite() && soften in 0f..3f)
@@ -39,6 +43,7 @@ data class StudioTools(
 
 internal object StudioToolsCodec {
     fun encode(t: StudioTools) = JSONObject().apply {
+        put("textLayers",JSONArray().apply {t.textLayers.forEach {put(it.json())}}); put("fadeDuration",t.fadeDurationMs)
         put("brightness",t.brightness); put("contrast",t.contrast); put("saturation",t.saturation)
         put("rotation",t.rotation); put("crop",t.crop); put("aspect",t.aspect.name)
         put("captionColor",t.captionColor); put("captionSize",t.captionSize); put("captionY",t.captionY); put("captionFont",t.captionFont)
@@ -56,7 +61,9 @@ internal object StudioToolsCodec {
             (0 until c.length()).map { c.getJSONObject(it).let { r -> StudioCaption(r.getLong("start"),r.getLong("end"),r.getString("text")) } },
             (0 until a.length()).map { a.getJSONObject(it).let { r -> StudioAudioLane(r.getString("id"),r.getString("uri"),r.getString("name"),
                 r.getLong("duration"),r.getLong("start"),r.getLong("end"),r.getLong("offset"),r.getDouble("volume").toFloat(),r.getLong("fadeIn"),r.getLong("fadeOut")) } },
-            j.getInt("frameRate"),j.getInt("bitrate"),j.optDouble("soften",0.0).toFloat(),CreatorStyle.decode(j.optJSONObject("social")))
+            j.getInt("frameRate"),j.getInt("bitrate"),j.optDouble("soften",0.0).toFloat(),CreatorStyle.decode(j.optJSONObject("social")),
+            textLayers=j.optJSONArray("textLayers")?.let {rows -> (0 until rows.length()).map {StudioTextLayer.decode(rows.getJSONObject(it))}} ?: emptyList(),
+            fadeDurationMs=j.optLong("fadeDuration",250))
     }
 }
 
@@ -108,7 +115,7 @@ object StudioEdits {
     fun mergeNext(p: StudioProject, index: Int): StudioProject {
         require(index < p.clips.lastIndex)
         val a=p.clips[index]; val b=p.clips[index+1]
-        require(a.uri == b.uri && a.endMs == b.startMs && a.speed == b.speed) { "Merge requires adjacent ranges from the same source and speed." }
+        require(a.uri == b.uri && a.endMs == b.startMs && a.speed == b.speed && a.frame == b.frame && a.opacity == b.opacity) { "Merge requires adjacent ranges from the same source, speed, crop and opacity." }
         return p.copy(clips=p.clips.toMutableList().apply { this[index]=a.copy(endMs=b.endMs); removeAt(index+1) })
     }
     fun relink(p: StudioProject, index: Int, replacement: StudioClip): StudioProject {

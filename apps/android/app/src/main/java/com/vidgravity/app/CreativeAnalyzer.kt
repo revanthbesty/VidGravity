@@ -84,6 +84,13 @@ internal object CreativeAnalyzer {
 
     }
 
+    private val waveformGate=kotlinx.coroutines.sync.Semaphore(1)
+    suspend fun waveform(context:Context,lane:StudioAudioLane):List<AudioObservation> = withContext(Dispatchers.IO) {
+        require(LocalMediaPolicy.validUri(lane.uri) && lane.startMs>=0 && lane.endMs<=lane.sourceDurationMs && lane.durationMs>=100)
+        waveformGate.acquire()
+        try {decodeAudio(context,StudioClip(uri=lane.uri,name=lane.name,sourceDurationMs=lane.sourceDurationMs,startMs=lane.startMs,endMs=lane.endMs),minOf(60_000L,lane.durationMs)) {}}
+        finally {waveformGate.release()}
+    }
     private suspend fun decodeAudio(context:Context,clip:StudioClip,limit:Long,onProgress:(Float)->Unit):List<AudioObservation> {
         val extractor=MediaExtractor(); var decoder:MediaCodec?=null
         try {

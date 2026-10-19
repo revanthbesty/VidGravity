@@ -17,6 +17,8 @@ class IntegratedCreatorUiTest {
         val repository=StudioRepository(context);repository.save(p)
         try {
             focused();compose.onNodeWithTag("nav_Library").performClick();compose.onNodeWithTag("nav_Home").performClick()
+            // Home intentionally restores its scroll position when tabs are revisited.
+            compose.onNodeWithTag("home_dashboard").performScrollToNode(hasTestTag("home_create"))
             compose.onNodeWithTag("home_create").assertIsDisplayed()
             compose.waitUntil(10_000) {compose.onAllNodesWithTag("home_loading").fetchSemanticsNodes().isEmpty()}
             compose.onNodeWithTag("home_dashboard").performScrollToNode(hasText("Continue Sprint 6 continue"))

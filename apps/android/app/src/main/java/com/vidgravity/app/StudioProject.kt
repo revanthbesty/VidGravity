@@ -7,7 +7,7 @@ import java.util.UUID
 
 data class StudioClip(
     val id: String = UUID.randomUUID().toString(), val uri: String, val name: String,
-    val sourceDurationMs: Long, val startMs: Long = 0, val endMs: Long = sourceDurationMs, val speed: Float = 1f, val frame: StudioFrame = StudioFrame()
+    val sourceDurationMs: Long, val startMs: Long = 0, val endMs: Long = sourceDurationMs, val speed: Float = 1f, val frame: StudioFrame = StudioFrame(), val opacity: Float = 1f
 ) {
     val durationMs: Long get() = endMs - startMs
     val playbackDurationMs: Long get() = (durationMs / speed).toLong()
@@ -41,6 +41,7 @@ data class StudioProject(
         require(durationMs in 100..1_800_000) { "Projects must be between 0.1 seconds and 30 minutes." }
         for (clip in clips) {
             clip.frame.validate()
+            require(clip.opacity.isFinite() && clip.opacity in 0f..1f)
             require(LocalMediaPolicy.validUri(clip.uri)) { "Choose readable local media." }
             require(clip.speed.isFinite() && clip.speed in listOf(0.5f,1f,1.5f,2f))
             require(clip.startMs >= 0 && clip.endMs <= clip.sourceDurationMs && clip.durationMs >= 100) { "Invalid clip trim range." }
@@ -59,7 +60,7 @@ object StudioProjectCodec {
     private const val MAX_CHARACTERS = 256_000
     fun encode(project: StudioProject): String {
         project.validate()
-        return JSONObject().put("schema", 4).put("tools", StudioToolsCodec.encode(project.tools)).put("id", project.id).put("title", project.title)
+        return JSONObject().put("schema", 5).put("tools", StudioToolsCodec.encode(project.tools)).put("id", project.id).put("title", project.title)
             .put("updatedAt", project.updatedAt).put("overlay", project.overlay)
             .put("filter", project.filter.name).put("resolution", project.resolution.name)
             .put("fadeEdges", project.fadeEdges).put("originalVolume", project.originalVolume)
@@ -67,7 +68,7 @@ object StudioProjectCodec {
             .put("voiceUri", project.voiceUri ?: JSONObject.NULL).put("voiceVolume", project.voiceVolume)
             .put("clips", JSONArray().apply { project.clips.forEach { clip ->
                 put(JSONObject().put("id", clip.id).put("uri", clip.uri).put("name", clip.name)
-                    .put("sourceDurationMs", clip.sourceDurationMs).put("startMs", clip.startMs).put("endMs", clip.endMs).put("speed", clip.speed).put("frame", JSONObject().put("left",clip.frame.left).put("top",clip.frame.top).put("right",clip.frame.right).put("bottom",clip.frame.bottom)))
+                    .put("sourceDurationMs", clip.sourceDurationMs).put("startMs", clip.startMs).put("endMs", clip.endMs).put("speed", clip.speed).put("opacity",clip.opacity).put("frame", JSONObject().put("left",clip.frame.left).put("top",clip.frame.top).put("right",clip.frame.right).put("bottom",clip.frame.bottom)))
             } }).toString().also {
                 require(it.length <= MAX_CHARACTERS) { "Project metadata is too large. Shorten media names or captions before saving." }
             }
@@ -76,13 +77,13 @@ object StudioProjectCodec {
     fun decode(raw: String): StudioProject {
         require(raw.length <= MAX_CHARACTERS) { "Project file is too large." }
         val json = JSONObject(raw)
-        require(json.getInt("schema") in 1..4) { "This project needs a newer VidGravity version." }
+        require(json.getInt("schema") in 1..5) { "This project needs a newer VidGravity version." }
         val rows = json.getJSONArray("clips")
         require(rows.length() in 1..12)
         return StudioProject(id = json.getString("id"), title = json.getString("title"),
             clips = (0 until rows.length()).map { index -> rows.getJSONObject(index).let {
                 StudioClip(it.getString("id"), it.getString("uri"), it.getString("name"),
-                    it.getLong("sourceDurationMs"), it.getLong("startMs"), it.getLong("endMs"), it.optDouble("speed", 1.0).toFloat(), it.optJSONObject("frame")?.let { f -> StudioFrame(f.getDouble("left").toFloat(),f.getDouble("top").toFloat(),f.getDouble("right").toFloat(),f.getDouble("bottom").toFloat()) } ?: StudioFrame())
+                    it.getLong("sourceDurationMs"), it.getLong("startMs"), it.getLong("endMs"), it.optDouble("speed", 1.0).toFloat(), it.optJSONObject("frame")?.let { f -> StudioFrame(f.getDouble("left").toFloat(),f.getDouble("top").toFloat(),f.getDouble("right").toFloat(),f.getDouble("bottom").toFloat()) } ?: StudioFrame(), it.optDouble("opacity",1.0).toFloat())
             } }, overlay = json.getString("overlay"), filter = StudioFilter.valueOf(json.getString("filter")),
             resolution = StudioResolution.valueOf(json.getString("resolution")), fadeEdges = json.getBoolean("fadeEdges"),
             originalVolume = json.getDouble("originalVolume").toFloat(),
@@ -96,8 +97,8 @@ object StudioProjectCodec {
 }
 
 internal object StudioFade {
-    fun gain(timeUs: Long, durationUs: Long): Float {
-        val edge = minOf(250_000L, durationUs / 2).coerceAtLeast(1L)
+    fun gain(timeUs: Long, durationUs: Long, edgeUs: Long = 250_000): Float {
+        val edge = minOf(edgeUs, durationUs / 2).coerceAtLeast(1L)
         return minOf(1f, timeUs.toFloat() / edge, (durationUs - timeUs).toFloat() / edge).coerceIn(0f, 1f)
     }
 }

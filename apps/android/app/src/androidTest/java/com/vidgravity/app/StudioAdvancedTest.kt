@@ -94,7 +94,7 @@ class StudioAdvancedTest {
 }
 
 /** Decode the actual AAC export, checking the silent lead-in and audible delayed lane. */
-private fun studioAudioLevels(file:File): Pair<Double,Double> {
+internal fun studioAudioLevels(file:File): Pair<Double,Double> {
     val extractor=android.media.MediaExtractor(); var codec:android.media.MediaCodec?=null
     try {
         extractor.setDataSource(file.absolutePath)
