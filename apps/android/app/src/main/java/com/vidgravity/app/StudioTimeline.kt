@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -58,7 +59,7 @@ internal fun StudioTimeline(project: StudioProject, selected: Int, positionMs: L
     val anchors=StudioTiming.boundaries(project)+positionMs
     fun seek(time: Long) = onSeek(StudioTiming.frame(if(snapping) StudioTiming.snap(time,anchors,project.durationMs) else time,project.tools.frameRate,project.durationMs))
     Text("Editing timeline", style=MaterialTheme.typography.titleLarge)
-    Text("Long-press a clip and drag to reorder. Video is sequential; audio lanes mix independently.",style=MaterialTheme.typography.labelSmall)
+    Text("Long-press video to reorder. Drag audio or text directly to move timing. Video is sequential; audio lanes mix independently.",style=MaterialTheme.typography.labelSmall)
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
         TextButton(onClick={zoom=(zoom/2).coerceAtLeast(8f)}) { Text("Zoom out") }
         TextButton(onClick={zoom=(zoom*2).coerceAtMost(128f)}) { Text("Zoom in") }
@@ -157,11 +158,11 @@ private fun StudioTimedLane(label: String,start: Long,end: Long,totalWidth: Floa
         Box(Modifier.width((right-left).coerceAtLeast(48f).dp).fillMaxHeight().graphicsLayer {translationX=drag}
             .clickable(enabled=enabled,onClick=onClick)
             .pointerInput(start,end,totalWidth,enabled) {
-                if(enabled) detectDragGesturesAfterLongPress(
+                if(enabled) detectHorizontalDragGestures(
                     onDragStart={drag=0f;android.util.Log.i("VGStudio","timeline.lane.drag.started")},
                     onDragCancel={drag=0f;android.util.Log.i("VGStudio","timeline.lane.drag.cancelled")},
                     onDragEnd={android.util.Log.i("VGStudio","timeline.lane.drag.end deltaPx=$drag");latestMove(drag);drag=0f}
-                ) {change,amount ->change.consume();drag+=amount.x}
+                ) {change,amount ->change.consume();drag+=amount}
             }.semantics(mergeDescendants=true) {contentDescription="Timeline $label"}) {
             Canvas(Modifier.matchParentSize()) {drawRect(color,size=androidx.compose.ui.geometry.Size((right-left).coerceAtLeast(1f)*density,size.height))}
             Text("$label · $start–$end ms",maxLines=1,style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(6.dp))

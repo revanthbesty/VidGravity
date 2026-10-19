@@ -4,6 +4,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
+import android.util.Log
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.*
 import org.junit.Rule
@@ -29,11 +30,11 @@ class StudioSprint10UiTest {
             compose.onNodeWithText("Apply Text end (ms)").performClick()
             compose.waitUntil(10_000) {repository.load(p.id).tools.textLayers.singleOrNull()?.endMs==1000L}
             compose.clickStudioToolbar("Background: Navy")
-            compose.onNodeWithContentDescription("Timeline A1 · Music").performScrollTo().performTouchInput {
-                down(center);advanceEventTime(700);moveBy(Offset(width.toFloat()*0.75f,0f));advanceEventTime(100);up()
+            compose.onNodeWithContentDescription("Timeline A1 · Music").performScrollTo().assertIsDisplayed().performTouchInput {
+                swipe(start=center,end=center+Offset(width.toFloat()*0.75f,0f),durationMillis=450)
             }
-            compose.onNodeWithContentDescription("Timeline T1 · Independent title").performScrollTo().performTouchInput {
-                down(center);advanceEventTime(700);moveBy(Offset(width.toFloat()*0.75f,0f));advanceEventTime(100);up()
+            compose.onNodeWithContentDescription("Timeline T1 · Independent title").performScrollTo().assertIsDisplayed().performTouchInput {
+                swipe(start=center,end=center+Offset(width.toFloat()*0.75f,0f),durationMillis=450)
             }
             compose.onNodeWithText("Save project").performScrollTo().performClick()
             compose.waitUntil(10_000) {repository.load(p.id).tools.textLayers.singleOrNull()?.startMs?.let {it>100}==true}
@@ -61,6 +62,10 @@ class StudioSprint10UiTest {
             compose.onNodeWithText("Restore ${p.title}").performScrollTo().performClick()
             compose.waitUntil(10_000) {repository.list().any {it.id==p.id}}
             assertEquals(moved,repository.load(p.id).tools.textLayers.single())
+        } catch(failure:Throwable) {
+            runCatching {compose.onRoot(useUnmergedTree=true).printToString().chunked(3000).forEach {Log.i("VGSmoke","sprint10.ui.failure.tree=$it")}}
+            runCatching {val saved=repository.load(p.id);Log.i("VGSmoke","sprint10.ui.failure.text=${saved.tools.textLayers.map {it.startMs to it.endMs}} audioOffsets=${saved.tools.audio.map {it.offsetMs}}")}
+            throw failure
         } finally {runCatching {repository.restore(p.id)};repository.delete(p.id)}
     }
 }
