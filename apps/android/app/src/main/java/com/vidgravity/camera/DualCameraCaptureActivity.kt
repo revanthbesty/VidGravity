@@ -23,6 +23,9 @@ import android.widget.TextView
 import android.widget.Toast
 import android.widget.SeekBar
 import androidx.activity.ComponentActivity
+import androidx.activity.OnBackPressedCallback
+import androidx.camera.video.FallbackStrategy
+import android.util.Log
 import androidx.activity.result.contract.ActivityResultContracts
 import android.app.AlertDialog
 import androidx.camera.core.Camera
@@ -52,6 +55,31 @@ import java.util.concurrent.Executors
  * video recording switches to a supported single-camera session before starting.
  */
 class DualCameraCaptureActivity : ComponentActivity() {
+    companion object {const val EXTRA_DARK="com.vidgravity.camera.DARK";private const val TAG="VGCamera"}
+    private var dark=true
+    private val panelColor get()=if(dark) 0xF01A2232.toInt() else 0xF0F5F7FC.toInt()
+    private val textColor get()=if(dark) 0xFFF2F5FA.toInt() else 0xFF182134.toInt()
+    private var indexingCapture=false
+    private var closeAfterSave=false
+    private var lastCapture:Intent?=null
+    private val capturePending get()=pendingPhoto || indexingCapture
+    private fun sessionChangeAllowed():Boolean {
+        if(recording!=null || capturePending) {
+            Toast.makeText(this,"Finish the capture before changing camera settings.",Toast.LENGTH_SHORT).show()
+            return false
+        }
+        return true
+    }
+    private fun closeCamera() {
+        photoTimer?.let {shutter.removeCallbacks(it);photoTimer=null;pendingPhoto=false}
+        if(recording!=null || capturePending) {
+            closeAfterSave=true
+            recording?.stop()
+            shutter.isEnabled=false
+            status.text="Saving capture before returning…"
+        } else finish()
+    }
+
     private lateinit var container: FrameLayout
     private lateinit var rearPreview: PreviewView
     private lateinit var frontPreview: PreviewView
@@ -75,7 +103,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private var recording: Recording? = null
     private var dualSupported = false
     private var dualMode = false
-    private var videoMode = false
+    private var videoMode = true
     private var frontFacing = false
     private var flashEnabled = false
     private var videoQuality = Quality.FHD
@@ -88,9 +116,25 @@ class DualCameraCaptureActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        dark=intent.getBooleanExtra(EXTRA_DARK,true)
+        applyOverrideConfiguration(android.content.res.Configuration().apply {
+            uiMode=if(dark) android.content.res.Configuration.UI_MODE_NIGHT_YES else android.content.res.Configuration.UI_MODE_NIGHT_NO
+        })
         super.onCreate(savedInstanceState)
+        videoMode=savedInstanceState?.getBoolean("videoMode",true) ?: true
+        frontFacing=savedInstanceState?.getBoolean("frontFacing",false) ?: false
+        timerSeconds=savedInstanceState?.getInt("timerSeconds",0) ?: 0
         executor = Executors.newSingleThreadExecutor()
         buildCameraUi()
+        onBackPressedDispatcher.addCallback(this,object:OnBackPressedCallback(true) {
+            override fun handleOnBackPressed()=closeCamera()
+        })
+        savedInstanceState?.let {saved ->
+            val value=saved.getString("captureUri")
+            val mime=saved.getString("captureMime")
+            if(value!=null && mime!=null) completedCapture(Uri.parse(value),File(cacheDir,"unused-capture"),saved.getString("captureName") ?: "Camera capture",mime)
+        }
+        Log.i(TAG,"create sdk=${Build.VERSION.SDK_INT} restored=${savedInstanceState!=null}")
         val permissions = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             startCameras()
@@ -124,9 +168,9 @@ class DualCameraCaptureActivity : ComponentActivity() {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(10), dp(8), dp(10), dp(8))
-            setBackgroundColor(0xAA101521.toInt())
+            setBackgroundColor(panelColor)
         }
-        val close = controlButton("✕") { finish() }.apply {contentDescription="Close camera"}
+        val close = controlButton("✕") { closeCamera() }.apply {contentDescription="Close camera"}
         flashButton = controlButton("Flash off") { toggleFlash() }
         val flip = controlButton("Flip") { toggleFacing() }
         dualButton = controlButton("Dual off") { toggleDualMode() }
@@ -142,17 +186,17 @@ class DualCameraCaptureActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(dp(16), dp(12), dp(16), dp(24))
-            setBackgroundColor(0xCC101521.toInt())
+            setBackgroundColor(panelColor)
         }
         status = TextView(this).apply {
             text = "Preparing camera…"
-            setTextColor(0xFFFFFFFF.toInt())
+            setTextColor(textColor)
             textSize = 13f
             gravity = Gravity.CENTER
             setPadding(0, 0, 0, dp(10))
         }
         bottom.addView(status, LinearLayout.LayoutParams(-1, -2))
-        zoomLabel = TextView(this).apply { text = "Zoom 1.0×"; setTextColor(0xFFFFFFFF.toInt()); gravity = Gravity.CENTER }
+        zoomLabel = TextView(this).apply { text = "Zoom 1.0×"; setTextColor(textColor); gravity = Gravity.CENTER }
         bottom.addView(zoomLabel)
         zoom = SeekBar(this).apply {
             max = 1000
@@ -177,18 +221,18 @@ class DualCameraCaptureActivity : ComponentActivity() {
             }.onFailure { Toast.makeText(this, "Recording could not change state.", Toast.LENGTH_SHORT).show() }
         }.apply { isEnabled = false }
         bottom.addView(pauseRecording, LinearLayout.LayoutParams(-1, dp(48)))
-        useCapture = controlButton("Use capture in Studio") { finish() }.apply { isEnabled = false }
+        useCapture = controlButton("View capture in Library") { finish() }.apply { isEnabled = false }
         bottom.addView(useCapture, LinearLayout.LayoutParams(-1, dp(48)))
         val controls = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
         }
-        modeButton = controlButton("PHOTO  |  VIDEO") { toggleMode() }
+        modeButton = controlButton(if(videoMode) "VIDEO  |  PHOTO" else "PHOTO  |  VIDEO") { toggleMode() }
         shutter = controlButton("●  Capture") { onShutterPressed() }.apply {
             isEnabled=false
             contentDescription="Capture photo or start and stop video recording"
             textSize = 17f
-            setTextColor(0xFFFFFFFF.toInt())
+            setTextColor(android.graphics.Color.WHITE)
             setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xFF7657D8.toInt()))
         }
         controls.addView(modeButton, LinearLayout.LayoutParams(0, dp(58), 1f).apply { marginEnd = dp(12) })
@@ -196,7 +240,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
         bottom.addView(controls, LinearLayout.LayoutParams(-1, -2))
         val hint = TextView(this).apply {
             text = "Tap Capture for a photo. In Video mode, tap to start/stop recording."
-            setTextColor(0xFFCBC7D5.toInt())
+            setTextColor(textColor)
             textSize = 11f
             gravity = Gravity.CENTER
             setPadding(0, dp(10), 0, 0)
@@ -217,14 +261,16 @@ class DualCameraCaptureActivity : ComponentActivity() {
             text = label
             textSize = 11f
             isAllCaps = false
-            setTextColor(0xFFFFFFFF.toInt())
-            setBackgroundTintList(android.content.res.ColorStateList.valueOf(0xCC293449.toInt()))
+            setTextColor(textColor)
+            setBackgroundTintList(android.content.res.ColorStateList.valueOf(if(dark) 0xFF293449.toInt() else 0xFFE5EAF4.toInt()))
             setOnClickListener { action() }
         }
 
     private fun startCameras() {
+        Log.i(TAG,"initialize.begin")
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
+            if(isFinishing || isDestroyed) return@addListener
             try {
                 provider = future.get()
                 dualSupported = provider?.availableConcurrentCameraInfos?.any { infos ->
@@ -299,18 +345,22 @@ class DualCameraCaptureActivity : ComponentActivity() {
         val stillCapture = ImageCapture.Builder()
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
             .build()
-        val recorder = Recorder.Builder().setQualitySelector(QualitySelector.from(videoQuality)).build()
+        val recorder = Recorder.Builder().setQualitySelector(QualitySelector.from(videoQuality, FallbackStrategy.lowerQualityOrHigherThan(videoQuality))).build()
         val video = VideoCapture.withOutput(recorder)
         try {
-            camera = cameraProvider.bindToLifecycle(this, selector, rearUseCase, stillCapture, video)
-            imageCapture = stillCapture
-            videoCapture = video
+            // Bind only the use cases required by the selected mode. Requesting preview,
+            // photo and video together can reject video on otherwise supported cameras.
+            camera = if(videoMode) cameraProvider.bindToLifecycle(this, selector, rearUseCase, video)
+                else cameraProvider.bindToLifecycle(this, selector, rearUseCase, stillCapture)
+            imageCapture = if(videoMode) null else stillCapture
+            videoCapture = if(videoMode) video else null
         } catch (error: Exception) {
             try {
                 cameraProvider.unbindAll()
                 camera = cameraProvider.bindToLifecycle(this, selector, rearUseCase, stillCapture)
                 imageCapture = stillCapture
                 videoCapture = null
+                videoMode=false
                 Toast.makeText(this, "Photo mode is available; video capture is not supported in this camera configuration.", Toast.LENGTH_LONG).show()
             } catch (fallback: Exception) {
                 finishWithMessage("Could not start camera preview: ${fallback.message ?: "unsupported camera configuration"}")
@@ -325,13 +375,16 @@ class DualCameraCaptureActivity : ComponentActivity() {
         }
         camera?.cameraControl?.enableTorch(false)
         updateFlashLabel()
+        Log.i(TAG,"session.ready video=${videoCapture!=null} front=$frontFacing")
+        modeButton.text=if(videoMode) "VIDEO  |  PHOTO" else "PHOTO  |  VIDEO"
         status.text = if (frontFacing) "Front camera · ${if (videoMode) "Video" else "Photo"} mode"
             else "Rear camera · ${if (videoMode) "Video" else "Photo"} mode"
-        shutter.isEnabled=true
+        shutter.isEnabled=!capturePending
         shutter.text = if (videoMode) "●  Record" else "●  Capture"
     }
 
     private fun toggleMode() {
+        if(!sessionChangeAllowed()) return
         if (recording != null) {
             Toast.makeText(this, "Stop the current recording before changing mode.", Toast.LENGTH_SHORT).show()
             return
@@ -348,6 +401,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
     }
 
     private fun onShutterPressed() {
+        if(capturePending) return
         if (videoMode) toggleRecording() else takePhoto()
     }
 
@@ -381,9 +435,9 @@ class DualCameraCaptureActivity : ComponentActivity() {
                     File(directory, fileName)
                 ).build()
             }
-            capture.takePicture(options, executor, object : ImageCapture.OnImageSavedCallback {
+            try {capture.takePicture(options, executor, object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(result: ImageCapture.OutputFileResults) = runOnUiThread {
-                    pendingPhoto = false; shutter.isEnabled = true
+                    pendingPhoto = false
                     completedCapture(result.savedUri,
                         File(getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: File(filesDir, "media"), fileName),
                         fileName, "image/jpeg")
@@ -391,14 +445,20 @@ class DualCameraCaptureActivity : ComponentActivity() {
                     Toast.makeText(this@DualCameraCaptureActivity, "Photo saved to VidGravity: ${fileName}", Toast.LENGTH_LONG).show()
                 }
                 override fun onError(exception: ImageCaptureException) = runOnUiThread {
-                    pendingPhoto = false; shutter.isEnabled = true
+                    pendingPhoto = false; shutter.isEnabled = true;closeAfterSave=false
+                    status.text="Photo failed. Retry capture."
+                    Log.w(TAG,"photo.failed type=${exception.javaClass.simpleName}")
                     Toast.makeText(this@DualCameraCaptureActivity, "Photo failed: ${exception.message}", Toast.LENGTH_LONG).show()
                 }
-            })
+            })} catch(failure:Exception) {
+                pendingPhoto=false;shutter.isEnabled=true;closeAfterSave=false
+                status.text="Photo could not start. Check storage and retry."
+                Log.w(TAG,"photo.start.failed type=${failure.javaClass.simpleName}")
+            }
         }
         if (timerSeconds > 0) {
             status.text = "Photo timer · ${timerSeconds}s"
-            photoTimer = Runnable { captureNow() }
+            photoTimer = Runnable { photoTimer=null;captureNow() }
             shutter.postDelayed(photoTimer!!, timerSeconds * 1000L)
         } else captureNow()
     }
@@ -419,6 +479,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
             Toast.makeText(this, "Video capture is unavailable for this camera. Try another camera or resolution.", Toast.LENGTH_LONG).show()
             return
         }
+        try {
         val fileName = "vidgravity-${System.currentTimeMillis()}.mp4"
         // Android 10+: publish finished recordings in Movies/VidGravity so the
         // MediaStore-backed library can discover them on its next refresh.
@@ -451,7 +512,8 @@ class DualCameraCaptureActivity : ComponentActivity() {
                 is VideoRecordEvent.Start -> {
                     recordingPaused = false; pauseRecording.isEnabled = true; pauseRecording.text = "Pause recording"
                     shutter.text = "■  Stop"
-                    status.text = "Recording video…"
+                    Log.i(TAG,"recording.started audio=${ContextCompat.checkSelfPermission(this,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED}")
+                    status.text = if(ContextCompat.checkSelfPermission(this,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED) "Recording video…" else "Recording video without microphone sound…"
                 }
                 is VideoRecordEvent.Status -> {
                     val seconds = event.recordingStats.recordedDurationNanos / 1_000_000_000L
@@ -460,9 +522,18 @@ class DualCameraCaptureActivity : ComponentActivity() {
                 is VideoRecordEvent.Finalize -> {
                     recording = null
                     pauseRecording.isEnabled = false; recordingPaused = false
-                    shutter.isEnabled = true
                     shutter.text = "●  Record"
+                    Log.i(TAG,"recording.finalized error=${event.error}")
                     if (event.hasError()) {
+                        shutter.isEnabled=true;closeAfterSave=false
+                        // CameraX may leave a failed MediaStore row. Remove only this failed output.
+                        val failedUri=event.outputResults.outputUri
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            runCatching {
+                                if(failedUri!=Uri.EMPTY) contentResolver.delete(failedUri,null,null)
+                                else if(Build.VERSION.SDK_INT<29) File(getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: File(filesDir,"media"),fileName).delete()
+                            }
+                        }
                         status.text = "Recording failed"
                         Toast.makeText(this, "Recording failed. Please retry.", Toast.LENGTH_LONG).show()
                     } else {
@@ -475,31 +546,45 @@ class DualCameraCaptureActivity : ComponentActivity() {
                 }
             }
         }
+        } catch(failure:Exception) {
+            recording=null;shutter.isEnabled=true;pauseRecording.isEnabled=false;closeAfterSave=false
+            status.text="Recording could not start. Check storage, camera and microphone permissions, then retry."
+            Log.w(TAG,"recording.start.failed type=${failure.javaClass.simpleName}")
+        }
     }
 
     private fun completedCapture(savedUri: Uri?, file: File, name: String, mime: String) {
+        indexingCapture=true;shutter.isEnabled=false;useCapture.isEnabled=false
         lifecycleScope.launch {
             try {
                 val uri = withContext(Dispatchers.IO) {
                     val readable = savedUri ?: MediaLibraryIndexer.localUri(this@DualCameraCaptureActivity, file)
-                    val size = contentResolver.openAssetFileDescriptor(readable, "r")?.use { it.length } ?: 0L
+                    val size = contentResolver.openAssetFileDescriptor(readable, "r")?.use { it.length }
+                        ?: error("Capture is unavailable")
+                    require(size!=0L) {"Capture is empty"}
                     MediaLibraryIndexer.register(this@DualCameraCaptureActivity, readable, name, mime, size)
                     readable
                 }
-                setResult(RESULT_OK, Intent().setDataAndType(uri, mime).apply {
+                lastCapture=Intent().setDataAndType(uri, mime).apply {
                     putExtra(Intent.EXTRA_TITLE, name)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                })
-                useCapture.isEnabled = true
+                }
+                setResult(RESULT_OK,lastCapture)
+                indexingCapture=false;shutter.isEnabled=true;useCapture.isEnabled=true
+                Log.i(TAG,"capture.indexed mime=$mime")
                 status.text = "Saved to Library · Ready for Studio"
+                if(closeAfterSave) finish()
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (failure: Exception) {
-                status.text = "Capture saved. Library indexing could not finish; reopen Library to retry."
-            }
+                closeAfterSave=false
+                status.text = "Library indexing could not finish. Reopen Library to recover completed captures, or retry recording."
+                Log.w(TAG,"capture.index.failed type=${failure.javaClass.simpleName}")
+            } finally {indexingCapture=false;shutter.isEnabled=!pendingPhoto}
         }
     }
 
     private fun toggleFacing() {
+        if(!sessionChangeAllowed()) return
         if (recording != null) {
             Toast.makeText(this, "Stop recording before switching cameras.", Toast.LENGTH_SHORT).show()
             return
@@ -513,6 +598,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
     }
 
     private fun toggleDualMode() {
+        if(!sessionChangeAllowed()) return
         if (!dualSupported) {
             Toast.makeText(this, "This device does not report front/rear concurrent camera support.", Toast.LENGTH_LONG).show()
             return
@@ -523,6 +609,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
         }
         frontFacing = false
         dualMode = !dualMode
+        if(dualMode) {videoMode=false;modeButton.text="PHOTO  |  VIDEO"}
         dualButton.text = if (dualMode) "Dual on" else "Dual off"
         bindCameraSession()
     }
@@ -547,6 +634,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
     }
 
     private fun showCameraSettings() {
+        if(!sessionChangeAllowed()) return
         val items = arrayOf(
             "Video quality: ${videoQualityLabel(videoQuality)}",
             "Photo timer: ${if (timerSeconds == 0) "Off" else "${timerSeconds}s"}",
@@ -614,16 +702,23 @@ class DualCameraCaptureActivity : ComponentActivity() {
         shutter.isEnabled=false
         AlertDialog.Builder(this).setTitle("Camera unavailable").setMessage(message+" Your saved media is unchanged.")
             .setPositiveButton("Retry") {_,_->if(ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED) startCameras() else permissionRequest.launch(arrayOf(Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO))}
+            .setNeutralButton("App settings") {_,_->startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:$packageName")))}
             .setNegativeButton("Back") {_,_->finish()}.show()
     }
 
     override fun onStop() {
-        photoTimer?.let { shutter.removeCallbacks(it) }
+        photoTimer?.let {shutter.removeCallbacks(it);pendingPhoto=false;closeAfterSave=false;status.text="Photo timer cancelled. Tap Capture to retry."}
         photoTimer = null
-        pendingPhoto = false
-        shutter.isEnabled=imageCapture!=null || videoCapture!=null
+        shutter.isEnabled=!capturePending && (imageCapture!=null || videoCapture!=null)
         recording?.stop()
         super.onStop()
+    }
+
+    override fun onSaveInstanceState(outState:Bundle) {
+        outState.putBoolean("videoMode",videoMode);outState.putBoolean("frontFacing",frontFacing)
+        outState.putInt("timerSeconds",timerSeconds)
+        lastCapture?.let {outState.putString("captureUri",it.data?.toString());outState.putString("captureMime",it.type);outState.putString("captureName",it.getStringExtra(Intent.EXTRA_TITLE))}
+        super.onSaveInstanceState(outState)
     }
 
     override fun onDestroy() {

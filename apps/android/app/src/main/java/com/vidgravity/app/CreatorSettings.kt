@@ -1,6 +1,8 @@
 package com.vidgravity.app
 
 import android.content.Intent
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -12,7 +14,8 @@ import androidx.compose.ui.unit.dp
 
 @Composable internal fun CreatorSettings(dark:Boolean,onDark:(Boolean)->Unit,onHelp:()->Unit) {
     val context=LocalContext.current
-    var privacy by remember {mutableStateOf(false)}
+    var privacy by rememberSaveable {mutableStateOf(false)}
+    BackHandler(enabled=privacy) {privacy=false}
     var accountFailure by remember {mutableStateOf(false)}
     val accounts=remember {runCatching {AccountRuntime.get(context)}.getOrElse {accountFailure=true;GuestAccounts}}
     var download by remember {mutableStateOf(SecureDownloadPreferences.load(context))}

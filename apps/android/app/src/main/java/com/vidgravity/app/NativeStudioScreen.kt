@@ -63,7 +63,7 @@ internal object StudioMediaImports {
 
 @Composable
 internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> Unit, onBusyChanged:(Boolean)->Unit,requestedProjectId:String?=null,autoImport:Boolean=false,initialWorkspace:String?=null,
-    onEditingChanged:(String?)->Unit={},onSaveReady:((suspend ()->Unit)?)->Unit={}) {
+    onEditingChanged:(String?)->Unit={},onSaveReady:((suspend ()->Unit)?)->Unit={},onPlayExport:((LibraryMedia)->Unit)?=null) {
     val context = LocalContext.current
     val repository = remember(context) { StudioRepository(context) }
     val scope = rememberCoroutineScope()
@@ -116,7 +116,7 @@ internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> 
     val project = editing
     if (project != null) {
         NativeStudioEditor(project, repository, onClose = { editing = null; scope.launch { reload() } }, onBusyChanged = onBusyChanged,
-            onCreateProject={next->editing=next},initialWorkspace=workspace,onWorkspaceOpened={workspace=null},onSaveReady=onSaveReady)
+            onCreateProject={next->editing=next},initialWorkspace=workspace,onWorkspaceOpened={workspace=null},onSaveReady=onSaveReady,onPlayExport=onPlayExport)
         return
     }
     BackHandler(onBack = onClose)
@@ -166,7 +166,7 @@ internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NativeStudioEditor(initial: StudioProject, repository: StudioRepository, onClose: () -> Unit, onBusyChanged: (Boolean) -> Unit, onCreateProject:(StudioProject)->Unit,initialWorkspace:String?=null,onWorkspaceOpened:()->Unit={},onSaveReady:((suspend ()->Unit)?)->Unit={}) {
+private fun NativeStudioEditor(initial: StudioProject, repository: StudioRepository, onClose: () -> Unit, onBusyChanged: (Boolean) -> Unit, onCreateProject:(StudioProject)->Unit,initialWorkspace:String?=null,onWorkspaceOpened:()->Unit={},onSaveReady:((suspend ()->Unit)?)->Unit={},onPlayExport:((LibraryMedia)->Unit)?=null) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val manager = remember(context) { WorkManager.getInstance(context) }
@@ -472,6 +472,9 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
         if (work?.state == WorkInfo.State.FAILED) Text(work.outputData.getString("error") ?: "Export failed. Retry with a smaller size.", color = MaterialTheme.colorScheme.error)
         if (work?.state == WorkInfo.State.CANCELLED) Text("Export cancelled. Your project and original media are preserved.")
         if (currentExport != null) Text("Saved to Library · ${currentExport.width} × ${currentExport.height}")
+        if(onPlayExport!=null) OutlinedButton(enabled=currentExport!=null && !busy,onClick={
+            currentExport?.let {ready->onPlayExport(LibraryMedia(Uri.parse(ready.uri),project.title+".mp4",0,"video/mp4",System.currentTimeMillis()))}
+        },modifier=Modifier.testTag("native_play_export")) {Text("Play current export")}
         Button(enabled = currentExport != null && !busy, onClick = {
             try {
                 val uri = Uri.parse(currentExport!!.uri)

@@ -6,6 +6,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -16,6 +19,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -82,8 +86,9 @@ class MainActivity : ComponentActivity() {
 }
 
 private enum class VgTab(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Home("Home", Icons.Default.Home), Studio("Studio", Icons.Default.AutoAwesome),
-    Camera("Camera", Icons.Default.PhotoCamera), Library("Library", Icons.Default.VideoLibrary), Downloads("Downloads", Icons.Default.Download), Settings("Settings", Icons.Default.Settings)
+    Home("Home", Icons.Default.Home), Camera("Camera", Icons.Default.PhotoCamera),
+    Library("Library", Icons.Default.VideoLibrary), Studio("Studio", Icons.Default.AutoAwesome),
+    Settings("Settings", Icons.Default.Settings), Downloads("Downloads", Icons.Default.Download)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -109,6 +114,9 @@ private fun VidGravityApp(inboxRequest: Int = 0) {
         android.util.Log.i(StartupHost.TAG, "theme.preference.loaded")
     }
     var selected by rememberSaveable { mutableStateOf(VgTab.Home) }
+    val screenState=rememberSaveableStateHolder()
+    var recentCaptureUri by rememberSaveable {mutableStateOf<String?>(null)}
+    var verifyingCapture by remember {mutableStateOf(false)}
     var showInbox by rememberSaveable { mutableStateOf(inboxRequest > 0) }
     var showHelp by rememberSaveable {mutableStateOf(false)}
     var activeProjectId by rememberSaveable {mutableStateOf<String?>(null)}
@@ -165,17 +173,26 @@ private fun VidGravityApp(inboxRequest: Int = 0) {
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) { result ->
         val media=CameraResultMedia.read(result.resultCode,result.data)
-        if(media!=null) {
-            creatorInitialMedia=media
-            activeProjectId=null;studioLaunch="media";studioRequest++;selected=VgTab.Studio
+        if(media!=null) scope.launch {
+            verifyingCapture=true
+            try {
+                val verified=withContext(Dispatchers.IO) {CameraResultMedia.verify(context,media)}
+                recentCaptureUri=verified.uri.toString()
+                playingMedia=null;showInbox=false;showHelp=false;showStudyTok=false
+                selected=VgTab.Library
+                notice="Capture saved to Library. Preview it or choose Open in Studio."
+            } catch(cancelled:kotlinx.coroutines.CancellationException) {throw cancelled}
+            catch(failure:Exception) {notice="Capture could not be opened. Check Library or retry the camera; saved files were preserved."}
+            finally {verifyingCapture=false}
         }
 
     }
     val openCamera: () -> Unit = camera@{
         if (studioBusy) { notice = "Wait for the Studio export to finish or cancel the clip split."; return@camera }
-        scope.launch(Dispatchers.Main.immediate) {try {saveStudio?.invoke();cameraLauncher.launch(Intent(context,com.vidgravity.camera.DualCameraCaptureActivity::class.java))}
+        scope.launch(Dispatchers.Main.immediate) {try {saveStudio?.invoke();cameraLauncher.launch(Intent(context,com.vidgravity.camera.DualCameraCaptureActivity::class.java).putExtra(com.vidgravity.camera.DualCameraCaptureActivity.EXTRA_DARK,dark))}
             catch(e:Exception) {notice="Camera could not open or Studio could not save. Retry."}}
     }
+    val downloadsSelected=selected==VgTab.Downloads
     VgTheme(dark) {
         Scaffold(
             modifier=Modifier.testTag(if(dark) "theme_dark" else "theme_light"),
@@ -198,8 +215,8 @@ private fun VidGravityApp(inboxRequest: Int = 0) {
                                 fontWeight = FontWeight.SemiBold)
                         }
                     }
-                    IconButton(onClick = { navigate(VgTab.Settings) }) {
-                        Icon(Icons.Default.Settings, contentDescription = "Settings")
+                    IconButton(modifier=Modifier.testTag("nav_Downloads").semantics {this.selected=downloadsSelected}, onClick = { navigate(VgTab.Downloads) }) {
+                        Icon(Icons.Default.Download, contentDescription = "Downloads")
                     }
                     Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surfaceVariant) {
                         IconButton(onClick = { dark = !dark; prefs?.edit()?.putBoolean("dark", dark)?.apply() }) {
@@ -210,16 +227,9 @@ private fun VidGravityApp(inboxRequest: Int = 0) {
             },
             bottomBar = {
                 NavigationBar(modifier = Modifier.navigationBarsPadding(), containerColor = MaterialTheme.colorScheme.surface) {
-                    VgTab.values().filter { it != VgTab.Settings }.forEach { tab ->
+                    VgTab.entries.filter { it != VgTab.Downloads }.forEach { tab ->
                         NavigationBarItem(modifier = Modifier.testTag("nav_${tab.name}"), selected = selected == tab, onClick = {
-                            if (studioBusy) { notice = "Wait for the Studio export to finish or cancel the clip split."; return@NavigationBarItem }
-                            if (tab == VgTab.Camera) {
-                                runCatching {
-                                    openCamera()
-                                }.onFailure { notice = "Could not open camera: ${it.message ?: "try again"}" }
-                            } else {
-                                navigate(tab)
-                            }
+                            navigate(tab)
                         },
                             icon = { Icon(tab.icon, contentDescription = tab.title) }, label = { Text(tab.title, maxLines = 1) })
                     }
@@ -245,16 +255,14 @@ private fun VidGravityApp(inboxRequest: Int = 0) {
                                 .onFailure { notice = "Could not open this link in another app." }
                         }
                     )
-                } else when (selected) {
+                } else screenState.SaveableStateProvider(selected.name) { when (selected) {
                     VgTab.Home -> HomeDashboard(onCreate={openStudio("new",null)},onResume={openStudio("project",it)},onCamera=openCamera,
                         onImport={mediaImport.launch(arrayOf("video/*","audio/*","image/*"))},onTemplate={openStudio("template:$it")},
                         onLibrary={navigate(VgTab.Library)},onDownloads={navigate(VgTab.Downloads)},onPlay={playingMedia=it},onHelp={showHelp=true})
                     VgTab.Downloads -> DownloadsContent(onPlay={playingMedia=it},onEdit={creatorInitialMedia=it;activeProjectId=null;studioLaunch="media";studioRequest++;selected=VgTab.Studio},
                         sourcePanel={DownloadSourcePanel(url,{url=it},{if(url.isNotBlank()) {inspecting=true;scope.launch {try {analysis=withContext(Dispatchers.IO) {DownloadApi.analyzeSource(url.trim())}} catch(e:Exception) {notice=friendlyNetworkError(e)} finally {inspecting=false}}}},{notice=it},{showInbox=true},{},{showStudyTok=true})})
-                    // Camera opens a dedicated Activity from its navigation item.
-                    // This branch keeps the enum dispatch exhaustive.
-                    VgTab.Camera -> VgSection("Camera","Record a photo or video, then send it to Studio.") {Button(onClick=openCamera) {Text("Open Camera")}}
-                    VgTab.Library -> LibraryContent(
+                    VgTab.Camera -> CameraWorkspace(openCamera,{navigate(VgTab.Library)})
+                    VgTab.Library -> LibraryContent(recentCaptureUri=recentCaptureUri,
                         onPlay = { playingMedia = it },
                         onCreateWithMedia = {media -> creatorInitialMedia=media;activeProjectId=null;studioLaunch="media";studioRequest++;selected=VgTab.Studio}
                     )
@@ -265,9 +273,11 @@ private fun VidGravityApp(inboxRequest: Int = 0) {
                         onActiveProject={activeProjectId=it},onSaveReady={saveStudio=it},onLaunchConsumed={studioLaunch="projects"}
                     )}
                     VgTab.Settings -> CreatorSettings(dark, {dark=it;prefs?.edit()?.putBoolean("dark",it)?.apply()},onHelp={showHelp=true})
-                }
+                }}
             }
         }
+        if(verifyingCapture) AlertDialog(onDismissRequest={},confirmButton={},title={Text("Opening saved capture")},
+            text={Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {LinearProgressIndicator(Modifier.fillMaxWidth());Text("Checking the file and refreshing Library…")}})
         if (inspecting) AlertDialog(onDismissRequest = {}, confirmButton = {}, title = { Text("Inspecting media") },
             text = { Row(verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(Modifier.size(24.dp)); Spacer(Modifier.width(12.dp)); Text("Checking available formats…") } })
         analysis?.let { result ->
@@ -1123,7 +1133,7 @@ private fun InfoCard(title: String, detail: String, icon: androidx.compose.ui.gr
 private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, onOpen: (String) -> Unit) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var items by remember { mutableStateOf(ShareInboxStore.list(context)) }
-    var searchQuery by remember { mutableStateOf("") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -1189,30 +1199,40 @@ private fun ShareInboxContent(onBack: () -> Unit, onInspect: (String) -> Unit, o
 }
 
 @Composable
-private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (LibraryMedia) -> Unit) {
+private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (LibraryMedia) -> Unit, recentCaptureUri:String?=null) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboard = LocalClipboardManager.current
     var media by remember { mutableStateOf(emptyList<LibraryMedia>()) }
-    var filter by remember { mutableStateOf("All Media") }
-    var sizeFilter by remember { mutableStateOf("Any size") }
-    var sortBy by remember { mutableStateOf("Newest") }
-    var searchQuery by remember { mutableStateOf("") }
+    var filter by rememberSaveable { mutableStateOf("All Media") }
+    var sizeFilter by rememberSaveable { mutableStateOf("Any size") }
+    var sortBy by rememberSaveable { mutableStateOf("Newest") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     var renameTarget by remember { mutableStateOf<LibraryMedia?>(null) }
     var renameText by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<LibraryMedia?>(null) }
     var selectedUris by remember { mutableStateOf<Set<String>>(emptySet()) }
     var showBulkDeleteConfirm by remember { mutableStateOf(false) }
-    var swipeFeedOpen by remember { mutableStateOf(false) }
+    var swipeFeedOpen by rememberSaveable { mutableStateOf(false) }
+    BackHandler(enabled=swipeFeedOpen) {swipeFeedOpen=false}
+    var libraryLoading by remember {mutableStateOf(true)}
+    var seenCaptureUri by rememberSaveable {mutableStateOf<String?>(null)}
+    val libraryListState=rememberLazyListState()
     val scope = rememberCoroutineScope()
     var libraryError by remember { mutableStateOf<String?>(null) }
     suspend fun refreshMedia() {
+        libraryLoading=true
         try {
             media = withContext(Dispatchers.IO) { MediaLibraryIndexer.list(context) }
             libraryError = null
         } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (failure: Exception) { libraryError = "Library could not refresh. Your saved files are unchanged." }
+        finally {libraryLoading=false}
     }
-    LaunchedEffect(Unit) { refreshMedia() }
+    LaunchedEffect(recentCaptureUri) {
+        // A new capture must stay visible even when a previously saved search/filter excludes it.
+        if(recentCaptureUri!=null && recentCaptureUri!=seenCaptureUri) {searchQuery="";filter="All Media";sizeFilter="Any size";sortBy="Newest";seenCaptureUri=recentCaptureUri;libraryListState.scrollToItem(0)}
+        refreshMedia()
+    }
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -1277,8 +1297,16 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
     var grid by rememberSaveable {mutableStateOf(false)}
     BoxWithConstraints(Modifier.fillMaxSize()) {
     val columns=if(!grid || androidx.compose.ui.platform.LocalDensity.current.fontScale>1.3f) 1 else if(maxWidth>=840.dp) 3 else if(maxWidth>=360.dp) 2 else 1
-    LazyColumn(Modifier.fillMaxSize().testTag("library_list"),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize().testTag("library_list"),state=libraryListState,contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
     item {Column(verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        if(libraryLoading) LinearProgressIndicator(Modifier.fillMaxWidth().testTag("library_loading"))
+        media.firstOrNull {it.uri.toString()==recentCaptureUri}?.let {capture ->
+            VgSection("Latest capture",capture.displayName) {
+                Text("Saved on this device",color=MaterialTheme.colorScheme.primary)
+                Button(onClick={onCreateWithMedia(capture)},modifier=Modifier.fillMaxWidth().testTag("capture_edit")) {Text("Open capture in Studio")}
+                OutlinedButton(onClick={onPlay(capture)},modifier=Modifier.fillMaxWidth()) {Text("Preview capture")}
+            }
+        }
         libraryError?.let { message ->
             Text(message, color = MaterialTheme.colorScheme.error)
             TextButton(onClick = { scope.launch { refreshMedia() } }) { Text("Retry library") }
@@ -1638,7 +1666,7 @@ private fun LibraryContent(onPlay: (LibraryMedia) -> Unit, onCreateWithMedia: (L
         }
         }
     }}
-    if(visibleMedia.isEmpty()) item {
+    if(!libraryLoading && visibleMedia.isEmpty()) item {
         InfoCard(if(searchQuery.isNotBlank()) "No matching media" else "Your library is empty","Import, record or finish a download. Missing files are removed from this index; relink affected Studio clips.",Icons.Default.VideoLibrary)
     } else items(visibleMedia.chunked(columns),key={row->row.first().uri.toString()}) {row ->
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {row.forEach {item ->
@@ -1720,7 +1748,7 @@ private fun CreateStudioContent(onPlay: (LibraryMedia) -> Unit, notify: (String)
     if (nativeStudio) {
         NativeStudioHub(nativeInitial,onClose={nativeStudio=false;onActiveProject(null)},onBusyChanged=onBusyChanged,
             requestedProjectId=resumeProjectId,autoImport=initialMode=="new" || initialMode.startsWith("template:") && resumeProjectId==null,
-            initialWorkspace=initialMode.takeIf {it.startsWith("template:")},onEditingChanged=onActiveProject,onSaveReady=onSaveReady)
+            initialWorkspace=initialMode.takeIf {it.startsWith("template:")},onEditingChanged=onActiveProject,onSaveReady=onSaveReady,onPlayExport=onPlay)
         LaunchedEffect(Unit) {onLaunchConsumed()}
         return
     }
