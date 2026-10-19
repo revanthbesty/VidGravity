@@ -37,18 +37,16 @@ import kotlinx.coroutines.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun CreativeWorkspace(project:StudioProject,selected:Int,onClose:()->Unit,onApply:(StudioProject)->Unit,
-    onCreate:(StudioProject)->Unit,onBusy:(Boolean)->Unit) {
+    onCreate:(StudioProject)->Unit,onBusy:(Boolean)->Unit,onSeek:(Long)->Unit={}) {
     val context=LocalContext.current; val scope=rememberCoroutineScope()
     val clip=project.clips[selected.coerceIn(project.clips.indices)]
     var tab by remember {mutableIntStateOf(0)}
     var job by remember {mutableStateOf<Job?>(null)}
     var working by remember {mutableStateOf(false)}
     var message by remember {mutableStateOf<String?>(null)}
-    var analysis by remember(clip.id,clip.startMs,clip.endMs) {mutableStateOf<CreativeAnalysis?>(null)}
     var progress by remember {mutableFloatStateOf(0f)}
     var stage by remember {mutableStateOf("")}
-    var before by remember {mutableStateOf<Bitmap?>(null)}
-    var after by remember {mutableStateOf<Bitmap?>(null)}
+    var suggestedThumbnailAt by remember {mutableStateOf<Long?>(null)}
     var saveThumbnail by remember {mutableStateOf<(suspend ()->Unit)?>(null)}
     var dictating by remember {mutableStateOf(false)}
     var captionAt by remember {mutableLongStateOf(project.clips.take(selected).sumOf {it.playbackDurationMs})}
@@ -86,20 +84,13 @@ internal fun CreativeWorkspace(project:StudioProject,selected:Int,onClose:()->Un
     }
     fun close() {leave(onClose)}
     BackHandler {close()}
-    fun runTask(action:suspend ()->Unit) {
-        job=scope.launch {working=true; message=null
-            try {action()} catch(cancelled:CancellationException) {message="Operation cancelled; your source media and project were preserved."; throw cancelled}
-            catch(failure:Exception) {message=failure.message ?: "This operation could not finish. Your project was preserved."}
-            finally {working=false}
-        }
-    }
     Column(Modifier.fillMaxSize().padding(12.dp)) {
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
             Text("Creative Studio",style=MaterialTheme.typography.headlineSmall)
             TextButton(onClick=::close) {Text("Back to editor")}
         }
         Text("Offline by default · review every suggestion",style=MaterialTheme.typography.labelMedium)
-        val tabs=listOf("Smart","Templates","Assistant","Thumbnails","Captions")
+        val tabs=listOf("AI Tools","Templates","Assistant","Thumbnails","Captions")
         ScrollableTabRow(selectedTabIndex=tab,edgePadding=0.dp) {
             tabs.forEachIndexed {i,label -> Tab(selected=tab==i,onClick={leave {tab=i}},text={Text(label)})}
         }
@@ -112,53 +103,12 @@ internal fun CreativeWorkspace(project:StudioProject,selected:Int,onClose:()->Un
         message?.let {Text(it,color=MaterialTheme.colorScheme.primary)}
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(vertical=12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
             when(tab) {
-                0 -> {
-                    Text("Smart editing",style=MaterialTheme.typography.titleLarge)
-                    Text("Scene changes, highlights, exposure and silence use transparent signal-analysis rules. Optional face framing uses Android's on-device face detector. No video is uploaded.")
-                    Text("Analyzes the first 60 seconds of the selected clip; 15 seconds on low-RAM devices. Silence means low audio energy, not absence of speech.",style=MaterialTheme.typography.labelSmall)
-                    Button(enabled=!working,onClick={runTask {
-                        val r=CreativeAnalyzer.analyze(context,clip) {label,value -> scope.launch {stage=label; progress=value}}
-                        val sample=clip.startMs+(r.highlight.startMs+r.highlight.endMs)/2
-                        val images=withContext(Dispatchers.IO) {
-                            val original=ThumbnailRenderer.frame(context,clip.uri,sample,640)
-                            val t=StudioThumbnail(projectId=project.id,source=clip.uri,durationMs=clip.sourceDurationMs,timeMs=sample,title="Preview",badge="NONE",
-                                aspect=StudioAspect.PORTRAIT,brightness=r.exposure,
-                                frame=CreativeRules.portraitFrame(r.frames.first().aspect,r.dominantFace?.faceX ?: 0.5f,r.dominantFace?.faceY ?: 0.5f))
-                            // A plain transformed sample, without title graphics, for an honest framing/exposure comparison.
-                            val preview=creativeComparison(original,t.frame,t.brightness)
-                            original to preview
-                        }
-                        analysis=r; before=images.first; after=images.second
-                    }}) {Text(if(analysis==null) "Analyze selected clip" else "Analyze again")}
-                    val r=analysis
-                    if(r!=null) {
-                        Text("Analyzed ${r.analyzedMs} ms · ${r.frames.size} frames · ${r.audio.size} audio windows")
-                        Text("Scene-change candidates: ${r.scenes.joinToString {"${it/1000f}s"}.ifEmpty {"none at this sampling rate"}}")
-                        Text(r.faceStatus); Text(r.audioStatus)
-                        before?.let {Text("Before · sampled source frame"); Image(it.asImageBitmap(),"Before source frame",Modifier.fillMaxWidth().heightIn(max=220.dp))}
-                        after?.let {Text("After preview · portrait framing + suggested brightness"); Image(it.asImageBitmap(),"Proposed framing and brightness",Modifier.fillMaxWidth().heightIn(max=260.dp))}
-                        Text("These previews do not change your project. Framing is static, not face tracking.",style=MaterialTheme.typography.labelSmall)
-                        Button(enabled=!working,onClick={
-                            val face=r.dominantFace; val frame=CreativeRules.portraitFrame(r.frames.first().aspect,face?.faceX ?: 0.5f,face?.faceY ?: 0.5f)
-                            onApply(project.copy(clips=project.clips.map {if(it.id==clip.id) it.copy(frame=frame) else it},
-                                tools=project.tools.copy(aspect=StudioAspect.PORTRAIT,brightness=r.exposure)))
-                            message=if(face!=null) "Face-guided static portrait framing applied. Undo is available in the editor." else "Center portrait framing applied; no face was found. Undo is available in the editor."
-                        }) {Text("Apply framing + auto brightness")}
-                        Button(enabled=!working,onClick={onApply(project.copy(tools=project.tools.copy(brightness=r.exposure))); message="Brightness suggestion applied. Undo is available in the editor."}) {Text("Apply brightness only")}
-                        Text("Highlight candidate: ${r.highlight.startMs}–${r.highlight.endMs} ms of the analyzed source range")
-                        Text("Derived cuts create a NEW project with video and original audio. Timed captions, music and voiceover stay in your source project.",style=MaterialTheme.typography.labelSmall)
-                        Button(enabled=!working,onClick={onCreate(CreativeRules.derivedCut(project,clip,listOf(r.highlight),"Highlight"))}) {Text("Create highlight project")}
-                        Text("Silence candidates: ${r.silence.joinToString {"${it.startMs}–${it.endMs} ms"}.ifEmpty {"none"}}")
-                        val audible=CreativeRules.keepAudible(r.analyzedMs,r.silence)
-                        Button(enabled=!working && r.silence.isNotEmpty() && audible.size in 1..12,onClick={onCreate(CreativeRules.derivedCut(project,clip,audible,"Silence cut"))}) {Text("Create silence-removed project")}
-                        if(audible.size>12) Text("More than 12 audible segments: use manual trims rather than discarding segments.")
-                    }
-                    StudioAdjustment("Full-frame soft focus",project.tools.soften,0f..3f,!working) {onApply(project.copy(tools=project.tools.copy(soften=it)))}
-                    Text("Soft focus blurs the entire frame. Subject segmentation, background-only blur, denoising and stabilization are not available in this build.",style=MaterialTheme.typography.labelSmall)
-                }
+                0 -> SmartToolsPanel(project,selected,onApply,onBusy={working=it},
+                    onNavigate={time->leave {onSeek(time);onClose()}},onCaptions={tab=4},
+                    onThumbnail={time->suggestedThumbnailAt=time;tab=3})
                 1 -> CreativeTemplatePanel(project,!working,onCreate)
                 2 -> CreativeAssistantPanel(project,!working,onApply)
-                3 -> ThumbnailPanel(project,clip,onBusy={working=it},onStage={stage=it; progress=-1f},onSaveReady={saveThumbnail=it})
+                3 -> ThumbnailPanel(project,clip,onBusy={working=it},onStage={stage=it; progress=-1f},onSaveReady={saveThumbnail=it},initialTimeMs=suggestedThumbnailAt)
                 4 -> {
                     Text("Caption tools",style=MaterialTheme.typography.titleLarge)
                     Text("The editor already supports timed captions, three fonts, colors, size, vertical position, SRT import/export and burned-in video captions.")
@@ -180,15 +130,6 @@ internal fun CreativeWorkspace(project:StudioProject,selected:Int,onClose:()->Un
             }
         }
     }
-}
-
-private fun creativeComparison(source:Bitmap,frame:StudioFrame,brightness:Float):Bitmap {
-    val width=180; val height=320; val out=Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888)
-    val crop=android.graphics.Rect((source.width*frame.left).toInt(),(source.height*frame.top).toInt(),(source.width*frame.right).toInt(),(source.height*frame.bottom).toInt())
-    val offset=brightness*255
-    val paint=android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG).apply {colorFilter=android.graphics.ColorMatrixColorFilter(floatArrayOf(1f,0f,0f,0f,offset,0f,1f,0f,0f,offset,0f,0f,1f,0f,offset,0f,0f,0f,1f,0f))}
-    android.graphics.Canvas(out).drawBitmap(source,crop,android.graphics.Rect(0,0,width,height),paint)
-    return out
 }
 
 @Composable

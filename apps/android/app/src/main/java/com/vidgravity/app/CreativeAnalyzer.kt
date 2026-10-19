@@ -20,7 +20,7 @@ internal object CreativeAnalyzer {
         val count=((limit+1999)/2000).toInt().coerceAtLeast(1)
         val frames=mutableListOf<FrameObservation>(); var previous:FloatArray?=null
         val faces=FaceSession()
-        var faceStatus=if(lowRam) "Face detection disabled on this low-RAM device; center framing remains available." else "Android framework face detector · frontal faces, static framing only."
+        var faceStatus=if(lowRam) "Face detection disabled on this low-RAM device; center framing remains available." else "Android framework frontal-face samples · sparse guidance, not identity tracking."
         val reader=MediaMetadataRetriever()
         try {
             reader.setDataSource(context,Uri.parse(clip.uri))
@@ -102,7 +102,7 @@ internal object CreativeAnalyzer {
             decoder.configure(format,null,null,0); decoder.start()
             var rate=format.getInteger(MediaFormat.KEY_SAMPLE_RATE); var channels=format.getInteger(MediaFormat.KEY_CHANNEL_COUNT)
             var floating=false; var inputDone=false; var outputDone=false
-            val bins=((limit+199)/200).toInt(); val squares=DoubleArray(bins); val counts=LongArray(bins)
+            val bins=((limit+199)/200).toInt(); val squares=DoubleArray(bins); val counts=LongArray(bins); val peaks=FloatArray(bins)
             val info=MediaCodec.BufferInfo(); val deadline=System.nanoTime()+60_000_000_000L
             while(!outputDone) {
                 currentCoroutineContext().ensureActive()
@@ -129,14 +129,14 @@ internal object CreativeAnalyzer {
                     while(buffer.remaining()>=if(floating) 4 else 2) {
                         val value=if(floating) buffer.float.toDouble() else buffer.short.toDouble()/32768
                         val relative=info.presentationTimeUs+(sample++/channels)*1_000_000/rate-clip.startMs*1000
-                        if(relative>=0 && relative<limit*1000) {val bin=(relative/200_000).toInt(); squares[bin]+=value*value; counts[bin]++}
+                        if(relative>=0 && relative<limit*1000 && value.isFinite()) {val bin=(relative/200_000).toInt(); squares[bin]+=value*value; counts[bin]++; peaks[bin]=maxOf(peaks[bin],abs(value).toFloat())}
                     }
                     onProgress(((info.presentationTimeUs/1000-clip.startMs).toFloat()/limit).coerceIn(0f,1f))
                     outputDone=info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0
                     decoder.releaseOutputBuffer(index,false)
                 }
             }
-            return (0 until bins).filter {counts[it]>0}.map {AudioObservation(it*200L,minOf(limit,(it+1)*200L),sqrt(squares[it]/counts[it]).toFloat())}
+            return (0 until bins).filter {counts[it]>0}.map {AudioObservation(it*200L,minOf(limit,(it+1)*200L),sqrt(squares[it]/counts[it]).toFloat(),peaks[it])}
         } finally {runCatching {decoder?.stop()}; decoder?.release(); extractor.release()}
     }
 }

@@ -353,7 +353,7 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
             onCreate={next -> scope.launch {
                 try {withContext(Dispatchers.IO) {repository.save(project); repository.save(next)}; onCreateProject(next)}
                 catch(failure:Exception) {if(failure is CancellationException) throw failure; message="The new project could not be saved; source project preserved."; creativeOpen=false; creativeBusy=false}
-            }},onBusy={creativeBusy=it})
+            }},onBusy={creativeBusy=it},onSeek=::seek)
         return
     }
     val currentExport = record?.takeIf { it.uri != null && it.fingerprint == project.fingerprint() }
@@ -372,7 +372,7 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
         }
         VgDisclosure("Create tools · Social & Creative",initiallyOpen=true) {
         Button(enabled=!busy,onClick={focus.clearFocus();keyboard?.hide();socialOpen=true},modifier=Modifier.fillMaxWidth().testTag("social_creator")) {Text("Open Social Creator")}
-        FilledTonalButton(enabled=!busy,onClick={focus.clearFocus(); keyboard?.hide(); creativeOpen=true},modifier=Modifier.fillMaxWidth().testTag("creative_studio")) {Text("Open Creative Studio")}
+        FilledTonalButton(enabled=!busy,onClick={focus.clearFocus(); keyboard?.hide(); creativeOpen=true},modifier=Modifier.fillMaxWidth().testTag("creative_studio")) {Text("Open AI Tools · Creative Studio")}
         }
         NativeClipPreview(project, clip,seekRequest) {positionMs=it}
         StudioTimeline(project,selected,positionMs,!busy,{selected=it},::seek,::edit)
@@ -517,7 +517,8 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
 private fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequest: Long, onPosition: (Long)->Unit) {
     val context = LocalContext.current
     var previewError by remember {mutableStateOf<String?>(null)}
-    val player = remember(clip.id) { ExoPlayer.Builder(context).build() }
+    val audioRenderers=remember(clip.id) {SmartAudioRenderers(context,clip.audioGain)}
+    val player = remember(clip.id) { ExoPlayer.Builder(context,audioRenderers).build() }
     LaunchedEffect(clip, project.filter, project.overlay, project.fadeEdges, project.originalVolume, project.tools) {
         withContext(Dispatchers.Main.immediate) {
         delay(150)
@@ -531,6 +532,7 @@ private fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequ
         player.setVideoEffects(effects)
         player.setPlaybackSpeed(clip.speed)
         player.volume = project.originalVolume
+        audioRenderers.processor.liveGain=clip.audioGain
         player.seekTo(resumeAt.coerceAtMost(clip.durationMs))
         player.prepare()
         player.playWhenReady=resumePlayback

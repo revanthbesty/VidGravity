@@ -115,12 +115,12 @@ object StudioEdits {
     fun mergeNext(p: StudioProject, index: Int): StudioProject {
         require(index < p.clips.lastIndex)
         val a=p.clips[index]; val b=p.clips[index+1]
-        require(a.uri == b.uri && a.endMs == b.startMs && a.speed == b.speed && a.frame == b.frame && a.opacity == b.opacity) { "Merge requires adjacent ranges from the same source, speed, crop and opacity." }
+        require(a.uri == b.uri && a.endMs == b.startMs && a.speed == b.speed && a.frame == b.frame && a.opacity == b.opacity && a.audioGain==b.audioGain && a.framingKeys==b.framingKeys) { "Merge requires adjacent ranges from the same source, speed, crop, opacity, gain and pan keys." }
         return p.copy(clips=p.clips.toMutableList().apply { this[index]=a.copy(endMs=b.endMs); removeAt(index+1) })
     }
     fun relink(p: StudioProject, index: Int, replacement: StudioClip): StudioProject {
         val old=p.clips[index]
         require(replacement.sourceDurationMs >= old.endMs) { "Replacement is shorter than this clip's saved trim range." }
-        return p.copy(clips=p.clips.mapIndexed { i,c -> if(i==index) c.copy(uri=replacement.uri,name=replacement.name,sourceDurationMs=replacement.sourceDurationMs) else c })
+        return p.copy(clips=p.clips.mapIndexed { i,c -> if(i==index) c.copy(uri=replacement.uri,name=replacement.name,sourceDurationMs=replacement.sourceDurationMs,smart=null) else c })
     }
 }

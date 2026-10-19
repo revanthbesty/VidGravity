@@ -39,6 +39,7 @@ internal object NativeStudioRenderer {
         val offset=project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs}
         val clock=StudioEffectClock(offset,clip.speed,resize)
         if (resize && clip.speed != 1f) effects += SpeedChangeEffect(clip.speed)
+        if(clip.framingKeys.isNotEmpty()) effects+=SmartPan(clip,clock)
         if (clip.frame != StudioFrame()) effects += Crop(clip.frame.left*2-1,clip.frame.right*2-1,1-clip.frame.bottom*2,1-clip.frame.top*2)
         if (tools.soften > 0f) effects += GaussianBlur(tools.soften)
         if (tools.crop > 0) effects += Crop(-1f+tools.crop*2,1f-tools.crop*2,-1f+tools.crop*2,1f-tools.crop*2)
@@ -134,7 +135,7 @@ internal object NativeStudioRenderer {
         val frameRates=if(context!=null && project.tools.frameRate>0)
             project.clips.map {it.uri}.distinct().associateWith {sourceFrameRate(context,it)} else emptyMap()
         val clips = project.clips.map { clip ->
-            val audio = audioEffects(project.originalVolume).toMutableList()
+            val audio = audioEffects(project.originalVolume*clip.audioGain).toMutableList()
             if (clip.speed != 1f) audio += SpeedChangingAudioProcessor(object : SpeedProvider {
                 override fun getSpeed(timeUs: Long) = clip.speed
                 override fun getNextSpeedChangeTimeUs(timeUs: Long) = C.TIME_UNSET
@@ -244,13 +245,14 @@ internal object NativeStudioRenderer {
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 internal class StudioVolumeProcessor(private val gain: Float, private val durationUs: Long = Long.MAX_VALUE,
     private val fadeInUs: Long = 0, private val fadeOutUs: Long = 0) : BaseAudioProcessor() {
+    @Volatile var liveGain:Float=gain
     private var samples = 0L
     override fun onFlush() { samples = 0 }
     private fun nextGain(): Float {
         val time = (samples++ / inputAudioFormat.channelCount) * 1_000_000L / inputAudioFormat.sampleRate
         val fadeIn = if (fadeInUs > 0) time.toFloat()/fadeInUs else 1f
         val fadeOut = if (fadeOutUs > 0) (durationUs-time).toFloat()/fadeOutUs else 1f
-        return gain * minOf(1f,fadeIn,fadeOut).coerceIn(0f,1f)
+        return liveGain * minOf(1f,fadeIn,fadeOut).coerceIn(0f,1f)
     }
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
         if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT && inputAudioFormat.encoding != C.ENCODING_PCM_FLOAT)
