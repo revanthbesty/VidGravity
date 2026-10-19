@@ -7,10 +7,29 @@ import kotlinx.coroutines.*
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
+import org.junit.Before
+import org.junit.After
+import org.junit.Rule
+import org.junit.rules.TestName
 import java.io.File
 
 /** Real encoder / persistence checks. Metrics are observations, never device performance promises. */
+@androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 class ReleaseQaTest {
+    @get:Rule val testName=TestName()
+    @Before fun startPipelineTrace() {
+        androidx.media3.effect.DebugTraceUtil.enableTracing=true
+        androidx.media3.effect.DebugTraceUtil.reset()
+    }
+    @After fun retainPipelineTrace() {
+        try {
+            val dir=File(context.getExternalFilesDir(null),"smoke-evidence").apply {mkdirs()}
+            File(dir,"${testName.methodName}-pipeline.tsv").writer().use {androidx.media3.effect.DebugTraceUtil.dumpTsv(it)}
+            val summary=androidx.media3.effect.DebugTraceUtil.generateTraceSummary()
+            File(dir,"${testName.methodName}-pipeline.json").writeText(summary)
+            summary.chunked(3000).forEachIndexed {i,chunk->android.util.Log.i("VGTrace","${testName.methodName} part=$i $chunk")}
+        } finally {androidx.media3.effect.DebugTraceUtil.enableTracing=false}
+    }
     private val context get()=InstrumentationRegistry.getInstrumentation().targetContext
     private fun metric(name:String,values:JSONObject) {
         val dir=File(context.getExternalFilesDir(null),"smoke-evidence").apply {mkdirs()}
