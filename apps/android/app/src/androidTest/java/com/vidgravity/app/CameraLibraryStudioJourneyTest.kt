@@ -74,8 +74,10 @@ class CameraLibraryStudioJourneyTest {
             val overlay=compose.onNodeWithText("Centered text overlay").performScrollTo()
             overlay.performTextReplacement("CAPTURE TO CREATE");overlay.performImeAction()
             compose.clickStudioToolbar("Mono")
+            compose.onNodeWithText("Mono").assertIsSelected()
             compose.onNodeWithText("Save project").performScrollTo().performClick()
-            compose.waitUntil(10_000) {repository.scan().projects.any {it.title==title && it.clips.size==3 && it.overlay=="CAPTURE TO CREATE"}}
+            // Earlier autosaves already contain the title/clips/overlay. Wait for this edit too.
+            compose.waitUntil(10_000) {repository.scan().projects.any {it.title==title && it.clips.size==3 && it.overlay=="CAPTURE TO CREATE" && it.filter==StudioFilter.MONO}}
             val saved=repository.scan().projects.first {it.title==title};projectId=saved.id
             assertEquals(StudioFilter.MONO,saved.filter)
             compose.onNodeWithTag("nav_Library").performClick()

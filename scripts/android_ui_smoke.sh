@@ -31,6 +31,8 @@ kill "$evidence_pid" 2>/dev/null
 wait "$evidence_pid" 2>/dev/null
 adb logcat -d -v threadtime > work/android-smoke/logcat.txt
 adb logcat -d -v threadtime -s VGStartup VGSmoke VGStudio VGCamera VGPerf VGTrace AndroidRuntime
+# Native/tombstone diagnostics use tags outside the filtered application stream.
+adb logcat -b crash -d -v threadtime | tail -n 200
 adb shell dumpsys activity lastanr > work/android-smoke/lastanr.txt
 adb shell dumpsys window > work/android-smoke/windows.txt
 adb shell dumpsys power > work/android-smoke/power.txt
