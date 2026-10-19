@@ -1,3 +1,8 @@
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.artifacts.result.ResolvedArtifactResult
+import org.gradle.maven.MavenModule
+import org.gradle.maven.MavenPomArtifact
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -24,8 +29,8 @@ android {
         minSdk = 26
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         targetSdk = 35
-        versionCode = 185
-        versionName = "1.6.0-sprint7"
+        versionCode = 186
+        versionName = "1.7.0-sprint8"
         buildConfigField("String", "VG_API_BASE_URL", "\"$safeApi\"")
     }
     sourceSets.getByName("main").java.srcDir(if (firebaseEnabled) "src/firebase/java" else "src/guest/java")
@@ -78,4 +83,25 @@ dependencies {
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("com.google.android.material:material:1.12.0")
+}
+// Resolved guest/configured runtime coordinates, including transitive dependencies.
+// License metadata is reported separately; absent/inherited POM licenses remain unknown.
+tasks.register("writeRuntimeCoordinates") {
+    doLast {
+        val coordinates=configurations.getByName("debugRuntimeClasspath").resolvedConfiguration.resolvedArtifacts
+            .map {it.moduleVersion.id.toString()}.distinct().sorted()
+        val out=layout.buildDirectory.file("reports/dependencies/runtime-coordinates.txt").get().asFile
+        out.parentFile.mkdirs();out.writeText(coordinates.joinToString("\n",postfix="\n"))
+        val components=configurations.getByName("debugRuntimeClasspath").incoming.resolutionResult.allComponents
+            .map {it.id}.filterIsInstance<ModuleComponentIdentifier>()
+        val poms=dependencies.createArtifactResolutionQuery().forComponents(components)
+            .withArtifacts(MavenModule::class.java,MavenPomArtifact::class.java).execute()
+        poms.resolvedComponents.forEach {component ->
+            val id=component.id as? ModuleComponentIdentifier ?: return@forEach
+            component.getArtifacts(MavenPomArtifact::class.java).filterIsInstance<ResolvedArtifactResult>().forEach {artifact ->
+                val target=layout.buildDirectory.file("reports/dependencies/poms/${id.group}/${id.module}/${id.version}/resolved/${id.module}.pom").get().asFile
+                target.parentFile.mkdirs();artifact.file.copyTo(target,overwrite=true)
+            }
+        }
+    }
 }

@@ -26,7 +26,10 @@ import kotlinx.coroutines.*
     val scope=rememberCoroutineScope();val repository=remember {StudioRepository(context)}
     suspend fun refresh() {recovery=withContext(Dispatchers.IO) {repository.recoverable()};withContext(Dispatchers.IO) {PrivacyStorage.overview(context) to repository.scan()}.let {(space,listing)->storage=space;projects=listing.projects;unreadable=listing.unreadableCount}}
     fun run(action:suspend ()->Unit) {scope.launch {busy=true;try {action();refresh()} catch(c:CancellationException){throw c} catch(e:Exception){message="Data action could not complete. Existing projects were preserved."} finally {busy=false}}}
-    fun consent(value:PrivacyChoices) {run {withContext(Dispatchers.IO) {preferences.save(value,accounts)};choices=value;message="Privacy preferences saved."}}
+    fun consent(value:PrivacyChoices) {run {
+        try {withContext(Dispatchers.IO) {preferences.save(value,accounts)};choices=value;message="Privacy preferences saved."}
+        catch(failure:Exception) {choices=PrivacyChoices();throw failure}
+    }}
     LaunchedEffect(Unit) {run {}}
     BackHandler(onBack=onClose)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp).testTag("privacy_data"),verticalArrangement=Arrangement.spacedBy(12.dp)) {

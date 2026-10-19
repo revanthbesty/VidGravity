@@ -56,6 +56,7 @@ data class StudioProject(
 
 /** Versioned, explicit project format. Unknown versions are rejected rather than rewritten. */
 object StudioProjectCodec {
+    private const val MAX_CHARACTERS = 256_000
     fun encode(project: StudioProject): String {
         project.validate()
         return JSONObject().put("schema", 4).put("tools", StudioToolsCodec.encode(project.tools)).put("id", project.id).put("title", project.title)
@@ -67,11 +68,13 @@ object StudioProjectCodec {
             .put("clips", JSONArray().apply { project.clips.forEach { clip ->
                 put(JSONObject().put("id", clip.id).put("uri", clip.uri).put("name", clip.name)
                     .put("sourceDurationMs", clip.sourceDurationMs).put("startMs", clip.startMs).put("endMs", clip.endMs).put("speed", clip.speed).put("frame", JSONObject().put("left",clip.frame.left).put("top",clip.frame.top).put("right",clip.frame.right).put("bottom",clip.frame.bottom)))
-            } }).toString()
+            } }).toString().also {
+                require(it.length <= MAX_CHARACTERS) { "Project metadata is too large. Shorten media names or captions before saving." }
+            }
     }
 
     fun decode(raw: String): StudioProject {
-        require(raw.length <= 256_000) { "Project file is too large." }
+        require(raw.length <= MAX_CHARACTERS) { "Project file is too large." }
         val json = JSONObject(raw)
         require(json.getInt("schema") in 1..4) { "This project needs a newer VidGravity version." }
         val rows = json.getJSONArray("clips")

@@ -3,14 +3,13 @@ package com.vidgravity.app
 import android.content.Context
 import java.io.File
 
-data class PrivacyChoices(val analytics:Boolean=false,val crashes:Boolean=false)
 class PrivacyPreferences(context:Context) {
     private val prefs=context.getSharedPreferences("vg-privacy",Context.MODE_PRIVATE)
     fun load()=PrivacyChoices(prefs.getBoolean("analytics",false),prefs.getBoolean("crashes",false))
     fun save(value:PrivacyChoices,accounts:AccountService) {
-        // Apply to SDK before recording success in the UI.
-        accounts.consent(value.analytics,value.crashes)
-        check(prefs.edit().putBoolean("analytics",value.analytics).putBoolean("crashes",value.crashes).commit()) {"Preference could not be saved."}
+        PrivacyConsent.update(value,
+            persist={prefs.edit().putBoolean("analytics",it.analytics).putBoolean("crashes",it.crashes).commit()},
+            apply={accounts.consent(it.analytics,it.crashes)})
     }
 }
 data class StorageOverview(val projectBytes:Long,val cacheBytes:Long,val privateBytes:Long,val availableBytes:Long)

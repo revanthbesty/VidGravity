@@ -33,7 +33,7 @@ import kotlin.coroutines.resumeWithException
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 internal object NativeStudioRenderer {
     private val renderMutex=Mutex()
-    fun videoEffects(project: StudioProject, clip: StudioClip, resize: Boolean = true, context: Context? = null): List<Effect> {
+    fun videoEffects(project: StudioProject, clip: StudioClip, resize: Boolean = true, context: Context? = null, sourceFrameRate: Float? = null): List<Effect> {
         val effects = mutableListOf<Effect>()
         val tools = project.tools
         if (resize && clip.speed != 1f) effects += SpeedChangeEffect(clip.speed)
@@ -45,7 +45,10 @@ internal object NativeStudioRenderer {
         if (tools.contrast != 0f) effects += Contrast(tools.contrast)
         if (tools.saturation != 0f) effects += HslAdjustment.Builder().adjustSaturation(tools.saturation).build()
         if (tools.aspect != StudioAspect.SOURCE) effects += Presentation.createForAspectRatio(tools.aspect.ratio, if(tools.social.fit==CreatorFit.FILL) Presentation.LAYOUT_SCALE_TO_FIT_WITH_CROP else Presentation.LAYOUT_SCALE_TO_FIT)
-        if (resize && tools.frameRate > 0) effects += FrameDropEffect.createDefaultFrameDropEffect(tools.frameRate.toFloat())
+        // Media3's default dropper buffers the next frame and discards its pending tail at EOS.
+        // Do not shorten an already-at/below-target stream. FPS is a cap, not interpolation.
+        if (resize && tools.frameRate > 0 && (sourceFrameRate == null || sourceFrameRate * clip.speed > tools.frameRate + 0.01f))
+            effects += FrameDropEffect.createDefaultFrameDropEffect(tools.frameRate.toFloat())
         when (project.filter) {
             StudioFilter.MONO -> effects += RgbFilter.createGrayscaleFilter()
             StudioFilter.INVERT -> effects += RgbFilter.createInvertedFilter()
@@ -95,8 +98,25 @@ internal object NativeStudioRenderer {
 
     private fun audioEffects(volume: Float) = listOf<AudioProcessor>(StudioVolumeProcessor(volume))
 
+    private fun sourceFrameRate(context: Context, uri: String): Float? = runCatching {
+        val extractor=android.media.MediaExtractor()
+        try {
+            extractor.setDataSource(context,android.net.Uri.parse(uri),null)
+            val format=(0 until extractor.trackCount).map {extractor.getTrackFormat(it)}
+                .firstOrNull {it.getString(android.media.MediaFormat.KEY_MIME)?.startsWith("video/")==true}
+            format?.let {
+                runCatching {it.getInteger(android.media.MediaFormat.KEY_FRAME_RATE).toFloat()}
+                    .getOrElse {_ -> runCatching {it.getFloat(android.media.MediaFormat.KEY_FRAME_RATE)}.getOrNull()}
+                    ?.takeIf {rate -> rate.isFinite() && rate>0f}
+            }
+        } finally {extractor.release()}
+    }.getOrNull()
+
     fun composition(project: StudioProject, context: Context? = null): Composition {
         project.validate()
+        // Probe once per distinct source, on the renderer's preparation IO dispatcher.
+        val frameRates=if(context!=null && project.tools.frameRate>0)
+            project.clips.map {it.uri}.distinct().associateWith {sourceFrameRate(context,it)} else emptyMap()
         val clips = project.clips.map { clip ->
             val audio = audioEffects(project.originalVolume).toMutableList()
             if (clip.speed != 1f) audio += SpeedChangingAudioProcessor(object : SpeedProvider {
@@ -107,7 +127,7 @@ internal object NativeStudioRenderer {
                 MediaItem.ClippingConfiguration.Builder().setStartPositionMs(clip.startMs)
                     .setEndPositionMs(clip.endMs).build()).build()
             EditedMediaItem.Builder(source).setRemoveAudio(project.originalVolume == 0f)
-                .setEffects(Effects(audio, videoEffects(project, clip,context=context))).build()
+                .setEffects(Effects(audio, videoEffects(project, clip,context=context,sourceFrameRate=frameRates[clip.uri]))).build()
         }
         val sequences = mutableListOf(EditedMediaItemSequence.Builder(clips).build())
         fun addAudio(uri: String?, volume: Float, loop: Boolean) {
@@ -144,6 +164,10 @@ internal object NativeStudioRenderer {
             withContext(Dispatchers.Main.immediate) {
                 suspendCancellableCoroutine<Unit> { continuation ->
                     transformer = Transformer.Builder(context.applicationContext)
+                        .apply {
+                            if(android.os.Build.VERSION.SDK_INT==29) setAssetLoaderFactory(DefaultAssetLoaderFactory(
+                                context.applicationContext,StudioExportDecoders(context.applicationContext),androidx.media3.common.util.Clock.DEFAULT))
+                        }
                         .setVideoMimeType(MimeTypes.VIDEO_H264).setAudioMimeType(MimeTypes.AUDIO_AAC)
                         .setPortraitEncodingEnabled(true)
                         .setEncoderFactory(DefaultEncoderFactory.Builder(context).setEnableFallback(false).apply {

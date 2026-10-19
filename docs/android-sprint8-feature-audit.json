@@ -1,0 +1,2345 @@
+{
+  "schema": 1,
+  "sprint": 8,
+  "baseline": {
+    "pr": 68,
+    "head": "67510758194edfb02b3edd06678b5c2860bcd95d",
+    "tree": "3f87acb73422e7bc8ff93308c9ddf568e967685d",
+    "main_ci": 39153216578,
+    "api29": "38 passed",
+    "api35": "38 passed",
+    "independent_pr": 64
+  },
+  "scope": "Source and existing automated coverage audit; current PR conclusions supersede pending coverage labels",
+  "features": [
+    {
+      "area": "Home",
+      "id": "dashboard",
+      "status": "Implemented",
+      "navigation": "Home tab / launcher",
+      "actual_behavior": "Recent projects, latest media, create/import/camera/template/help routes; async loading and retry",
+      "persistence": "Theme/onboarding prefs; recent projects from repository",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/HomeDashboard.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/StartupNavigationTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/HomeAccessibilityUiTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/IntegratedCreatorUiTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "Recent loading can move content; tests wait for completion",
+      "recommended_fix": "Retain stable loading and error states; profile long lists before further redesign"
+    },
+    {
+      "area": "Home",
+      "id": "startup-recovery",
+      "status": "Partial",
+      "navigation": "Launcher → StartupHost → Compose",
+      "actual_behavior": "Native loading/retry/settings fallback until commit, nonzero layout and draw; 10s watchdog",
+      "persistence": "No blocking initialization on first frame",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/StartupHost.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/StartupGate.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/StartupNavigationTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "Cannot recover blocked main thread/GPU or async Compose crash; original API37 black screen not reproduced here",
+      "recommended_fix": "Obtain supported API37 image when available; retain logs and do not infer Android17 success from API35"
+    },
+    {
+      "area": "Home",
+      "id": "navigation-and-back",
+      "status": "Partial",
+      "navigation": "Bottom tabs + Settings + nested editor workspaces",
+      "actual_behavior": "Save before leaving native editor; failed save keeps editor; Back closes overlays then returns Home",
+      "persistence": "Selected tab and active native project ID saveable; nested disclosure/form state mostly in memory",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/IntegratedCreatorUiTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/StartupNavigationTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "Every individual control has not been exercised; process recreation of all in-progress forms is unverified; rapid competing navigation requests need stress testing",
+      "recommended_fix": "Add focused recreation/race cases before claiming complete state restoration"
+    },
+    {
+      "area": "Studio",
+      "id": "project-import",
+      "status": "Implemented",
+      "navigation": "Home Create/Import, Library Open in Studio, Studio New video project",
+      "actual_behavior": "SAF local video MIME/duration validation; project/source URI retained; images/audio use legacy tools",
+      "persistence": "Project JSON and SAF grants; provider may revoke source",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/NativeStudioProjectUiTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/OfflineGuestExportTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "Native video composition has no image clip timeline; OS/provider can remove media",
+      "recommended_fix": "Use explicit relink and durable document sources; never represent legacy image tools as image timeline"
+    },
+    {
+      "area": "Studio",
+      "id": "timeline",
+      "status": "Implemented",
+      "navigation": "Studio native editor → timeline and clip controls",
+      "actual_behavior": "Seek/zoom/drag reorder; split/trim/duplicate/remove; merge adjacent same-source ranges",
+      "persistence": "Schema4 project; source files untouched",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/StudioTimeline.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/StudioTools.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/StudioHistoryUiTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/NativeStudioProjectUiTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "One sequential video lane; 12 clip / 30 minute limits; no simultaneous PiP/split-screen tracks",
+      "recommended_fix": "Keep limits visible; multivideo compositing is future feature work"
+    },
+    {
+      "area": "Studio",
+      "id": "history",
+      "status": "Implemented",
+      "navigation": "Editor Undo/Redo",
+      "actual_behavior": "Bounded 50 snapshots with grouped continuous edits",
+      "persistence": "Session only; persisted project is current state",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/StudioTools.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/StudioHistoryUiTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "History not serialized across process death",
+      "recommended_fix": "Document session-only history; current project remains saved"
+    },
+    {
+      "area": "Studio",
+      "id": "effects",
+      "status": "Partial",
+      "navigation": "Editor filter and advanced tools",
+      "actual_behavior": "MONO/invert, brightness/contrast/saturation, fade-to-black edges, crop/rotate/aspect and discrete speed",
+      "persistence": "Model/JSON + Media3 composition",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioRenderer.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/StudioToolsPanel.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/StudioTools.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/StudioAdvancedTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/NativeStudioIntegrationTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "No cross-dissolve between overlapping video clips or continuous speed ramps",
+      "recommended_fix": "Keep supported labels; avoid unsupported transition promises"
+    },
+    {
+      "area": "Studio",
+      "id": "audio",
+      "status": "Partial",
+      "navigation": "Editor music/voiceover + independent audio tools",
+      "actual_behavior": "Music/voiceover gain; four offset/trimmed lanes with fades and original audio speed sync",
+      "persistence": "Project URIs/parameters; recorded voice files private",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/StudioToolsPanel.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioRenderer.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/StudioAdvancedTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "Real microphone capture/route quality not hardware-tested; waveforms and advanced EQ absent",
+      "recommended_fix": "Validate microphone capture and interruptions on user hardware; retain URI validation"
+    },
+    {
+      "area": "Studio",
+      "id": "captions-and-text",
+      "status": "Implemented",
+      "navigation": "Editor overlay/caption tools; Creative manual return",
+      "actual_behavior": "Timed text with font/color/size/Y position; SRT parse/export; burn into render",
+      "persistence": "JSON captions and export parameters",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/StudioTools.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/StudioToolsPanel.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioRenderer.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/StudioAdvancedTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/StudioHistoryUiTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/OfflineGuestExportTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "No imported-video transcription or word-level karaoke alignment",
+      "recommended_fix": "Use manual/SRT captions; do not label dictation as video transcription"
+    },
+    {
+      "area": "Studio",
+      "id": "save-reopen-recovery",
+      "status": "Implemented",
+      "navigation": "Editor save; Studio project list; Settings Privacy recovery",
+      "actual_behavior": "Atomic saves, stale-write guard, copy/confirm trash/restore/relink; last-good recovery as copy",
+      "persistence": "Private versioned JSON; backup/recovery files; originals preserved",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/StudioRepository.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/StudioProject.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/NativeStudioIntegrationTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/StudioAdvancedTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/PrivacyReliabilityTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/WorkspaceReliabilityTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "Sprint8 fixes oversize serialization that previously produced unreadable project files; recovery/trash have no storage quota",
+      "recommended_fix": "Reject before touching current/recovery; use reference-aware cleanup only in a future explicit workflow"
+    },
+    {
+      "area": "Studio",
+      "id": "native-export",
+      "status": "Partial",
+      "navigation": "Editor Export / Share completed export",
+      "actual_behavior": "Media3 H264/AAC; HD/FHD/UHD options, FPS/bitrate, progress/foreground worker, fingerprint stale guard",
+      "persistence": "Immutable WorkManager request + output record + MediaStore",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioExportWorker.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioRenderer.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/StudioExportDecoders.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/NativeStudioWorkerTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/StudioAdvancedTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/ReleaseQaTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "4K depends on encoder; exactly-once MediaStore publication after process death not guaranteed; Sprint8 QA found redundant FPS dropper tail truncation: source-rate-aware bypass plus unchanged/stronger real-output assertions added, final CI required; API29 trace proved decoder-to-surface frame loss with five pending frames; one-frame export backpressure added, awaiting final CI",
+      "recommended_fix": "Verify final cadence/tail and higher-rate downsample regressions; preserve encoder support limits and durable publication follow-up"
+    },
+    {
+      "area": "Studio",
+      "id": "legacy-tools",
+      "status": "Partial",
+      "navigation": "Studio tools → story/status/sticker/audio",
+      "actual_behavior": "Existing cloud story/sticker/status rendering and local segmentation; stale derivative guard",
+      "persistence": "Media records and source media; cloud derivatives require service",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/StoryCardScreen.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/StudioDerivativeTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "Separate native and cloud paths overlap in purpose but differ capabilities; cloud service not exercised",
+      "recommended_fix": "Preserve named legacy tools until native replacement covers behavior; do not silently switch offline tools to cloud"
+    },
+    {
+      "area": "Camera",
+      "id": "capture",
+      "status": "Partial",
+      "navigation": "Home Quick Camera / Camera tab / Studio camera",
+      "actual_behavior": "CameraX photo/video, front/rear switching, flash/zoom/timer; concurrent-camera mode only if advertised",
+      "persistence": "Public captured media + returned URI",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/CameraResultMedia.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/WorkspaceReliabilityTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "Synthetic result routing tested only; physical sensors, flash, mic, camera denial and recording interruption not verified",
+      "recommended_fix": "User device test camera capture and codecs; retain capability gating"
+    },
+    {
+      "area": "Camera",
+      "id": "library-studio-handoff",
+      "status": "Partial",
+      "navigation": "Capture Activity result → Studio / Library",
+      "actual_behavior": "Validate local URI/media type and register capture; video opens editor, image uses media tools",
+      "persistence": "MediaStore/Library index",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/CameraResultMedia.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/WorkspaceReliabilityTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "No hardware capture-to-render end-to-end claim",
+      "recommended_fix": "Test full hardware path later without manual screenshot dependency"
+    },
+    {
+      "area": "Library",
+      "id": "organization",
+      "status": "Implemented",
+      "navigation": "Library tab",
+      "actual_behavior": "Search/type/filter/sort/grid/list/favorites/rename/bulk/delete/share/report; previews",
+      "persistence": "MediaStore + legacy index/preferences",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/LibraryMediaCard.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/MediaLibraryIndexer.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/IntegratedCreatorUiTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "Native projects live in Studio/Home rather than Library media grid; large libraries not exhaustively profiled",
+      "recommended_fix": "Keep project/media distinction; paginate only after measurement demonstrates need"
+    },
+    {
+      "area": "Library",
+      "id": "previews-thumbnails",
+      "status": "Implemented",
+      "navigation": "Library media cards → preview; Home media",
+      "actual_behavior": "ExoPlayer audio/video and image preview; bounded 320px thumbnail decode, 8MiB LRU/two concurrent decodes",
+      "persistence": "Memory thumbnail cache; no durable bitmap guarantee",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/PlayerScreen.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/ImagePreview.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/MediaThumbnails.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/ImagePreviewTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/WorkspaceReliabilityTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/StudioLifecycleStressTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "Compose bitmap lifetime repair inherited from S7; URI revocation possible",
+      "recommended_fix": "Retain framework-owned bitmap lifetime; show failure without recycling a still-visible bitmap"
+    },
+    {
+      "area": "Library",
+      "id": "android-sharing",
+      "status": "Partial",
+      "navigation": "Library / export Share → Android chooser",
+      "actual_behavior": "Content URI with MIME, ClipData/read permission; stale native export disabled",
+      "persistence": "Published media survives editor changes; share itself external",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/SafeMediaProvider.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/NativeStudioWorkerTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/PrivacyReliabilityTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/StudioDerivativeTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "External recipient apps and completed human Sharesheet send not automated",
+      "recommended_fix": "Validate chosen target on user device; no social-upload or recipient delivery claim"
+    },
+    {
+      "area": "Downloads",
+      "id": "inspect-quality",
+      "status": "Partial",
+      "navigation": "Home Download links / Downloads panel / text share inbox",
+      "actual_behavior": "Public URL inspection, video/audio quality tiers and remembered format",
+      "persistence": "SecureDownloadPreferences + WorkManager job data",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/DownloadSourcePanel.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/DownloadApi.kt"
+      ],
+      "tests": [],
+      "coverage": "source audit only",
+      "defects_or_limits": "Service/network/extractor dependent; no live production download smoke in this sprint",
+      "recommended_fix": "Use existing mocked/backend regression; owner must validate public endpoint separately"
+    },
+    {
+      "area": "Downloads",
+      "id": "queue-progress-recovery",
+      "status": "Partial",
+      "navigation": "Downloads jobs and batch panel",
+      "actual_behavior": "Progress/cancel/retry/pause/resume with saved job metadata; batch max10; Wi-Fi-only preference",
+      "persistence": "WorkManager and remote job state",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/DownloadWorker.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/DownloadActionReceiver.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt"
+      ],
+      "tests": [],
+      "coverage": "source audit only",
+      "defects_or_limits": "Pause/resume does not guarantee byte-range continuation for every provider; server jobs may expire",
+      "recommended_fix": "Report provider support accurately; do not promise universally resumable transfers"
+    },
+    {
+      "area": "Downloads",
+      "id": "share-inbox-import",
+      "status": "Implemented",
+      "navigation": "Android text share → Inbox → Downloads → Open in Studio",
+      "actual_behavior": "Normalize URL, persist inbox entry, route completed local media into Studio",
+      "persistence": "SharedPreferences inbox + indexed completed media",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/ShareReceiverActivity.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/ShareInboxStore.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/StartupNavigationTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "Text links only; arbitrary external media deep link is not a supported route",
+      "recommended_fix": "Keep exported intent surface narrow; validate future media intake explicitly"
+    },
+    {
+      "area": "Creative AI",
+      "id": "local-analysis",
+      "status": "Partial",
+      "navigation": "Native editor → Creative Studio → analyze",
+      "actual_behavior": "Real decoded frames/PCM: scenes, exposure, silence, highlights, static face framing/soft focus; cancellable",
+      "persistence": "Derived projects saved locally; analysis session memory",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/CreativeAnalyzer.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/CreativeModels.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/CreativeIntegrationTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "Deterministic heuristics, not generative AI; limited analysis span; no tracking model",
+      "recommended_fix": "Disclose local heuristic scope and source-preserving derived cuts"
+    },
+    {
+      "area": "Creative AI",
+      "id": "writing-assistant",
+      "status": "Partial",
+      "navigation": "Creative → assistant",
+      "actual_behavior": "Local topic rules generate suggested titles/hooks/script/hashtags; apply editable text",
+      "persistence": "Applied titles/captions in project",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/CreativeModels.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/CreativeWorkspaceUiTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "No LLM, cloud inference or originality/virality guarantee",
+      "recommended_fix": "Label local suggestions; no paid inference added"
+    },
+    {
+      "area": "Creative AI",
+      "id": "templates",
+      "status": "Implemented",
+      "navigation": "Home template shortcut / Creative templates / Social recipes",
+      "actual_behavior": "Recipes create editable projects from current/imported media; relink/replace supported sources",
+      "persistence": "Separate derived projects; original unchanged",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/CreativeModels.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorModels.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/CreativeIntegrationTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/CreativeWorkspaceUiTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/SocialCreatorUiTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "Creative and Social recipe catalogs intentionally differ; no remote marketplace",
+      "recommended_fix": "Retain shared StudioProject/renderer; consolidate only genuinely equivalent presentation later"
+    },
+    {
+      "area": "Creative AI",
+      "id": "dictation",
+      "status": "Partial",
+      "navigation": "Creative → captions → Android on-device recognizer",
+      "actual_behavior": "Provider-dependent live microphone dictation and optional English model request; manual caption fallback",
+      "persistence": "Applied captions saved; recognizer availability external",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/OfflineDictation.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt"
+      ],
+      "tests": [],
+      "coverage": "source audit only",
+      "defects_or_limits": "No bundled model, imported-media STT or universal offline English availability",
+      "recommended_fix": "Treat model request as OS-managed; no model purchase or automatic cloud fallback"
+    },
+    {
+      "area": "Creative AI",
+      "id": "thumbnails",
+      "status": "Implemented",
+      "navigation": "Creative → thumbnail designer",
+      "actual_behavior": "Canvas frame/text/subtitle/badge/color/font positioning; save/reopen; publish hashed PNG",
+      "persistence": "Private thumbnail JSON + MediaStore PNG",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/StudioThumbnails.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/ThumbnailPanel.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/CreativeIntegrationTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "No asset portability bundle; source read access can expire",
+      "recommended_fix": "Keep explicit relink/storage limitations; PNG is a real independent export"
+    },
+    {
+      "area": "Social",
+      "id": "platform-layouts",
+      "status": "Implemented",
+      "navigation": "Native editor → Social Creator → layouts",
+      "actual_behavior": "16:9/9:16/1:1/4:5/4:3 output, fit/fill, graphics, captions, watermark/progress",
+      "persistence": "StudioTools.social snapshot",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorModels.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/CreatorOverlays.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/SocialCreatorIntegrationTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "No platform account integration/automatic upload; codec support varies",
+      "recommended_fix": "Use Android sharing; do not claim platform publishing"
+    },
+    {
+      "area": "Social",
+      "id": "brand-kit",
+      "status": "Implemented",
+      "navigation": "Social Creator → brand kit",
+      "actual_behavior": "Private bounded logo import, colors/font/watermark/intro/outro; apply editable snapshot",
+      "persistence": "Brand JSON/private logo; project snapshots",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/CreatorBrandRepository.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/SocialCreatorIntegrationTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "Unused historical logo assets may remain; project portability unresolved",
+      "recommended_fix": "Reference-aware asset cleanup later; never delete assets still referenced by projects"
+    },
+    {
+      "area": "Social",
+      "id": "queue-variants",
+      "status": "Partial",
+      "navigation": "Social Creator → variant queue",
+      "actual_behavior": "Serial native exports, progress/cancel/retry/reuse identical successful output",
+      "persistence": "WorkManager unique queue + immutable requests/records",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioExportWorker.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/SocialCreatorIntegrationTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/ReleaseQaTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "Interrupted process/publication reconciliation not fully fault-injected; failed predecessor needs retry",
+      "recommended_fix": "Reconcile durable publication before promising exactly-once recovery"
+    },
+    {
+      "area": "Social",
+      "id": "beat-and-speed-tools",
+      "status": "Partial",
+      "navigation": "Social Creator → cuts",
+      "actual_behavior": "Manual BPM grid, jump cuts, stepped 0.5/1/2x derived timeline",
+      "persistence": "Saved derived projects",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorModels.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/SocialCreatorUiTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "No automatic musical beat detection or continuous optical-flow ramps",
+      "recommended_fix": "Keep manual/stepped labels explicit"
+    },
+    {
+      "area": "Accounts/Settings",
+      "id": "guest-first",
+      "status": "Implemented",
+      "navigation": "Settings Account; default launcher offline",
+      "actual_behavior": "All current entitlements free; guest APK excludes Firebase runtime; projects independent of account",
+      "persistence": "App-private local project/media state",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/AccountService.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/CreatorSettings.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/AccountPrivacyUiTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/OfflineGuestExportTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "No cloud backup or account-to-account project sync",
+      "recommended_fix": "Do not imply sign-in backs up local files; keep guest path complete"
+    },
+    {
+      "area": "Accounts/Settings",
+      "id": "optional-auth",
+      "status": "Partial",
+      "navigation": "Configured build Settings → Account",
+      "actual_behavior": "Firebase email/password/register/reset/profile/logout/reauth+delete; SDK-managed session",
+      "persistence": "Firebase SDK session; no app password/token copies",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/AccountPanel.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/AccountService.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/AccountPrivacyUiTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "UI tests use fake service; demo-config compile is not live Auth verification; #64 is independent",
+      "recommended_fix": "Owner-configured auth emulator/service validation required; no production provisioning in sprint"
+    },
+    {
+      "area": "Accounts/Settings",
+      "id": "privacy-consent",
+      "status": "Partial",
+      "navigation": "Settings → Privacy & Data",
+      "actual_behavior": "Off-by-default optional analytics/crash choices; persist before enable; on failure attempt disable and persist withdrawal; guest SDK absent",
+      "persistence": "Private consent preferences",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/PrivacyPreferences.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/PrivacyDataScreen.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/PrivacyConsent.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/PrivacyReliabilityTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/AccountPrivacyUiTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "Sprint8 repairs SDK-before-commit ordering. Live delivery unverified; permanent disk/SDK disable failure cannot guarantee persistent withdrawal.",
+      "recommended_fix": "Use injected failure regressions; real configured service/consent propagation must be verified separately",
+      "unit_tests": [
+        "apps/android/app/src/test/java/com/vidgravity/app/PrivacyConsentTest.kt"
+      ]
+    },
+    {
+      "area": "Accounts/Settings",
+      "id": "storage-safety",
+      "status": "Implemented",
+      "navigation": "Settings Storage/Privacy; Studio trash",
+      "actual_behavior": "Measured private storage; thumbnail-only cleanup; no symlink traversal; confirm trash and recover as copy",
+      "persistence": "Existing project/trash/recovery documents retained",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/PrivacyPreferences.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/PrivacyDataScreen.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/StudioRepository.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/PrivacyReliabilityTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "Cache clearing cannot reclaim recordings/recovery/brand files safely without reference tracking",
+      "recommended_fix": "Retain narrow cleanup; never sweep active cache/imports/exports"
+    },
+    {
+      "area": "Accounts/Settings",
+      "id": "appearance-help-permissions",
+      "status": "Implemented",
+      "navigation": "Settings disclosures; Help; Android settings links",
+      "actual_behavior": "Consistent theme, download/export prefs, notification/accessibility/permission Settings links and onboarding",
+      "persistence": "SharedPreferences; Android system policy",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/CreatorSettings.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/CreatorHelp.kt",
+        "apps/android/app/src/main/java/com/vidgravity/app/VgDesign.kt"
+      ],
+      "tests": [
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/HomeAccessibilityUiTest.kt",
+        "apps/android/app/src/androidTest/java/com/vidgravity/app/IntegratedCreatorUiTest.kt"
+      ],
+      "coverage": "automated cases listed; final run conclusions in PR #69",
+      "defects_or_limits": "No full TalkBack contrast audit or every device font scale certification",
+      "recommended_fix": "User a11y/device testing remains; existing large-font Home test only"
+    },
+    {
+      "area": "Missing advanced capabilities",
+      "id": "multivideo-and-cloud-collaboration",
+      "status": "Missing",
+      "navigation": "No supported user route",
+      "actual_behavior": "No implemented simultaneous video tracks, PiP, cloud project collaboration, portable project archive or cloud backups",
+      "persistence": "None",
+      "source": [
+        "apps/android/app/src/main/java/com/vidgravity/app/StudioProject.kt"
+      ],
+      "tests": [],
+      "coverage": "source audit only",
+      "defects_or_limits": "Unimplemented; legacy CollaborativeStash/GhostPlayer scaffolds are not a supported feature",
+      "recommended_fix": "Keep out of release claims; future feature expansion requires real models/renderers/tests"
+    }
+  ],
+  "controls": [
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/AccountPanel.kt",
+      "line": 38,
+      "source": "Button(enabled=!busy && email.isNotBlank() && password.length>=6,onClick={request(\"Signed in.\") {accounts.signIn(email,password)}}) {Text(\"Sign in\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/AccountPanel.kt",
+      "line": 39,
+      "source": "OutlinedButton(enabled=!busy && email.isNotBlank() && password.length>=6,onClick={request(\"Account created.\") {accounts.signIn(email,password,true)}}) {Text(\"Create account\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/AccountPanel.kt",
+      "line": 40,
+      "source": "TextButton(enabled=!busy && email.isNotBlank(),onClick={request(\"If eligible, password reset instructions have been requested. Check your inbox.\") {accounts.resetPassword(email)}}) {Text(\"Reset password\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/AccountPanel.kt",
+      "line": 44,
+      "source": "Button(enabled=!busy && name.isNotBlank(),onClick={request(\"Profile saved.\") {accounts.saveProfile(name)}}) {Text(\"Save profile\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/AccountPanel.kt",
+      "line": 45,
+      "source": "OutlinedButton(enabled=!busy,onClick={accounts.signOut();email=\"\";password=\"\";name=\"\";status=\"Signed out. Local projects remain available.\"}) {Text(\"Sign out\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/AccountPanel.kt",
+      "line": 46,
+      "source": "TextButton(enabled=!busy,onClick={password=\"\";status=\"\";deleting=true}) {Text(\"Delete account\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/AccountPanel.kt",
+      "line": 54,
+      "source": "}},confirmButton={TextButton(enabled=!busy && password.isNotEmpty(),onClick={request(\"Account deleted. Guest mode is active.\") {accounts.deleteAccount(password);deleting=false}}) {Text(\"Confirm account deletion\")}},dismissButton={TextButton(enabled=!busy,onClick={deleting=false;password=\"\"}) {Text(\"Cancel\")}})",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CompletedCard.kt",
+      "line": 34,
+      "source": "AssistChip(onClick = onTrimSticker, label = { Text(\"Remix Reply\") }, modifier = Modifier.heightIn(min = 48.dp))",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CompletedCard.kt",
+      "line": 35,
+      "source": "AssistChip(onClick = onWhatsAppSplit, label = { Text(\"WhatsApp Split\") }, modifier = Modifier.heightIn(min = 48.dp))",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CompletedCard.kt",
+      "line": 37,
+      "source": "Button(onClick = onShareToStash, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 12,
+      "source": "import androidx.activity.compose.BackHandler",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 88,
+      "source": "BackHandler {close()}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 99,
+      "source": "TextButton(onClick=::close) {Text(\"Back to editor\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 104,
+      "source": "tabs.forEachIndexed {i,label -> Tab(selected=tab==i,onClick={leave {tab=i}},text={Text(label)})}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 110,
+      "source": "if(job?.isActive==true) TextButton(onClick={job?.cancel()}) {Text(\"Cancel processing\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 119,
+      "source": "Button(enabled=!working,onClick={runTask {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 141,
+      "source": "Button(enabled=!working,onClick={",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 147,
+      "source": "Button(enabled=!working,onClick={onApply(project.copy(tools=project.tools.copy(brightness=r.exposure))); message=\"Brightness suggestion applied. Undo is available in the editor.\"}) {Text(\"Apply brightness only\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 150,
+      "source": "Button(enabled=!working,onClick={onCreate(CreativeRules.derivedCut(project,clip,listOf(r.highlight),\"Highlight\"))}) {Text(\"Create highlight project\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 153,
+      "source": "Button(enabled=!working && r.silence.isNotEmpty() && audible.size in 1..12,onClick={onCreate(CreativeRules.derivedCut(project,clip,audible,\"Silence cut\"))}) {Text(\"Create silence-removed project\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 168,
+      "source": "Button(enabled=available && !working && !dictating && project.tools.captions.size<100,onClick={",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 172,
+      "source": "TextButton(onClick={speech.close(); dictating=false}) {Text(\"Stop dictation\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 175,
+      "source": "OutlinedButton(enabled=!working && !dictating,onClick={speech.downloadEnglishModel()}) {Text(\"Request English model download\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 177,
+      "source": "Button(onClick=::close) {Text(\"Return to manual caption editor\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 227,
+      "source": "TextButton(enabled=enabled,onClick={chosen=template; seconds=template.seconds}) {Text(if(chosen==template) \"Selected template\" else \"Preview ${template.label}\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 237,
+      "source": "TextButton(enabled=enabled,onClick={picker.launch(arrayOf(\"audio/*\"))}) {Text(if(music==null) \"Choose your music (optional)\" else \"Replace template music\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 238,
+      "source": "if(music!=null) TextButton(enabled=enabled,onClick={music=null}) {Text(\"Remove template music\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 239,
+      "source": "Button(enabled=enabled && title.isNotBlank(),onClick={onCreate(CreativeTemplates.create(project,chosen,title,seconds,music))},modifier=Modifier.testTag(\"create_template\")) {Text(\"Create editable template project\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 256,
+      "source": "Button(enabled=enabled && topic.isNotBlank(),onClick={scope.launch {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 261,
+      "source": "copy.titles.forEach {title -> Text(title); TextButton(enabled=enabled,onClick={onApply(project.copy(title=title.take(100)))}) {Text(\"Use title: ${title.take(35)}\")}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 264,
+      "source": "TextButton(enabled=enabled && project.tools.captions.size<100,onClick={onApply(project.copy(tools=project.tools.copy(captions=project.tools.captions+StudioCaption(0,minOf(3000,project.durationMs),copy.hook))))}) {Text(\"Add hook as editable caption\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreativeWorkspace.kt",
+      "line": 265,
+      "source": "TextButton(onClick={",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreatorHelp.kt",
+      "line": 3,
+      "source": "import androidx.activity.compose.BackHandler",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreatorHelp.kt",
+      "line": 12,
+      "source": "BackHandler(onBack=onBack)",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreatorHelp.kt",
+      "line": 14,
+      "source": "item {TextButton(onClick=onBack) {Text(\"Back\")};Text(\"Creator guide\",style=MaterialTheme.typography.headlineLarge)}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreatorHelp.kt",
+      "line": 16,
+      "source": "Button(onClick=onCreate,modifier=Modifier.fillMaxWidth()) {Text(\"Create New Video\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreatorHelp.kt",
+      "line": 17,
+      "source": "OutlinedButton(onClick=onRecord) {Text(\"Record with Camera\")};TextButton(onClick=onImport) {Text(\"Import Media\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreatorSettings.kt",
+      "line": 26,
+      "source": "OutlinedButton(onClick={privacy=true},modifier=Modifier.fillMaxWidth()) {Text(\"Privacy & Data\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreatorSettings.kt",
+      "line": 28,
+      "source": "VgDisclosure(\"Storage\",initiallyOpen=false) {Text(\"Project files are app-private. Public captures/exports use Android MediaStore. Use Privacy & Data for a measured storage overview and safe thumbnail cleanup.\");OutlinedButton(onClick={privacy=true}) {Text(\"Manage local data\")}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreatorSettings.kt",
+      "line": 31,
+      "source": "StudioResolution.values().forEach {preset ->FilterChip(selected=resolution==preset.name,onClick={resolution=preset.name;exportPrefs.edit().putString(\"resolution\",preset.name).apply()},label={Text(preset.label)})}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreatorSettings.kt",
+      "line": 39,
+      "source": "VgDisclosure(\"Notifications\",initiallyOpen=false) {Text(\"Android controls download/export notification channels and permission. Foreground progress remains required for active long-running work.\");OutlinedButton(onClick={context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE,context.packageName))}) {Text(\"Manage notifications\")}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreatorSettings.kt",
+      "line": 41,
+      "source": "VgDisclosure(\"Accessibility\",initiallyOpen=false) {Text(\"VidGravity follows Android font scaling. Open Android accessibility settings for magnification, screen reader and display controls.\");OutlinedButton(onClick={context.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS))}) {Text(\"Android accessibility settings\")}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/CreatorSettings.kt",
+      "line": 42,
+      "source": "OutlinedButton(onClick=onHelp) {Text(\"Help & getting started\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/DownloadSourcePanel.kt",
+      "line": 17,
+      "source": "Row {TextButton(onClick={clipboard.getText()?.text?.let(onUrl)}) {Text(\"Paste link\")};TextButton(onClick=openInbox) {Text(\"Share Inbox\")}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/DownloadSourcePanel.kt",
+      "line": 18,
+      "source": "Button(enabled=!busy,onClick={if(ShareReceiverActivity.normalizeSharedUrl(url.trim())!=null) inspect() else notify(\"Enter one complete http or https media URL to inspect.\")},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) {Text(\"Inspect link\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/DownloadSourcePanel.kt",
+      "line": 21,
+      "source": "OutlinedButton(enabled=!busy,onClick={scope.launch {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/DownloadSourcePanel.kt",
+      "line": 35,
+      "source": "TextButton(enabled=!busy,onClick={scope.launch {busy=true",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/DownloadSourcePanel.kt",
+      "line": 44,
+      "source": "TextButton(onClick=openStudy) {Text(\"StudyTok tools\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/FormatPickerBottomSheet.kt",
+      "line": 130,
+      "source": "setOnClickListener {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/GhostPlayerActivity.kt",
+      "line": 143,
+      "source": "Button(onClick = onExpired, modifier = Modifier.align(Alignment.End)) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/HomeDashboard.kt",
+      "line": 41,
+      "source": "Button(onClick=onCreate,modifier=Modifier.fillMaxWidth().heightIn(min=56.dp).testTag(\"home_create\")) {Icon(Icons.Default.Add,null);Spacer(Modifier.width(8.dp));Text(\"Create New Video\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/HomeDashboard.kt",
+      "line": 43,
+      "source": "OutlinedButton(onClick=onCamera,modifier=Modifier.weight(1f).heightIn(min=48.dp)) {Icon(Icons.Default.PhotoCamera,null);Text(\"Quick Camera\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/HomeDashboard.kt",
+      "line": 44,
+      "source": "OutlinedButton(onClick=onImport,modifier=Modifier.weight(1f).heightIn(min=48.dp)) {Icon(Icons.Default.FileOpen,null);Text(\"Import Media\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/HomeDashboard.kt",
+      "line": 48,
+      "source": "error?.let {item {Text(it,color=MaterialTheme.colorScheme.error);TextButton(onClick={scope.launch {refresh()}}) {Text(\"Retry recent work\")}}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/HomeDashboard.kt",
+      "line": 50,
+      "source": "Row {TextButton(onClick={dismiss();onHelp()}) {Text(\"Show me the basics\")};TextButton(onClick=::dismiss,modifier=Modifier.testTag(\"skip_onboarding\")) {Text(\"Skip onboarding\")}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/HomeDashboard.kt",
+      "line": 56,
+      "source": "Column(Modifier.weight(1f)) {Text(p.title,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis);Text(\"${p.clips.size} clips · ${p.durationMs/1000}s\",style=MaterialTheme.typography.bodySmall);TextButton(onClick={onResume(p.id)}) {Text(\"Continue ${p.title.take(35)}\")}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/HomeDashboard.kt",
+      "line": 59,
+      "source": "listOf(\"short\" to \"Short video\",\"explain\" to \"Educational explainer\",\"promo\" to \"Product promotion\").forEach {(id,label)->TextButton(onClick={onTemplate(id)},modifier=Modifier.heightIn(min=48.dp)) {Text(label)}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/HomeDashboard.kt",
+      "line": 64,
+      "source": "item {Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {TextButton(onClick=onLibrary) {Text(\"Open Library\")};TextButton(onClick=onDownloads) {Text(\"Download links\")};TextButton(onClick=onHelp) {Text(\"Help\")}}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ImagePreview.kt",
+      "line": 5,
+      "source": "import androidx.activity.compose.BackHandler",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ImagePreview.kt",
+      "line": 23,
+      "source": "BackHandler(onBack = onBack)",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ImagePreview.kt",
+      "line": 43,
+      "source": "TextButton(onClick = onBack) { Text(\"Back to workspace\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ImagePreview.kt",
+      "line": 44,
+      "source": "TextButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/LibraryMediaCard.kt",
+      "line": 16,
+      "source": "OutlinedCard(modifier.clickable(onClick=onOpen)) {Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/LibraryMediaCard.kt",
+      "line": 22,
+      "source": "if(!compact) TextButton(onClick=onEdit) {Text(\"Studio\")} else Spacer(Modifier.weight(1f))",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/LibraryMediaCard.kt",
+      "line": 23,
+      "source": "Box {IconButton(onClick={menu=true}) {Icon(Icons.Default.MoreVert,\"Actions for ${media.displayName}\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/LibraryMediaCard.kt",
+      "line": 25,
+      "source": "listOf(\"Open preview\" to onOpen,\"Open in Studio\" to onEdit,(if(media.isFavorite) \"Remove favorite\" else \"Favorite\") to onFavorite,\"Rename\" to onRename,\"Share\" to onShare,\"Delete\" to onDelete).forEach {(label,action)->DropdownMenuItem(text={Text(label)},onClick={menu=false;action()})}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 7,
+      "source": "import androidx.activity.compose.BackHandler",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 155,
+      "source": "BackHandler(enabled = playingMedia != null || showHelp || showStudyTok || showInbox || selected != VgTab.Home) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 201,
+      "source": "IconButton(onClick = { navigate(VgTab.Settings) }) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 205,
+      "source": "IconButton(onClick = { dark = !dark; prefs?.edit()?.putBoolean(\"dark\", dark)?.apply() }) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 214,
+      "source": "NavigationBarItem(modifier = Modifier.testTag(\"nav_${tab.name}\"), selected = selected == tab, onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 256,
+      "source": "VgTab.Camera -> VgSection(\"Camera\",\"Record a photo or video, then send it to Studio.\") {Button(onClick=openCamera) {Text(\"Open Camera\")}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 373,
+      "source": "IconButton(onClick = { analysis = null }) { Icon(Icons.Default.Close, \"Close\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 376,
+      "source": "Checkbox(checked = rememberQuality, onCheckedChange = { rememberQuality = it })",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 385,
+      "source": "onClick = { qualityTab = tab },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 490,
+      "source": "TextButton(onClick = { notice = null }) { Text(\"Got it\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 648,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 676,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 696,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 729,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 771,
+      "source": "onClick = { showClearHistoryConfirm = true },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 781,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 800,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 814,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 851,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 866,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 891,
+      "source": "IconButton(onClick = { downloadSearch = \"\" }) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 901,
+      "source": "onClick = { downloadSort = sort },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 910,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 929,
+      "source": "FilterChip(selected = downloadFilter == filter, onClick = { downloadFilter = filter },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 965,
+      "source": "IconButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 981,
+      "source": "TextButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 988,
+      "source": "TextButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1004,
+      "source": "OutlinedButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1011,
+      "source": "OutlinedButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1020,
+      "source": "OutlinedButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1047,
+      "source": "TextButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1054,
+      "source": "TextButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1061,
+      "source": "TextButton(onClick = { WorkManager.getInstance(context).cancelWorkById(work.id) }) { Text(\"Cancel\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1064,
+      "source": "TextButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1094,
+      "source": "TextButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1105,
+      "source": "TextButton(onClick = { showClearHistoryConfirm = false }) { Text(\"Keep history\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1140,
+      "source": "IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, \"Back\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1153,
+      "source": "trailingIcon = { if (searchQuery.isNotBlank()) IconButton(onClick = { searchQuery = \"\" }) { Icon(Icons.Default.Close, \"Clear search\") } }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1177,
+      "source": "Button(onClick = { onInspect(item.url) }) { Text(\"Inspect\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1178,
+      "source": "OutlinedButton(onClick = { onOpen(item.url) }) { Text(\"Open source\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1179,
+      "source": "IconButton(onClick = { ShareInboxStore.remove(context, item.id); items = ShareInboxStore.list(context) }) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1284,
+      "source": "TextButton(onClick = { scope.launch { refreshMedia() } }) { Text(\"Retry library\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1295,
+      "source": "FilledTonalButton(onClick = { swipeFeedOpen = true },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1350,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1374,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1405,
+      "source": "OutlinedButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1412,
+      "source": "Button(enabled = visibleMedia.any { it.uri.toString() in selectedUris }, onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1437,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1450,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1463,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1477,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1490,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1504,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1527,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1558,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1579,
+      "source": "onClick = { showBulkDeleteConfirm = true },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1590,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1606,
+      "source": "onClick = { filter = value },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1618,
+      "source": "onClick = { sizeFilter = value },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1632,
+      "source": "onClick = { sortBy = value },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1660,
+      "source": "confirmButton = { TextButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1670,
+      "source": "dismissButton = { TextButton(onClick = { renameTarget = null }) { Text(\"Cancel\") } }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1680,
+      "source": "TextButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1694,
+      "source": "dismissButton = { TextButton(onClick = { showBulkDeleteConfirm = false }) { Text(\"Cancel\") } }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1702,
+      "source": "confirmButton = { TextButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1710,
+      "source": "dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(\"Cancel\") } }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1777,
+      "source": "BackHandler(enabled = storyEditorOpen) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1837,
+      "source": "Button(enabled = !isRendering && segmentJob == null, onClick = { nativeInitial = null; nativeStudio = true },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1839,
+      "source": "OutlinedButton(onClick = openInbox, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1884,
+      "source": "Button(onClick = { picker.launch(arrayOf(\"video/*\", \"audio/*\", \"image/*\")) },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1919,
+      "source": "Button(enabled = !isRendering && segmentJob == null, onClick = { nativeInitial = media; nativeStudio = true },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1923,
+      "source": "OutlinedButton(onClick = { onPlay(media) }, modifier = Modifier.weight(1f)) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1926,
+      "source": "Button(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1938,
+      "source": "Button(enabled = MediaWorkflowRules.supportsStory(media.mimeType), onClick = { storyEditorOpen = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1961,
+      "source": "onClick = { statusClipSeconds = seconds },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 1976,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 2036,
+      "source": "onClick = { segmentJob?.cancel() },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 2046,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 2091,
+      "source": "OutlinedButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 2109,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/MainActivity.kt",
+      "line": 2132,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 11,
+      "source": "import androidx.activity.compose.BackHandler",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 122,
+      "source": "BackHandler(onBack = onClose)",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 128,
+      "source": "Button(enabled = !loading, onClick = { picker.launch(arrayOf(\"video/*\")) }, modifier = Modifier.fillMaxWidth()) { Text(\"New video project\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 129,
+      "source": "TextButton(onClick = onClose) { Text(\"Back to Studio tools\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 139,
+      "source": "TextButton(onClick = { editing = saved }) { Text(\"Continue editing\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 141,
+      "source": "TextButton(enabled=!loading,onClick={scope.launch {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 145,
+      "source": "TextButton(enabled=!loading,onClick={scope.launch {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 159,
+      "source": "trashed.forEach { saved -> TextButton(onClick={scope.launch {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 243,
+      "source": "BackHandler { close() }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 355,
+      "source": "TextButton(onClick = { close() }) { Text(\"Projects\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 363,
+      "source": "TextButton(enabled=!busy && canUndo,onClick={saveStatus=\"Saving…\"; project=history.undo(project).copy(updatedAt=System.currentTimeMillis()); canUndo=history.canUndo; canRedo=history.canRedo; selected=selected.coerceIn(project.clips.indices)}) {Text(\"Undo\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 364,
+      "source": "TextButton(enabled=!busy && canRedo,onClick={saveStatus=\"Saving…\"; project=history.redo(project).copy(updatedAt=System.currentTimeMillis()); canUndo=history.canUndo; canRedo=history.canRedo; selected=selected.coerceIn(project.clips.indices)}) {Text(\"Redo\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 367,
+      "source": "Button(enabled=!busy,onClick={focus.clearFocus();keyboard?.hide();socialOpen=true},modifier=Modifier.fillMaxWidth().testTag(\"social_creator\")) {Text(\"Open Social Creator\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 368,
+      "source": "FilledTonalButton(enabled=!busy,onClick={focus.clearFocus(); keyboard?.hide(); creativeOpen=true},modifier=Modifier.fillMaxWidth().testTag(\"creative_studio\")) {Text(\"Open Creative Studio\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 373,
+      "source": "TextButton(enabled=!busy,onClick={relinkPicker.launch(arrayOf(\"video/*\"))}) {Text(\"Relink selected video\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 382,
+      "source": "TextButton(enabled = !busy, onClick = { selected = index }) { Text(if (index == selected) \"Selected\" else \"Edit clip\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 383,
+      "source": "TextButton(enabled = !busy && index > 0, onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 386,
+      "source": "TextButton(enabled = !busy && project.clips.size > 1, onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 406,
+      "source": "OutlinedButton(enabled = !busy && project.clips.size < 12, onClick = { clipPicker.launch(arrayOf(\"video/*\")) }) { Text(\"Add clip\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 407,
+      "source": "OutlinedButton(enabled = !busy && clip.durationMs >= 200 && project.clips.size < 12, onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 413,
+      "source": "TextButton(enabled=!busy && project.clips.size<12,onClick={try {edit(StudioEdits.duplicate(project,selected))} catch(failure:IllegalArgumentException) {message=failure.message}}) {Text(\"Duplicate clip\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 414,
+      "source": "TextButton(enabled=!busy && selected<project.clips.lastIndex,onClick={try {edit(StudioEdits.mergeNext(project,selected))} catch(failure:IllegalArgumentException) {message=failure.message}}) {Text(\"Merge adjacent source ranges\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 415,
+      "source": "TextButton(enabled=!busy && project.clips.size<12,onClick={",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 428,
+      "source": "onClick = { edit(project.copy(filter = filter)) }, label = { Text(filter.name.lowercase().replaceFirstChar { it.uppercase() }) }) }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 434,
+      "source": "Button(enabled = !busy, onClick = { musicPicker.launch(arrayOf(\"audio/*\")) }) { Text(if (project.musicUri == null) \"Add music\" else \"Replace music\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 438,
+      "source": "TextButton(enabled = !busy, onClick = { edit(project.copy(musicUri = null)) }) { Text(\"Remove music\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 440,
+      "source": "Button(enabled = !exporting, onClick = { if (recorder == null) startRecording() else stopRecording() }) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 446,
+      "source": "TextButton(enabled = !busy, onClick = { edit(project.copy(voiceUri = null)) }) { Text(\"Remove voiceover\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 455,
+      "source": "onClick = { edit(project.copy(resolution = resolution)) }, label = { Text(resolution.label) }) }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 458,
+      "source": "OutlinedButton(enabled = !busy, onClick = { scope.launch {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 462,
+      "source": "Button(enabled = !busy, onClick = { export() }, modifier = Modifier.fillMaxWidth().testTag(\"native_export\")) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 470,
+      "source": "activeId?.let { TextButton(onClick = { manager.cancelWorkById(UUID.fromString(it)) }) { Text(\"Cancel export\") } }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/NativeStudioScreen.kt",
+      "line": 475,
+      "source": "Button(enabled = currentExport != null && !busy, onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/PlayerScreen.kt",
+      "line": 94,
+      "source": "IconButton(onClick = onBack) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/PlayerScreen.kt",
+      "line": 101,
+      "source": "IconButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/PlayerScreen.kt",
+      "line": 109,
+      "source": "TextButton(onClick = { menu = true }) { Text(\"${speed}×\", color = Color.White) }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/PlayerScreen.kt",
+      "line": 112,
+      "source": "DropdownMenuItem(text = { Text(\"${value}×\") }, onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/PlayerScreen.kt",
+      "line": 145,
+      "source": "IconButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/PlayerScreen.kt",
+      "line": 158,
+      "source": "onClick = { if (player.isPlaying) player.pause() else player.play() },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/PrivacyDataScreen.kt",
+      "line": 5,
+      "source": "import androidx.activity.compose.BackHandler",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/PrivacyDataScreen.kt",
+      "line": 34,
+      "source": "BackHandler(onBack=onClose)",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/PrivacyDataScreen.kt",
+      "line": 36,
+      "source": "OutlinedButton(onClick=onClose) {Text(\"Back to Settings\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/PrivacyDataScreen.kt",
+      "line": 44,
+      "source": "OutlinedButton(enabled=!busy,onClick={run {withContext(Dispatchers.IO) {PrivacyStorage.clearThumbnails(context)};message=\"In-memory and disposable thumbnails cleared. Projects, imports, active work and exports were kept.\"}}) {Text(\"Clear thumbnail cache\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/PrivacyDataScreen.kt",
+      "line": 48,
+      "source": "recovery.forEach {p->OutlinedButton(enabled=!busy,onClick={run {withContext(Dispatchers.IO) {repository.recoverAsCopy(p.id)};message=\"Last good save recovered as a new project. Original files were preserved.\"}}) {Text(\"Recover last save: ${p.title}\")}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/PrivacyDataScreen.kt",
+      "line": 49,
+      "source": "projects.forEach {p->OutlinedButton(enabled=!busy,onClick={pending=p},modifier=Modifier.fillMaxWidth()) {Text(\"Move ${p.title} to trash\")}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/PrivacyDataScreen.kt",
+      "line": 50,
+      "source": "OutlinedButton(onClick={context.startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse(\"package:${context.packageName}\")))}) {Text(\"Manage Android permissions\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/PrivacyDataScreen.kt",
+      "line": 57,
+      "source": "pending?.let {p->AlertDialog(onDismissRequest={pending=null},title={Text(\"Move project to trash?\")},text={Text(\"${p.title} can be restored from Studio trash. Its source media and exports stay unchanged.\")},confirmButton={TextButton(enabled=!busy,onClick={pending=null;run {withContext(Dispatchers.IO) {repository.trash(p.id)};message=\"Project moved to recoverable trash.\"}}) {Text(\"Move to trash\")}},dismissButton={TextButton(onClick={pending=null}) {Text(\"Cancel\")}})}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 3,
+      "source": "import androidx.activity.compose.BackHandler",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 53,
+      "source": "BackHandler(enabled=!busy,onBack=onClose)",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 63,
+      "source": "Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {Text(\"Social Creator\",style=MaterialTheme.typography.headlineSmall);TextButton(enabled=!busy,onClick=onClose) {Text(\"Back to editor\")}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 83,
+      "source": "Button(enabled=!busy && title.isNotBlank(),onClick={task {var next=SocialCreator.create(project,recipe,title,seconds);if(useBrand) next=brand.apply(next);onCreate(next)}},modifier=Modifier.testTag(\"social_create\")) {Text(\"Create social project\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 89,
+      "source": "TextButton(enabled=!busy && brandLoaded,onClick={logoPicker.launch(arrayOf(\"image/*\"))}) {Text(if(brand.logo==null) \"Import logo\" else \"Replace logo\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 90,
+      "source": "if(brand.logo!=null) TextButton(enabled=!busy,onClick={brand=brand.copy(logo=null)}) {Text(\"Remove kit logo\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 98,
+      "source": "Button(enabled=!busy && brandLoaded,onClick={task {withContext(Dispatchers.IO) {brands.save(brand)};message=\"Brand kit saved on this device.\"}},modifier=Modifier.testTag(\"brand_save\")) {Text(\"Save brand kit\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 99,
+      "source": "OutlinedButton(enabled=!busy && brandLoaded,onClick={task {onApply(brand.apply(project));message=\"Brand snapshot applied. Undo is available in Studio.\"}}) {Text(\"Apply brand to current project\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 100,
+      "source": "TextButton(enabled=!busy,onClick={onApply(project.copy(tools=project.tools.copy(social=project.tools.social.copy(watermark=\"\",logo=null))));message=\"Watermark removed; editable intro/outro captions can be removed in Studio.\"}) {Text(\"Remove project watermark\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 101,
+      "source": "TextButton(enabled=!busy,onClick={task {brand=withContext(Dispatchers.IO) {brands.load()};message=\"Brand kit reopened.\"}}) {Text(\"Reload brand kit\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 116,
+      "source": "Button(enabled=!busy && targets.isNotEmpty(),onClick={task {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 122,
+      "source": "OutlinedButton(enabled=!busy && targets.isNotEmpty(),onClick={task {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 132,
+      "source": "if(!w.state.isFinished) TextButton(onClick={manager.cancelWorkById(w.id)}) {Text(\"Cancel queued export\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 135,
+      "source": "if(p!=null) TextButton(enabled=!busy,onClick={task {withContext(Dispatchers.IO) {NativeStudioExportWorker.enqueue(context,p)};message=\"Retry queued.\"}}) {Text(\"Retry ${p.title}\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 145,
+      "source": "OutlinedButton(enabled=!busy,onClick={task {onCreate(SocialCreator.cutGrid(project,selected,bpm.toInt()))}}) {Text(\"Create beat-grid cut project\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 146,
+      "source": "OutlinedButton(enabled=!busy,onClick={task {onCreate(SocialCreator.cutGrid(project,selected,bpm.toInt(),true))}}) {Text(\"Create alternating jump cuts\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 147,
+      "source": "OutlinedButton(enabled=!busy,onClick={task {onCreate(SocialCreator.speedRamp(project,selected))}}) {Text(\"Create stepped speed · 0.5× → 1× → 2×\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 153,
+      "source": "TextButton(enabled=!busy && project.tools.captions.size<100,onClick={onApply(project.copy(tools=project.tools.copy(captions=project.tools.captions+StudioCaption(maxOf(0,project.durationMs-2000),project.durationMs,\"Save this idea • Follow for more\"))))}) {Text(\"Add editable call to action\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SocialCreatorWorkspace.kt",
+      "line": 163,
+      "source": "TextButton(enabled=enabled,onClick=onSelect) {Text(if(r==chosen) \"Selected: ${r.label}\" else \"Preview: ${r.label}\")}}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SoundtrackBadge.kt",
+      "line": 32,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SoundtrackBadge.kt",
+      "line": 48,
+      "source": "AssistChip(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StartupHost.kt",
+      "line": 70,
+      "source": "setOnClickListener { activity.recreate() }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StartupHost.kt",
+      "line": 74,
+      "source": "setOnClickListener {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StoryCardScreen.kt",
+      "line": 75,
+      "source": "TextButton(enabled = !isRendering, onClick = onClose, modifier = Modifier.heightIn(min = 48.dp)) { Text(\"Close\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StoryCardScreen.kt",
+      "line": 98,
+      "source": "onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StoryCardScreen.kt",
+      "line": 138,
+      "source": "onClick = { layout = \"Audio Visualizer\" },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StoryCardScreen.kt",
+      "line": 149,
+      "source": "FilterChip(enabled = !isRendering, selected = layout == \"Cover Art\", onClick = { layout = \"Cover Art\" }, label = { Text(\"Fit / Letterbox\") })",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StoryCardScreen.kt",
+      "line": 150,
+      "source": "FilterChip(enabled = !isRendering, selected = layout == \"Video Backdrop\", onClick = { layout = \"Video Backdrop\" }, label = { Text(\"Blurred Backdrop\") })",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StoryCardScreen.kt",
+      "line": 154,
+      "source": "onClick = { layout = \"Privacy Blur\" },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StoryCardScreen.kt",
+      "line": 166,
+      "source": "Button(enabled = !isRendering, onClick = { renderedSettings = currentSettings; onRenderStory(media, start, end, title, artist, layout); status = \"Story render requested.\" },",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StoryCardScreen.kt",
+      "line": 172,
+      "source": "OutlinedButton(enabled = canShare, onClick = { onShareDerivative(\"instagram\") }, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) { Text(\"Instagram Story\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StoryCardScreen.kt",
+      "line": 173,
+      "source": "OutlinedButton(enabled = canShare, onClick = { onShareDerivative(\"whatsapp\") }, modifier = Modifier.weight(1f).heightIn(min = 52.dp)) { Text(\"WhatsApp Status\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudioProjectSummary.kt",
+      "line": 35,
+      "source": "FilledTonalButton(onClick = onOpenStudio) { Text(\"Open Studio\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudioTimeline.kt",
+      "line": 42,
+      "source": "TextButton(onClick={zoom=(zoom/2).coerceAtLeast(8f)}) { Text(\"Zoom out\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudioTimeline.kt",
+      "line": 43,
+      "source": "TextButton(onClick={zoom=(zoom*2).coerceAtMost(128f)}) { Text(\"Zoom in\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudioToolsPanel.kt",
+      "line": 33,
+      "source": "TextButton(enabled=enabled,onClick={tools(t.copy(brightness=0f,contrast=0f,saturation=0f))}) { Text(\"Neutral\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudioToolsPanel.kt",
+      "line": 34,
+      "source": "TextButton(enabled=enabled,onClick={tools(t.copy(brightness=0.05f,contrast=0.15f,saturation=15f))}) { Text(\"Vivid\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudioToolsPanel.kt",
+      "line": 35,
+      "source": "TextButton(enabled=enabled,onClick={tools(t.copy(brightness=0.08f,contrast=-0.1f,saturation=-20f))}) { Text(\"Soft\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudioToolsPanel.kt",
+      "line": 36,
+      "source": "TextButton(enabled=enabled,onClick={tools(t.copy(rotation=(t.rotation+90)%360))}) { Text(\"Rotate 90° · ${t.rotation}°\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudioToolsPanel.kt",
+      "line": 45,
+      "source": "Button(enabled=enabled && t.audio.size<4,onClick=onAddAudio) { Text(\"Import audio lane\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudioToolsPanel.kt",
+      "line": 56,
+      "source": "TextButton(enabled=enabled,onClick={tools(t.copy(audio=t.audio.filterIndexed { i,_ -> i!=index }))}) {Text(\"Remove lane ${index+1}\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudioToolsPanel.kt",
+      "line": 63,
+      "source": "TextButton(enabled=enabled,onClick=onImportSrt) {Text(\"Import SRT\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudioToolsPanel.kt",
+      "line": 64,
+      "source": "TextButton(enabled=enabled && t.captions.isNotEmpty(),onClick=onExportSrt) {Text(\"Export SRT\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudioToolsPanel.kt",
+      "line": 65,
+      "source": "TextButton(enabled=enabled && t.captions.size<100,onClick={tools(t.copy(captions=t.captions+StudioCaption(0,minOf(3000,project.durationMs),\"Your title\")))}) {Text(\"Add title cue\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudioToolsPanel.kt",
+      "line": 70,
+      "source": "listOf(-1 to \"White\",0xFFFFFF00.toInt() to \"Yellow\",0xFF00FFFF.toInt() to \"Cyan\").forEach { (color,name) -> TextButton(enabled=enabled,onClick={tools(t.copy(captionColor=color))}) {Text(name)} }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudioToolsPanel.kt",
+      "line": 81,
+      "source": "TextButton(enabled=enabled,onClick={tools(t.copy(captions=t.captions.filterIndexed { i,_ -> i!=index }))}) {Text(\"Delete cue ${index+1}\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudioToolsPanel.kt",
+      "line": 109,
+      "source": "TextButton(enabled=enabled && text.toLongOrNull()!=null,onClick={text.toLongOrNull()?.let(onApply)}) {Text(\"Apply $label\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudyTokScreen.kt",
+      "line": 160,
+      "source": "IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, \"Back\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudyTokScreen.kt",
+      "line": 189,
+      "source": "Button(onClick = { buildCards() }, modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudyTokScreen.kt",
+      "line": 195,
+      "source": "OutlinedButton(onClick = { shareCards() }) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudyTokScreen.kt",
+      "line": 200,
+      "source": "Button(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudyTokScreen.kt",
+      "line": 226,
+      "source": "Button(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudyTokScreen.kt",
+      "line": 232,
+      "source": "OutlinedButton(onClick = { practiceMode = false }, modifier = Modifier.fillMaxWidth()) { Text(\"Back to all cards\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudyTokScreen.kt",
+      "line": 250,
+      "source": "OutlinedButton(onClick = { showAnswer = true }, modifier = Modifier.fillMaxWidth()) { Text(\"Reveal answer\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudyTokScreen.kt",
+      "line": 256,
+      "source": "OutlinedButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudyTokScreen.kt",
+      "line": 261,
+      "source": "Button(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudyTokScreen.kt",
+      "line": 268,
+      "source": "TextButton(onClick = { practiceMode = false; showAnswer = false }, modifier = Modifier.fillMaxWidth()) { Text(\"Exit practice\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/StudyTokScreen.kt",
+      "line": 271,
+      "source": "OutlinedButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SwipeFeedScreen.kt",
+      "line": 84,
+      "source": "TextButton(onClick = onClose) { Text(\"Back to Library\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SwipeFeedScreen.kt",
+      "line": 109,
+      "source": "FilledTonalIconButton(onClick = { muted = !muted; players.forEach { it.volume = if (muted) 0f else 1f } }) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SwipeFeedScreen.kt",
+      "line": 112,
+      "source": "FilledTonalIconButton(onClick = { speedIndex = (speedIndex + 1) % speeds.size; players.forEach { it.setPlaybackSpeed(speeds[speedIndex]) } }) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SwipeFeedScreen.kt",
+      "line": 115,
+      "source": "FilledTonalIconButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SwipeFeedScreen.kt",
+      "line": 121,
+      "source": "FilledTonalIconButton(onClick = { onMakeSticker(mediaItem) }) { Icon(Icons.Default.AutoAwesome, \"Make sticker\") }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SwipeFeedScreen.kt",
+      "line": 122,
+      "source": "FilledTonalIconButton(onClick = { onStatusSplit(mediaItem) }) { Text(\"Split\", style = MaterialTheme.typography.labelSmall) }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SwipeFeedScreen.kt",
+      "line": 123,
+      "source": "FilledTonalIconButton(onClick = {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/SwipeFeedScreen.kt",
+      "line": 143,
+      "source": "TextButton(onClick = onClose, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(8.dp)) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ThumbnailPanel.kt",
+      "line": 65,
+      "source": "TextButton(enabled=!exporting,onClick={thumb=StudioThumbnail(projectId=project.id,source=clip.uri,durationMs=clip.sourceDurationMs,timeMs=clip.startMs,",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ThumbnailPanel.kt",
+      "line": 73,
+      "source": "TextButton(enabled=!exporting,onClick={edit(thumb.copy(textY=0.32f,badge=\"NEW\",background=0xCC1E1B4B.toInt()))}) {Text(\"Cover: announcement\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ThumbnailPanel.kt",
+      "line": 74,
+      "source": "TextButton(enabled=!exporting,onClick={edit(thumb.copy(textY=0.72f,badge=\"NONE\",background=0x99000000.toInt()))}) {Text(\"Cover: minimal\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ThumbnailPanel.kt",
+      "line": 75,
+      "source": "TextButton(enabled=!exporting,onClick={scope.launch {try {val b=withContext(Dispatchers.IO) {CreatorBrandRepository(context).load()};edit(thumb.copy(color=b.color,font=b.font,subtitle=b.name))} catch(e:Exception) {if(e is CancellationException) throw e;message=\"Brand kit unavailable.\"}}}) {Text(\"Apply cover brand style\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ThumbnailPanel.kt",
+      "line": 78,
+      "source": "listOf(0xCC1E1B4B.toInt() to \"Indigo\",0xCC000000.toInt() to \"Black\",0 to \"Clear\").forEach {(color,name)->TextButton(enabled=!exporting,onClick={edit(thumb.copy(background=color))}) {Text(\"Text background: $name\")}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ThumbnailPanel.kt",
+      "line": 95,
+      "source": "listOf(-1 to \"White\",0xFFFFFF00.toInt() to \"Yellow\",0xFF00FFFF.toInt() to \"Cyan\").forEach {(color,label) -> TextButton(enabled=!exporting,onClick={edit(thumb.copy(color=color))}) {Text(label)}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ThumbnailPanel.kt",
+      "line": 96,
+      "source": "listOf(\"sans-serif\",\"serif\",\"monospace\").forEach {font -> TextButton(enabled=!exporting,onClick={edit(thumb.copy(font=font))}) {Text(font)}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ThumbnailPanel.kt",
+      "line": 99,
+      "source": "listOf(\"PLAY\",\"NEW\",\"TIP\",\"NONE\").forEach {badge -> TextButton(enabled=!exporting,onClick={edit(thumb.copy(badge=badge))}) {Text(\"Badge $badge\")}}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ThumbnailPanel.kt",
+      "line": 101,
+      "source": "OutlinedButton(enabled=!exporting && thumb.title.isNotBlank(),onClick={scope.launch {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ThumbnailPanel.kt",
+      "line": 105,
+      "source": "Button(enabled=!exporting && thumb.title.isNotBlank(),onClick={",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ThumbnailPanel.kt",
+      "line": 117,
+      "source": "if(exporting) TextButton(onClick={exportJob?.cancel()}) {Text(\"Cancel thumbnail export\")}",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ThumbnailPanel.kt",
+      "line": 119,
+      "source": "Button(enabled=export!=null && !exporting,onClick={",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ThumbnailPanel.kt",
+      "line": 127,
+      "source": "TextButton(enabled=!exporting,onClick={scope.launch {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/ThumbnailPanel.kt",
+      "line": 130,
+      "source": "saved.forEach {item -> TextButton(enabled=!exporting,onClick={scope.launch {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/app/VgDesign.kt",
+      "line": 37,
+      "source": "TextButton(onClick={expanded=!expanded},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp).semantics {stateDescription=if(expanded) \"Expanded\" else \"Collapsed\"}) {",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    },
+    {
+      "file": "apps/android/app/src/main/java/com/vidgravity/camera/DualCameraCaptureActivity.kt",
+      "line": 222,
+      "source": "setOnClickListener { action() }",
+      "verification": "static callback inventory; not proof of exercised runtime route"
+    }
+  ],
+  "limitations": [
+    "Callback inventory is lexical; positional lambdas and dynamically generated controls are represented by feature/route groups, not an exhaustive Kotlin AST or runtime crawl",
+    "All control routes have been inspected by entrypoint/source groups; every control has not been individually automated",
+    "No physical-device, live backend, paid AI or production-service test claim"
+  ]
+}

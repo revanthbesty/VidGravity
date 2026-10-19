@@ -9,6 +9,22 @@ import java.util.UUID
 
 class PrivacyReliabilityTest {
     private val context get()=InstrumentationRegistry.getInstrumentation().targetContext
+    @Test fun rejectedOversizeSavePreservesCurrentAndRecoveryDocuments() {
+        val repository=StudioRepository(context)
+        val p=StudioProject(title="Bounded save",clips=listOf(StudioClip(uri="content://media/video/12",name="Video",sourceDurationMs=1000)))
+        val current=File(context.filesDir,"studio-projects/${p.id}.json")
+        val recovery=File(context.filesDir,"studio-projects/recovery/${p.id}.json")
+        try {
+            repository.save(p)
+            repository.save(p.copy(title="Current edit",updatedAt=p.updatedAt+1))
+            val currentBytes=current.readBytes();val recoveryBytes=recovery.readBytes()
+            val tooLarge=p.copy(updatedAt=p.updatedAt+2,clips=p.clips.map {it.copy(name="x".repeat(256_000))})
+            assertThrows(IllegalArgumentException::class.java) {repository.save(tooLarge)}
+            assertArrayEquals(currentBytes,current.readBytes());assertArrayEquals(recoveryBytes,recovery.readBytes())
+            assertEquals("Current edit",repository.load(p.id).title)
+            assertEquals(p,repository.recoverable().first {it.id==p.id})
+        } finally {repository.delete(p.id);recovery.delete()}
+    }
     @Test fun corruptedAndOversizeProjectsArePreservedAndLastGoodSaveRecoversAsCopy() {
         val repository=StudioRepository(context)
         val p=StudioProject(title="Privacy recovery",clips=listOf(StudioMediaImports.video(context,MediaLibraryIndexer.localUri(context,studioFixture("native-source.mp4")))))

@@ -30,7 +30,7 @@ data class StudioTools(
         require(captions.size <= 100 && captions.all { it.startMs >= 0 && it.endMs > it.startMs && it.endMs <= duration && it.text.isNotBlank() && it.text.length <= 500 }) { "Caption cues must fit the video timeline (100 cues maximum)." }
         require(audio.size <= 4 && audio.map { it.id }.distinct().size == audio.size) { "Use up to four independent audio lanes." }
         audio.forEach {
-            require(it.uri.startsWith("content://") && it.uri.length <= 8192)
+            require(LocalMediaPolicy.validUri(it.uri)) { "Choose readable local audio." }
             require(it.startMs >= 0 && it.endMs <= it.sourceDurationMs && it.durationMs >= 100 && it.offsetMs in 0 until duration)
             require(it.volume.isFinite() && it.volume in 0f..1f && it.fadeInMs in 0..it.durationMs && it.fadeOutMs in 0..it.durationMs)
         }

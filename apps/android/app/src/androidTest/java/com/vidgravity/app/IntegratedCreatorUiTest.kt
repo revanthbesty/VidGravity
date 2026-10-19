@@ -25,6 +25,8 @@ class IntegratedCreatorUiTest {
             val field=compose.onNodeWithText("Project name");field.performTextReplacement("Sprint 6 preserved");field.performImeAction()
             compose.onNodeWithTag("nav_Library").performClick()
             compose.waitUntil(10_000) {repository.load(p.id).title=="Sprint 6 preserved"}
+            // Autosave may have persisted the title before the navigation save returns to Main.
+            compose.waitUntil(10_000) {compose.onAllNodes(hasTestTag("nav_Library") and isSelected()).fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithTag("nav_Library").assertIsSelected()
             compose.onNodeWithTag("nav_Studio").performClick()
             compose.waitUntil(10_000) {compose.onAllNodes(hasText("Project name") and hasText("Sprint 6 preserved")).fetchSemanticsNodes().isNotEmpty()}

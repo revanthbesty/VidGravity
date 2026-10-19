@@ -19,7 +19,7 @@ smoke_code=$?
 kill "$evidence_pid" 2>/dev/null
 wait "$evidence_pid" 2>/dev/null
 adb logcat -d -v threadtime > work/android-smoke/logcat.txt
-adb logcat -d -v threadtime -s VGStartup VGSmoke VGStudio AndroidRuntime
+adb logcat -d -v threadtime -s VGStartup VGSmoke VGStudio VGPerf VGTrace AndroidRuntime
 adb shell dumpsys activity lastanr > work/android-smoke/lastanr.txt
 adb shell dumpsys window > work/android-smoke/windows.txt
 adb shell dumpsys power > work/android-smoke/power.txt
@@ -38,4 +38,9 @@ for report in Path('apps/android/app/build/outputs/androidTest-results').rglob('
                 print((failure.text or '')[:16000])
 PY_REPORT
 adb pull /sdcard/Android/data/com.vidgravity.app/files/smoke-evidence work/android-smoke/ || true
+if [ "$smoke_code" -eq 0 ]; then
+    python scripts/android_measure.py
+    measurement_code=$?
+    if [ "$measurement_code" -ne 0 ]; then exit "$measurement_code"; fi
+fi
 exit "$smoke_code"
