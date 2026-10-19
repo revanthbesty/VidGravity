@@ -63,6 +63,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
     private val textColor get()=if(dark) 0xFFF2F5FA.toInt() else 0xFF182134.toInt()
     private var indexingCapture=false
     private var closeAfterSave=false
+    private var returningFromSettings=false
     private var lastCapture:Intent?=null
     private val capturePending get()=pendingPhoto || indexingCapture
     private fun sessionChangeAllowed():Boolean {
@@ -123,6 +124,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
         videoMode=savedInstanceState?.getBoolean("videoMode",true) ?: true
         frontFacing=savedInstanceState?.getBoolean("frontFacing",false) ?: false
         timerSeconds=savedInstanceState?.getInt("timerSeconds",0) ?: 0
+        returningFromSettings=savedInstanceState?.getBoolean("returningFromSettings",false) ?: false
         executor = Executors.newSingleThreadExecutor()
         buildCameraUi()
         onBackPressedDispatcher.addCallback(this,object:OnBackPressedCallback(true) {
@@ -136,6 +138,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
         Log.i(TAG,"create sdk=${Build.VERSION.SDK_INT} restored=${savedInstanceState!=null}")
         val permissions = arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            returningFromSettings=false
             startCameras()
         } else {
             AlertDialog.Builder(this,if(dark) android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert).setTitle("Create with your camera")
@@ -344,7 +347,9 @@ class DualCameraCaptureActivity : ComponentActivity() {
         val stillCapture = ImageCapture.Builder()
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
             .build()
-        val recorder = Recorder.Builder().setQualitySelector(QualitySelector.from(videoQuality, FallbackStrategy.lowerQualityOrHigherThan(videoQuality))).build()
+        val qualitySelector=if(videoQuality==Quality.HIGHEST) QualitySelector.from(Quality.HIGHEST)
+            else QualitySelector.from(videoQuality,FallbackStrategy.lowerQualityOrHigherThan(videoQuality))
+        val recorder = Recorder.Builder().setQualitySelector(qualitySelector).build()
         val video = VideoCapture.withOutput(recorder)
         try {
             // Bind only the use cases required by the selected mode. Requesting preview,
@@ -692,8 +697,17 @@ class DualCameraCaptureActivity : ComponentActivity() {
         shutter.isEnabled=false
         AlertDialog.Builder(this,if(dark) android.R.style.Theme_Material_Dialog_Alert else android.R.style.Theme_Material_Light_Dialog_Alert).setTitle("Camera unavailable").setMessage(message+" Your saved media is unchanged.")
             .setPositiveButton("Retry") {_,_->if(ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED) startCameras() else permissionRequest.launch(arrayOf(Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO))}
-            .setNeutralButton("App settings") {_,_->startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:$packageName")))}
+            .setNeutralButton("App settings") {_,_->returningFromSettings=true;startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:$packageName")))}
             .setNegativeButton("Back") {_,_->finish()}.show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if(returningFromSettings) {
+            returningFromSettings=false
+            if(ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED) startCameras()
+            else finishWithMessage("Camera permission is still denied. Allow it in Android settings or return to Library.")
+        }
     }
 
     override fun onStop() {
@@ -706,7 +720,7 @@ class DualCameraCaptureActivity : ComponentActivity() {
 
     override fun onSaveInstanceState(outState:Bundle) {
         outState.putBoolean("videoMode",videoMode);outState.putBoolean("frontFacing",frontFacing)
-        outState.putInt("timerSeconds",timerSeconds)
+        outState.putInt("timerSeconds",timerSeconds);outState.putBoolean("returningFromSettings",returningFromSettings)
         lastCapture?.let {outState.putString("captureUri",it.data?.toString());outState.putString("captureMime",it.type);outState.putString("captureName",it.getStringExtra(Intent.EXTRA_TITLE))}
         super.onSaveInstanceState(outState)
     }
