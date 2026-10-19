@@ -37,7 +37,7 @@ internal object NativeStudioRenderer {
         val effects = mutableListOf<Effect>()
         val tools = project.tools
         val offset=project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs}
-        val clock=StudioEffectClock(offset,clip.startMs,clip.speed,resize)
+        val clock=StudioEffectClock(offset,clip.speed,resize)
         if (resize && clip.speed != 1f) effects += SpeedChangeEffect(clip.speed)
         if (clip.frame != StudioFrame()) effects += Crop(clip.frame.left*2-1,clip.frame.right*2-1,1-clip.frame.bottom*2,1-clip.frame.top*2)
         if (tools.soften > 0f) effects += GaussianBlur(tools.soften)

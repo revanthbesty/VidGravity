@@ -148,15 +148,23 @@ internal fun StudioTimeline(project: StudioProject, selected: Int, positionMs: L
 @Composable
 private fun StudioTimedLane(label: String,start: Long,end: Long,totalWidth: Float,left: Float,right: Float,
     enabled: Boolean,color: Color,onClick: ()->Unit,onMove: (Float)->Unit) {
+    val density=LocalDensity.current.density
     val latestMove by rememberUpdatedState(onMove)
     var drag by remember {mutableFloatStateOf(0f)}
     Row(Modifier.width(totalWidth.dp).height(48.dp)) {
         Spacer(Modifier.width(left.dp))
-        Text("$label · $start–$end ms",maxLines=1,modifier=Modifier
-            .width((right-left).coerceAtLeast(24f).dp).fillMaxHeight().graphicsLayer {translationX=drag}
-            .background(color).clickable(enabled=enabled,onClick=onClick)
+        // Keep the visible bar time-proportional while giving short clips a usable touch target.
+        Box(Modifier.width((right-left).coerceAtLeast(48f).dp).fillMaxHeight().graphicsLayer {translationX=drag}
+            .clickable(enabled=enabled,onClick=onClick)
             .pointerInput(start,end,totalWidth,enabled) {
-                if(enabled) detectDragGesturesAfterLongPress(onDragStart={drag=0f},onDragCancel={drag=0f},onDragEnd={latestMove(drag);drag=0f}) {change,amount ->change.consume();drag+=amount.x}
-            }.padding(6.dp).semantics {contentDescription="Timeline $label"})
+                if(enabled) detectDragGesturesAfterLongPress(
+                    onDragStart={drag=0f;android.util.Log.i("VGStudio","timeline.lane.drag.started")},
+                    onDragCancel={drag=0f;android.util.Log.i("VGStudio","timeline.lane.drag.cancelled")},
+                    onDragEnd={android.util.Log.i("VGStudio","timeline.lane.drag.end deltaPx=$drag");latestMove(drag);drag=0f}
+                ) {change,amount ->change.consume();drag+=amount.x}
+            }.semantics(mergeDescendants=true) {contentDescription="Timeline $label"}) {
+            Canvas(Modifier.matchParentSize()) {drawRect(color,size=androidx.compose.ui.geometry.Size((right-left).coerceAtLeast(1f)*density,size.height))}
+            Text("$label · $start–$end ms",maxLines=1,style=MaterialTheme.typography.labelSmall,modifier=Modifier.padding(6.dp))
+        }
     }
 }

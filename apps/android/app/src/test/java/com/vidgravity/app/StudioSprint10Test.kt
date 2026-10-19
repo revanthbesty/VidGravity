@@ -47,13 +47,13 @@ class StudioSprint10Test {
         assertEquals(250L,lane.copy(loop=true).position(1750,1000,3000))
         assertNull(lane.position(2000,1000,2000))
     }
-    @Test fun effectClocksUseCompositionTimeForExportAndSourceTimeForTrimmedPreview() {
-        val export=StudioEffectClock(500,1000,0.5f,true)
+    @Test fun effectClocksUseCompositionTimeForExportAndClippedItemTimeForPreview() {
+        val export=StudioEffectClock(500,0.5f,true)
         val preview=export.copy(exporting=false)
         assertEquals(1250L,export.outputMs(1_250_000))
-        assertEquals(1250L,preview.outputMs(1_375_000))
+        assertEquals(1250L,preview.outputMs(375_000))
         assertEquals(750_000L,export.clipUs(1_250_000))
-        assertEquals(750_000L,preview.clipUs(1_375_000))
+        assertEquals(750_000L,preview.clipUs(375_000))
     }
     @Test fun adjustableFadeMatchesSpeedAdjustedOutputClock() {
         assertEquals(0.5f,StudioFade.gain(200_000,2_000_000,400_000),0.001f)

@@ -25,7 +25,7 @@ not main. Prior integration branches, Firebase and Cloudflare configuration are 
   and fades visualized. Explicit loading, one concurrent decoder, and a 60-second
   bound keep analysis off the UI thread and cap memory/work.
 - Timed effects share an explicit clock: Transformer already supplies composition
-  timestamps; clipped ExoPlayer preview retains the source in-point. This avoids
+  timestamps; clipped ExoPlayer preview starts at item time zero. This avoids
   adding clip offsets twice to text/captions/graphics and fixes per-clip fades.
   Drag callbacks read current project/layer state so later edits are preserved.
 - Clip opacity over black; configurable 50–2000 ms fades through black at clip

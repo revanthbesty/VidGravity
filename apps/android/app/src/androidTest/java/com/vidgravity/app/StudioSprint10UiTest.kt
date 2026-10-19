@@ -30,10 +30,10 @@ class StudioSprint10UiTest {
             compose.waitUntil(10_000) {repository.load(p.id).tools.textLayers.singleOrNull()?.endMs==1000L}
             compose.clickStudioToolbar("Background: Navy")
             compose.onNodeWithContentDescription("Timeline A1 · Music").performScrollTo().performTouchInput {
-                down(center);advanceEventTime(700);moveBy(Offset(width.toFloat()*0.5f,0f));advanceEventTime(100);up()
+                down(center);advanceEventTime(700);moveBy(Offset(width.toFloat()*0.75f,0f));advanceEventTime(100);up()
             }
             compose.onNodeWithContentDescription("Timeline T1 · Independent title").performScrollTo().performTouchInput {
-                down(center);advanceEventTime(700);moveBy(Offset(width.toFloat()*0.5f,0f));advanceEventTime(100);up()
+                down(center);advanceEventTime(700);moveBy(Offset(width.toFloat()*0.75f,0f));advanceEventTime(100);up()
             }
             compose.onNodeWithText("Save project").performScrollTo().performClick()
             compose.waitUntil(10_000) {repository.load(p.id).tools.textLayers.singleOrNull()?.startMs?.let {it>100}==true}
