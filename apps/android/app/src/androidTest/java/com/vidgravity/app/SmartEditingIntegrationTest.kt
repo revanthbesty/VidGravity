@@ -122,7 +122,7 @@ class SmartEditingIntegrationTest {
                     assertTrue("Export duration $duration vs ${project.durationMs}",kotlin.math.abs(duration-project.durationMs)<350)
                     file.copyTo(copy,overwrite=true)
                 }
-                return withTimeout(60_000) {CreativeAnalyzer.waveform(context,StudioAudioLane(uri=android.net.Uri.fromFile(copy).toString(),name="Decoded export",sourceDurationMs=duration))}
+                return withTimeout(60_000) {CreativeAnalyzer.waveform(context,StudioAudioLane(uri=MediaLibraryIndexer.localUri(context,copy).toString(),name="Decoded export",sourceDurationMs=duration))}
             } finally {copy.delete()}
         }
         try {
