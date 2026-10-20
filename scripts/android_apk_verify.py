@@ -21,7 +21,7 @@ def verify(apk, tools):
         raise ValueError('Expected the debug signing identity')
     badging = subprocess.check_output([str(tools / 'aapt'), 'dump', 'badging', str(apk)], text=True)
     match = re.search(r"package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", badging)
-    if not match or match.groups() != ('com.vidgravity.app', '189', '1.10.0-sprint11'):
+    if not match or match.groups() != ('com.vidgravity.app', '190', '1.10.1-sprint11'):
         raise ValueError('Unexpected APK identity/version: ' + (match.group(0) if match else 'no package'))
     if 'application-debuggable' not in badging:
         raise ValueError('Expected a debuggable APK')
