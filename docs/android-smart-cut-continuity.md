@@ -40,6 +40,14 @@ music fade across an unchanged video boundary. It also verifies duration, delaye
 music start and unchanged hashes of both source fixtures. All previous tests remain.
 No new models, libraries, paid APIs or infrastructure changes are introduced.
 
+The first corrected-commit push build exhausted Gradle's default 2 GiB Java heap
+while deserializing lint models (`OutOfMemoryError: Java heap space` in
+`lintAnalyzeRelease` / `lintReportDebug`), then hit the job's 20-minute limit.
+The equivalent PR build and all sixty unit tests passed. The native CI invocation
+now uses a bounded 4 GiB daemon heap and at most two workers on the existing runner.
+No lint task is removed or suppressed. Emulator jobs and local Gradle defaults
+retain their existing memory settings. No runner upgrade or service purchase.
+
 CI must run build, instrumentation compilation, unit tests, lint, API 29/35 suites
 and the existing APK signature/identity/CRC/SHA-256/provenance verifier. Consult the
 pull request for actual run results and the final artifact; this document is not
