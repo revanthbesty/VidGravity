@@ -56,7 +56,8 @@ internal fun StudioTimeline(project: StudioProject, selected: Int, positionMs: L
         }
         return project.durationMs
     }
-    val anchors=StudioTiming.boundaries(project)+positionMs
+    val cinemaMarkers=remember(project) {CinemaMarkers.times(project)}
+    val anchors=StudioTiming.boundaries(project)+positionMs+cinemaMarkers
     fun seek(time: Long) = onSeek(StudioTiming.frame(if(snapping) StudioTiming.snap(time,anchors,project.durationMs) else time,project.tools.frameRate,project.durationMs))
     Text("Editing timeline", style=MaterialTheme.typography.titleLarge)
     Text("Long-press video to reorder. Drag audio or text directly to move timing. Video is sequential; audio lanes mix independently.",style=MaterialTheme.typography.labelSmall)
@@ -89,9 +90,20 @@ internal fun StudioTimeline(project: StudioProject, selected: Int, positionMs: L
                         }) { change,amount -> change.consume(); drag+=amount.x }
                     }.padding(8.dp).semantics { contentDescription="Video clip ${index+1}: ${clip.name}" }) {
                     Text("V1 · ${index+1}"+if(project.fadeEdges) " ◀ Fade ${project.tools.fadeDurationMs}ms ▶" else "",style=MaterialTheme.typography.labelSmall)
-                    Text(clip.name,maxLines=1)
+                    if(clip.cinema.exit.kind!=CinemaTransitionKind.NONE && index<project.clips.lastIndex) Text("${clip.cinema.exit.kind.label} · ${CinemaTransitions.half(project,index)*2}ms",style=MaterialTheme.typography.labelSmall)
+                    Text(clip.name+if(clip.speed!=1f) " · ${clip.speed}×" else "",maxLines=1)
                     Text("${start}–${start+clip.playbackDurationMs} ms",style=MaterialTheme.typography.labelSmall)
                 }
+            }
+        }
+        if(cinemaMarkers.isNotEmpty()) {
+            val markerColor=MaterialTheme.colorScheme.primary
+            Text("Animation keys · ${cinemaMarkers.size} markers"+if(cinemaMarkers.size>512) " · first 512 shown" else "",style=MaterialTheme.typography.labelSmall)
+            Canvas(Modifier.width(totalWidth.dp).height(30.dp).testTag("cinema_key_markers")
+                .semantics {contentDescription="Motion, look and volume keyframe markers"}
+                .pointerInput(project,enabled) {if(enabled) detectTapGestures {tap->seek(timelineTime(tap.x/density))}}) {
+                cinemaMarkers.take(512).forEach {time->val x=timelineX(time)*density
+                    drawLine(markerColor,Offset(x,3*density),Offset(x,size.height-3*density),3*density)}
             }
         }
         project.tools.audio.forEachIndexed { i,lane ->
@@ -112,6 +124,13 @@ internal fun StudioTimeline(project: StudioProject, selected: Int, positionMs: L
                 val moved=if(snapping) StudioTiming.snap(raw,anchors,project.durationMs-duration) else raw.coerceIn(0,project.durationMs-duration)
                 android.util.Log.i("VGStudio","timeline.text.move fromMs=${layer.startMs} toMs=$moved durationMs=$duration")
                 onEdit(project.copy(tools=project.tools.copy(textLayers=project.tools.textLayers.map {if(it.id==layer.id) it.copy(startMs=moved,endMs=moved+duration) else it})),null)
+            }
+        }
+        project.tools.graphics.forEachIndexed {i,g->
+            StudioTimedLane("G${i+1} · ${g.kind.name.lowercase()}",g.startMs,g.endMs,totalWidth,timelineX(g.startMs),timelineX(g.endMs),enabled,MaterialTheme.colorScheme.primaryContainer,{onSeek(g.startMs)}) {delta->
+                val duration=g.endMs-g.startMs;val raw=timelineTime(timelineX(g.startMs)+delta/density)
+                val moved=if(snapping) StudioTiming.snap(raw,anchors,project.durationMs-duration) else raw.coerceIn(0,project.durationMs-duration)
+                onEdit(project.copy(tools=project.tools.copy(graphics=project.tools.graphics.map {if(it.id==g.id) it.copy(startMs=moved,endMs=moved+duration) else it})),null)
             }
         }
         if(project.tools.captions.isNotEmpty()) {

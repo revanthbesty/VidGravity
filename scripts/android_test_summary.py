@@ -17,5 +17,10 @@ if lint.is_file():
         level = issue.get('severity', 'Unknown')
         counts[level] = counts.get(level, 0) + 1
     print('LINT_XML', counts)
+    ids = {}
+    for issue in ET.parse(lint).getroot().findall('issue'):
+        key = issue.get('id', 'Unknown')
+        ids[key] = ids.get(key, 0) + 1
+    print('LINT_ISSUE_IDS', ids)
 else:
     print('LINT_XML REPORT_MISSING')

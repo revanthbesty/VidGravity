@@ -12,7 +12,7 @@ import kotlinx.coroutines.delay
 import kotlin.math.abs
 
 internal data class StudioPreviewAudio(val uri: String, val start: Long, val end: Long?, val offset: Long,
-    val gain: Float, val fadeIn: Long=0, val fadeOut: Long=0, val loop: Boolean=false) {
+    val gain: Float, val fadeIn: Long=0, val fadeOut: Long=0, val loop: Boolean=false,val lane:StudioAudioLane?=null) {
     fun position(globalMs: Long, mediaDuration: Long, projectDuration: Long): Long? {
         val duration=if(end!=null) minOf(end-start,projectDuration-offset) else mediaDuration
         val local=globalMs-offset
@@ -34,10 +34,11 @@ internal fun StudioAudioPreview(project: StudioProject, clip: StudioClip, master
         buildList {
             project.musicUri?.let {add(StudioPreviewAudio(it,0,null,0,project.musicVolume,loop=true))}
             project.voiceUri?.let {add(StudioPreviewAudio(it,0,null,0,project.voiceVolume))}
-            project.tools.audio.forEach {add(StudioPreviewAudio(it.uri,it.startMs,it.endMs,it.offsetMs,it.volume,it.fadeInMs,it.fadeOutMs))}
+            project.tools.audio.forEach {add(StudioPreviewAudio(it.uri,it.startMs,it.endMs,it.offsetMs,it.volume,it.fadeInMs,it.fadeOutMs,lane=it))}
         }
     }
-    val players=remember(sources) {sources.map {ExoPlayer.Builder(context).build()}}
+    val renderers=remember(sources) {sources.map {SmartAudioRenderers(context,1f)}}
+    val players=remember(sources) {sources.mapIndexed {i,_->ExoPlayer.Builder(context,renderers[i]).build()}}
     var failed by remember(sources) {mutableStateOf(false)}
     DisposableEffect(players) {
         val listener=object:Player.Listener {override fun onPlayerError(error: PlaybackException) {failed=true}}
@@ -65,7 +66,8 @@ internal fun StudioAudioPreview(project: StudioProject, clip: StudioClip, master
                 } else {
                     if(abs(p.currentPosition-local)>120 || p.playbackState==Player.STATE_ENDED) p.seekTo(local)
                     val duration=source.end?.let {minOf(it-source.start,project.durationMs-source.offset)} ?: p.duration
-                    p.volume=source.volume(local,duration)
+                    renderers[index].processor.liveGain=source.lane?.let {CinemaMix.gain(project,it,source.start+local)} ?: if(CinemaMix.hasSolo(project)) 0f else source.volume(local,duration)
+                    p.volume=1f
                     p.play()
                 }
             }

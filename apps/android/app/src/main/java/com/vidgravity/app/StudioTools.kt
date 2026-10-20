@@ -9,7 +9,10 @@ data class StudioCaption(val startMs: Long, val endMs: Long, val text: String)
 data class StudioAudioLane(
     val id: String = UUID.randomUUID().toString(), val uri: String, val name: String,
     val sourceDurationMs: Long, val startMs: Long = 0, val endMs: Long = sourceDurationMs,
-    val offsetMs: Long = 0, val volume: Float = 0.5f, val fadeInMs: Long = 0, val fadeOutMs: Long = 0
+    val offsetMs: Long = 0, val volume: Float = 0.5f, val fadeInMs: Long = 0, val fadeOutMs: Long = 0,
+    val muted:Boolean=false,val solo:Boolean=false,val role:CinemaAudioRole=CinemaAudioRole.MUSIC,
+    val normalization:Float=1f,val volumeKeys:List<CinemaScalarKey> = emptyList(),val duck:Boolean=false,val duckGain:Float=0.25f,
+    val envelope:CinemaAudioEnvelope?=null
 ) { val durationMs: Long get() = endMs - startMs }
 enum class StudioAspect(val ratio: Float, val label: String) { SOURCE(0f,"Source"), WIDE(16f/9f,"16:9"), PORTRAIT(9f/16f,"9:16"), SQUARE(1f,"1:1"), FEED(4f/5f,"4:5"), CLASSIC(4f/3f,"4:3") }
 data class StudioTools(
@@ -18,10 +21,12 @@ data class StudioTools(
     val captionColor: Int = -1, val captionSize: Int = 32, val captionY: Float = -0.7f,
     val captionFont: String = "sans-serif", val captions: List<StudioCaption> = emptyList(),
     val audio: List<StudioAudioLane> = emptyList(), val frameRate: Int = 0, val bitrate: Int = 0, val soften: Float = 0f, val social: CreatorStyle = CreatorStyle(),
-    val textLayers: List<StudioTextLayer> = emptyList(), val fadeDurationMs: Long = 250
+    val textLayers: List<StudioTextLayer> = emptyList(), val fadeDurationMs: Long = 250,val graphics:List<CinemaGraphic> = emptyList()
 ) {
     fun validate(duration: Long) {
         social.validate()
+        require(graphics.size<=8 && graphics.map {it.id}.distinct().size==graphics.size) {"Use up to eight graphic overlays."}
+        graphics.forEach {it.validate(duration)}
         require(fadeDurationMs in 50..2000)
         require(textLayers.size <= 16 && textLayers.map {it.id}.distinct().size==textLayers.size) { "Use up to sixteen independent text layers." }
         textLayers.forEach {it.validate(duration)}
@@ -36,6 +41,8 @@ data class StudioTools(
         audio.forEach {
             require(LocalMediaPolicy.validUri(it.uri)) { "Choose readable local audio." }
             require(it.startMs >= 0 && it.endMs <= it.sourceDurationMs && it.durationMs >= 100 && it.offsetMs in 0 until duration)
+            require(it.normalization.isFinite() && it.normalization in 0.25f..4f && it.duckGain.isFinite() && it.duckGain in 0f..1f)
+            CinemaCurves.validate(it.volumeKeys,it.sourceDurationMs,0f..2f);it.envelope?.validate(it.sourceDurationMs)
             require(it.volume.isFinite() && it.volume in 0f..1f && it.fadeInMs in 0..it.durationMs && it.fadeOutMs in 0..it.durationMs)
         }
     }
@@ -43,6 +50,7 @@ data class StudioTools(
 
 internal object StudioToolsCodec {
     fun encode(t: StudioTools) = JSONObject().apply {
+        put("graphics",JSONArray().apply {t.graphics.forEach {put(it.json())}})
         put("textLayers",JSONArray().apply {t.textLayers.forEach {put(it.json())}}); put("fadeDuration",t.fadeDurationMs)
         put("brightness",t.brightness); put("contrast",t.contrast); put("saturation",t.saturation)
         put("rotation",t.rotation); put("crop",t.crop); put("aspect",t.aspect.name)
@@ -51,7 +59,9 @@ internal object StudioToolsCodec {
         put("captions",JSONArray().apply { t.captions.forEach { put(JSONObject().put("start",it.startMs).put("end",it.endMs).put("text",it.text)) } })
         put("audio",JSONArray().apply { t.audio.forEach { a -> put(JSONObject().put("id",a.id).put("uri",a.uri).put("name",a.name)
             .put("duration",a.sourceDurationMs).put("start",a.startMs).put("end",a.endMs).put("offset",a.offsetMs)
-            .put("volume",a.volume).put("fadeIn",a.fadeInMs).put("fadeOut",a.fadeOutMs)) } })
+            .put("volume",a.volume).put("fadeIn",a.fadeInMs).put("fadeOut",a.fadeOutMs)
+            .put("muted",a.muted).put("solo",a.solo).put("role",a.role.name).put("normalization",a.normalization)
+            .put("volumeKeys",CinemaCurves.scalarJson(a.volumeKeys)).put("duck",a.duck).put("duckGain",a.duckGain).put("envelope",a.envelope?.json() ?: JSONObject.NULL)) } })
     }
     fun decode(j: JSONObject): StudioTools {
         val c = j.getJSONArray("captions"); val a = j.getJSONArray("audio")
@@ -60,10 +70,12 @@ internal object StudioToolsCodec {
             j.getInt("captionColor"),j.getInt("captionSize"),j.getDouble("captionY").toFloat(),j.getString("captionFont"),
             (0 until c.length()).map { c.getJSONObject(it).let { r -> StudioCaption(r.getLong("start"),r.getLong("end"),r.getString("text")) } },
             (0 until a.length()).map { a.getJSONObject(it).let { r -> StudioAudioLane(r.getString("id"),r.getString("uri"),r.getString("name"),
-                r.getLong("duration"),r.getLong("start"),r.getLong("end"),r.getLong("offset"),r.getDouble("volume").toFloat(),r.getLong("fadeIn"),r.getLong("fadeOut")) } },
+                r.getLong("duration"),r.getLong("start"),r.getLong("end"),r.getLong("offset"),r.getDouble("volume").toFloat(),r.getLong("fadeIn"),r.getLong("fadeOut"),muted=r.optBoolean("muted",false),solo=r.optBoolean("solo",false),
+                role=CinemaAudioRole.valueOf(r.optString("role","MUSIC")),normalization=r.optDouble("normalization",1.0).toFloat(),volumeKeys=CinemaCurves.scalarDecode(r.optJSONArray("volumeKeys")),
+                duck=r.optBoolean("duck",false),duckGain=r.optDouble("duckGain",0.25).toFloat(),envelope=CinemaAudioEnvelope.decode(r.optJSONObject("envelope"))) } },
             j.getInt("frameRate"),j.getInt("bitrate"),j.optDouble("soften",0.0).toFloat(),CreatorStyle.decode(j.optJSONObject("social")),
             textLayers=j.optJSONArray("textLayers")?.let {rows -> (0 until rows.length()).map {StudioTextLayer.decode(rows.getJSONObject(it))}} ?: emptyList(),
-            fadeDurationMs=j.optLong("fadeDuration",250))
+            fadeDurationMs=j.optLong("fadeDuration",250),graphics=j.optJSONArray("graphics")?.let {rows->List(rows.length()) {CinemaGraphic.decode(rows.getJSONObject(it))}} ?: emptyList())
     }
 }
 
@@ -115,7 +127,7 @@ object StudioEdits {
     fun mergeNext(p: StudioProject, index: Int): StudioProject {
         require(index < p.clips.lastIndex)
         val a=p.clips[index]; val b=p.clips[index+1]
-        require(a.uri == b.uri && a.endMs == b.startMs && a.speed == b.speed && a.frame == b.frame && a.opacity == b.opacity && a.audioGain==b.audioGain && a.framingKeys==b.framingKeys) { "Merge requires adjacent ranges from the same source, speed, crop, opacity, gain and pan keys." }
+        require(a.uri == b.uri && a.endMs == b.startMs && a.speed == b.speed && a.frame == b.frame && a.opacity == b.opacity && a.audioGain==b.audioGain && a.framingKeys==b.framingKeys && a.cinema==b.cinema && a.cinema.exit.kind==CinemaTransitionKind.NONE) { "Merge requires adjacent ranges from the same source, speed, crop, opacity, gain, pan keys and cinematic settings, with no internal transition." }
         return p.copy(clips=p.clips.toMutableList().apply { this[index]=a.copy(endMs=b.endMs); removeAt(index+1) })
     }
     fun relink(p: StudioProject, index: Int, replacement: StudioClip): StudioProject {

@@ -149,7 +149,14 @@ internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> 
                 Column(Modifier.padding(16.dp)) {
                     Text(saved.title, style = MaterialTheme.typography.titleMedium)
                     Text("${saved.clips.size} clips · ${saved.durationMs / 1000f}s · ${saved.resolution.label}")
-                    TextButton(onClick = { editing = saved }) { Text("Continue editing") }
+                    TextButton(enabled=!loading,onClick={
+                        loading=true
+                        scope.launch {
+                            try {editing=withContext(Dispatchers.IO) {repository.load(saved.id)}}
+                            catch(failure:Exception) {if(failure is CancellationException) throw failure;message="This project could not reopen. Its saved files were preserved; retry or restore a recovery copy."}
+                            finally {loading=false}
+                        }
+                    }) {Text("Continue editing")}
                     Row {
                         TextButton(enabled=!loading,onClick={scope.launch {
                             try { withContext(Dispatchers.IO) { repository.duplicate(saved) }; reload() }
@@ -189,6 +196,7 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
     var selected by remember(initial.id) { mutableIntStateOf(0) }
     var socialOpen by remember(initial.id) {mutableStateOf(initialWorkspace?.startsWith("template:")==true)}
     var creativeOpen by remember(initial.id) {mutableStateOf(false)}
+    var cinemaOpen by remember(initial.id) {mutableStateOf(false)}
     var creativeBusy by remember(initial.id) {mutableStateOf(false)}
     val initialRecipe=remember(initial.id) {initialWorkspace?.substringAfter("template:")}
     LaunchedEffect(initial.id) {onWorkspaceOpened()}
@@ -214,10 +222,26 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
             next.validate()
             if(next.copy(updatedAt=0)==project.copy(updatedAt=0)) return
             if(next.clips.size!=project.clips.size) android.util.Log.i("VGStudio","timeline.clips=${next.clips.size}")
+            if(next.tools.textLayers.size!=project.tools.textLayers.size || next.tools.graphics.size!=project.tools.graphics.size)
+                android.util.Log.i("VGStudio","cinema.layers text=${next.tools.textLayers.size} graphics=${next.tools.graphics.size}")
             history.record(project,group); project = next.copy(updatedAt=maxOf(System.currentTimeMillis(),project.updatedAt+1)); saveStatus = "Saving…"
             canUndo=history.canUndo; canRedo=history.canRedo
             selected=selected.coerceIn(project.clips.indices); positionMs=positionMs.coerceIn(0,project.durationMs)
-        } catch(failure: IllegalArgumentException) { message=failure.message ?: "This edit would create an invalid timeline." }
+        } catch(failure: IllegalArgumentException) { android.util.Log.w("VGStudio","edit.rejected ${failure.message}");message=failure.message ?: "This edit would create an invalid timeline." }
+    }
+    fun undoEdit() {
+        if(!history.canUndo) return
+        val stamp=maxOf(System.currentTimeMillis(),project.updatedAt+1)
+        project=history.undo(project).copy(updatedAt=stamp);saveStatus="Saving…"
+        canUndo=history.canUndo;canRedo=history.canRedo;selected=selected.coerceIn(project.clips.indices)
+        positionMs=positionMs.coerceIn(0,project.durationMs-1);seekRequest=positionMs
+    }
+    fun redoEdit() {
+        if(!history.canRedo) return
+        val stamp=maxOf(System.currentTimeMillis(),project.updatedAt+1)
+        project=history.redo(project).copy(updatedAt=stamp);saveStatus="Saving…"
+        canUndo=history.canUndo;canRedo=history.canRedo;selected=selected.coerceIn(project.clips.indices)
+        positionMs=positionMs.coerceIn(0,project.durationMs-1);seekRequest=positionMs
     }
     fun seek(value: Long) {
         val target=value.coerceIn(0,project.durationMs-1)
@@ -340,6 +364,14 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
         }
     }
     val clip = project.clips[selected.coerceIn(project.clips.indices)]
+    if(cinemaOpen) {
+        CinematicWorkspace(project,selected,positionMs,seekRequest,canUndo,canRedo,::undoEdit,::redoEdit,
+            onClose={cinemaOpen=false},onSelect={i->seek(project.clips.take(i).sumOf {it.playbackDurationMs})},
+            onSeek=::seek,onPosition={positionMs=it},onEdit=::edit,onAddAudio={audioPicker.launch(arrayOf("audio/*"))},
+            onRecordVoice={cinemaOpen=false;startRecording()},onSave={withContext(Dispatchers.IO) {repository.save(latestProject)}},
+            onExport={cinemaOpen=false;export()},editorMessage=message)
+        return
+    }
     if(socialOpen) {
         SocialCreatorWorkspace(project,selected,onClose={socialOpen=false;creativeBusy=false},onApply={edit(it)},
             onCreate={next -> scope.launch {
@@ -367,10 +399,11 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
             keyboardOptions=KeyboardOptions(imeAction=ImeAction.Done), keyboardActions=KeyboardActions(onDone={focus.clearFocus(); keyboard?.hide()}),
             modifier = Modifier.fillMaxWidth())
         Row {
-            TextButton(enabled=!busy && canUndo,onClick={saveStatus="Saving…"; project=history.undo(project).copy(updatedAt=System.currentTimeMillis()); canUndo=history.canUndo; canRedo=history.canRedo; selected=selected.coerceIn(project.clips.indices)}) {Text("Undo")}
-            TextButton(enabled=!busy && canRedo,onClick={saveStatus="Saving…"; project=history.redo(project).copy(updatedAt=System.currentTimeMillis()); canUndo=history.canUndo; canRedo=history.canRedo; selected=selected.coerceIn(project.clips.indices)}) {Text("Redo")}
+            TextButton(enabled=!busy && canUndo,onClick=::undoEdit) {Text("Undo")}
+            TextButton(enabled=!busy && canRedo,onClick=::redoEdit) {Text("Redo")}
         }
         VgDisclosure("Create tools · Social & Creative",initiallyOpen=true) {
+        Button(enabled=!busy,onClick={focus.clearFocus();keyboard?.hide();cinemaOpen=true},modifier=Modifier.fillMaxWidth().testTag("cinema_open")) {Text("Open Cinema Studio")}
         Button(enabled=!busy,onClick={focus.clearFocus();keyboard?.hide();socialOpen=true},modifier=Modifier.fillMaxWidth().testTag("social_creator")) {Text("Open Social Creator")}
         FilledTonalButton(enabled=!busy,onClick={focus.clearFocus(); keyboard?.hide(); creativeOpen=true},modifier=Modifier.fillMaxWidth().testTag("creative_studio")) {Text("Open AI Tools · Creative Studio")}
         }
@@ -514,7 +547,7 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
 
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 @Composable
-private fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequest: Long, onPosition: (Long)->Unit) {
+internal fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequest: Long, modifier:Modifier=Modifier, compact:Boolean=false, onPosition: (Long)->Unit) {
     val context = LocalContext.current
     var previewError by remember {mutableStateOf<String?>(null)}
     val audioRenderers=remember(clip.id) {SmartAudioRenderers(context,clip.audioGain)}
@@ -531,7 +564,7 @@ private fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequ
             catch(failure:Exception) {previewError="Some preview effects are unavailable. Relink source/branding before export.";emptyList<androidx.media3.common.Effect>()}
         player.setVideoEffects(effects)
         player.setPlaybackSpeed(clip.speed)
-        player.volume = project.originalVolume
+        player.volume = CinemaMix.sourceVolume(project)
         audioRenderers.processor.liveGain=clip.audioGain
         player.seekTo(resumeAt.coerceAtMost(clip.durationMs))
         player.prepare()
@@ -542,12 +575,13 @@ private fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequ
     val lifecycleOwner=androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(player,lifecycleOwner) {
         val observer=androidx.lifecycle.LifecycleEventObserver {_,event -> if(event==androidx.lifecycle.Lifecycle.Event.ON_STOP) player.pause()}
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {lifecycleOwner.lifecycle.removeObserver(observer)}
+        val errors=object:androidx.media3.common.Player.Listener {override fun onPlayerError(error:androidx.media3.common.PlaybackException) {previewError="Preview unavailable. Relink the media or reset cinematic effects; Cinema Studio requires an SDR source."}}
+        player.addListener(errors);lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {player.removeListener(errors);lifecycleOwner.lifecycle.removeObserver(observer)}
     }
     val positionCallback by rememberUpdatedState(onPosition)
     val offset=project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs}
-    LaunchedEffect(player,seekRequest,clip) {
+    LaunchedEffect(player,seekRequest,clip.startMs,clip.endMs,clip.speed) {
         delay(200) // Apply after the debounced media/effect preparation.
         withContext(Dispatchers.Main.immediate) {
             player.pause()
@@ -558,5 +592,5 @@ private fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequ
     DisposableEffect(player) { onDispose { player.release() } }
     previewError?.let {Text(it,color=MaterialTheme.colorScheme.error)}
     AndroidView(factory = { PlayerView(it).apply { this.player = player; useController = true } },
-        update = { it.player = player }, modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+        update = { it.player = player }, modifier = if(compact) modifier.fillMaxWidth().height(156.dp) else modifier.fillMaxWidth().aspectRatio(16f / 9f))
 }

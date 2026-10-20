@@ -1,5 +1,7 @@
 package com.vidgravity.app
 
+import androidx.media3.common.OverlaySettings
+
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -57,9 +59,14 @@ internal object NativeStudioRenderer {
             StudioFilter.INVERT -> effects += RgbFilter.createInvertedFilter()
             else -> Unit
         }
+        val index=project.clips.indexOfFirst {it.id==clip.id}
+        val hasTransition=(index<project.clips.lastIndex && clip.cinema.exit.kind!=CinemaTransitionKind.NONE) || project.clips.getOrNull(index-1)?.cinema?.exit?.kind?.let {it!=CinemaTransitionKind.NONE}==true
+        if(clip.cinema.look!=CinemaLook.ORIGINAL || clip.cinema.grade!=CinemaGrade() || hasTransition) effects+=CinemaVideoEffect(project,clip,clock)
+        if(clip.cinema.motion.isNotEmpty()) effects+=CinemaVideoMotion(clip,clock)
         // Opacity belongs to video; independent text layers keep their own appearance.
-        if(clip.opacity<1f) effects+=RgbMatrix {_,_ ->
-            val g=clip.opacity
+        if(clip.opacity<1f || clip.cinema.motion.isNotEmpty()) effects+=RgbMatrix {timeUs,_ ->
+            val source=(clip.startMs+clock.clipUs(timeUs)/1000.0*clip.speed).toLong()
+            val g=clip.opacity*CinemaCurves.motion(clip.cinema.motion,source).opacity
             floatArrayOf(g,0f,0f,0f, 0f,g,0f,0f, 0f,0f,g,0f, 0f,0f,0f,1f)
         }
         if (project.overlay.isNotBlank()) {
@@ -87,8 +94,12 @@ internal object NativeStudioRenderer {
         val graphics=CreatorOverlays.overlays(context,project,clock)
         if(graphics.isNotEmpty()) effects+=OverlayEffect(graphics)
         if (project.fadeEdges) effects += RgbMatrix { timeUs, _ ->
-            val gain = StudioFade.gain(
-                clock.clipUs(timeUs),clip.playbackDurationMs*1000,tools.fadeDurationMs*1000)
+            val local=clock.clipUs(timeUs);val duration=clip.playbackDurationMs*1000
+            val previousCustom=project.clips.getOrNull(index-1)?.cinema?.exit?.kind?.let {it!=CinemaTransitionKind.NONE}==true
+            val nextCustom=index<project.clips.lastIndex && clip.cinema.exit.kind!=CinemaTransitionKind.NONE
+            val edge=minOf(tools.fadeDurationMs*1000,duration/2).coerceAtLeast(1)
+            val gain = if(!previousCustom && !nextCustom) StudioFade.gain(local,duration,tools.fadeDurationMs*1000)
+                else minOf(1f,if(previousCustom) 1f else local.toFloat()/edge,if(nextCustom) 1f else (duration-local).toFloat()/edge).coerceIn(0f,1f)
             floatArrayOf(gain,0f,0f,0f, 0f,gain,0f,0f, 0f,0f,gain,0f, 0f,0f,0f,1f)
         }
         if (resize) {
@@ -105,6 +116,8 @@ internal object NativeStudioRenderer {
             // before strict AVC encoding, without enabling a silent quality fallback.
             effects += StudioEncoderCanvas()
         }
+        val cinemaGraphics=CinemaGraphics.overlays(context,project,clock)
+        if(cinemaGraphics.isNotEmpty()) effects+=OverlayEffect(cinemaGraphics)
         if(textLayers.isNotEmpty()) {
             // Render titles at output scale rather than rasterizing them onto a tiny import.
             if(!resize) effects+=Presentation.createForHeight(720)
@@ -135,7 +148,7 @@ internal object NativeStudioRenderer {
         val frameRates=if(context!=null && project.tools.frameRate>0)
             project.clips.map {it.uri}.distinct().associateWith {sourceFrameRate(context,it)} else emptyMap()
         val clips = project.clips.map { clip ->
-            val audio = audioEffects(project.originalVolume*clip.audioGain).toMutableList()
+            val audio = audioEffects(CinemaMix.sourceVolume(project)*clip.audioGain).toMutableList()
             if (clip.speed != 1f) audio += SpeedChangingAudioProcessor(object : SpeedProvider {
                 override fun getSpeed(timeUs: Long) = clip.speed
                 override fun getNextSpeedChangeTimeUs(timeUs: Long) = C.TIME_UNSET
@@ -143,12 +156,12 @@ internal object NativeStudioRenderer {
             val source = MediaItem.Builder().setUri(clip.uri).setClippingConfiguration(
                 MediaItem.ClippingConfiguration.Builder().setStartPositionMs(clip.startMs)
                     .setEndPositionMs(clip.endMs).build()).build()
-            EditedMediaItem.Builder(source).setRemoveAudio(project.originalVolume == 0f)
+            EditedMediaItem.Builder(source).setRemoveAudio(CinemaMix.sourceVolume(project) == 0f)
                 .setEffects(Effects(audio, videoEffects(project, clip,context=context,sourceFrameRate=frameRates[clip.uri]))).build()
         }
         val sequences = mutableListOf(EditedMediaItemSequence.Builder(clips).build())
         fun addAudio(uri: String?, volume: Float, loop: Boolean) {
-            if (uri == null || volume == 0f) return
+            if (uri == null || volume == 0f || CinemaMix.hasSolo(project)) return
             val audio = MediaItem.Builder().setUri(uri).setClippingConfiguration(
                 MediaItem.ClippingConfiguration.Builder().setEndPositionMs(project.durationMs).build()).build()
             val item = EditedMediaItem.Builder(audio).setRemoveVideo(true)
@@ -161,8 +174,9 @@ internal object NativeStudioRenderer {
             val end = minOf(lane.endMs, lane.startMs + project.durationMs - lane.offsetMs)
             val media = MediaItem.Builder().setUri(lane.uri).setClippingConfiguration(
                 MediaItem.ClippingConfiguration.Builder().setStartPositionMs(lane.startMs).setEndPositionMs(end).build()).build()
+            val automation=CinemaMix.compile(project,lane)
             val audioItem = EditedMediaItem.Builder(media).setRemoveVideo(true).setEffects(Effects(
-                listOf(StudioVolumeProcessor(lane.volume, (end-lane.startMs)*1000, lane.fadeInMs*1000, lane.fadeOutMs*1000)), emptyList())).build()
+                listOf(StudioVolumeProcessor(1f,gainAtUs={automation(lane.startMs+it/1000)})), emptyList())).build()
             val sequence = EditedMediaItemSequence.Builder(emptyList<EditedMediaItem>())
             if (lane.offsetMs > 0) sequence.addGap(lane.offsetMs * 1000)
             sequence.addItem(audioItem)
@@ -192,6 +206,7 @@ internal object NativeStudioRenderer {
             withContext(Dispatchers.Main.immediate) {
                 suspendCancellableCoroutine<Unit> { continuation ->
                     transformer = Transformer.Builder(context.applicationContext)
+                        .setUsePlatformDiagnostics(false)
                         .apply {
                             if(android.os.Build.VERSION.SDK_INT==29) setAssetLoaderFactory(DefaultAssetLoaderFactory(
                                 context.applicationContext,StudioExportDecoders(context.applicationContext),androidx.media3.common.util.Clock.DEFAULT))
@@ -244,12 +259,13 @@ internal object NativeStudioRenderer {
 
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 internal class StudioVolumeProcessor(private val gain: Float, private val durationUs: Long = Long.MAX_VALUE,
-    private val fadeInUs: Long = 0, private val fadeOutUs: Long = 0) : BaseAudioProcessor() {
+    private val fadeInUs: Long = 0, private val fadeOutUs: Long = 0, private val gainAtUs:((Long)->Float)?=null) : BaseAudioProcessor() {
     @Volatile var liveGain:Float=gain
     private var samples = 0L
     override fun onFlush() { samples = 0 }
     private fun nextGain(): Float {
         val time = (samples++ / inputAudioFormat.channelCount) * 1_000_000L / inputAudioFormat.sampleRate
+        gainAtUs?.let {return it(time)}
         val fadeIn = if (fadeInUs > 0) time.toFloat()/fadeInUs else 1f
         val fadeOut = if (fadeOutUs > 0) (durationUs-time).toFloat()/fadeOutUs else 1f
         return liveGain * minOf(1f,fadeIn,fadeOut).coerceIn(0f,1f)
