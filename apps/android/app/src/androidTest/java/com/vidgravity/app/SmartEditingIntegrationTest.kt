@@ -100,6 +100,44 @@ class SmartEditingIntegrationTest {
             assertTrue(MediaLibraryIndexer.list(context).any {it.uri==published!!.uri && it.mimeType=="image/png"})
         } finally {published?.let {MediaLibraryIndexer.delete(context,LibraryMedia(it.uri,"Smart thumbnail",copy.length(),"image/png",0))};repository.delete(t.id);copy.delete()}
     }
+    @Test fun cutsBeforeMusicPreserveItsFadeAcrossUnchangedVideoBoundaries():Unit=runBlocking {
+        val videoFile=studioFixture("smart-pan.mp4");val musicFile=studioFixture("smart-quiet.mp4")
+        val sourceHashes=listOf(DownloadApi.sha256(videoFile),DownloadApi.sha256(musicFile))
+        val video=source("smart-pan.mp4");val music=source("smart-quiet.mp4")
+        val clips=List(5) {video.copy(id=UUID.randomUUID().toString(),endMs=1000)}
+        val lane=StudioAudioLane(uri=music.uri,name="Fade across video boundary",sourceDurationMs=music.sourceDurationMs,
+            endMs=1800,offsetMs=3000,volume=1f,fadeInMs=1200,fadeOutMs=200)
+        val p=StudioProject(title="Uncut music reference",clips=clips,originalVolume=0f,tools=StudioTools(audio=listOf(lane)))
+        val next=SmartCuts.remove(p,0,listOf(CreativeRange(200,400)))
+        // The music starts after the removed range. Its source, fade and identity
+        // must survive intact while its composition offset moves back 200 ms.
+        assertEquals(listOf(lane.copy(offsetMs=2800)),next.tools.audio)
+        val repository=StudioRepository(context)
+        suspend fun levels(project:StudioProject):List<AudioObservation> {
+            val copy=File(context.cacheDir,"continuity-${UUID.randomUUID()}.mp4")
+            try {
+                var duration=0L
+                render(project) {reader,file->
+                    duration=reader.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)!!.toLong()
+                    assertTrue("Export duration $duration vs ${project.durationMs}",kotlin.math.abs(duration-project.durationMs)<350)
+                    file.copyTo(copy,overwrite=true)
+                }
+                return withTimeout(60_000) {CreativeAnalyzer.waveform(context,StudioAudioLane(uri=android.net.Uri.fromFile(copy).toString(),name="Decoded export",sourceDurationMs=duration))}
+            } finally {copy.delete()}
+        }
+        try {
+            repository.save(next);val saved=repository.load(next.id);assertEquals(next,saved)
+            val reference=levels(p);val actual=levels(saved)
+            for(time in listOf(4000L,4400L)) {
+                val before=reference.first {it.startMs==time}.rms
+                val after=actual.first {it.startMs==time-200}.rms
+                assertTrue("Reference music missing at $time: $before",before>0.005f)
+                assertTrue("Fade restarted at an uncut boundary: $time before=$before after=$after",after/before in 0.8f..1.2f)
+            }
+            assertTrue("Music began before its retimed offset",actual.filter {it.endMs<=2600}.all {it.rms<0.001f})
+        } finally {repository.delete(next.id)}
+        assertEquals(sourceHashes,listOf(DownloadApi.sha256(videoFile),DownloadApi.sha256(musicFile)))
+    }
     @Test fun savedAnalysisCacheAndCancellationKeepProjectAndMediaIntact():Unit=runBlocking {
         val file=studioFixture("creative-source.mp4");val hash=DownloadApi.sha256(file);val c=StudioMediaImports.video(context,MediaLibraryIndexer.localUri(context,file))
         val notes=withTimeout(90_000) {SmartAnalyzer.analyze(context,c) {_,_->}};val events=mutableListOf<String>()

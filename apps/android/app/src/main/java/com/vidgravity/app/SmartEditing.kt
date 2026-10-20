@@ -119,7 +119,20 @@ object SmartCuts {
             };oldOffset+=c.playbackDurationMs
         }
         require(clips.size in 1..12) {"Reviewed cuts must leave 1–12 clips. Select fewer cuts or keep some content."}
-        fun fragments(start:Long,end:Long)=windows.mapNotNull {w->
+        // Video clip boundaries are not cuts in composition time. Keep timed layers
+        // continuous across them, otherwise fades/animations restart and a valid
+        // edit can exceed lane limits merely because the video has many clips.
+        val continuous=mutableListOf<Window>()
+        for(window in windows) {
+            val previous=continuous.lastOrNull()
+            if(previous!=null && previous.oldEnd==window.oldStart &&
+                previous.newStart+previous.length==window.newStart &&
+                previous.oldEnd-previous.oldStart==previous.length &&
+                window.oldEnd-window.oldStart==window.length) {
+                continuous[continuous.lastIndex]=previous.copy(oldEnd=window.oldEnd,length=previous.length+window.length)
+            } else continuous+=window
+        }
+        fun fragments(start:Long,end:Long)=continuous.mapNotNull {w->
             val a=maxOf(start,w.oldStart);val b=minOf(end,w.oldEnd)
             if(b<=a) null else Triple(a,b,CreativeRange(w.newStart+(a-w.oldStart).coerceAtMost(w.length),w.newStart+(b-w.oldStart).coerceAtMost(w.length)))
         }.filter {it.third.durationMs>0}
