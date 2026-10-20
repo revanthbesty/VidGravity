@@ -10,7 +10,7 @@ Open Studio → Open Cinema Studio. Existing camera/library imports, project his
 autosave, recovery, WorkManager export, MediaStore, playback, cancellation, sharing
 and stale-export protection are reused.
 
-- One SDR BT.709 GPU pipeline for selected-clip preview and export: thirteen looks,
+- One SDR BT.709 GPU pipeline (Media3 1.5.1 default transfer-encoded working space) for selected-clip preview and export: thirteen looks,
   adjustable/keyframed look intensity, and eleven manual grade controls. Before/after
   bypass is temporary. Reset, per-clip copy/paste, apply-to-all and twelve local
   atomic custom color presets preserve motion/timing.
@@ -37,6 +37,17 @@ and stale-export protection are reused.
 - New tool workspace inherits Follow System/Dark/Light themes, with teal/blue/amber
   styling, scrollable contextual panels, animated cards/panels and compact real preview.
   No unrelated Home redesign. No accessible HTML design reference was found.
+
+## Verified repairs during validation
+
+Initial API 29/35 rendered assertions exposed a working-space assumption: Media3
+1.5.1's factory constructor uses transfer-encoded `WORKING_COLOR_SPACE_DEFAULT`,
+although the `GlEffect` Javadoc describes linear input. The shader now keeps the
+factory's SDR input/output space and converts only exposure to linear light.
+A new all-patch zero-intensity pixel assertion guards neutrality and orientation.
+Graphics creation controls stay above expandable key editors; separate UI assertions
+verify title creation and then shape creation without increasing timeouts or removing
+persistence assertions. Final CI results determine whether these repairs pass.
 
 ## Verification design
 

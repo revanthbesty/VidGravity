@@ -222,10 +222,12 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
             next.validate()
             if(next.copy(updatedAt=0)==project.copy(updatedAt=0)) return
             if(next.clips.size!=project.clips.size) android.util.Log.i("VGStudio","timeline.clips=${next.clips.size}")
+            if(next.tools.textLayers.size!=project.tools.textLayers.size || next.tools.graphics.size!=project.tools.graphics.size)
+                android.util.Log.i("VGStudio","cinema.layers text=${next.tools.textLayers.size} graphics=${next.tools.graphics.size}")
             history.record(project,group); project = next.copy(updatedAt=maxOf(System.currentTimeMillis(),project.updatedAt+1)); saveStatus = "Saving…"
             canUndo=history.canUndo; canRedo=history.canRedo
             selected=selected.coerceIn(project.clips.indices); positionMs=positionMs.coerceIn(0,project.durationMs)
-        } catch(failure: IllegalArgumentException) { message=failure.message ?: "This edit would create an invalid timeline." }
+        } catch(failure: IllegalArgumentException) { android.util.Log.w("VGStudio","edit.rejected ${failure.message}");message=failure.message ?: "This edit would create an invalid timeline." }
     }
     fun undoEdit() {
         if(!history.canUndo) return

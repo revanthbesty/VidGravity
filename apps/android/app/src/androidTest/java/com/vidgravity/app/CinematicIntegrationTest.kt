@@ -51,6 +51,7 @@ class CinematicIntegrationTest {
         assertEquals(hash,DownloadApi.sha256(file))
     }
 
+    private fun luma(pixel:Int)=0.2126f*Color.red(pixel)+0.7152f*Color.green(pixel)+0.0722f*Color.blue(pixel)
     private fun rgb(pixel:Int)=listOf(Color.red(pixel),Color.green(pixel),Color.blue(pixel))
     @Test fun allThirteenLooksChangeDecodedPixelsAndGradeControlsRender():Unit=runBlocking {
         val source=studioFixture("cinema-chart.mp4");val hash=DownloadApi.sha256(source)
@@ -59,9 +60,14 @@ class CinematicIntegrationTest {
         var reference:IntArray?=null
         fun samples(r:MediaMetadataRetriever)=intArrayOf(color(r),color(r,x=0.2f),color(r,x=0.8f),color(r,x=0.15f,y=0.85f),color(r,x=0.9f,y=0.9f),color(r,x=0.02f,y=0.02f),color(r,x=0.31f))
         render(base) {r,_->reference=samples(r)}
+        render(base.copy(title="Identity color pipeline",clips=listOf(c.copy(cinema=CinemaStyle(CinemaLook.WARM,intensity=0f))))) {r,_->
+            val neutral=samples(r);val before=reference!!
+            neutral.indices.forEach {i->assertTrue("Zero intensity changed source patch $i: ${rgb(before[i])} to ${rgb(neutral[i])}",rgb(neutral[i]).zip(rgb(before[i])).all {(a,b)->kotlin.math.abs(a-b)<10})}
+        }
         for(look in CinemaLook.entries.filter {it!=CinemaLook.ORIGINAL}) {
             render(base.copy(title="Look "+look.name,clips=listOf(c.copy(cinema=CinemaStyle(look))))) {r,_->
                 val actual=samples(r);val before=reference!!
+                android.util.Log.i("VGSmoke","cinema.look=$look reference=${before.map {rgb(it)}} actual=${actual.map {rgb(it)}}")
                 val delta=actual.indices.sumOf {i->rgb(actual[i]).zip(rgb(before[i])).sumOf {(a,b)->kotlin.math.abs(a-b)}}
                 assertTrue("${look.name} did not affect decoded pixels: delta=$delta",delta>12)
                 when(look) {
@@ -69,8 +75,8 @@ class CinematicIntegrationTest {
                     CinemaLook.COOL->assertTrue(Color.blue(actual[0])>Color.red(actual[0])+12)
                     CinemaLook.MONO->assertTrue(rgb(actual[1]).max()-rgb(actual[1]).min()<12)
                     CinemaLook.VIGNETTE->assertTrue(Color.red(actual[5])<Color.red(actual[0])-20)
-                    CinemaLook.GLOW,CinemaLook.DREAMY->assertTrue(Color.red(actual[0])>Color.red(before[0])+10)
-                    CinemaLook.CONTRAST,CinemaLook.SHADOWS->assertTrue(Color.red(actual[3])<Color.red(before[3])-8)
+                    CinemaLook.GLOW,CinemaLook.DREAMY->assertTrue("$look luminance did not rise: ${rgb(before[0])} to ${rgb(actual[0])}",luma(actual[0])>luma(before[0])+10)
+                    CinemaLook.CONTRAST,CinemaLook.SHADOWS->assertTrue("$look dark patch before=${rgb(before[3])} after=${rgb(actual[3])}",Color.red(actual[3])<Color.red(before[3])-8)
                     CinemaLook.FADE->assertTrue(Color.red(actual[3])>Color.red(before[3])+8)
                     else->Unit
                 }

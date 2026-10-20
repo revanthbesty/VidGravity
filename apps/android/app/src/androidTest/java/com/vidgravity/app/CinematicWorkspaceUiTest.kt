@@ -30,7 +30,11 @@ class CinematicWorkspaceUiTest {
         node.performImeAction()
     }
     private fun awaitSaved(repository:StudioRepository,id:String,check:(StudioProject)->Boolean) {
-        compose.waitUntil(15_000) {check(repository.load(id))}
+        try {compose.waitUntil(15_000) {check(repository.load(id))}}
+        catch(failure:androidx.compose.ui.test.ComposeTimeoutException) {
+            val p=repository.load(id)
+            throw AssertionError("Saved state: text=${p.tools.textLayers.size} graphics=${p.tools.graphics.size} audio=${p.tools.audio.size} clips=${p.clips.size}; UI=${compose.onRoot().printToString().take(12000)}",failure)
+        }
     }
     private fun projects() {
         compose.onNodeWithText("Back to editor",substring=false).performClick()
@@ -105,6 +109,7 @@ class CinematicWorkspaceUiTest {
             awaitSaved(repository,p.id) {it.clips[0].cinema.motion.singleOrNull()?.pose?.opacity==0.4f}
             tab("graphics")
             compose.onNodeWithTag("cinema_title_template_1").performScrollTo().performClick()
+            awaitSaved(repository,p.id) {it.tools.textLayers.size==1}
             compose.onNodeWithTag("cinema_add_rectangle").performScrollTo().performClick()
             awaitSaved(repository,p.id) {it.tools.textLayers.size==1 && it.tools.graphics.size==1}
             tab("transitions")

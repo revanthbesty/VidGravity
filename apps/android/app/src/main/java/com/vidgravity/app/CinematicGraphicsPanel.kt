@@ -23,22 +23,22 @@ internal fun CinemaGraphicsPanel(project:StudioProject,positionMs:Long,onEdit:(S
             },modifier=Modifier.testTag("cinema_title_template_$i")) {Text(name)}
         }
     }
-    if(project.tools.textLayers.isNotEmpty()) {
-        Row(Modifier.horizontalScroll(rememberScrollState())) {project.tools.textLayers.forEachIndexed {i,t->FilterChip(selectedTitle==t.id,{selectedTitle=t.id},label={Text("Animate title ${i+1}")})}}
-        val t=project.tools.textLayers.firstOrNull {it.id==selectedTitle} ?: project.tools.textLayers.last()
-        VgDisclosure("Title animation keys",initiallyOpen=true) {
-            CinemaMotionEditor("cinema_title_motion_${t.id}",t.motion,1_800_000,(positionMs-t.startMs+t.motionOffsetMs).coerceAtLeast(0)) {keys->
-                onEdit(project.copy(tools=project.tools.copy(textLayers=project.tools.textLayers.map {if(it.id==t.id) it.copy(motion=keys) else it})),null)
-            }
-        }
-        VgDisclosure("Text, font, colors and timing") {StudioTextPanel(project,true,onEdit)}
-    }
     Row(Modifier.horizontalScroll(rememberScrollState())) {
         CinemaGraphicKind.entries.filter {it!=CinemaGraphicKind.IMAGE}.forEach {kind->OutlinedButton(enabled=project.tools.graphics.size<8,onClick={
             val g=CinemaGraphic(kind=kind,endMs=minOf(4000,project.durationMs),y=0f)
             selectedGraphic=g.id;onEdit(project.copy(tools=project.tools.copy(graphics=project.tools.graphics+g)),null)
         },modifier=Modifier.testTag("cinema_add_${kind.name.lowercase()}")) {Text("Add ${kind.name.lowercase()}")}}
         OutlinedButton(enabled=project.tools.graphics.size<8,onClick=onImage) {Text("Import image overlay")}
+    }
+    if(project.tools.textLayers.isNotEmpty()) {
+        Row(Modifier.horizontalScroll(rememberScrollState())) {project.tools.textLayers.forEachIndexed {i,t->FilterChip(selectedTitle==t.id,{selectedTitle=t.id},label={Text("Animate title ${i+1}")})}}
+        val t=project.tools.textLayers.firstOrNull {it.id==selectedTitle} ?: project.tools.textLayers.last()
+        VgDisclosure("Title animation keys") {
+            CinemaMotionEditor("cinema_title_motion_${t.id}",t.motion,1_800_000,(positionMs-t.startMs+t.motionOffsetMs).coerceAtLeast(0)) {keys->
+                onEdit(project.copy(tools=project.tools.copy(textLayers=project.tools.textLayers.map {if(it.id==t.id) it.copy(motion=keys) else it})),null)
+            }
+        }
+        VgDisclosure("Text, font, colors and timing") {StudioTextPanel(project,true,onEdit)}
     }
     Row(Modifier.horizontalScroll(rememberScrollState())) {project.tools.graphics.forEachIndexed {i,g->FilterChip(selectedGraphic==g.id,{selectedGraphic=g.id},label={Text("Graphic ${i+1}: ${g.kind.name.lowercase()}")})}}
     val g=project.tools.graphics.firstOrNull {it.id==selectedGraphic} ?: project.tools.graphics.lastOrNull()

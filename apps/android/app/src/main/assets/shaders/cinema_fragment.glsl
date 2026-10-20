@@ -13,7 +13,9 @@ uniform float uTime;
 uniform vec2 uTransition;
 varying vec2 vTex;
 
-// Media3 supplies linear BT.709 SDR. Grade in perceptual BT.709 and return linear.
+// Media3 1.5.1 DefaultVideoFrameProcessor uses WORKING_COLOR_SPACE_DEFAULT:
+// SDR textures already carry the SMPTE 170m/BT.709 transfer. Only exposure needs
+// a conversion to linear light; keep input/output in the existing working space.
 vec3 to709(vec3 c) {
   c = max(c, vec3(0.0));
   return mix(4.5*c, 1.099*pow(c,vec3(0.45))-0.099, step(vec3(0.018),c));
@@ -32,7 +34,8 @@ vec3 hueRotate(vec3 c,float angle) {
 }
 vec3 sampleAt(vec2 delta) {return texture2D(uTexSampler,clamp(vTex+delta,vec2(0.0),vec2(1.0))).rgb;}
 vec3 grade(vec3 raw) {
-  vec3 c=to709(max(vec3(0.0),raw*exp2(uGradeA.w)));
+  vec3 c=raw;
+  if(abs(uGradeA.w)>0.00001) c=to709(from709(raw)*exp2(uGradeA.w));
   c+=uGradeA.x;
   c=(c-0.5)*exp2(uGradeA.y*2.0)+0.5;
   float l=dot(c,vec3(0.2126,0.7152,0.0722));
@@ -74,5 +77,5 @@ void main() {
   else if(uLook==13) looked=blur;
   vec3 result=mix(c,clamp(looked,0.0,1.0),uGradeC.w);
   result=mix(result,vec3(uTransition.y),uTransition.x);
-  gl_FragColor=vec4(from709(result),1.0);
+  gl_FragColor=vec4(clamp(result,0.0,1.0),1.0);
 }

@@ -10,7 +10,7 @@ import androidx.media3.common.util.GlUtil
 import androidx.media3.common.util.Size
 import androidx.media3.effect.*
 
-/** The exact same SDR shader and source/output clocks are used by ExoPlayer and Transformer. */
+/** The same SDR shader and clocks serve ExoPlayer/Transformer using Media3 1.5.1’s default SDR working space. */
 @androidx.annotation.OptIn(markerClass=[androidx.media3.common.util.UnstableApi::class])
 internal class CinemaVideoEffect(private val project:StudioProject,private val clip:StudioClip,private val clock:StudioEffectClock):GlEffect {
     override fun toGlShaderProgram(context:Context,useHdr:Boolean):BaseGlShaderProgram {
