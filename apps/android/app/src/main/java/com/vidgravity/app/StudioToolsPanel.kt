@@ -41,24 +41,7 @@ internal fun StudioToolsPanel(project: StudioProject, enabled: Boolean, onEdit: 
         StudioAspect.entries.forEach { a -> FilterChip(t.aspect==a,{tools(t.copy(aspect=a))},enabled=enabled,label={Text(a.label)}) }
     }
     }
-    if(section=="Audio lanes") {
-    Text("Independent audio lanes",style=MaterialTheme.typography.titleLarge)
-    Button(enabled=enabled && t.audio.size<4,onClick=onAddAudio) { Text("Import audio lane") }
-    t.audio.forEachIndexed { index,lane ->
-        fun laneEdit(next: StudioAudioLane, group: String?=null) = tools(t.copy(audio=t.audio.mapIndexed { i,a -> if(i==index) next else a }),group)
-        OutlinedCard(Modifier.fillMaxWidth()) { Column(Modifier.padding(12.dp)) {
-            Text("A${index+1} · ${lane.name}")
-            StudioWaveform(lane,enabled)
-            StudioAdjustment("Lane ${index+1} volume",lane.volume,0f..1f,enabled) {laneEdit(lane.copy(volume=it),"volume-${lane.id}")}
-            StudioAdjustment("Lane ${index+1} start on timeline (ms)",lane.offsetMs.toFloat(),0f..(project.durationMs-1).toFloat(),enabled) {laneEdit(lane.copy(offsetMs=it.toLong()),"offset-${lane.id}")}
-            StudioLongField("Audio source in (ms)",lane.startMs,enabled) {laneEdit(lane.copy(startMs=it))}
-            StudioLongField("Audio source out (ms)",lane.endMs,enabled) {laneEdit(lane.copy(endMs=it))}
-            StudioAdjustment("Audio fade in (ms)",lane.fadeInMs.toFloat(),0f..lane.durationMs.toFloat(),enabled) {laneEdit(lane.copy(fadeInMs=it.toLong()),"fadein-${lane.id}")}
-            StudioAdjustment("Audio fade out (ms)",lane.fadeOutMs.toFloat(),0f..lane.durationMs.toFloat(),enabled) {laneEdit(lane.copy(fadeOutMs=it.toLong()),"fadeout-${lane.id}")}
-            TextButton(enabled=enabled,onClick={tools(t.copy(audio=t.audio.filterIndexed { i,_ -> i!=index }))}) {Text("Remove lane ${index+1}")}
-        } }
-    }
-    }
+    if(section=="Audio lanes") CinemaAudioPanel(project,enabled,onEdit,onAddAudio)
     if(section=="Captions") {
     Text("Captions & titles",style=MaterialTheme.typography.titleLarge)
     Row(Modifier.horizontalScroll(rememberScrollState())) {

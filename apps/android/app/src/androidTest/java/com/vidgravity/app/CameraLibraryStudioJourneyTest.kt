@@ -77,15 +77,19 @@ class CameraLibraryStudioJourneyTest {
             compose.onNodeWithTag("ai_analyze").performScrollTo().performClick()
             compose.waitUntil(90_000) {repository.scan().projects.any {it.title==title && it.clips.any {c->c.smart!=null}}}
             compose.onNodeWithText("Back to editor",substring=false).performClick()
+            compose.onNodeWithTag("cinema_open").performScrollTo().performClick()
+            compose.onNodeWithTag("cinema_look_vignette").performScrollTo().performClick()
+            compose.onNodeWithText("Back to editor",substring=false).performClick()
             val overlay=compose.onNodeWithText("Centered text overlay").performScrollTo()
             overlay.performTextReplacement("CAPTURE TO CREATE");overlay.performImeAction()
             compose.clickStudioToolbar("Mono")
             compose.onNodeWithText("Mono").assertIsSelected()
             compose.onNodeWithText("Save project").performScrollTo().performClick()
             // Earlier autosaves already contain the title/clips/overlay. Wait for this edit too.
-            compose.waitUntil(10_000) {repository.scan().projects.any {it.title==title && it.clips.size==3 && it.overlay=="CAPTURE TO CREATE" && it.filter==StudioFilter.MONO}}
+            compose.waitUntil(10_000) {repository.scan().projects.any {it.title==title && it.clips.size==3 && it.overlay=="CAPTURE TO CREATE" && it.filter==StudioFilter.MONO && it.clips.first().cinema.look==CinemaLook.VIGNETTE}}
             val saved=repository.scan().projects.first {it.title==title};projectId=saved.id
             assertEquals(StudioFilter.MONO,saved.filter)
+            assertEquals(CinemaLook.VIGNETTE,saved.clips.first().cinema.look)
             compose.onNodeWithTag("nav_Library").performClick()
             compose.waitUntil(10_000) {compose.onAllNodes(hasTestTag("nav_Library") and isSelected()).fetchSemanticsNodes().isNotEmpty()}
             compose.onNodeWithTag("nav_Studio").performClick()

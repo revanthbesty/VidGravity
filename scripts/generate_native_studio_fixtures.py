@@ -52,3 +52,20 @@ subprocess.run([
     "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-t", "2", str(output / "smart-quiet.mp4")
 ], check=True)
 print("Generated two-color pan and quiet PCM/AAC normalization fixtures")
+
+# A known SDR chart and three one-second colors make rendered effects measurable.
+subprocess.run([
+    "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+    "color=c=0x808080:size=320x180:rate=20:duration=3,drawbox=x=40:y=45:w=60:h=70:color=red:t=fill,drawbox=x=220:y=45:w=60:h=70:color=blue:t=fill,drawbox=x=20:y=140:w=80:h=30:color=0x404040:t=fill,drawbox=x=220:y=140:w=80:h=30:color=0xC0C0C0:t=fill",
+    "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=3",
+    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-t", "3", str(output / "cinema-chart.mp4")
+], check=True)
+subprocess.run([
+    "ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "color=c=red:size=320x180:rate=20:duration=1",
+    "-f", "lavfi", "-i", "color=c=green:size=320x180:rate=20:duration=1",
+    "-f", "lavfi", "-i", "color=c=blue:size=320x180:rate=20:duration=1",
+    "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=44100:duration=3",
+    "-filter_complex", "[0:v][1:v][2:v]concat=n=3:v=1:a=0[v]", "-map", "[v]", "-map", "3:a",
+    "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-t", "3", str(output / "cinema-steps.mp4")
+], check=True)
+print("Generated measured cinematic chart and stepped-speed fixtures")

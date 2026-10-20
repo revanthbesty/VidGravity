@@ -58,7 +58,7 @@ internal object NativeStudioRenderer {
             else -> Unit
         }
         val index=project.clips.indexOfFirst {it.id==clip.id}
-        val hasTransition=clip.cinema.exit.kind!=CinemaTransitionKind.NONE || project.clips.getOrNull(index-1)?.cinema?.exit?.kind?.let {it!=CinemaTransitionKind.NONE}==true
+        val hasTransition=(index<project.clips.lastIndex && clip.cinema.exit.kind!=CinemaTransitionKind.NONE) || project.clips.getOrNull(index-1)?.cinema?.exit?.kind?.let {it!=CinemaTransitionKind.NONE}==true
         if(clip.cinema.look!=CinemaLook.ORIGINAL || clip.cinema.grade!=CinemaGrade() || hasTransition) effects+=CinemaVideoEffect(project,clip,clock)
         if(clip.cinema.motion.isNotEmpty()) effects+=CinemaVideoMotion(clip,clock)
         // Opacity belongs to video; independent text layers keep their own appearance.
@@ -92,8 +92,12 @@ internal object NativeStudioRenderer {
         val graphics=CreatorOverlays.overlays(context,project,clock)
         if(graphics.isNotEmpty()) effects+=OverlayEffect(graphics)
         if (project.fadeEdges) effects += RgbMatrix { timeUs, _ ->
-            val gain = StudioFade.gain(
-                clock.clipUs(timeUs),clip.playbackDurationMs*1000,tools.fadeDurationMs*1000)
+            val local=clock.clipUs(timeUs);val duration=clip.playbackDurationMs*1000
+            val previousCustom=project.clips.getOrNull(index-1)?.cinema?.exit?.kind?.let {it!=CinemaTransitionKind.NONE}==true
+            val nextCustom=index<project.clips.lastIndex && clip.cinema.exit.kind!=CinemaTransitionKind.NONE
+            val edge=minOf(tools.fadeDurationMs*1000,duration/2).coerceAtLeast(1)
+            val gain = if(!previousCustom && !nextCustom) StudioFade.gain(local,duration,tools.fadeDurationMs*1000)
+                else minOf(1f,if(previousCustom) 1f else local.toFloat()/edge,if(nextCustom) 1f else (duration-local).toFloat()/edge).coerceIn(0f,1f)
             floatArrayOf(gain,0f,0f,0f, 0f,gain,0f,0f, 0f,0f,gain,0f, 0f,0f,0f,1f)
         }
         if (resize) {

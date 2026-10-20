@@ -162,3 +162,18 @@ object CinemaTitles {
             motion=listOf(CinemaMotionKey(0,from,CinemaEase.OUT),CinemaMotionKey(edge,CinemaPose()),CinemaMotionKey(end-edge,CinemaPose(),CinemaEase.IN),CinemaMotionKey(end,from)))
     }
 }
+
+/** Output-time markers, bounded by existing clip/layer/key limits; no media decoding. */
+object CinemaMarkers {
+    fun times(p:StudioProject):List<Long> {
+        val result=mutableListOf<Long>();var offset=0L
+        p.clips.forEach {c->
+            (c.cinema.motion.map {it.timeMs}+c.cinema.lookKeys.map {it.timeMs}).filter {it in c.startMs..c.endMs}.forEach {result+=offset+((it-c.startMs)/c.speed).toLong()}
+            offset+=c.playbackDurationMs
+        }
+        p.tools.audio.forEach {a->a.volumeKeys.filter {it.timeMs in a.startMs..a.endMs}.forEach {result+=a.offsetMs+it.timeMs-a.startMs}}
+        p.tools.textLayers.forEach {t->t.motion.map {t.startMs+it.timeMs-t.motionOffsetMs}.filter {it in t.startMs..t.endMs}.forEach {result+=it}}
+        p.tools.graphics.forEach {g->g.motion.map {g.startMs+it.timeMs-g.motionOffsetMs}.filter {it in g.startMs..g.endMs}.forEach {result+=it}}
+        return result.filter {it in 0..p.durationMs}.distinct().sorted()
+    }
+}

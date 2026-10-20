@@ -78,7 +78,7 @@ internal object CinemaGraphics {
         }
         object:BitmapOverlay() {
             var scale=1f
-            override fun configure(videoSize:Size) {super.configure(videoSize);scale=videoSize.height/720f}
+            override fun configure(videoSize:Size) {super.configure(videoSize);scale=videoSize.width/1280f}
             override fun getBitmap(presentationTimeUs:Long)=bitmap
             override fun getOverlaySettings(presentationTimeUs:Long):OverlaySettings {
                 val t=clock.outputMs(presentationTimeUs);val pose=CinemaCurves.motion(g.motion,t-g.startMs+g.motionOffsetMs)
