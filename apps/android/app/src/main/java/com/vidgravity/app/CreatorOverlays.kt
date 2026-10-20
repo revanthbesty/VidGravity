@@ -1,5 +1,7 @@
 package com.vidgravity.app
 
+import androidx.media3.common.OverlaySettings
+
 import android.content.Context
 import android.graphics.*
 import android.text.SpannableString
@@ -18,7 +20,7 @@ internal object CreatorOverlays {
         val cue=p.tools.captions.firstOrNull {timeMs>=it.startMs && timeMs<it.endMs}
         val phase=if(cue==null) 1f else ((timeMs-cue.startMs)/250f).coerceIn(0f,1f)
         val s=p.tools.social
-        return OverlaySettings.Builder().setBackgroundFrameAnchor(0f,p.tools.captionY+(if(s.animation==CreatorAnimation.SLIDE) (1-phase)*0.15f else 0f))
+        return StaticOverlaySettings.Builder().setBackgroundFrameAnchor(0f,p.tools.captionY+(if(s.animation==CreatorAnimation.SLIDE) (1-phase)*0.15f else 0f))
             .setOverlayFrameAnchor(0f,0f).apply {
                 if(s.animation==CreatorAnimation.FADE) setAlphaScale(phase)
                 if(s.animation==CreatorAnimation.POP) {val scale=0.75f+0.25f*phase;setScale(scale,scale)}
@@ -28,16 +30,16 @@ internal object CreatorOverlays {
         val s=p.tools.social; val result=mutableListOf<TextureOverlay>()
         if(s.watermark.isNotBlank()) result+=object:TextOverlay() {
             override fun getText(presentationTimeUs:Long)=text(s.watermark,p,18)
-            override fun getOverlaySettings(presentationTimeUs:Long)=OverlaySettings.Builder().setBackgroundFrameAnchor(s.x,s.y).setOverlayFrameAnchor(0f,0f).build()
+            override fun getOverlaySettings(presentationTimeUs:Long)=StaticOverlaySettings.Builder().setBackgroundFrameAnchor(s.x,s.y).setOverlayFrameAnchor(0f,0f).build()
         }
         if(s.logo!=null) {
             require(context!=null) {"Logo rendering needs a local media context."}
             val bitmap=context.contentResolver.openInputStream(android.net.Uri.parse(s.logo))!!.use {BitmapFactory.decodeStream(it)} ?: error("Brand logo is missing. Remove or replace branding.")
-            result+=BitmapOverlay.createStaticBitmapOverlay(bitmap,OverlaySettings.Builder().setScale(0.18f,0.18f).setBackgroundFrameAnchor(s.x,-s.y).build())
+            result+=BitmapOverlay.createStaticBitmapOverlay(bitmap,StaticOverlaySettings.Builder().setScale(0.18f,0.18f).setBackgroundFrameAnchor(s.x,-s.y).build())
         }
         if(s.lowerThird.isNotBlank()) result+=object:TextOverlay() {
             override fun getText(presentationTimeUs:Long)=text(if(clock.outputMs(presentationTimeUs)<5000) s.lowerThird else " ",p,24)
-            override fun getOverlaySettings(presentationTimeUs:Long)=OverlaySettings.Builder().setBackgroundFrameAnchor(0f,-0.55f).build()
+            override fun getOverlaySettings(presentationTimeUs:Long)=StaticOverlaySettings.Builder().setBackgroundFrameAnchor(0f,-0.55f).build()
         }
         if(s.progress) result+=object:BitmapOverlay() {
             private val bitmap=Bitmap.createBitmap(512,8,Bitmap.Config.ARGB_8888)
@@ -46,7 +48,7 @@ internal object CreatorOverlays {
                 val fraction=(clock.outputMs(presentationTimeUs).toFloat()/p.durationMs).coerceIn(0f,1f)
                 bitmap.eraseColor(Color.TRANSPARENT);Canvas(bitmap).drawRect(0f,0f,512*fraction,8f,paint);return bitmap
             }
-            override fun getOverlaySettings(presentationTimeUs:Long)=OverlaySettings.Builder().setBackgroundFrameAnchor(0f,-0.94f).build()
+            override fun getOverlaySettings(presentationTimeUs:Long)=StaticOverlaySettings.Builder().setBackgroundFrameAnchor(0f,-0.94f).build()
         }
         return result
     }

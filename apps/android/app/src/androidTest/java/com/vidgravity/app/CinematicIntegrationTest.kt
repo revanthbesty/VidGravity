@@ -197,4 +197,21 @@ class CinematicIntegrationTest {
         }
     }
 
+    @androidx.annotation.OptIn(markerClass=[androidx.media3.common.util.UnstableApi::class])
+    @Test fun reusedFrameProcessorFactoryOwnsIndependentGlLifetimes() {
+        // Media3 1.5.1 retained destroyed contexts in a shared factory provider.
+        // The API29 native crash occurred in EGL teardown, not a Kotlin assertion.
+        val factory=androidx.media3.effect.DefaultVideoFrameProcessor.Factory.Builder().build()
+        val failure=java.util.concurrent.atomic.AtomicReference<androidx.media3.common.VideoFrameProcessingException?>()
+        repeat(6) {
+            val processor=factory.create(context,androidx.media3.common.DebugViewProvider.NONE,
+                androidx.media3.common.ColorInfo.SDR_BT709_LIMITED,true,java.util.concurrent.Executor {it.run()},
+                object:androidx.media3.common.VideoFrameProcessor.Listener {
+                    override fun onError(exception:androidx.media3.common.VideoFrameProcessingException) {failure.set(exception)}
+                })
+            processor.release()
+            assertNull("Processor create/release failed: ${failure.get()}",failure.get())
+        }
+    }
+
 }

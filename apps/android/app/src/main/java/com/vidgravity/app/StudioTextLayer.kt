@@ -3,7 +3,8 @@ package com.vidgravity.app
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.style.*
-import androidx.media3.effect.OverlaySettings
+import androidx.media3.common.OverlaySettings
+import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.effect.TextOverlay
 import org.json.JSONObject
 import java.util.UUID
@@ -63,7 +64,7 @@ internal object StudioTextOverlays {
                 val alpha=if(!active) 0f else if(layer.animation==CreatorAnimation.FADE) phase else 1f
                 val scale=if(layer.animation==CreatorAnimation.POP) 0.75f+0.25f*phase else 1f
                 val pose=CinemaCurves.motion(layer.motion,t-layer.startMs+layer.motionOffsetMs)
-                return OverlaySettings.Builder().setAlphaScale(alpha*pose.opacity).setScale(scale*pose.scale*canvasScale,scale*pose.scale*canvasScale)
+                return StaticOverlaySettings.Builder().setAlphaScale(alpha*pose.opacity).setScale(scale*pose.scale*canvasScale,scale*pose.scale*canvasScale)
                     .setBackgroundFrameAnchor((layer.x+pose.x).coerceIn(-1f,1f),(layer.y+pose.y+if(layer.animation==CreatorAnimation.SLIDE) (1-phase)*0.15f else 0f).coerceIn(-1f,1f))
                     .setOverlayFrameAnchor(0f,0f).setRotationDegrees(layer.rotation+pose.rotation).build()
             }

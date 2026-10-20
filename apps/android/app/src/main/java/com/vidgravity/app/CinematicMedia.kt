@@ -1,5 +1,7 @@
 package com.vidgravity.app
 
+import androidx.media3.common.OverlaySettings
+
 import android.content.Context
 import android.graphics.*
 import android.net.Uri
@@ -10,7 +12,7 @@ import androidx.media3.common.util.GlUtil
 import androidx.media3.common.util.Size
 import androidx.media3.effect.*
 
-/** The same SDR shader and clocks serve ExoPlayer/Transformer using Media3 1.5.1’s default SDR working space. */
+/** The same SDR shader and clocks serve ExoPlayer/Transformer using Media3 1.6.1’s default SDR working space. */
 @androidx.annotation.OptIn(markerClass=[androidx.media3.common.util.UnstableApi::class])
 internal class CinemaVideoEffect(private val project:StudioProject,private val clip:StudioClip,private val clock:StudioEffectClock):GlEffect {
     override fun toGlShaderProgram(context:Context,useHdr:Boolean):BaseGlShaderProgram {
@@ -82,7 +84,7 @@ internal object CinemaGraphics {
             override fun getBitmap(presentationTimeUs:Long)=bitmap
             override fun getOverlaySettings(presentationTimeUs:Long):OverlaySettings {
                 val t=clock.outputMs(presentationTimeUs);val pose=CinemaCurves.motion(g.motion,t-g.startMs+g.motionOffsetMs)
-                return OverlaySettings.Builder().setAlphaScale(if(t in g.startMs until g.endMs) pose.opacity else 0f)
+                return StaticOverlaySettings.Builder().setAlphaScale(if(t in g.startMs until g.endMs) pose.opacity else 0f)
                     .setScale(scale*pose.scale,scale*pose.scale).setRotationDegrees(pose.rotation)
                     .setBackgroundFrameAnchor((g.x+pose.x).coerceIn(-1f,1f),(g.y+pose.y).coerceIn(-1f,1f)).setOverlayFrameAnchor(0f,0f).build()
             }

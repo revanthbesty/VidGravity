@@ -13,7 +13,7 @@ uniform float uTime;
 uniform vec2 uTransition;
 varying vec2 vTex;
 
-// Media3 1.5.1 DefaultVideoFrameProcessor uses WORKING_COLOR_SPACE_DEFAULT:
+// Media3 1.6.1 DefaultVideoFrameProcessor uses WORKING_COLOR_SPACE_DEFAULT:
 // SDR textures already carry the SMPTE 170m/BT.709 transfer. Only exposure needs
 // a conversion to linear light; keep input/output in the existing working space.
 vec3 to709(vec3 c) {

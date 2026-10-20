@@ -21,7 +21,7 @@ class Sprint2Contracts(unittest.TestCase):
         gradle = (ROOT / "apps/android/app/build.gradle.kts").read_text()
         self.assertRegex(gradle, r'versionCode = (18[1-9]|19[0-9]|[2-9][0-9]{2,})')
         self.assertIn('versionName = "1.11.0-sprint12"', gradle)
-        self.assertIn('media3-transformer:1.5.1', gradle)
+        self.assertIn('media3-transformer:1.6.1', gradle)
         manifest = ET.parse(ROOT / "apps/android/app/src/main/AndroidManifest.xml")
         ns = '{http://schemas.android.com/apk/res/android}'
         self.assertTrue(any(p.get(ns + 'name') == 'android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING'

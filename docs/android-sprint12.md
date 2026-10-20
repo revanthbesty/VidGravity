@@ -10,7 +10,7 @@ Open Studio → Open Cinema Studio. Existing camera/library imports, project his
 autosave, recovery, WorkManager export, MediaStore, playback, cancellation, sharing
 and stale-export protection are reused.
 
-- One SDR BT.709 GPU pipeline (Media3 1.5.1 default transfer-encoded working space) for selected-clip preview and export: thirteen looks,
+- One SDR BT.709 GPU pipeline (Media3 1.6.1 default transfer-encoded working space) for selected-clip preview and export: thirteen looks,
   adjustable/keyframed look intensity, and eleven manual grade controls. Before/after
   bypass is temporary. Reset, per-clip copy/paste, apply-to-all and twelve local
   atomic custom color presets preserve motion/timing.
@@ -53,6 +53,16 @@ and asserts visibility before the same touch click. Tool-tab changes reset the b
 scroll position. Separate title/shape persistence assertions and existing timeouts
 remain. Final CI results determine whether these repairs pass.
 
+The corrected graphics workflow then exposed an API29 native SIGSEGV in
+`eglDestroyContextImpl` → `GlUtil.destroyEglContext` → `DefaultGlObjectsProvider.release`.
+Media3 1.5.1's memoized preview factory shared a provider whose release list retained
+destroyed contexts. Upgrade the four existing Media3 modules together to 1.6.1,
+whose factory creates a provider per processor and fixes GL ownership; adopt its
+`common.OverlaySettings` / `StaticOverlaySettings` API without changing overlay
+parameters. A six-cycle same-factory GL create/release instrumentation regression
+covers the lifecycle alongside the original full preview workflows. Platform
+Transformer diagnostics are opted out. Final CI validates this upgrade.
+
 ## Verification design
 
 Existing suites are retained. New JVM tests cover schema compatibility, validation,
@@ -94,8 +104,9 @@ Read actual final GitHub Actions conclusions before claiming a passing result.
 - Image decode is bounded to 512 px and 100 MP source metadata. Media URI access must
   remain valid. Relink media or remove/reset an unreadable overlay to recover.
 - Existing 720p/1080p/4K capability checks remain; no universal 4K/codec claim.
-- No new dependencies or model downloads. Media3/Android APIs already used by the
-  app (Apache 2.0 / Android platform terms); H.264/AAC support remains device supplied.
+- No new SDK families or model downloads. The four existing Media3 modules move
+  together from 1.5.1 to 1.6.1 for the verified GL ownership defect (Apache 2.0);
+  Android platform APIs remain in use; H.264/AAC support remains device supplied.
   No paid SDK, cloud processing or token usage was added.
 
 ## Next scope

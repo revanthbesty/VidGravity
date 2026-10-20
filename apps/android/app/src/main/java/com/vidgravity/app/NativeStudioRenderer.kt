@@ -1,5 +1,7 @@
 package com.vidgravity.app
 
+import androidx.media3.common.OverlaySettings
+
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
@@ -204,6 +206,7 @@ internal object NativeStudioRenderer {
             withContext(Dispatchers.Main.immediate) {
                 suspendCancellableCoroutine<Unit> { continuation ->
                     transformer = Transformer.Builder(context.applicationContext)
+                        .setUsePlatformDiagnostics(false)
                         .apply {
                             if(android.os.Build.VERSION.SDK_INT==29) setAssetLoaderFactory(DefaultAssetLoaderFactory(
                                 context.applicationContext,StudioExportDecoders(context.applicationContext),androidx.media3.common.util.Clock.DEFAULT))
