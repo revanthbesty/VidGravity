@@ -24,6 +24,12 @@ class CinematicWorkspaceUiTest {
         compose.onNodeWithTag("cinema_studio").assertExists()
     }
     private fun tab(name:String) {compose.onNodeWithTag("cinema_tab_$name").performScrollTo().performClick()}
+    private fun graphicsAction(tag:String) {
+        val action=compose.onNodeWithTag(tag)
+        // Reveal the horizontal row in its vertical viewport before scrolling its item.
+        action.onParent().performScrollTo()
+        action.performScrollTo().assertIsDisplayed().performClick()
+    }
     private fun text(tag:String,value:String) {
         val node=compose.onNodeWithTag(tag).performScrollTo()
         node.performTextReplacement(value)
@@ -108,9 +114,9 @@ class CinematicWorkspaceUiTest {
             compose.onNodeWithTag("${motionId}_apply").performScrollTo().performClick()
             awaitSaved(repository,p.id) {it.clips[0].cinema.motion.singleOrNull()?.pose?.opacity==0.4f}
             tab("graphics")
-            compose.onNodeWithTag("cinema_title_template_1").performScrollTo().performClick()
+            graphicsAction("cinema_title_template_1")
             awaitSaved(repository,p.id) {it.tools.textLayers.size==1}
-            compose.onNodeWithTag("cinema_add_rectangle").performScrollTo().performClick()
+            graphicsAction("cinema_add_rectangle")
             awaitSaved(repository,p.id) {it.tools.textLayers.size==1 && it.tools.graphics.size==1}
             tab("transitions")
             compose.onNodeWithTag("cinema_transition_white").performScrollTo().performClick()

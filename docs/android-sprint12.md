@@ -45,9 +45,13 @@ Initial API 29/35 rendered assertions exposed a working-space assumption: Media3
 although the `GlEffect` Javadoc describes linear input. The shader now keeps the
 factory's SDR input/output space and converts only exposure to linear light.
 A new all-patch zero-intensity pixel assertion guards neutrality and orientation.
-Graphics creation controls stay above expandable key editors; separate UI assertions
-verify title creation and then shape creation without increasing timeouts or removing
-persistence assertions. Final CI results determine whether these repairs pass.
+Graphics creation controls stay above expandable key editors. The remaining UI
+failure was verified from node bounds: `performScrollTo` revealed only the nearest
+horizontal row, leaving that row above the vertical viewport; its touch landed on
+the fixed toolbar. The test now scrolls the row vertically, then its item horizontally,
+and asserts visibility before the same touch click. Tool-tab changes reset the body
+scroll position. Separate title/shape persistence assertions and existing timeouts
+remain. Final CI results determine whether these repairs pass.
 
 ## Verification design
 

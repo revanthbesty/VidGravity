@@ -40,6 +40,8 @@ internal fun CinematicWorkspace(project:StudioProject,selected:Int,positionMs:Lo
     val offset=project.clips.take(selected).sumOf {it.playbackDurationMs}
     val sourceTime=(clip.startMs+(positionMs-offset)*clip.speed).toLong().coerceIn(clip.startMs,clip.endMs)
     var tab by remember {mutableIntStateOf(0)}
+    val panelScroll=rememberScrollState()
+    LaunchedEffect(tab) {panelScroll.scrollTo(0)}
     var bypass by remember {mutableStateOf(false)}
     var clipboard by remember {mutableStateOf<CinemaStyle?>(null)}
     var message by remember {mutableStateOf<String?>(null)}
@@ -83,7 +85,7 @@ internal fun CinematicWorkspace(project:StudioProject,selected:Int,positionMs:Lo
         if(working) LinearProgressIndicator(Modifier.fillMaxWidth())
         editorMessage?.let {Text(it,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.labelSmall)}
         message?.let {Text(it,style=MaterialTheme.typography.labelSmall,modifier=Modifier.testTag("cinema_status"))}
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.weight(1f).verticalScroll(panelScroll),verticalArrangement=Arrangement.spacedBy(10.dp)) {
             Text("Selected clip preview · ${positionMs} ms on timeline",style=MaterialTheme.typography.labelSmall)
             StudioLongField("Cinema seek (ms)",positionMs,true,onSeek)
             AnimatedContent(targetState=tab,label="Cinema tool panel",modifier=Modifier.animateContentSize()) {panel->
