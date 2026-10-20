@@ -97,4 +97,13 @@ class CinematicEditingTest {
         val p=StudioProject(title="Merge",clips=listOf(c.copy(endMs=3000),c.copy(id=java.util.UUID.randomUUID().toString(),startMs=3000)))
         try {StudioEdits.mergeNext(p,0);fail()} catch(expected:IllegalArgumentException) {}
     }
+    @Test fun timelineMarkersRespectTrimSpeedOffsetAndOverlayAnimationPhase() {
+        val prefix=clip().copy(endMs=1000)
+        val source=clip().copy(startMs=2000,endMs=4000,speed=2f,cinema=CinemaStyle(motion=listOf(CinemaMotionKey(0),CinemaMotionKey(3000)),lookKeys=listOf(CinemaScalarKey(2500,0.5f))))
+        val overlay=StudioTextLayer(text="Retimed",startMs=500,endMs=1200,motionOffsetMs=1000,
+            motion=listOf(CinemaMotionKey(0),CinemaMotionKey(1100),CinemaMotionKey(3000)))
+        val p=StudioProject(title="Markers",clips=listOf(prefix,source),tools=StudioTools(textLayers=listOf(overlay)))
+        assertEquals(listOf(600L,1250L,1500L),CinemaMarkers.times(p))
+    }
+
 }

@@ -40,14 +40,14 @@ and stale-export protection are reused.
 
 Existing suites are retained. New JVM tests cover schema compatibility, validation,
 interpolation, fingerprint changes, bounded transitions, gain, split continuity,
-cut retiming, safe speed guards and history. Instrumentation adds:
+cut retiming, safe speed guards, trimmed/retimed markers and history. Instrumentation adds:
 
 | Workflow | Automated evidence |
 | --- | --- |
 | Import → look/grade → export | Thirteen real encodes with decoded-pixel checks; warm grade, zero intensity and manual grade checks |
 | Two clips → transitions → export | Black/white boundary pixels, source colors and unchanged duration after save/reopen |
 | Music → mix → export | Decoded RMS: automation, normalization, timed duck, silent solo and split continuity |
-| Title/shape/image → keys → export | Color-masked pixel centroids and disappearance after opacity fade, with saved project |
+| Title/shape/image → keys → export | Color-masked pixel centroids and disappearance after opacity fade, with saved project; clip source-key clock checked across nonzero trim, half-speed and composition offset |
 | Speed → save/reopen → export | Stepped source ranges, expected 3500 ms output, color order and audio-track presence |
 | Camera → Library → effects → export/share | Existing actual emulated CameraX capture journey extended with saved vignette; rendered grayscale/duration/playback/share intent/stale invalidation retained |
 | Existing project → edit → reopen | Schema-6 file opened via actual UI; speed review cancel/apply/undo/redo/reopen; custom presets, color clipboard, light/dark and mixer/motion/graphics persistence UI tests |
@@ -70,7 +70,7 @@ Read actual final GitHub Actions conclusions before claiming a passing result.
   Companion-track monitoring polls at 50 ms and resynchronizes beyond 120 ms;
   export is PCM-sample based. No DAW-grade preview synchronization claim.
 - Normalization is peak-aware RMS over the first 60 seconds, not LUFS normalization,
-  denoising or a limiter. Ducking follows audible/unmuted Voice-lane time intervals,
+  denoising or a limiter. Ducking follows unmuted Voice-lane time intervals,
   not speech/amplitude analysis. Solo excludes original and legacy audio.
 - New shader accepts SDR only. Existing export tone mapping may process HDR sources;
   HDR preview/parity and Android 17 compatibility are not verified here.

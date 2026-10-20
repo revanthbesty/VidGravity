@@ -176,4 +176,19 @@ class CinematicIntegrationTest {
             }}
         } finally {repository.delete(p.id);image.delete()}
     }
+    @Test fun sourceTimeLookAndClipMotionKeysRespectTrimSpeedAndCompositionOffset():Unit=runBlocking {
+        val prefix=clip("cinema-steps.mp4").copy(endMs=500)
+        val keys=listOf(CinemaMotionKey(500,CinemaPose(scale=0.8f,rotation=10f,opacity=1f)),CinemaMotionKey(1500,CinemaPose(scale=0.8f,rotation=10f,opacity=0f)))
+        val c=clip("smart-quiet.mp4").copy(startMs=500,endMs=1500,speed=0.5f,
+            cinema=CinemaStyle(CinemaLook.WARM,motion=keys,lookKeys=listOf(CinemaScalarKey(500,0f),CinemaScalarKey(1000,1f))))
+        val p=StudioProject(title="Source key clock",clips=listOf(prefix,c),originalVolume=0f)
+        render(p) {r,_->
+            val early=color(r,600_000);val middle=color(r,1_500_000);val end=color(r,2_400_000)
+            assertTrue("Trim/speed/offset lost warm intensity keys",Color.red(middle)>Color.blue(middle)+12)
+            assertTrue("Opacity source clock was wrong",Color.red(early)>Color.red(end)+35)
+            val corner=rgb(color(r,1_500_000,x=0.01f,y=0.01f))
+            assertTrue("Clip scale/rotation did not expose black canvas",corner.all {it<20})
+        }
+    }
+
 }
