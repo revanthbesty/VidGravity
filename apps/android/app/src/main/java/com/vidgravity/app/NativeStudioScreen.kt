@@ -149,7 +149,14 @@ internal fun NativeStudioHub(initialMedia: LibraryMedia? = null, onClose: () -> 
                 Column(Modifier.padding(16.dp)) {
                     Text(saved.title, style = MaterialTheme.typography.titleMedium)
                     Text("${saved.clips.size} clips · ${saved.durationMs / 1000f}s · ${saved.resolution.label}")
-                    TextButton(onClick = { editing = saved }) { Text("Continue editing") }
+                    TextButton(enabled=!loading,onClick={
+                        loading=true
+                        scope.launch {
+                            try {editing=withContext(Dispatchers.IO) {repository.load(saved.id)}}
+                            catch(failure:Exception) {if(failure is CancellationException) throw failure;message="This project could not reopen. Its saved files were preserved; retry or restore a recovery copy."}
+                            finally {loading=false}
+                        }
+                    }) {Text("Continue editing")}
                     Row {
                         TextButton(enabled=!loading,onClick={scope.launch {
                             try { withContext(Dispatchers.IO) { repository.duplicate(saved) }; reload() }

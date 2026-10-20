@@ -46,7 +46,7 @@ internal fun ComposeContentTestRule.clickStudioToolbar(label: String) {
 
 /** Wait for the saved card, not the identically named field in the closing editor. */
 internal fun ComposeContentTestRule.reopenStudioProject(title: String) {
-    val action = hasText("Continue editing") and hasAnySibling(hasText(title))
+    val action = hasText("Continue editing") and hasAnySibling(hasText(title)) and isEnabled()
     waitUntil(10_000) { onAllNodes(action).fetchSemanticsNodes().size == 1 }
     onNode(action).performScrollTo().assertIsDisplayed().performClick()
 }

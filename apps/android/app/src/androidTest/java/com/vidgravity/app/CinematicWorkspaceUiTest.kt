@@ -35,15 +35,20 @@ class CinematicWorkspaceUiTest {
     private fun projects() {
         compose.onNodeWithText("Back to editor",substring=false).performClick()
         compose.onNodeWithText("Projects",substring=false).performScrollTo().performClick()
+        compose.waitUntil(15_000) {compose.onAllNodesWithText("Project name").fetchSemanticsNodes().isEmpty()}
     }
     @Test fun colorPresetClipboardUndoRedoThemeAndSaveReopenPreserveEdits() {
         val repository=StudioRepository(context);val p=seeded();repository.save(p)
         val dark=mutableStateOf(true);val presets=CinemaPresetRepository(context);val presetName="UI ${UUID.randomUUID().toString().take(8)}"
         try {
             compose.setContent {VgTheme(dark.value) {NativeStudioHub(onClose={},onBusyChanged={})}}
+            compose.waitUntil(15_000) {compose.onAllNodesWithTag("studio_project_${p.id}").fetchSemanticsNodes().isNotEmpty()}
+            // The displayed card is deliberately stale. Opening it must read the latest disk file.
+            repository.save(p.copy(overlay="Latest saved snapshot",updatedAt=p.updatedAt+1))
             open(p.title)
             compose.onNodeWithTag("cinema_look_warm").performScrollTo().performClick()
             awaitSaved(repository,p.id) {it.clips[0].cinema.look==CinemaLook.WARM}
+            assertEquals("Latest saved snapshot",repository.load(p.id).overlay)
             compose.onNodeWithTag("cinema_compare").performClick()
             compose.onNodeWithTag("cinema_compare").assertIsSelected()
             assertEquals(CinemaLook.WARM,repository.load(p.id).clips[0].cinema.look)

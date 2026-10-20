@@ -30,6 +30,8 @@ and stale-export protection are reused.
   clips; no project-duration change. Existing global fades still work at other edges.
 - Reviewed three-part stepped retiming (.5×/1×/1.5×/2×) with cancel and one undo step.
   Source keys persist. Existing constant speed and freeze frame are preserved.
+- Reopening a saved card loads the latest disk snapshot rather than a stale cached
+  project; the UI regression deliberately updates the file after the card is loaded.
 - Schema 7 defaults safely read schemas 1–6; existing size limits, atomic writes,
   corruption preservation and fingerprint invalidation apply to new data.
 - New tool workspace inherits Follow System/Dark/Light themes, with teal/blue/amber
