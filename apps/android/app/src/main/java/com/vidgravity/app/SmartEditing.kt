@@ -113,7 +113,7 @@ object SmartCuts {
         p.clips.forEachIndexed {i,c->
             val ranges=if(i==index) retained else listOf(CreativeRange(c.startMs,c.endMs))
             ranges.forEachIndexed {part,r->
-                val next=c.copy(id=if(part==0) c.id else UUID.randomUUID().toString(),startMs=r.startMs,endMs=r.endMs)
+                val next=c.copy(id=if(part==0) c.id else UUID.randomUUID().toString(),startMs=r.startMs,endMs=r.endMs,cinema=c.cinema.copy(exit=if(part==ranges.lastIndex) c.cinema.exit else CinemaTransition()))
                 windows+=Window(oldOffset+((r.startMs-c.startMs)/c.speed).toLong(),oldOffset+((r.endMs-c.startMs)/c.speed).toLong(),newOffset,next.playbackDurationMs)
                 clips+=next;newOffset+=next.playbackDurationMs
             };oldOffset+=c.playbackDurationMs
@@ -137,15 +137,17 @@ object SmartCuts {
             if(b<=a) null else Triple(a,b,CreativeRange(w.newStart+(a-w.oldStart).coerceAtMost(w.length),w.newStart+(b-w.oldStart).coerceAtMost(w.length)))
         }.filter {it.third.durationMs>0}
         val captions=p.tools.captions.flatMap {c->fragments(c.startMs,c.endMs).map {c.copy(startMs=it.third.startMs,endMs=it.third.endMs)}}
-        val text=p.tools.textLayers.flatMap {c->fragments(c.startMs,c.endMs).mapIndexed {i,f->c.copy(id=if(i==0) c.id else UUID.randomUUID().toString(),startMs=f.third.startMs,endMs=f.third.endMs)}}
+        val text=p.tools.textLayers.flatMap {c->fragments(c.startMs,c.endMs).mapIndexed {i,f->c.copy(id=if(i==0) c.id else UUID.randomUUID().toString(),startMs=f.third.startMs,endMs=f.third.endMs,motionOffsetMs=c.motionOffsetMs+f.first-c.startMs)}}
+        val graphics=p.tools.graphics.flatMap {c->fragments(c.startMs,c.endMs).mapIndexed {i,f->c.copy(id=if(i==0) c.id else UUID.randomUUID().toString(),startMs=f.third.startMs,endMs=f.third.endMs,motionOffsetMs=c.motionOffsetMs+f.first-c.startMs)}}
         val audio=p.tools.audio.flatMap {a->fragments(a.offsetMs,a.offsetMs+a.durationMs).mapIndexedNotNull {i,f->
             require(f.third.durationMs>=100) {"A retimed audio fragment would be shorter than 100 ms. Apply fewer cuts."}
             a.copy(id=if(i==0) a.id else UUID.randomUUID().toString(),startMs=a.startMs+f.first-a.offsetMs,
                 endMs=a.startMs+f.first-a.offsetMs+f.third.durationMs,offsetMs=f.third.startMs,
-                fadeInMs=(a.fadeInMs-(f.first-a.offsetMs)).coerceIn(0,f.third.durationMs),fadeOutMs=(a.fadeOutMs-(a.offsetMs+a.durationMs-f.second)).coerceIn(0,f.third.durationMs))
+                fadeInMs=(a.fadeInMs-(f.first-a.offsetMs)).coerceIn(0,f.third.durationMs),fadeOutMs=(a.fadeOutMs-(a.offsetMs+a.durationMs-f.second)).coerceIn(0,f.third.durationMs),
+                envelope=if(f.first!=a.offsetMs || f.second!=a.offsetMs+a.durationMs) CinemaMix.envelope(a) else a.envelope)
         }}
-        require(audio.size<=4 && text.size<=16 && captions.size<=100) {"These cuts exceed the audio/text/caption lane limits. Apply fewer cuts; existing layers were preserved."}
-        return p.copy(clips=clips,tools=p.tools.copy(captions=captions,textLayers=text,audio=audio)).also {it.validate()}
+        require(audio.size<=4 && text.size<=16 && captions.size<=100 && graphics.size<=8) {"These cuts exceed the audio/text/caption lane limits. Apply fewer cuts; existing layers were preserved."}
+        return p.copy(clips=clips,tools=p.tools.copy(captions=captions,textLayers=text,audio=audio,graphics=graphics)).also {it.validate()}
     }
     fun split(p:StudioProject,index:Int,sourceMs:Long):StudioProject {
         val c=p.clips[index];val parts=c.split(sourceMs-c.startMs)

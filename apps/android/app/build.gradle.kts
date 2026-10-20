@@ -29,8 +29,8 @@ android {
         minSdk = 26
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         targetSdk = 35
-        versionCode = 190
-        versionName = "1.10.1-sprint11"
+        versionCode = 191
+        versionName = "1.11.0-sprint12"
         buildConfigField("String", "VG_API_BASE_URL", "\"$safeApi\"")
     }
     sourceSets.getByName("main").java.srcDir(if (firebaseEnabled) "src/firebase/java" else "src/guest/java")

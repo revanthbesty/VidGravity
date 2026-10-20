@@ -514,7 +514,7 @@ private fun NativeStudioEditor(initial: StudioProject, repository: StudioReposit
 
 @androidx.annotation.OptIn(markerClass = [androidx.media3.common.util.UnstableApi::class])
 @Composable
-private fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequest: Long, onPosition: (Long)->Unit) {
+internal fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequest: Long, modifier:Modifier=Modifier.fillMaxWidth().aspectRatio(16f / 9f), onPosition: (Long)->Unit) {
     val context = LocalContext.current
     var previewError by remember {mutableStateOf<String?>(null)}
     val audioRenderers=remember(clip.id) {SmartAudioRenderers(context,clip.audioGain)}
@@ -531,7 +531,7 @@ private fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequ
             catch(failure:Exception) {previewError="Some preview effects are unavailable. Relink source/branding before export.";emptyList<androidx.media3.common.Effect>()}
         player.setVideoEffects(effects)
         player.setPlaybackSpeed(clip.speed)
-        player.volume = project.originalVolume
+        player.volume = CinemaMix.sourceVolume(project)
         audioRenderers.processor.liveGain=clip.audioGain
         player.seekTo(resumeAt.coerceAtMost(clip.durationMs))
         player.prepare()
@@ -542,8 +542,9 @@ private fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequ
     val lifecycleOwner=androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(player,lifecycleOwner) {
         val observer=androidx.lifecycle.LifecycleEventObserver {_,event -> if(event==androidx.lifecycle.Lifecycle.Event.ON_STOP) player.pause()}
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {lifecycleOwner.lifecycle.removeObserver(observer)}
+        val errors=object:androidx.media3.common.Player.Listener {override fun onPlayerError(error:androidx.media3.common.PlaybackException) {previewError="Preview unavailable. Relink the media or reset cinematic effects; Cinema Studio requires an SDR source."}}
+        player.addListener(errors);lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {player.removeListener(errors);lifecycleOwner.lifecycle.removeObserver(observer)}
     }
     val positionCallback by rememberUpdatedState(onPosition)
     val offset=project.clips.takeWhile {it.id!=clip.id}.sumOf {it.playbackDurationMs}
@@ -558,5 +559,5 @@ private fun NativeClipPreview(project: StudioProject, clip: StudioClip, seekRequ
     DisposableEffect(player) { onDispose { player.release() } }
     previewError?.let {Text(it,color=MaterialTheme.colorScheme.error)}
     AndroidView(factory = { PlayerView(it).apply { this.player = player; useController = true } },
-        update = { it.player = player }, modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+        update = { it.player = player }, modifier = modifier)
 }

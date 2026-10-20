@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 
 /** Actual decoded PCM RMS, in 200ms bins. Loading is explicit and bounded, never on the UI thread. */
 @Composable
-internal fun StudioWaveform(lane: StudioAudioLane, enabled: Boolean) {
+internal fun StudioWaveform(lane: StudioAudioLane, enabled: Boolean,project:StudioProject?=null) {
     val context=LocalContext.current
     val scope=rememberCoroutineScope()
     var bins by remember(lane.uri,lane.startMs,lane.endMs) {mutableStateOf<List<AudioObservation>?>(null)}
@@ -44,7 +44,7 @@ internal fun StudioWaveform(lane: StudioAudioLane, enabled: Boolean) {
                 val monitor=StudioPreviewAudio(lane.uri,lane.startMs,lane.endMs,lane.offsetMs,lane.volume,lane.fadeInMs,lane.fadeOutMs)
                 values.forEach {bin ->
                     val x=((bin.startMs+bin.endMs)/2f/shown)*size.width
-                    val gain=monitor.volume((bin.startMs+bin.endMs)/2,lane.durationMs)
+                    val gain=if(project==null) monitor.volume((bin.startMs+bin.endMs)/2,lane.durationMs) else CinemaMix.gain(project,lane,lane.startMs+(bin.startMs+bin.endMs)/2)
                     val height=(bin.rms*gain*3).coerceIn(0f,1f)*size.height/2
                     drawLine(color,Offset(x,size.height/2-height),Offset(x,size.height/2+height),maxOf(1f,size.width*160/shown))
                 }
